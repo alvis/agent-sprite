@@ -1,0 +1,299 @@
+import { commandError } from '#errors';
+import { sanitizeGuestDiagnostic } from '#integrations/guest/diagnostics';
+import { inspectGuest } from '#integrations/guest/runtime';
+import { pairT3 } from '#integrations/native';
+import {
+  getSpriteUrl,
+  setManagedSpriteLabels,
+  setSpritePublic,
+  SETUP_READY_LABEL,
+} from '#integrations/sprites';
+import { matchesExitNode } from '#integrations/tailscale';
+import { summarizeMachine } from '#machine';
+import {
+  cancellationReason,
+  checkOperation,
+  currentOperation,
+} from '#operation';
+import { ReadinessFault, assessReadiness } from '#readiness';
+import { PairingSecret } from '#utilities/pairing-secret';
+
+import { configureNewWorkstation } from './configure.js';
+
+import type { Sprite } from '@fly/sprites';
+
+import type { CommandResult } from '#command';
+import type { Interaction } from '#command/contracts';
+import type {
+  CredentialSaveResult,
+  ManagementCredentialName,
+} from '#integrations/credentials';
+import type { GuestInspection } from '#integrations/guest/runtime';
+import type { T3Pairing } from '#integrations/native';
+
+import type { CreateContext, CreatePreflight } from './context.js';
+
+interface ResultContext {
+  sprite: Sprite;
+  observed: GuestInspection;
+  pairing?: T3Pairing;
+  pairingFailure?: string;
+  preflight: CreatePreflight;
+  retainedCredentials?: Partial<
+    Record<ManagementCredentialName, CredentialSaveResult>
+  >;
+}
+
+interface CreateFinalizationContext {
+  sprite: Sprite;
+  observed: GuestInspection;
+  context: CreateContext;
+  interaction?: Interaction;
+}
+
+const PAIRING_REASON_LIMIT = 512;
+
+/**
+ * configure, verify, expose, and pair one newly created private Sprite
+ * @param sprite exact newly created provider Sprite
+ * @param context inputs confirmed before creation
+ * @param interaction optional progress boundary
+ * @returns ready machine and current non-secret guest evidence
+ */
+export async function finishCreate(
+  sprite: Sprite,
+  context: CreateContext,
+  interaction?: Interaction,
+): Promise<CommandResult> {
+  checkOperation();
+  await configureNewWorkstation(
+    sprite,
+    {
+      integrations: context.integrations,
+      authKey: context.authKey,
+      exitNode: context.effectiveExitNode,
+      proxyUrl: context.input.proxyUrl,
+      proxyApiKey: context.input.proxyApiKey,
+      githubToken: context.input.githubToken,
+      githubHost: context.options.githubHost,
+      gitIdentity: context.input.gitIdentity,
+      runtimeEnv: context.input.runtimeEnv,
+      plugins: context.plugins,
+    },
+    interaction,
+  );
+  const observed = await inspectGuest(sprite);
+
+  return finalizeCreate({
+    sprite,
+    observed,
+    context,
+    interaction,
+  });
+}
+
+/**
+ * verifies and exposes a configured Sprite, then handles optional pairing
+ * @param finalization real Sprite, fresh guest inspection, and create inputs
+ * @returns ready machine or a retained ready pairing failure
+ */
+export async function finalizeCreate(
+  finalization: CreateFinalizationContext,
+): Promise<CommandResult> {
+  const { sprite, observed, context } = finalization;
+  assertCreateReadiness(observed, context.effectiveExitNode);
+  getSpriteUrl(sprite);
+  await setSpritePublic(sprite);
+  const readySprite = await setManagedSpriteLabels(sprite, [SETUP_READY_LABEL]);
+
+  return finishReadyCreate({ ...finalization, sprite: readySprite });
+}
+
+/**
+ * keeps optional pairing and cancellation after the confirmed READY boundary
+ * @param ready Sprite returned by the fulfilled READY label update and inputs
+ * @returns ready result or a retained ready cancellation/failure
+ */
+async function finishReadyCreate(
+  ready: CreateFinalizationContext,
+): Promise<CommandResult> {
+  const { sprite, observed, context, interaction } = ready;
+  let pairing: T3Pairing | undefined;
+  let pairingFailure: string | undefined;
+  if (context.options.withT3PairCode) {
+    try {
+      pairing = await pairT3(sprite);
+    } catch (error) {
+      const failure = readyError(error);
+      if (
+        commandError(failure).code === 'CANCELLED' ||
+        failure instanceof TypeError ||
+        failure instanceof SyntaxError ||
+        failure instanceof ReferenceError ||
+        failure instanceof RangeError
+      ) {
+        return readyCreateFailure(ready, failure);
+      }
+      pairingFailure =
+        sanitizeGuestDiagnostic(commandError(failure).message).slice(
+          -PAIRING_REASON_LIMIT,
+        ) || 'T3 pairing could not be completed';
+    }
+  }
+  try {
+    checkOperation();
+    interaction?.progress({
+      stage: 'complete',
+      message: `Workstation ${context.name} is ready`,
+    });
+    const result = createResult({
+      sprite,
+      observed,
+      pairing,
+      pairingFailure,
+      preflight: context.preflight,
+      retainedCredentials: context.input.retainedCredentials,
+    });
+    checkOperation();
+
+    return result;
+  } catch (error) {
+    return readyCreateFailure(ready, error);
+  }
+}
+
+/**
+ * records an error after READY without demoting the retained machine
+ * @param ready confirmed READY Sprite and inputs
+ * @param error pairing, cancellation or result failure
+ * @returns typed retained ready failure with machine identity
+ */
+function readyCreateFailure(
+  ready: CreateFinalizationContext,
+  error: unknown,
+): CommandResult {
+  const { sprite, observed, context } = ready;
+  const failure = commandError(readyError(error));
+
+  return {
+    command: 'create',
+    ok: false,
+    data: {
+      preflight: context.preflight,
+      readiness: assessReadiness(observed),
+      setup: 'ready',
+    },
+    error: {
+      ...failure,
+      outcome: 'retained',
+      machine: sprite.name,
+      machineId: sprite.id,
+      details: [
+        ...(failure.details ?? []),
+        'The workstation is ready; setup was not demoted.',
+        `Pair later: ${pairingRetry(sprite.name)}`,
+      ],
+    },
+  };
+}
+
+/**
+ * uses the invocation signal when a concurrent abort raced a pairing failure
+ * @param error pairing or result failure
+ * @returns cancellation when the invocation has aborted, otherwise the failure
+ */
+function readyError(error: unknown): unknown {
+  return currentOperation()?.signal.aborted ? cancellationReason() : error;
+}
+
+/**
+ * names the explicit command that can mint another pairing code
+ * @param name confirmed READY Sprite name
+ * @returns retry command with a quoted workstation name
+ */
+function pairingRetry(name: string): string {
+  return `agent-sprite show ${JSON.stringify(name)} --with-t3-pair-code`;
+}
+
+/**
+ * withholds public exposure unless the selected route and every current gate pass
+ * @param observed fresh guest inspection
+ * @param selectedExitNode explicit user exit-node IP or hostname
+ */
+function assertCreateReadiness(
+  observed: GuestInspection,
+  selectedExitNode?: string,
+): void {
+  const readiness = assessReadiness(observed);
+  const { failures } = readiness;
+  if (
+    selectedExitNode &&
+    !matchesExitNode(selectedExitNode, observed.tailscale)
+  ) {
+    failures.push('selected exit node');
+  }
+  if (failures.length) {
+    throw new ReadinessFault({ ...readiness, ready: false });
+  }
+}
+
+/**
+ * returns a successful create with pairing only after an explicit request
+ * @param context ready Sprite, guest evidence, and optional pairing
+ * @returns final structured create result
+ */
+function createResult(context: ResultContext): CommandResult {
+  const {
+    sprite,
+    observed,
+    pairing,
+    pairingFailure,
+    preflight,
+    retainedCredentials,
+  } = context;
+
+  return {
+    command: 'create',
+    ok: true,
+    data: {
+      machine: summarizeMachine(
+        sprite,
+        pairing ? new PairingSecret({ token: pairing.token }) : undefined,
+      ),
+      preflight,
+      retainedCredentials,
+      integrations: observed.integrations,
+      readiness: assessReadiness(observed),
+      tailscale: {
+        deviceId: observed.tailscale.deviceId,
+        exitNode: observed.tailscale.exitNode,
+        exitNodeIp: observed.tailscale.exitNodeIp,
+        online: observed.tailscale.online,
+        routeDevice: observed.tailscale.routeDevice,
+        dnsReady: observed.tailscale.dnsReady,
+        egressIp: observed.tailscale.egressIp,
+        skipped: observed.tailscale.skipped,
+        reason: observed.tailscale.reason,
+      },
+      hub: observed.hub,
+      services: observed.services.map((service) => ({
+        name: service.name,
+        state: service.state?.status,
+      })),
+      native: observed.native,
+      pairing: pairing
+        ? {
+            status: 'created',
+            expiresAt: pairing.expiresAt,
+            token: new PairingSecret({ token: pairing.token }),
+          }
+        : pairingFailure
+          ? {
+              status: 'failed',
+              reason: pairingFailure,
+              retry: pairingRetry(sprite.name),
+            }
+          : { status: 'not requested' },
+    },
+  };
+}

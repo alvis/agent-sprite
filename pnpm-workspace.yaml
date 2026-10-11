@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: true
+  node-pty: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - dotenv@18.0.6
+patchedDependencies:
+  node-pty@1.1.0: patches/node-pty@1.1.0.patch

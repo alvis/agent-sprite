@@ -1,0 +1,62 @@
+{
+  "name": "agent-sprite",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#components/*": "./src/components/*.tsx",
+    "#*": "./src/*.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "imports": {
+      "#components/*": "./lib/components/*.js",
+      "#*": "./lib/*.js"
+    }
+  },
+  "bin": {
+    "agent-sprite": "./bin/cli.mjs"
+  },
+  "scripts": {
+    "build": "run build",
+    "lint": "run lint --",
+    "lint:check": "run lint:check",
+    "local": "node scripts/packed-cli.mjs run",
+    "postbuild": "cp src/scripts/bootstrap-node.sh lib/scripts/bootstrap-node.sh && chmod +x bin/cli.mjs",
+    "postlint": "eslint --max-warnings 0 bin && sh -n src/scripts/bootstrap-node.sh",
+    "prepare": "run prepare",
+    "test": "run test",
+    "test:e2e": "node scripts/packed-cli.mjs test:e2e",
+    "test:coverage": "run test:coverage --",
+    "typecheck": "run typecheck"
+  },
+  "dependencies": {
+    "@fly/sprites": "^0.2.3",
+    "@stricli/core": "^1.3.0",
+    "dotenv": "^18.0.6",
+    "execa": "^9.6.1",
+    "ink": "~8.0.0",
+    "react": "^19.3.0",
+    "smol-toml": "^1.9.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@presetter/preset-esm": "^9.1.0",
+    "@presetter/preset-react": "^9.1.0",
+    "@presetter/preset-strict": "^9.1.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "@vitest/coverage-v8": "^4.0.0",
+    "globals": "^17.13.0",
+    "ink-testing-library": "^4.0.0",
+    "node-pty": "^1.1.0",
+    "presetter": "^9.1.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  },
+  "packageManager": "pnpm@12.11.0",
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
