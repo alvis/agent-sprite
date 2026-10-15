@@ -12,19 +12,25 @@ Explain the boundaries that protect live provider truth, native harness configur
 
 ## Constraints
 
-T3 is the sole public service. Optional integrations use direct credentials. Latest-stable maintenance restarts managed services immediately when due. No local machine registry or connector feature exists.
+The selected ACP agent is the sole public service. Optional integrations use direct credentials. Latest-stable maintenance installs in place when due and never restarts a service. No local machine registry or connector feature exists.
 
 ## Documents
 
-| Document                                                                                                                 | Authority                                    | Status   |
-| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- | -------- |
-| [Workstation](workstation.md)                                                                                            | Current structure and runtime boundaries     | Current  |
-| [ADR-1: Native harness configuration and discovery](decisions/workstation/adr-1-native-harness-configuration.md)         | Accepted rationale                           | Accepted |
-| [ADR-2: Independent native plugins and one-time source reuse](decisions/workstation/adr-2-independent-native-plugins.md) | Accepted rationale                           | Accepted |
-| [ADR-3: Live workstation metadata](decisions/workstation/adr-3-live-workstation-metadata.md)                             | Accepted rationale                           | Accepted |
-| [ADR-5: Managed services and maintenance](decisions/workstation/adr-5-managed-services-maintenance.md)                   | Accepted rationale                           | Accepted |
-| [ADR-6: CLI-only interface](decisions/workstation/adr-6-cli-only-interface.md)                                           | Current CLI contract and rationale           | Accepted |
-| [ADR-7: Compiled guest payloads](decisions/workstation/adr-7-compiled-guest-payloads.md)                                 | Guest deployment and serialized installation | Accepted |
-| [ADR-8: Source and packed import aliases](decisions/workstation/adr-8-source-and-packed-import-aliases.md)               | Development and executable-package boundary  | Accepted |
+| Document                                                                                                                          | Authority                                                                 | Status     |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------- |
+| [Workstation](workstation.md)                                                                                                     | Current structure and runtime boundaries                                  | Current    |
+| [ADR-1: Native harness configuration and discovery](decisions/workstation/adr-1-native-harness-configuration.md)                  | Accepted rationale                                                        | Accepted   |
+| [ADR-2: Independent native plugins and one-time source reuse](decisions/workstation/adr-2-independent-native-plugins.md)          | Accepted rationale                                                        | Accepted   |
+| [ADR-3: Live workstation metadata](decisions/workstation/adr-3-live-workstation-metadata.md)                                      | Accepted rationale                                                        | Accepted   |
+| [ADR-6: CLI-only interface](decisions/workstation/adr-6-cli-only-interface.md)                                                    | Current CLI contract and rationale                                        | Accepted   |
+| [ADR-8: Source and packed import aliases](decisions/workstation/adr-8-source-and-packed-import-aliases.md)                        | Development and executable-package boundary                               | Accepted   |
+| [ADR-9: Typed driver catalog, provider capabilities and workstation profile](decisions/workstation/adr-9-typed-driver-catalog.md) | Driver kinds, capability axes and profile validation                      | Accepted   |
+| [ADR-10: Guest code colocated per driver](decisions/workstation/adr-10-colocated-guest-code.md)                                   | Guest code layout and payload inventory; supersedes ADR-7's layout        | Accepted   |
+| [ADR-11: Workflows, selection and shared profile options](decisions/workstation/adr-11-workflow-and-selection-layout.md)          | Homes and import directions for non-driver code                           | Accepted   |
+| [ADR-12: In-place maintenance without service restarts](decisions/workstation/adr-12-in-place-maintenance.md)                     | Updater schedule, skip and no-restart rules; supersedes ADR-5             | Accepted   |
+| [ADR-13: Shared heartbeat idle governor](decisions/workstation/adr-13-idle-governor.md)                                           | Awake inputs, holder state, deadline, sleep rule and adapters             | Accepted   |
+| [ADR-14: Fly persistence, boot script and guest supervisor](decisions/workstation/adr-14-fly-persistence-and-supervisor.md)       | Volume layout, cold-boot rebuild, supervisor and exec limits              | Accepted   |
+| [ADR-7: Compiled guest payloads](decisions/superseded/workstation/adr-7-compiled-guest-payloads.md)                               | Guest compilation, bootstrap and lock rules (layout superseded by ADR-10) | Superseded |
+| [ADR-5: Managed services and maintenance](decisions/superseded/workstation/adr-5-managed-services-maintenance.md)                 | Restarting maintenance (superseded by ADR-12 and ADR-13)                  | Superseded |
 
 Architecture documents describe current structure. Effective ADRs explain accepted choices; historical decision bodies remain unchanged in the superseded archive.

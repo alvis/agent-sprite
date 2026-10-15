@@ -1,5 +1,9 @@
+import { catalog } from '#core/catalog';
 import { operationSignal, runOperation } from '#operation';
 import { isRecord } from '#utilities/guards';
+
+import type { HarnessId } from '#core/catalog';
+
 /** supported recognition outcomes before changing native marketplace state */
 export type MarketplaceCompatibility =
   'supported' | 'unsupported' | 'inaccessible' | 'unknown';
@@ -7,7 +11,7 @@ export type MarketplaceCompatibility =
 /** bounded source compatibility evidence for one native harness */
 export interface MarketplaceClassification {
   source: string;
-  harness: 'claude' | 'codex';
+  harness: HarnessId;
   compatibility: MarketplaceCompatibility;
   manifestPath?: string;
   marketplaceName?: string;
@@ -50,7 +54,7 @@ interface ManifestContext {
  */
 export async function classifyMarketplaceSource(
   source: string,
-  harness: 'claude' | 'codex',
+  harness: HarnessId,
   accessToken?: string,
 ): Promise<MarketplaceClassification> {
   const repository = parseGithubRepository(source);
@@ -110,16 +114,7 @@ async function inspectManifests(
   params: ManifestLookupParams,
 ): Promise<MarketplaceClassification> {
   const { source, harness, repository, branch, headers } = params;
-  const paths =
-    harness === 'codex'
-      ? [
-          '.agents/plugins/marketplace.json',
-          '.agents/plugins/api_marketplace.json',
-          '.claude-plugin/marketplace.json',
-          '.cursor-plugin/marketplace.json',
-        ]
-      : ['.claude-plugin/marketplace.json'];
-  for (const path of paths) {
+  for (const path of catalog.harnesses[harness].plugins.marketplaceManifests) {
     const response = await runOperation(async () =>
       fetch(
         `${GITHUB_API}/repos/${repository.owner}/${repository.name}/contents/${path}?ref=${encodeURIComponent(branch)}`,

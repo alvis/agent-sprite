@@ -10,6 +10,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { HOMEBREW } from '#guest/homebrew';
+
 import {
   configureGit,
   configureGithub,
@@ -19,12 +21,13 @@ import {
 import {
   createFilesystemSprite,
   createNativeCommandExecutor,
+  guestOf,
 } from '../../mocks/sprites.js';
 
 import type { Sprite } from '@fly/sprites';
 
 const success = { stdout: '', stderr: '', exitCode: 0 };
-const protectedGh = '/opt/agent-sprite/tools/gh';
+const protectedGh = HOMEBREW.gh;
 
 function protectedGithubArgs(user: string, args: string[]): string[] {
   return [
@@ -47,7 +50,7 @@ function protectedGithubArgs(user: string, args: string[]): string[] {
 describe('fn:configureGit', () => {
   it('should replace the persisted committer when author and committer identities are reconfigured', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-git-'),
+      join(tmpdir(), 'open-agent-git-'),
     );
     const first = {
       authorName: 'First Author',
@@ -103,12 +106,12 @@ describe('fn:configureGit', () => {
     });
     const committerPath = join(
       directory.path,
-      '/home/agent/.config/agent-sprite/committer.json',
+      '/home/agent/.config/open-agent/committer.json',
     );
 
-    await configureGit(sprite, first);
+    await configureGit(guestOf(sprite), first);
     const initial: unknown = JSON.parse(await readFile(committerPath, 'utf8'));
-    await configureGit(sprite, second);
+    await configureGit(guestOf(sprite), second);
     const updated: unknown = JSON.parse(await readFile(committerPath, 'utf8'));
 
     expect(initial).toEqual({
@@ -125,7 +128,7 @@ describe('fn:configureGit', () => {
 describe('fn:configureGithub', () => {
   it('should route native authentication to the selected hostname and supply credentials only over stdin', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-github-'),
+      join(tmpdir(), 'open-agent-github-'),
     );
     const configDirectory = join(directory.path, '/home/agent/.config');
     await mkdir(configDirectory, { recursive: true, mode: 0o755 });
@@ -150,8 +153,13 @@ describe('fn:configureGithub', () => {
     const login = vi.fn<Sprite['execFileHTTP']>(async () => success);
     Object.assign(sprite, { execFileHTTP: login });
 
-    await configureGithub(sprite, 'enterprise-token', 'github.enterprise.test');
-    await configureGithub(sprite, 'default-token');
+    await configureGithub(guestOf(sprite), 'enterprise-token', {
+      hostname: 'github.enterprise.test',
+      shellAccounts: ['sprite'],
+    });
+    await configureGithub(guestOf(sprite), 'default-token', {
+      shellAccounts: ['sprite'],
+    });
 
     expect(
       login.mock.calls.map(([file, args, options]) => ({
@@ -227,7 +235,7 @@ describe('fn:configureGithub', () => {
 
   it('should explain a rejected native login without leaking its stdin credential', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-github-error-'),
+      join(tmpdir(), 'open-agent-github-error-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
     Object.assign(sprite, {
@@ -239,9 +247,11 @@ describe('fn:configureGithub', () => {
       })),
     });
 
-    const error = await configureGithub(sprite, 'secret-github-value').catch(
-      (failure: Error) => failure,
-    );
+    const error = await configureGithub(
+      guestOf(sprite),
+      'secret-github-value',
+      { shellAccounts: ['sprite'] },
+    ).catch((failure: Error) => failure);
     expect(error).toEqual(
       expect.objectContaining({
         name: 'CommandFault',
@@ -255,7 +265,7 @@ describe('fn:configureGithub', () => {
 
   it('should reject failed status verification even after native login and Git credential setup succeeded', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-github-status-'),
+      join(tmpdir(), 'open-agent-github-status-'),
     );
     const sprite = createFilesystemSprite({
       root: directory.path,
@@ -274,7 +284,11 @@ describe('fn:configureGithub', () => {
       execFileHTTP: vi.fn<Sprite['execFileHTTP']>(async () => success),
     });
 
-    await expect(configureGithub(sprite, 'github-value')).rejects.toEqual(
+    await expect(
+      configureGithub(guestOf(sprite), 'github-value', {
+        shellAccounts: ['sprite'],
+      }),
+    ).rejects.toEqual(
       expect.objectContaining({
         name: 'CommandFault',
         code: 'PROVIDER',
@@ -289,7 +303,7 @@ describe('fn:configureGithub', () => {
 describe('fn:configureRuntimeEnv', () => {
   it('should persist only approved runtime values and reject management credentials before rewriting the file', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-runtime-env-'),
+      join(tmpdir(), 'open-agent-runtime-env-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
     const approved = {
@@ -298,12 +312,12 @@ describe('fn:configureRuntimeEnv', () => {
     };
     const path = join(
       directory.path,
-      '/home/agent/.config/agent-sprite/runtime-env.json',
+      '/home/agent/.config/open-agent/runtime-env.json',
     );
 
-    await configureRuntimeEnv(sprite, approved);
+    await configureRuntimeEnv(guestOf(sprite), approved);
     await expect(
-      configureRuntimeEnv(sprite, {
+      configureRuntimeEnv(guestOf(sprite), {
         SPRITES_TOKEN: 'private',
         HOME: '/malicious',
       }),

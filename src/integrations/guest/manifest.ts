@@ -1,48 +1,42 @@
+import { isNetworkId } from '#core/networks';
+import { parseProfile, validateProfile } from '#core/profile';
 import { CommandFault } from '#errors';
+import { isComponentOutcomes } from '#guest/component-outcome';
+import { GUEST_ROOT } from '#guest/guest-root';
 import { isRecord } from '#utilities/guards';
 
 import { readGuestFile, writeGuestFile } from '../guest.js';
 
 import { withGuestTransaction } from './transaction.js';
 
-import type { Sprite } from '@fly/sprites';
+import type { NetworkId } from '#core/catalog';
+import type { WorkstationProfile } from '#core/profile';
+import type { NetworkIdentityRecorder } from '#drivers/contracts';
+import type { GuestChannel } from '#drivers/guest-channel';
 
-import type {
-  GuestIntegrations,
-  GuestTailnetIdentity,
-  GuestManifest,
-} from './types.js';
+import type { GuestNetworkIdentity, GuestManifest } from './types.js';
 
-const MANIFEST_PATH = '/opt/agent-sprite/manifest.json';
+const MANIFEST_PATH = `${GUEST_ROOT}/manifest.json`;
 const SHARED_FILE_MODE = 0o644;
+const MANIFEST_SCHEMA = 1;
 
-export type {
-  GuestIntegrations,
-  GuestTailnetIdentity,
-  GuestManifest,
-} from './types.js';
-
-const LEGACY_INTEGRATIONS: GuestIntegrations = {
-  tailscale: true,
-  exitNode: true,
-  cliproxyapi: true,
-};
+export type { GuestNetworkIdentity, GuestManifest } from './types.js';
 
 /**
  * revalidates input-dependent choices after the caller acquires guest ownership
- * @param sprite exact target guest
- * @param expected integration choices used to collect the current inputs
+ * @param guest exact target guest
+ * @param expected profile whose choices were used to collect the current inputs
  * @throws {CommandFault} when another transaction changed those choices
  */
-export async function assertGuestIntegrations(
-  sprite: Sprite,
-  expected: GuestIntegrations,
+export async function assertGuestProfile(
+  guest: GuestChannel,
+  expected: WorkstationProfile,
 ): Promise<void> {
-  const fresh = guestIntegrations(await readGuestManifest(sprite));
+  const { profile } = await readGuestManifest(guest);
   if (
-    fresh.tailscale !== expected.tailscale ||
-    fresh.exitNode !== expected.exitNode ||
-    fresh.cliproxyapi !== expected.cliproxyapi
+    profile.network !== expected.network ||
+    profile.options.isExitNodeEnabled !== expected.options.isExitNodeEnabled ||
+    profile.options.isProxyEnabled !== expected.options.isProxyEnabled
   ) {
     throw new CommandFault({
       code: 'CONFLICT',
@@ -54,15 +48,26 @@ export async function assertGuestIntegrations(
 
 /**
  * reads and validates the persistent guest installation manifest
- * @param sprite target guest
+ * @param guest target guest
  * @returns validated schema-one manifest
+ * @throws {CommandFault} when the manifest format version is unknown to this release
  */
 export async function readGuestManifest(
-  sprite: Sprite,
+  guest: GuestChannel,
 ): Promise<GuestManifest> {
   const manifest: unknown = JSON.parse(
-    await readGuestFile(sprite, MANIFEST_PATH),
+    await readGuestFile(guest, MANIFEST_PATH),
   );
+  if (
+    isRecord(manifest) &&
+    manifest.schema !== undefined &&
+    manifest.schema !== MANIFEST_SCHEMA
+  ) {
+    throw new CommandFault({
+      code: 'CONFLICT',
+      message: `Guest manifest format version ${JSON.stringify(manifest.schema)} is not supported by this open-agent release; it was left unchanged`,
+    });
+  }
   if (!isGuestManifest(manifest)) {
     throw new Error('Guest installation manifest is malformed');
   }
@@ -71,55 +76,68 @@ export async function readGuestManifest(
 }
 
 /**
- * persists explicit direct-integration selections without replacing maintenance state
- * @param sprite target guest
- * @param integrations selected direct integrations
+ * persists a changed selection into the stored profile without replacing
+ * maintenance state
+ * @param guest target guest
+ * @param profile selected profile
  */
-export async function writeGuestIntegrations(
-  sprite: Sprite,
-  integrations: GuestIntegrations,
+export async function writeGuestProfile(
+  guest: GuestChannel,
+  profile: WorkstationProfile,
 ): Promise<void> {
-  await withGuestTransaction(sprite, async () => {
-    const manifest = await readGuestManifest(sprite);
-    await writeGuestManifest(sprite, { ...manifest, integrations });
+  await withGuestTransaction(guest, async () => {
+    const manifest = await readGuestManifest(guest);
+    await writeGuestManifest(guest, { ...manifest, profile });
   });
 }
 
 /**
- * persists retained non-secret tailnet cleanup identity
- * @param sprite target guest
- * @param tailnetIdentity observed tailnet identity
+ * persists retained non-secret network cleanup identity with its owning network
+ * @param guest target guest
+ * @param networkIdentity observed network device identity and the network it belongs to
  */
-export async function writeGuestTailnetIdentity(
-  sprite: Sprite,
-  tailnetIdentity: GuestTailnetIdentity,
+export async function writeGuestNetworkIdentity(
+  guest: GuestChannel,
+  networkIdentity: GuestNetworkIdentity,
 ): Promise<void> {
-  await withGuestTransaction(sprite, async () => {
-    const manifest = await readGuestManifest(sprite);
-    await writeGuestManifest(sprite, { ...manifest, tailnetIdentity });
+  await withGuestTransaction(guest, async () => {
+    const manifest = await readGuestManifest(guest);
+    await writeGuestManifest(guest, { ...manifest, networkIdentity });
   });
 }
 
 /**
- * normalizes legacy manifests to their historically enabled integrations
- * @param manifest validated guest manifest
- * @returns explicit integration selections
+ * binds the network identity writer to one guest and the network that owns the device
+ * @param guest target guest
+ * @param network network whose device the recorded identity names
+ * @returns recorder that persists the observed identity and its network in the manifest
  */
-export function guestIntegrations(manifest: GuestManifest): GuestIntegrations {
-  return manifest.integrations ?? LEGACY_INTEGRATIONS;
+export function networkIdentityRecorder(
+  guest: GuestChannel,
+  network: NetworkId,
+): NetworkIdentityRecorder {
+  return async (identity) =>
+    writeGuestNetworkIdentity(guest, { ...identity, network });
 }
 
 /**
  * writes one schema-one manifest
- * @param sprite target guest
+ * @param guest target guest
  * @param manifest complete guest manifest
  */
 export async function writeGuestManifest(
-  sprite: Sprite,
+  guest: GuestChannel,
   manifest: GuestManifest,
 ): Promise<void> {
-  await withGuestTransaction(sprite, async () => {
-    await writeGuestFile(sprite, {
+  const validation = validateProfile(manifest.profile);
+  if (!validation.isValid) {
+    throw new CommandFault({
+      code: 'INPUT',
+      message: validation.violations.map(({ message }) => message).join('; '),
+    });
+  }
+  await withGuestTransaction(guest, async () => {
+    await writeGuestFile(guest, {
       path: MANIFEST_PATH,
       contents: `${JSON.stringify(manifest, null, 2)}\n`,
       mode: SHARED_FILE_MODE,
@@ -135,22 +153,22 @@ export async function writeGuestManifest(
 function isGuestManifest(value: unknown): value is GuestManifest {
   return (
     isRecord(value) &&
-    value.schema === 1 &&
+    value.schema === MANIFEST_SCHEMA &&
     typeof value.createdAt === 'string' &&
     isRecord(value.installedVersions) &&
     Object.values(value.installedVersions).every(
       (version) => typeof version === 'string',
     ) &&
-    (value.integrations === undefined ||
-      (isRecord(value.integrations) &&
-        typeof value.integrations.tailscale === 'boolean' &&
-        typeof value.integrations.exitNode === 'boolean' &&
-        typeof value.integrations.cliproxyapi === 'boolean')) &&
-    (value.tailnetIdentity === undefined ||
-      (isRecord(value.tailnetIdentity) &&
-        (value.tailnetIdentity.deviceId === undefined ||
-          typeof value.tailnetIdentity.deviceId === 'string') &&
-        (value.tailnetIdentity.ip === undefined ||
-          typeof value.tailnetIdentity.ip === 'string')))
+    (value.componentOutcomes === undefined ||
+      isComponentOutcomes(value.componentOutcomes)) &&
+    parseProfile(value.profile).isValid &&
+    (value.networkIdentity === undefined ||
+      (isRecord(value.networkIdentity) &&
+        typeof value.networkIdentity.network === 'string' &&
+        isNetworkId(value.networkIdentity.network) &&
+        (value.networkIdentity.deviceId === undefined ||
+          typeof value.networkIdentity.deviceId === 'string') &&
+        (value.networkIdentity.ip === undefined ||
+          typeof value.networkIdentity.ip === 'string')))
   );
 }

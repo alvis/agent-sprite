@@ -1,5 +1,5 @@
 import { returnOnBack, withBackNavigation } from '#navigation';
-import { hasExplicitPluginActions } from '#plugins';
+import { hasExplicitPluginActions, normalizePluginOptions } from '#plugins';
 
 import type {
   CommandOptions,
@@ -10,15 +10,15 @@ import type {
 
 const SETUP_SECTIONS: Array<InteractionChoice<SetupSection>> = [
   {
-    value: 't3',
-    label: 'T3 Code',
+    value: 'agent',
+    label: 'ACP agent',
     description:
-      'Configure the T3 service; pair via the workstation action menu',
+      'Configure the agent service; pair via the workstation action menu',
   },
   {
-    value: 'tailscale',
-    label: 'Tailscale',
-    description: 'Workstation networking or the shared key on this computer',
+    value: 'network',
+    label: 'Network',
+    description: 'Workstation networking or a shared key on this computer',
   },
   {
     value: 'github',
@@ -33,7 +33,7 @@ const SETUP_SECTIONS: Array<InteractionChoice<SetupSection>> = [
   {
     value: 'proxy',
     label: 'CLIProxyAPI',
-    description: 'Configure Claude and Codex routing to your existing hub',
+    description: 'Configure harness routing to your existing hub',
   },
   {
     value: 'env',
@@ -43,23 +43,22 @@ const SETUP_SECTIONS: Array<InteractionChoice<SetupSection>> = [
   {
     value: 'plugins',
     label: 'Native plugins',
-    description: 'Manage Claude and Codex marketplaces and plugins',
+    description: 'Manage harness marketplaces and plugins',
   },
   {
     value: 'tools',
     label: 'Managed tools',
-    description:
-      'View recorded versions or explicitly update and restart services',
+    description: 'View recorded versions or explicitly update tools in place',
   },
   {
     value: 'all',
     label: 'Full setup / recovery',
-    description: 'Update tools, restart services and configure every section',
+    description: 'Update tools and configure every section',
   },
 ];
 
 /** selected guest section or separately scoped caller-side credential action */
-export type SetupSelection = SetupSection | 'tailscale-credential';
+export type SetupSelection = SetupSection | 'network-credential';
 
 /**
  * selects a setup section from flags or an inline prompt
@@ -71,7 +70,9 @@ export async function selectSetupSection(
   options: CommandOptions,
   interaction?: Interaction,
 ): Promise<SetupSelection> {
-  const explicitPlugins = hasExplicitPluginActions(options);
+  const explicitPlugins = hasExplicitPluginActions(
+    normalizePluginOptions(options),
+  );
   if (explicitPlugins && options.section && options.section !== 'plugins') {
     throw new Error(
       'Explicit plugin actions conflict with the selected setup section',
@@ -80,8 +81,8 @@ export async function selectSetupSection(
   if (options.section) {
     return options.section;
   }
-  if (options.withT3PairCode) {
-    return 't3';
+  if (options.withPairCode) {
+    return 'agent';
   }
   if (explicitPlugins) {
     return 'plugins';
@@ -97,10 +98,10 @@ export async function selectSetupSection(
       { message: 'Choose setup section' },
       SETUP_SECTIONS,
     );
-    if (section !== 'tailscale') {
+    if (section !== 'network') {
       return section;
     }
-    const selected = await selectTailscaleAction(interaction);
+    const selected = await selectNetworkAction(interaction);
     if (selected !== undefined) {
       return selected;
     }
@@ -108,32 +109,32 @@ export async function selectSetupSection(
 }
 
 /**
- * Select guest networking or caller-side credential replacement.
+ * selects guest networking or caller-side credential replacement
  * @param interaction current section menu
  * @returns selected action or back to sections
  */
-async function selectTailscaleAction(
+async function selectNetworkAction(
   interaction: Interaction,
 ): Promise<SetupSelection | undefined> {
   return returnOnBack(async () =>
     withBackNavigation(interaction, 'back to sections').select<SetupSelection>(
       {
-        message: 'Tailscale',
+        message: 'Network',
         description:
           'Guest networking and the key saved on this computer are separate.',
       },
       [
         {
-          value: 'tailscale',
+          value: 'network',
           label: 'Configure workstation networking',
           description:
-            'Tailnet connection and optional exit-node routing on the Sprite',
+            'Private network connection and optional exit-node routing on the workstation',
         },
         {
-          value: 'tailscale-credential',
+          value: 'network-credential',
           label: 'Replace saved API key on this computer',
           description:
-            'Shared local management key; does not change this Sprite',
+            'Shared local management key; does not change this workstation',
         },
       ],
     ),

@@ -1,4 +1,4 @@
-# agent-sprite — Critical Review
+# open-agent — Critical Review
 
 _Reviewed 2026-10-08. Four independent reviews covered logic and security, coding standards and tests, file structure and docs, and CLI UX across `src/` (about 14k LOC), `spec/`, `bin/` and the guest scripts. The owner triaged every finding before this document was written._
 
@@ -78,7 +78,7 @@ Do these first. Each one either breaks a safety boundary or makes the CLI unsafe
 - **Evidence**:
   - `src/workstation-actions.ts:102-106,129-134` forwards the whole `show` request, including `options.yes` and the interactively picked `machine`, to `terminateWorkstation`.
   - `src/terminate.ts:143` then returns `true` when `yes && machine`.
-- **Problem**: running `agent-sprite show --yes`, picking a machine, and choosing **Permanently terminate** deletes the Sprite and its tailnet node immediately. This violates ADR-4's exact-named-target rule. The same flag leak reaches `setupWorkstation`.
+- **Problem**: running `open-agent show --yes`, picking a machine, and choosing **Permanently terminate** deletes the Sprite and its tailnet node immediately. This violates ADR-4's exact-named-target rule. The same flag leak reaches `setupWorkstation`.
 - **Direction**:
   - When the action menu dispatches, rebuild the options with every consent flag cleared (`yes: false`).
   - Better, make `confirmDeletion` require that `request.machine` came from argv rather than from an interactive pick.
@@ -89,7 +89,7 @@ Do these first. Each one either breaks a safety boundary or makes the CLI unsafe
 - **Evidence**:
   - `src/cli/output.tsx:97-113` (`writeHumanError` uses `stdout.write`).
   - An observed run: `list --no-local-credentials` printed `SPRITES_TOKEN is required` on stdout with stderr empty.
-- **Problem**: `agent-sprite list > machines.txt` writes the error into the file and shows the user nothing, and pipes receive error prose as data.
+- **Problem**: `open-agent list > machines.txt` writes the error into the file and shows the user nothing, and pipes receive error prose as data.
 - **Direction**: in human mode, write every `ok:false` result to **stderr**: the message, machine identity, details, recovery hint, and cancellation. stdout carries successful payloads only, and `--json` keeps its single object on stdout. Document the stream contract in the README and fix the sentence that calls errors "results".
 
 ### UX-02 · P1: Ctrl-C is unhandled outside prompts, and keystrokes race between prompts (direction D4)
@@ -373,7 +373,7 @@ src/
 - **Evidence**:
   - The 13 deployable files live in `src/utilities/guest-scripts/`.
   - Three host modules resolve them with different relative depths (`guest-runtime.ts:310-313`, `native/services.ts:104-107`, `guest-tailscale-daemon.ts:31-34`).
-  - `deployGuestPayload` and `PAYLOAD_DIRECTORY` are each defined twice, and `'/opt/agent-sprite…'` is hard-coded 32 times.
+  - `deployGuestPayload` and `PAYLOAD_DIRECTORY` are each defined twice, and `'/opt/open-agent…'` is hard-coded 32 times.
   - Postbuild copying is guarded by `[ -d … ]`, so the build can silently ship without payloads.
 - **Direction (D5, owner amendment)**:
   - Rename the folder to `src/scripts/` and **convert every script to TypeScript**. The `t3-provider-probe/rpc.mjs` helper and `update-schedule.d.mts` fold into normal `.ts` modules.
@@ -393,7 +393,7 @@ src/
 - **Direction (D8, owner override)**:
   - Make aliases the **runtime** import style for cross-folder (barrel-to-barrel) imports in `src`, per FST-MODL-02. `package.json#imports` defaults to source, for example `"#*": "./src/*.ts"` and `"#components/*": "./src/components/*.tsx"`. `publishConfig.imports` overrides them to `"./lib/*.js"` and `"./lib/components/*.js"` when publishing.
   - **Verified 2026-10-08.** With pnpm 11.6.0, `pnpm pack` hoists `publishConfig.imports` into the packed manifest's `imports`, packing still works with `"private": true`, and a tarball installed with `npm i` runs a `#`-aliased bin.
-  - **Local runtime consequence (verified on Node 24.9.0).** In the checkout, `#*` resolves to `src/*.ts`. Node then fails with `ERR_MODULE_NOT_FOUND` (the source's `./x.js` relative imports) and `ERR_UNKNOWN_FILE_EXTENSION ".tsx"`. So `node bin/cli.mjs` and `pnpm link` stop working from the checkout. Add one package script, for example `pnpm run local`, that builds, packs and installs the tarball into a temporary prefix and runs its `agent-sprite`. Both the end-to-end tests (D3) and the README use that path.
+  - **Local runtime consequence (verified on Node 24.9.0).** In the checkout, `#*` resolves to `src/*.ts`. Node then fails with `ERR_MODULE_NOT_FOUND` (the source's `./x.js` relative imports) and `ERR_UNKNOWN_FILE_EXTENSION ".tsx"`. So `node bin/cli.mjs` and `pnpm link` stop working from the checkout. Add one package script, for example `pnpm run local`, that builds, packs and installs the tarball into a temporary prefix and runs its `open-agent`. Both the end-to-end tests (D3) and the README use that path.
   - Move **every `.tsx`** under `src/components/**`. That means `cli/components/*` moves, and `cli/output.tsx` and `cli/interaction.tsx` are split into JSX components under `components/` plus non-JSX logic as `.ts` in `cli/`. Consequently `#components/*` is the only alias that needs a `.tsx` target.
   - Development tooling must resolve `.ts` from `src` under Node 24 (vitest already does).
   - Drop the `#guest/*` alias (D5).
@@ -564,8 +564,8 @@ src/
 - **Direction**: delete `ARCHITECTURE.md` and link `docs/architecture/README.md` directly (or keep it deliberately as the GitHub-convention pointer). Uncomment the logo.
 
 ### UX-15 · P3: Quick Start gaps
-- **Evidence**: `README.md:30-50` and `.env.example` never say where to get a Sprites token. The README uses `node bin/cli.mjs` while help uses `agent-sprite`.
-- **Direction**: add a "get a token" step. Replace `node bin/cli.mjs` with the pack-and-install run script from STR-12 (`pnpm link` will not work under D8), then use `agent-sprite …` everywhere. Add the `npm i -g` instructions only once the owner publishes (D1).
+- **Evidence**: `README.md:30-50` and `.env.example` never say where to get a Sprites token. The README uses `node bin/cli.mjs` while help uses `open-agent`.
+- **Direction**: add a "get a token" step. Replace `node bin/cli.mjs` with the pack-and-install run script from STR-12 (`pnpm link` will not work under D8), then use `open-agent …` everywhere. Add the `npm i -g` instructions only once the owner publishes (D1).
 
 ---
 

@@ -1,19 +1,14 @@
+import { agentPort } from '#core/services';
+import { WorkstationCreationFault } from '#drivers/creation';
 import { commandError, ensureError, retainRecoveryFailure } from '#errors';
 import { sanitizeGuestDiagnostic } from '#integrations/guest/diagnostics';
-import {
-  setManagedSpriteLabels,
-  setSpritePrivate,
-  SpriteCreationOutcomeError,
-  SETUP_INCOMPLETE_LABEL,
-} from '#integrations/sprites';
 import { InteractionExit } from '#navigation';
 import { recoverOperation } from '#operation';
 import { ReadinessFault } from '#readiness';
 import { redactResolved } from '#utilities/redaction';
 
-import type { Sprite } from '@fly/sprites';
-
 import type { CommandResult } from '#command';
+import type { WorkstationRecord } from '#drivers/contracts';
 
 import type { CreateContext, CreatePreflight } from './context.js';
 import type { CreatePreparation } from './preparation.js';
@@ -30,7 +25,7 @@ export function creationOutcome(
   error: unknown,
   preflight: CreatePreflight,
 ): CommandResult {
-  if (!(error instanceof SpriteCreationOutcomeError)) {
+  if (!(error instanceof WorkstationCreationFault)) {
     throw error;
   }
 
@@ -60,30 +55,34 @@ export function creationOutcome(
         ...(failure.details ?? []),
         ...(cause ? [`Creation cause: ${cause}`] : []),
         error.outcome === 'retained'
-          ? 'The retained Sprite requires setup before use.'
+          ? 'The retained workstation requires setup before use.'
           : error.outcome === 'absent'
-            ? 'Provider lookup confirmed this Sprite is absent; creation can be retried.'
-            : 'Inspect the provider for a Sprite with this name before retrying.',
+            ? 'Provider lookup confirmed this workstation is absent; creation can be retried.'
+            : 'Inspect the provider for a workstation with this name before retrying.',
       ],
     },
   };
 }
 
 /**
- * retains an exact failed Sprite and reports a redacted recovery path
- * @param sprite created Sprite that must remain available for setup
+ * retains an exact failed workstation and reports a redacted recovery path
+ * @param workstation created workstation that must remain available for setup
  * @param context inputs that may occur in diagnostic text
  * @param error setup or readiness failure
  * @returns structured incomplete-resource outcome
  */
 export async function markCreateIncomplete(
-  sprite: Sprite,
+  workstation: WorkstationRecord,
   context: CreateContext,
   error: unknown,
 ): Promise<CommandResult> {
   let primary = ensureError(error);
   const privacy = await recoverOperation(async () =>
-    setSpritePrivate(sprite),
+    context.provider.expose(
+      workstation,
+      agentPort(context.input.profile.agent),
+      'private',
+    ),
   ).then(
     () => 'confirmed' as const,
     (failure: unknown) => {
@@ -93,7 +92,7 @@ export async function markCreateIncomplete(
     },
   );
   const incompleteLabel = await recoverOperation(async () =>
-    setManagedSpriteLabels(sprite, [SETUP_INCOMPLETE_LABEL]),
+    context.provider.setMetadata(workstation, { setup: 'incomplete' }),
   ).then(
     () => 'confirmed' as const,
     (failure: unknown) => {
@@ -115,8 +114,8 @@ export async function markCreateIncomplete(
     error: {
       ...failure,
       outcome: 'retained',
-      machine: sprite.name,
-      machineId: sprite.id,
+      machine: workstation.name,
+      machineId: workstation.id,
       setupIncomplete: true,
       details: [
         ...(failure.details ?? []),
@@ -130,14 +129,14 @@ export async function markCreateIncomplete(
               'The incomplete label could not be confirmed; inspect provider state.',
             ]
           : []),
-        `Sprite ${sprite.name} was retained. Run agent-sprite setup ${sprite.name} to recover.`,
+        `Workstation ${workstation.name} was retained. Run open-agent setup ${workstation.name} to recover.`,
       ],
     },
   };
 }
 
 /**
- * reports typed consent or enrollment failures before Sprite creation
+ * reports typed consent or enrollment failures before workstation creation
  * @param error consent or enrollment rejection
  * @returns safe preparation failure, preserving local back navigation
  */
@@ -157,7 +156,7 @@ export function authorizationFailure(error: unknown): CreatePreparation {
         message:
           failure.code === 'CANCELLED'
             ? failure.message
-            : 'Creation authorization failed; no Sprite was created',
+            : 'Creation authorization failed; no workstation was created',
         details: [...(failure.details ?? []), failure.message],
       },
     },

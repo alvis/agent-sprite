@@ -9,7 +9,7 @@ import { redactResolved } from '#utilities/redaction';
 
 describe('fn:discoverGithubToken', () => {
   it('should register a generated token returned by the installed gh process', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'agent-sprite-gh-'));
+    const directory = await mkdtemp(join(tmpdir(), 'open-agent-gh-'));
     const token = 'saf08-generated-gh-process-token';
     vi.stubEnv('GH_CONFIG_DIR', directory);
     vi.stubEnv('GH_TOKEN', token);

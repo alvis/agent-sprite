@@ -1,3 +1,4 @@
+import { networksWithInputs } from '#core/networks';
 import { CommandFault } from '#errors';
 import { saveLocalCredential } from '#integrations/credentials';
 import { rememberSecret } from '#utilities/redaction';
@@ -5,24 +6,26 @@ import { rememberSecret } from '#utilities/redaction';
 import type { CommandResult } from '#command';
 import type { CommandOptions, Interaction } from '#command/contracts';
 import type { LocalCredentialData } from '#command/data';
+import type { NetworkWithInputs } from '#core/networks';
 import type { CredentialStoreLocation } from '#integrations/credentials';
 
 /**
- * replaces the shared caller-side Tailscale key only after explicit consent
+ * replaces a shared caller-side network management key only after explicit consent
  * @param interaction local secret and confirmation prompts
  * @param options parsed consent options
  * @param location optional exact real store for an isolated caller
  * @returns non-secret storage outcome without a workstation-scoped identity
  */
-export async function replaceTailscaleCredential(
+export async function replaceNetworkCredential(
   interaction: Interaction,
   options: CommandOptions = {},
   location?: CredentialStoreLocation,
 ): Promise<LocalCredentialData> {
+  const network = await selectCredentialNetwork(interaction);
   const accepted = options.yes
     ? true
     : await interaction.confirm({
-        message: 'Replace the saved Tailscale API key on this computer?',
+        message: `Replace the saved ${network.displayName} API key on this computer?`,
         description:
           'Shared by all workstations. Does not change guest networking. Explicit env/flag credentials still take precedence.',
       });
@@ -35,15 +38,19 @@ export async function replaceTailscaleCredential(
     };
   }
   const replacement = await interaction.secret({
-    message: 'New local Tailscale management API key',
+    message: `New local ${network.inputs.management.prompt}`,
     required: true,
   });
   rememberSecret(replacement);
-  const storage = await saveLocalCredential('tailscale', replacement, {
-    consent: true,
-    allowProtectedFileFallback: true,
-    location,
-  });
+  const storage = await saveLocalCredential(
+    network.inputs.management.store,
+    replacement,
+    {
+      consent: true,
+      allowProtectedFileFallback: true,
+      location,
+    },
+  );
 
   return {
     localCredential: {
@@ -77,6 +84,36 @@ export async function setupLocalCredential(
   return {
     command: 'setup',
     ok: true,
-    data: await replaceTailscaleCredential(interaction, options, location),
+    data: await replaceNetworkCredential(interaction, options, location),
   };
+}
+
+/**
+ * picks the network whose saved key is replaced, asking only among several
+ * @param interaction local prompts
+ * @returns the network driver
+ */
+async function selectCredentialNetwork(
+  interaction: Interaction,
+): Promise<NetworkWithInputs> {
+  const networks = networksWithInputs();
+  const [only] = networks;
+  if (!only) {
+    throw new CommandFault({
+      code: 'USAGE',
+      message: 'No registered network keeps a local management credential',
+    });
+  }
+  if (networks.length === 1) {
+    return only;
+  }
+  const id = await interaction.select(
+    { message: 'Network' },
+    networks.map(({ id: value, displayName }) => ({
+      value,
+      label: displayName,
+    })),
+  );
+
+  return networks.find((network) => network.id === id) ?? only;
 }

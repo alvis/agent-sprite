@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { runTerminal } from '../fixtures/terminal.js';
 
-const packedBin = process.env.AGENT_SPRITE_PACKED_BIN;
+const packedBin = process.env.OPEN_AGENT_PACKED_BIN;
 
 describe('workflow:installed CLI automation reporting', () => {
   it('should retain redacted warnings and errors while quiet suppresses routine status', async () => {
@@ -61,7 +61,7 @@ describe('workflow:installed CLI automation reporting', () => {
 
   it('should keep real stage progress on stderr and one JSON result on stdout across quiet modes', async () => {
     expect(packedBin).toBeDefined();
-    const cwd = await mkdtemp(join(tmpdir(), 'agent-sprite-progress-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'open-agent-progress-'));
     try {
       const secret = 'pol03-selected-env-private-value';
       const envPath = join(cwd, 'selected.env');
@@ -142,11 +142,11 @@ describe('workflow:installed CLI automation reporting', () => {
       expect(human.stdout).toBe('');
       expect(human.stderr).toContain('environment: started');
       expect(human.stderr).toContain('command: failed');
-      expect(human.stderr).toContain('SPRITES_TOKEN is required.');
+      expect(human.stderr).toContain('Set SPRITES_TOKEN');
       expect(human.stderr).not.toContain(secret);
       expect(quietHuman.exitCode).toBe(1);
       expect(quietHuman.stdout).toBe('');
-      expect(quietHuman.stderr).toContain('SPRITES_TOKEN is required.');
+      expect(quietHuman.stderr).toContain('Set SPRITES_TOKEN');
       expect(quietHuman.stderr).not.toContain('environment: started');
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -155,7 +155,7 @@ describe('workflow:installed CLI automation reporting', () => {
 
   it('should explain redirected stderr only when it implicitly blocks a needed prompt', async () => {
     expect(packedBin).toBeDefined();
-    const cwd = await mkdtemp(join(tmpdir(), 'agent-sprite-prompt-mode-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'open-agent-prompt-mode-'));
     try {
       const errorPath = join(cwd, 'error.log');
       const env = {

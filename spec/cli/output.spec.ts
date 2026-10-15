@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { prepareResult, writePreparedResult, writeResult } from '#cli/output';
 import { serializeResult } from '#cli/serialization';
@@ -9,12 +9,16 @@ import { resolveSecret } from '#input/sources';
 import { PairingSecret } from '#utilities/pairing-secret';
 import { rememberSecret } from '#utilities/redaction';
 
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+
 import type { CommandOptions, CommandResult } from '#command';
 import type { CurrentReadiness } from '#command/data';
+import type { GovernorState } from '#guest/idle/state';
 import type { GuestInspection } from '#integrations/guest/runtime';
 import type { MachineSummary } from '#machine';
 
-const machine: MachineSummary = {
+const machine: MachineSummary & { provider: 'sprite' } = {
+  provider: 'sprite',
   id: 'sprite-primary',
   name: 'primary',
   organization: 'example',
@@ -23,32 +27,52 @@ const machine: MachineSummary = {
   readiness: 'not inspected',
 };
 
+const RECORDED_GOVERNOR: GovernorState = {
+  version: 1,
+  updatedAt: '2026-10-09T00:10:00.000Z',
+  keepAwakeMode: 'native-deadline',
+  idleTimeoutMinutes: 5,
+  holdMaxMinutes: 60,
+  lastHeartbeat: '2026-10-09T00:10:00.000Z',
+  holds: [],
+  openHolds: 0,
+  deadline: '2026-10-09T00:15:00.000Z',
+  sleepPermitted: false,
+  diagnostics: [],
+};
 const inspection: GuestInspection = {
   services: [],
-  tailscale: {
+  network: {
     online: false,
     dnsReady: false,
     skipped: true,
-    reason: 'Tailscale is disabled',
+    reason: 'No private network is selected',
   },
   native: {
     claude: {
       gatewayConfigured: false,
       modelDiscoveryEnabled: false,
       pluginListAvailable: false,
+      awakeHooksInstalled: false,
       authentication: 'not-configured',
     },
     codex: {
       gatewayConfigured: false,
       modelDiscoveryEnabled: false,
       pluginListAvailable: false,
+      awakeHooksInstalled: false,
       authentication: 'not-configured',
     },
-    t3ClaudePluginLoading: 'not-verified',
-    t3CodexPluginLoading: 'not-verified',
-    claudeSdkPluginLoading: 'not-verified',
-    selectedClaudePlugins: [],
-    selectedCodexPlugins: [],
+    harnesses: {
+      claude: {
+        selectedPlugins: [],
+        evidence: { sdkPluginLoading: 'not-verified' },
+      },
+      codex: {
+        selectedPlugins: [],
+        evidence: undefined,
+      },
+    },
   },
   hub: {
     skipped: true,
@@ -59,9 +83,10 @@ const inspection: GuestInspection = {
     schema: 1,
     createdAt: '2026-10-09T00:00:00.000Z',
     installedVersions: {},
+    profile: DISABLED_NETWORK_PROFILE,
   },
-  integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
   probeFailures: [],
+  governor: { recorded: true, state: RECORDED_GOVERNOR },
 };
 
 /**
@@ -111,13 +136,14 @@ describe('fn:writeResult', () => {
       command: 'list',
       ok: true,
       data: {
+        unavailable: [],
         machines: [
           {
             ...machine,
             name: 'alpha',
             id: 'sprite-alpha',
             createdAt: '2026-10-09T12:00:00.000Z',
-            t3Url: 'https://alpha.sprites.app/',
+            agentUrl: 'https://alpha.sprites.app/',
             organization: 'org-one',
           },
           {
@@ -126,7 +152,7 @@ describe('fn:writeResult', () => {
             id: 'sprite-beta',
             state: 'cold',
             createdAt: undefined,
-            t3Url: undefined,
+            agentUrl: undefined,
             setup: 'not recorded',
             organization: 'org-two',
           },
@@ -135,8 +161,8 @@ describe('fn:writeResult', () => {
     };
     const prepared = prepareResult(result, {}, streams);
     const expected =
-      'alpha\tsprite-alpha\trunning\t2026-10-09T12:00:00.000Z\thttps://alpha.sprites.app/\tready\torg-one\n' +
-      'beta\tsprite-beta\tcold\t\t\tnot recorded\torg-two\n';
+      'alpha\tsprite-alpha\trunning\t2026-10-09T12:00:00.000Z\thttps://alpha.sprites.app/\tready\torg-one\tsprite\n' +
+      'beta\tsprite-beta\tcold\t\t\tnot recorded\torg-two\tsprite\n';
 
     expect(prepared).toEqual({ channel: 'stdout', text: expected });
     writePreparedResult(prepared, streams);
@@ -150,7 +176,7 @@ describe('fn:writeResult', () => {
 
   it('should emit no TSV row for an empty list', () => {
     const output = captureResult(
-      { command: 'list', ok: true, data: { machines: [] } },
+      { command: 'list', ok: true, data: { machines: [], unavailable: [] } },
       {},
     );
 
@@ -165,6 +191,7 @@ describe('fn:writeResult', () => {
         command: 'list',
         ok: true,
         data: {
+          unavailable: [],
           machines: [
             {
               ...machine,
@@ -172,7 +199,7 @@ describe('fn:writeResult', () => {
               id: 'sprite-\u001b[31m',
               state: 'run\rring',
               createdAt: undefined,
-              t3Url: `https://primary.sprites.app/#token=${secret}`,
+              agentUrl: `https://primary.sprites.app/#token=${secret}`,
               organization: 'org\u009b[0m',
             },
           ],
@@ -193,6 +220,7 @@ describe('fn:writeResult', () => {
       'https://primary.sprites.app/#token=[REDACTED]',
       'ready',
       'org\\u009b[0m',
+      'sprite',
     ]);
     expect(output.stdout).not.toContain(secret);
     expect(output.stdout).not.toContain('\u001b');
@@ -201,7 +229,11 @@ describe('fn:writeResult', () => {
 
   it('should keep JSON ahead of pipe TSV and human failures on stderr', () => {
     const json = captureResult(
-      { command: 'list', ok: true, data: { machines: [machine] } },
+      {
+        command: 'list',
+        ok: true,
+        data: { machines: [machine], unavailable: [] },
+      },
       { json: true },
     );
     const failure = captureResult(
@@ -274,11 +306,12 @@ describe('fn:writeResult', () => {
           failures: [],
           skipped: ['Tailscale connectivity'],
           probeFailures: [],
-          tailscale: inspection.tailscale,
+          network: inspection.network,
           hub: inspection.hub,
           native: inspection.native,
           services: [{ name: 't3-code', state: 'running' }],
           manifest: inspection.manifest,
+          governor: inspection.governor,
         },
       },
     };
@@ -303,23 +336,277 @@ describe('fn:writeResult', () => {
       {},
     );
 
-    expect(output.stdout).toContain('Tailscale is disabled');
+    expect(output.stdout).toContain('No private network is selected');
     expect(output.stdout).toContain('CLIProxyAPI is disabled');
     expect(output.stdout).toContain('Reachable: No');
     expect(output.stderr).toBe('');
   });
 
+  it('should show whether each harness has the awake hooks installed', () => {
+    const output = captureResult(
+      {
+        command: 'show',
+        ok: true,
+        data: {
+          machine,
+          inspection: {
+            ...inspection,
+            native: {
+              ...inspection.native!,
+              claude: {
+                ...inspection.native!.claude!,
+                awakeHooksInstalled: true,
+              },
+              codex: {
+                ...inspection.native!.codex!,
+                awakeHooksInstalled: false,
+              },
+            },
+          },
+        },
+      },
+      {},
+    );
+
+    expect(output.stdout.replaceAll(/\s+/g, ' ')).toMatch(
+      /Awake hooks installed: Yes.*Awake hooks installed: No/,
+    );
+  });
+
+  it('should show the schedule diagnostic the updater recorded in the maintenance details', () => {
+    const diagnostic = 'the interval file holds no usable value';
+    const output = captureResult(
+      {
+        command: 'show',
+        ok: true,
+        data: {
+          machine,
+          inspection: {
+            ...inspection,
+            manifest: {
+              ...inspection.manifest,
+              lastUpdateDiagnostic: diagnostic,
+            },
+          },
+        },
+      },
+      {},
+    );
+
+    expect(output.stdout).toContain(diagnostic);
+  });
+
+  describe('idle governor line by keep-awake mode', () => {
+    const NOW = Date.parse('2026-10-09T00:12:00.000Z');
+    /**
+     * shows a machine whose governor state differs from the fixture's
+     * @param state fields replacing the fixture's recorded state
+     * @returns the flattened human output
+     */
+    const governorOutput = (state: Partial<GovernorState>): string => {
+      const output = captureResult(
+        {
+          command: 'show',
+          ok: true,
+          data: {
+            machine,
+            inspection: {
+              ...inspection,
+              governor: {
+                recorded: true,
+                state: {
+                  ...RECORDED_GOVERNOR,
+                  ...state,
+                },
+              },
+            },
+          },
+        },
+        {},
+      );
+
+      return output.stdout.replaceAll(/\s+/g, ' ');
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should show a native-deadline provider as awake until the deadline and then on its own idle rules, never as sleep not permitted', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
+
+      const output = governorOutput({});
+
+      expect(output).toMatch(
+        /Idle governor.*last heartbeat 2026-10-09T00:10:00\.000Z; 0 open holds; awake until 2026-10-09T00:15:00\.000Z, then the provider's idle rules apply/,
+      );
+      expect(output).not.toContain('sleep not permitted');
+      expect(output).not.toContain('sleep permitted');
+    });
+
+    it('should mark a passed deadline as passed', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: NOW + 10 * 60_000 });
+
+      expect(governorOutput({})).toMatch(
+        /awake deadline 2026-10-09T00:15:00\.000Z passed, the provider's idle rules apply/,
+      );
+    });
+
+    it('should show a native-deadline provider with nothing keeping it awake and a released task', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
+      expect(
+        governorOutput({
+          deadline: undefined,
+          adapter: {
+            at: '2026-10-09T00:10:00.000Z',
+            action: 'apply-deadline',
+            result: 'released',
+          },
+        }),
+      ).toMatch(
+        /0 open holds; nothing keeps it awake, the provider's idle rules apply; awake task released/,
+      );
+    });
+
+    it('should keep the sleep wording for a governed provider and mark its passed deadline', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
+      const governed = governorOutput({ keepAwakeMode: 'governed' });
+      vi.setSystemTime(NOW + 10 * 60_000);
+      const passed = governorOutput({
+        keepAwakeMode: 'governed',
+        sleepPermitted: true,
+      });
+
+      expect(governed).toMatch(
+        /awake until 2026-10-09T00:15:00\.000Z; sleep not permitted/,
+      );
+      expect(passed).toMatch(
+        /awake until 2026-10-09T00:15:00\.000Z \(passed\); sleep permitted/,
+      );
+    });
+
+    it('should show a provider that never keeps the workstation awake as not governed', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
+
+      const output = governorOutput({
+        keepAwakeMode: 'none',
+        deadline: undefined,
+      });
+
+      expect(output).toMatch(/0 open holds; not governed/);
+      expect(output).not.toContain('sleep');
+    });
+  });
+
+  it('should show why no idle governor state is recorded and the last adapter failure', () => {
+    const unrecorded = captureResult(
+      {
+        command: 'show',
+        ok: true,
+        data: {
+          machine,
+          inspection: {
+            ...inspection,
+            governor: {
+              recorded: false,
+              reason: 'no awake event has been recorded yet',
+            },
+          },
+        },
+      },
+      {},
+    );
+    const failing = captureResult(
+      {
+        command: 'show',
+        ok: true,
+        data: {
+          machine,
+          inspection: {
+            ...inspection,
+            governor: {
+              recorded: true,
+              state: {
+                version: 1,
+                updatedAt: '2026-10-09T00:10:00.000Z',
+                idleTimeoutMinutes: 5,
+                holdMaxMinutes: 60,
+                holds: [],
+                openHolds: 1,
+                sleepPermitted: true,
+                adapter: {
+                  at: '2026-10-09T00:10:00.000Z',
+                  action: 'enter-idle-form',
+                  failure: 'suspend refused',
+                },
+                diagnostics: [],
+              },
+            },
+          },
+        },
+      },
+      {},
+    );
+
+    expect(unrecorded.stdout.replaceAll(/\s+/g, ' ')).toMatch(
+      /Idle governor.*not recorded \(no awake event has been recorded yet\)/,
+    );
+    expect(failing.stdout.replaceAll(/\s+/g, ' ')).toMatch(
+      /Idle governor.*no heartbeat yet; 1 open hold; nothing keeps it awake; sleep permitted; adapter failed: suspend refused/,
+    );
+  });
+
+  it('should show guest-supplied governor text without control characters', () => {
+    const output = captureResult(
+      {
+        command: 'show',
+        ok: true,
+        data: {
+          machine,
+          inspection: {
+            ...inspection,
+            governor: {
+              recorded: true,
+              state: {
+                version: 1,
+                updatedAt: '2026-10-09T00:10:00.000Z',
+                idleTimeoutMinutes: 5,
+                holdMaxMinutes: 60,
+                holds: [],
+                openHolds: 0,
+                sleepPermitted: false,
+                adapter: {
+                  at: '2026-10-09T00:10:00.000Z',
+                  action: 'enter-idle-form',
+                  failure: 'suspend\u001b[2J refused\u009b31m',
+                },
+                diagnostics: [],
+              },
+            },
+          },
+        },
+      },
+      {},
+    );
+
+    expect(output.stdout).not.toMatch(/\p{Cc}(?<!\n)/u);
+    expect(output.stdout.replaceAll(/\s+/g, ' ')).toContain(
+      'adapter failed: suspend[2J refused31m',
+    );
+  });
+
   it('should render failed readiness facts without executable service internals', () => {
     const currentReadiness: CurrentReadiness = {
       ready: false,
-      failures: ['t3-provider-discovery'],
+      failures: ['T3 environment endpoint'],
       skipped: [],
       probeFailures: [],
       services: [{ name: 't3-code', state: 'running' }],
-      tailscale: { ...inspection.tailscale, exitNodeName: 'home-router' },
+      network: { ...inspection.network, exitNodeName: 'home-router' },
       hub: inspection.hub,
       native: inspection.native,
       manifest: inspection.manifest,
+      governor: inspection.governor,
     };
     const output = captureResult(
       {
@@ -333,7 +620,7 @@ describe('fn:writeResult', () => {
 
     expect(output.stdout).toBe('');
     expect(output.stderr).toContain('Readiness check failed');
-    expect(output.stderr).toContain('t3-provider-discovery');
+    expect(output.stderr).toContain('T3 environment endpoint');
     expect(output.stderr).toContain('home-router');
   });
 
@@ -354,14 +641,14 @@ describe('fn:writeResult', () => {
           machine: {
             ...machine,
             name: 'retained-machine',
-            t3Url: 'https://retained.sprites.app/',
+            agentUrl: 'https://retained.sprites.app/',
           },
-          sprite: {
+          workstation: {
             status: 'deleted',
             id: 'sprite-retained',
             name: 'retained-machine',
           },
-          tailnet: { status: 'cleanup required', deviceId: 'managed-node' },
+          network: { status: 'cleanup required', deviceId: 'managed-node' },
         },
       },
       {},
@@ -376,7 +663,7 @@ describe('fn:writeResult', () => {
       'Retry setup after checking the managed device',
     );
     expect(output.stderr).toContain('managed-node');
-    expect(output.stderr).toContain('T3 URL: https://retained.sprites.app/');
+    expect(output.stderr).toContain('Agent URL: https://retained.sprites.app/');
   });
 
   it('should write a human cancellation only to stderr', () => {
@@ -404,7 +691,7 @@ describe('fn:writeResult', () => {
       data: {
         machine: {
           ...machine,
-          t3Url: pairing.forUrl('https://primary.sprites.app/'),
+          agentUrl: pairing.forUrl('https://primary.sprites.app/'),
         },
         inspection: {
           ...inspection,
@@ -420,9 +707,9 @@ describe('fn:writeResult', () => {
     const marked = captureResult(result, { json: true });
     const disclosed = captureResult(result, {
       json: true,
-      withT3PairCode: true,
+      withPairCode: true,
     });
-    const disclosedHuman = captureResult(result, { withT3PairCode: true });
+    const disclosedHuman = captureResult(result, { withPairCode: true });
 
     expect(marked.stderr).toBe('');
     expect(marked.stdout.trim().split('\n')).toHaveLength(1);
@@ -430,7 +717,8 @@ describe('fn:writeResult', () => {
       schemaVersion: 1,
       data: {
         machine: {
-          t3Url: 'https://primary.sprites.app/#token=requested-pairing-token',
+          agentUrl:
+            'https://primary.sprites.app/#token=requested-pairing-token',
         },
         pairing: { token: 'requested-pairing-token' },
       },
@@ -441,7 +729,7 @@ describe('fn:writeResult', () => {
     expect(disclosed.stdout.trim().split('\n')).toHaveLength(1);
     expect(JSON.parse(disclosed.stdout).data).toMatchObject({
       machine: {
-        t3Url: 'https://primary.sprites.app/#token=requested-pairing-token',
+        agentUrl: 'https://primary.sprites.app/#token=requested-pairing-token',
       },
       pairing: { token: 'requested-pairing-token' },
       inspection: { manifest: { lastUpdateError: '[REDACTED]' } },
@@ -463,8 +751,8 @@ describe('fn:writeResult', () => {
         machine,
         inspection: {
           ...inspection,
-          tailscale: {
-            ...inspection.tailscale,
+          network: {
+            ...inspection.network,
             reason: `Tailscale rejected ${secret} twice: ${secret}`,
           },
           manifest: {
@@ -517,11 +805,12 @@ describe('fn:writeResult', () => {
             failures: ['t3-service'],
             skipped: [],
             probeFailures: [],
-            tailscale: inspection.tailscale,
+            network: inspection.network,
             hub: inspection.hub,
             native: inspection.native,
             services: [],
             manifest: inspection.manifest,
+            governor: inspection.governor,
           },
         },
       },

@@ -6,36 +6,48 @@ import {
   consentFlags,
   integrationCredentialFlags,
   integrationFlags,
+  networkCredentialFlags,
   pairingFlags,
-  pluginChangeFlags,
   pluginFlags,
+  selectionFlags,
   setupFlags,
-  tailnetCredentialFlags,
 } from '#cli/flags';
-import { resolvePluginActions } from '#plugins';
+import {
+  harnessPluginChangeFlags,
+  harnessPluginFlags,
+  harnessPluginOptions,
+} from '#cli/harness-flags';
+import { normalizePluginOptions, resolvePluginActions } from '#plugins';
 
 import type { StricliProcess } from '@stricli/core';
 
+import type { HarnessPluginFlagValues } from '#cli/harness-flags';
 import type { CommandOptions } from '#command';
 import type { HarnessPluginActions } from '#plugins';
 
+type ParsedValues = CommandOptions & HarnessPluginFlagValues;
+
 type ParserOptions = {
-  [Key in keyof typeof parserFlags]: (typeof parserFlags)[Key] extends {
+  [
+    Key in keyof typeof parserFlags & keyof ParsedValues
+  ]: (typeof parserFlags)[Key] extends {
     optional: true;
   }
-    ? CommandOptions[Key]
-    : NonNullable<CommandOptions[Key]>;
+    ? ParsedValues[Key]
+    : NonNullable<ParsedValues[Key]>;
 };
 
 const parserFlags = {
   ...commonFlags,
   ...consentFlags,
   ...pairingFlags,
+  ...selectionFlags,
   ...integrationFlags,
-  ...tailnetCredentialFlags,
+  ...networkCredentialFlags,
   ...integrationCredentialFlags,
   ...pluginFlags,
-  ...pluginChangeFlags,
+  ...harnessPluginFlags,
+  ...harnessPluginChangeFlags,
   ...setupFlags,
 };
 
@@ -48,7 +60,6 @@ describe('cmd:setup', () => {
     ['plugins', 'plugins'],
     ['claude-plugins', 'claudePlugins'],
     ['codex-plugins', 'codexPlugins'],
-    ['tailscale', 'tailscale'],
     ['proxy', 'proxy'],
     ['use-exit-node', 'useExitNode'],
   ] as const)(
@@ -74,10 +85,10 @@ describe('cmd:setup', () => {
 
   it('should accept only the positive explicit pairing request', async () => {
     const omitted = await parseFlags([]);
-    const requested = await parseFlags(['--with-t3-pair-code']);
+    const requested = await parseFlags(['--with-pair-code']);
 
-    expect(omitted.options[0]).toHaveProperty('withT3PairCode', undefined);
-    expect(requested.options[0]).toHaveProperty('withT3PairCode', true);
+    expect(omitted.options[0]).toHaveProperty('withPairCode', undefined);
+    expect(requested.options[0]).toHaveProperty('withPairCode', true);
     expect(requested.exitCode).toBe(0);
   });
 
@@ -146,7 +157,7 @@ describe('cmd:setup', () => {
       ],
       options: [
         expect.objectContaining({
-          tailscale: undefined,
+          network: undefined,
           proxy: undefined,
           useExitNode: undefined,
         }),
@@ -158,7 +169,8 @@ describe('cmd:setup', () => {
 
   it('should preserve explicit false values for independent integration switches', async () => {
     const parsed = await parseFlags([
-      '--no-tailscale',
+      '--network',
+      'none',
       '--proxy',
       '--no-use-exit-node',
       '--section',
@@ -169,7 +181,7 @@ describe('cmd:setup', () => {
       expect.objectContaining({
         options: [
           expect.objectContaining({
-            tailscale: false,
+            network: 'none',
             proxy: true,
             useExitNode: false,
             section: 'all',
@@ -224,11 +236,15 @@ async function parseFlags(argv: string[]): Promise<{
       },
       docs: { brief: 'parse workstation setup inputs' },
       func: (flags: ParserOptions): void => {
-        actions.push(resolvePluginActions(flags));
-        options.push(flags);
+        const parsed = {
+          ...flags,
+          harnessPlugins: harnessPluginOptions(flags),
+        };
+        actions.push(resolvePluginActions(normalizePluginOptions(parsed)));
+        options.push(parsed);
       },
     }),
-    { name: 'agent-sprite', scanner: { caseStyle: 'allow-kebab-for-camel' } },
+    { name: 'open-agent', scanner: { caseStyle: 'allow-kebab-for-camel' } },
   );
 
   await run(application, argv, context);

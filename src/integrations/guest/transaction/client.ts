@@ -14,7 +14,7 @@ import {
   waitForTransaction,
 } from './protocol.js';
 
-import type { Sprite, SpriteCommand } from '@fly/sprites';
+import type { GuestChannel, GuestProcess } from '#drivers/guest-channel';
 
 import type {
   GuestCommandResult,
@@ -35,7 +35,7 @@ const maximumFrameChars = 16_777_216;
 /** serial framed transport; exclusion belongs to the remote worker, never this object */
 export class GuestTransaction {
   public installed = false;
-  readonly #command: SpriteCommand;
+  readonly #command: GuestProcess;
   readonly #payloads: string;
   readonly #diagnostics: ReturnType<typeof transactionDiagnostics>;
   readonly #ready = Promise.withResolvers<void>();
@@ -57,7 +57,7 @@ export class GuestTransaction {
    * @param command spawned root shell holding the descriptor through bootstrap
    * @param payloads fixed non-secret payload frames staged under the lock
    */
-  private constructor(command: SpriteCommand, payloads: string) {
+  private constructor(command: GuestProcess, payloads: string) {
     this.#command = command;
     this.#payloads = payloads;
     this.#diagnostics = transactionDiagnostics(command);
@@ -83,16 +83,16 @@ export class GuestTransaction {
 
   /**
    * starts fixed shell bootstrap and awaits the worker's actual ready acknowledgement
-   * @param sprite exact guest
+   * @param guest exact guest
    * @param bootstrap allows the first installer while ownership is already held
    * @returns ready transaction owner
    */
   public static async open(
-    sprite: Sprite,
+    guest: GuestChannel,
     bootstrap: boolean,
   ): Promise<GuestTransaction> {
     const { command, payloads } = await prepareGuestTransaction(
-      sprite,
+      guest,
       bootstrap,
     );
     const transaction = new GuestTransaction(command, payloads);
@@ -173,19 +173,6 @@ export class GuestTransaction {
   }
 
   /**
-   * changes root-path ownership using already-resolved numeric account IDs
-   * @param path root-controlled path
-   * @param uid target user ID
-   * @param gid target group ID
-   */
-  public async chown(path: string, uid: number, gid: number): Promise<void> {
-    await this.request(
-      { type: 'chown', path, uid, gid },
-      transactionMutationResult,
-    );
-  }
-
-  /**
    * removes a root-controlled file after accepted earlier work has settled
    * @param path root-controlled path
    */
@@ -203,7 +190,7 @@ export class GuestTransaction {
       throw error;
     } finally {
       this.#signal?.removeEventListener('abort', this.#onAbort);
-      this.#command.close();
+      this.#command.kill();
     }
   }
 

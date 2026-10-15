@@ -1,5 +1,5 @@
 {
-  "name": "agent-sprite",
+  "name": "open-agent",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,18 +15,20 @@
     }
   },
   "bin": {
-    "agent-sprite": "./bin/cli.mjs"
+    "open-agent": "./bin/cli.mjs"
   },
   "scripts": {
     "build": "run build",
     "lint": "run lint --",
     "lint:check": "run lint:check",
-    "local": "node scripts/packed-cli.mjs run",
-    "postbuild": "cp src/scripts/bootstrap-node.sh lib/scripts/bootstrap-node.sh && chmod +x bin/cli.mjs",
-    "postlint": "eslint --max-warnings 0 bin && sh -n src/scripts/bootstrap-node.sh",
+    "local": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts run",
+    "postbuild": "cp src/guest/*.sh lib/guest/ && chmod +x bin/cli.mjs",
+    "postlint": "eslint --max-warnings 0 bin && sh -n src/guest/bootstrap-node.sh && sh -n src/guest/update-gate.sh",
     "prepare": "run prepare",
     "test": "run test",
-    "test:e2e": "node scripts/packed-cli.mjs test:e2e",
+    "test:e2e": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:e2e",
+    "test:live": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:live",
+    "test:live:fly": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:live:fly",
     "test:coverage": "run test:coverage --",
     "typecheck": "run typecheck"
   },
@@ -37,8 +39,7 @@
     "execa": "^9.6.1",
     "ink": "~8.0.0",
     "react": "^19.3.0",
-    "smol-toml": "^1.9.0",
-    "ws": "^8.22.0"
+    "smol-toml": "^1.9.0"
   },
   "devDependencies": {
     "@presetter/preset-esm": "^9.1.0",
@@ -53,7 +54,8 @@
     "node-pty": "^1.1.0",
     "presetter": "^9.1.0",
     "typescript": "^5.9.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "ws": "^8.22.0"
   },
   "packageManager": "pnpm@12.11.0",
   "engines": {

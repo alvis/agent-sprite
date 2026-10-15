@@ -3,14 +3,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Sprite, SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
+import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { commandError } from '#errors';
-import {
-  createManagedSprite,
-  deleteManagedSprite,
-  listManagedSprites,
-  MANAGED_LABEL,
-  SCHEMA_LABEL,
-} from '#integrations/sprites';
+
 import {
   OperationContext,
   checkOperation,
@@ -21,6 +16,12 @@ import {
   traceStage,
   withOperation,
 } from '#operation';
+
+import {
+  DEFAULT_AGENT_PORT,
+  DISABLED_NETWORK_PROFILE,
+} from './fixtures/profile.js';
+import { providerOf } from './mocks/sprites.js';
 
 import type { StageEvent } from '#operation';
 
@@ -68,14 +69,14 @@ describe('invocation-scoped operations', () => {
         first.identify({ name: 'first' });
 
         return traceStage('command', async () =>
-          listManagedSprites(firstClient),
+          providerOf(firstClient).list(),
         );
       }),
       withOperation(second, async () => {
         second.select('doctor');
 
         return traceStage('command', async () =>
-          listManagedSprites(secondClient),
+          providerOf(secondClient).list(),
         );
       }),
     ]);
@@ -122,7 +123,7 @@ describe('invocation-scoped operations', () => {
       pending = traceStage('command', async () => {
         await gate.promise;
 
-        return listManagedSprites(client);
+        return providerOf(client).list();
       }).catch((error: unknown) => error);
       expect(events.map(({ event }) => event)).toEqual(['start']);
     });
@@ -134,7 +135,7 @@ describe('invocation-scoped operations', () => {
 
     const afterClose = await traceStage(
       'command',
-      async () => listManagedSprites(client),
+      async () => providerOf(client).list(),
       context,
     ).catch((error: unknown) => error);
     expect(afterClose).toMatchObject({ action: 'cancel' });
@@ -165,12 +166,12 @@ describe('invocation-scoped operations', () => {
     const first = withOperation(firstContext, async () => {
       expect(currentOperation()).toBe(firstContext);
 
-      return listManagedSprites(firstClient);
+      return providerOf(firstClient).list();
     });
     const second = withOperation(secondContext, async () => {
       expect(currentOperation()).toBe(secondContext);
 
-      return listManagedSprites(secondClient);
+      return providerOf(secondClient).list();
     });
     firstController.abort();
     secondPending.resolve([]);
@@ -241,7 +242,7 @@ describe('invocation-scoped operations', () => {
       const client = new SpritesClient('sdk-only-late-token');
       vi.spyOn(client, 'listAllSprites').mockReturnValue(pending.promise);
       const first = withOperation(firstContext, async () =>
-        listManagedSprites(client),
+        providerOf(client).list(),
       );
 
       cancelled.abort();
@@ -273,16 +274,16 @@ describe('invocation-scoped operations', () => {
       labels: [MANAGED_LABEL],
     });
     vi.spyOn(client, 'listAllSprites').mockResolvedValue([sprite]);
-    const unscoped = await listManagedSprites(client);
+    const unscoped = await providerOf(client).list();
     const context = new OperationContext({
       signal: new AbortController().signal,
     });
     const scoped = await withOperation(context, async () =>
-      listManagedSprites(client),
+      providerOf(client).list(),
     );
 
-    expect(unscoped).toEqual([sprite]);
-    expect(scoped).toEqual([sprite]);
+    expect(unscoped).toMatchObject([{ name: sprite.name }]);
+    expect(scoped).toMatchObject([{ name: sprite.name }]);
     expect(context.closed).toBe(true);
     expect(client.listAllSprites).toHaveBeenCalledTimes(2);
   });
@@ -334,7 +335,7 @@ describe('invocation-scoped operations', () => {
     controller.abort();
 
     await expect(
-      withOperation(context, async () => listManagedSprites(client)),
+      withOperation(context, async () => providerOf(client).list()),
     ).rejects.toMatchObject({
       action: 'cancel',
     });
@@ -363,10 +364,12 @@ describe('invocation-scoped operations', () => {
 
     await expect(
       withOperation(context, async () =>
-        deleteManagedSprite(client, {
+        providerOf(client).delete({
+          id: sprite.id,
           name: sprite.name,
-          expectedId: sprite.id,
-          expectedOrganization: sprite.organizationName,
+          organization: sprite.organizationName,
+          state: 'running',
+          metadata: { setup: 'not recorded' },
         }),
       ),
     ).rejects.toMatchObject({ action: 'cancel' });
@@ -389,7 +392,11 @@ describe('invocation-scoped operations', () => {
       .mockReturnValue(pending.promise);
     const reconcile = vi.spyOn(client, 'getSprite');
     const result = withOperation(context, async () =>
-      createManagedSprite(client, sprite.name),
+      providerOf(client).create(
+        sprite.name,
+        DISABLED_NETWORK_PROFILE,
+        DEFAULT_AGENT_PORT,
+      ),
     );
 
     controller.abort();
@@ -399,7 +406,7 @@ describe('invocation-scoped operations', () => {
     expect(context.target).toEqual({ name: sprite.name });
 
     pending.resolve(sprite);
-    await expect(result).resolves.toBe(sprite);
+    await expect(result).resolves.toMatchObject({ id: sprite.id });
     expect(context.target).toEqual({ name: sprite.name, id: sprite.id });
     expect(reconcile).not.toHaveBeenCalled();
     expect(context.closed).toBe(true);
@@ -424,7 +431,11 @@ describe('invocation-scoped operations', () => {
         return sprite;
       });
     const result = withOperation(context, async () =>
-      createManagedSprite(client, sprite.name),
+      providerOf(client).create(
+        sprite.name,
+        DISABLED_NETWORK_PROFILE,
+        DEFAULT_AGENT_PORT,
+      ),
     );
 
     controller.abort();
@@ -449,7 +460,11 @@ describe('invocation-scoped operations', () => {
     const reconcile = vi
       .spyOn(client, 'getSprite')
       .mockRejectedValue(new Error('404'));
-    const result = createManagedSprite(client, 'disposable');
+    const result = providerOf(client).create(
+      'disposable',
+      DISABLED_NETWORK_PROFILE,
+      DEFAULT_AGENT_PORT,
+    );
 
     expect(reconcile).not.toHaveBeenCalled();
     pending.reject(new Error('provider failed'));

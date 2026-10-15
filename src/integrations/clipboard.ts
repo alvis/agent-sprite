@@ -2,7 +2,7 @@ import { sendLocalInput } from '#utilities/process';
 
 /**
  * copies one URL through the host platform's clipboard tool
- * @param url provider T3 URL to copy
+ * @param url provider agent URL to copy
  */
 export async function copyUrl(url: string): Promise<void> {
   if (process.platform === 'darwin') {

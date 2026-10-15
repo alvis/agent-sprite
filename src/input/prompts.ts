@@ -1,9 +1,11 @@
+import { catalog } from '#core/catalog';
+import { networkDriver } from '#core/networks';
+import { enteredCredentialProblem } from '#core/preflight';
+import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
 import { saveLocalCredential } from '#integrations/credentials';
 import { validateMachineName } from '#machine';
 import { rememberSecret } from '#utilities/redaction';
-
-import { spritesTokenPromptDescription } from './token-guidance.js';
 
 import type { CommandOptions, Interaction } from '#command/contracts';
 
@@ -37,7 +39,7 @@ interface ActivePromptContext extends PromptContext {
  * @returns observed backend and fallback reason when retention was accepted
  */
 export async function retainManagementCredential(
-  name: 'sprites' | 'tailscale',
+  name: ManagementCredentialName,
   value: string,
   context: {
     interaction: Interaction;
@@ -122,22 +124,22 @@ async function promptPublicInputs(
       },
     });
   }
-  if (required.includes('tailnet')) {
-    input.tailnet ??= await interaction.input({
-      message:
-        'Tailscale tailnet (API ID, .ts.net domain, or bare DNS subdomain)',
+  const network = networkDriver(input.profile.network).inputs;
+  if (network && required.includes('networkAccount')) {
+    input.networkAccount ??= await interaction.input({
+      message: network.account.prompt,
       required: true,
     });
   }
-  if (required.includes('exitNode')) {
+  if (network && required.includes('exitNode')) {
     input.exitNode ??= await interaction.input({
-      message: 'Home exit node',
+      message: network.exitNode.prompt,
       required: true,
     });
   }
   if (required.includes('proxyUrl')) {
     input.proxyUrl ??= await interaction.input({
-      message: 'CLIProxyAPI base URL',
+      message: CLIPROXYAPI_INPUTS.baseUrl.prompt,
       required: true,
     });
   }
@@ -153,36 +155,41 @@ async function promptSecrets(
   context: ActivePromptContext,
 ): Promise<void> {
   const { required, interaction } = context;
-  if (required.includes('spritesToken') && !input.spritesToken) {
-    input.spritesToken = await interaction.secret({
-      message: 'Sprites API token',
-      description: spritesTokenPromptDescription,
+  const { credential } =
+    catalog.providers[input.profile.provider].prerequisites;
+  if (required.includes('providerToken') && !input.providerToken) {
+    const { provider } = input.profile;
+    input.providerToken = await interaction.secret({
+      message: credential.label,
+      description: `It needs ${credential.scope}. ${credential.obtain}`,
       required: true,
+      validate: (value) => enteredCredentialProblem(provider, value),
     });
-    await retainPromptedCredential(
-      input,
-      { name: 'sprites', value: input.spritesToken },
-      context,
-    );
+    rememberSecret(input.providerToken);
+    // saved only after the provider accepts it; see retainEnteredProviderToken
+    input.isProviderTokenEntered = true;
+    input.sources[credential.environment] = 'the entered token';
   }
+  const network = networkDriver(input.profile.network).inputs;
   if (
-    required.includes('tailscaleEnrollment') &&
-    !input.tailscaleApiKey &&
-    !input.tailscaleAuthKey
+    network &&
+    required.includes('networkEnrollment') &&
+    !input.networkKey &&
+    !input.enrollmentKey
   ) {
-    input.tailscaleApiKey = await interaction.secret({
-      message: 'Tailscale management API key',
+    input.networkKey = await interaction.secret({
+      message: network.management.prompt,
       required: true,
     });
     await retainPromptedCredential(
       input,
-      { name: 'tailscale', value: input.tailscaleApiKey },
+      { name: network.management.store, value: input.networkKey },
       context,
     );
   }
   if (required.includes('proxyApiKey')) {
     input.proxyApiKey ??= await interaction.secret({
-      message: 'CLIProxyAPI client key',
+      message: CLIPROXYAPI_INPUTS.apiKey.prompt,
       required: true,
     });
   }
@@ -214,4 +221,30 @@ async function retainPromptedCredential(
       [name]: retained,
     };
   }
+}
+
+/**
+ * offers to save a provider credential entered in this run, once the provider
+ * has accepted it, and records the storage outcome
+ * @param input resolved workflow inputs holding the entered credential
+ * @param context consent prompt and local retention policy
+ * @param context.interaction consent prompt
+ * @param context.options parsed consent options
+ */
+export async function retainEnteredProviderToken(
+  input: ResolvedInputs,
+  context: { interaction?: Interaction; options: CommandOptions },
+): Promise<void> {
+  const { interaction, options } = context;
+  if (!input.isProviderTokenEntered || !interaction || options.nonInteractive) {
+    return;
+  }
+  const { credential } =
+    catalog.providers[input.profile.provider].prerequisites;
+  await retainPromptedCredential(
+    input,
+    { name: credential.store, value: input.providerToken },
+    { options, interaction, required: [] },
+  );
+  input.isProviderTokenEntered = false;
 }

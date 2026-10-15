@@ -1,28 +1,50 @@
+import { harnessLabel } from '#core/harnesses';
 import { returnOnBack, withBackNavigation } from '#navigation';
-import { normalizePluginOptions } from '#plugins';
+import { marketplaceSourceHarness, normalizePluginOptions } from '#plugins';
 
+import type { CommandOptions, Interaction } from '#command/contracts';
+import type { HarnessId } from '#core/catalog';
 import type {
-  CommandOptions,
-  HarnessName,
-  Interaction,
-} from '#command/contracts';
-import type { NormalizedPluginOptions } from '#integrations/native/plugin-actions';
+  HarnessPluginActions,
+  NormalizedPluginOptions,
+} from '#integrations/native/plugin-actions';
 
 /**
- * asks for independent Claude and Codex sources and identities during interactive create
+ * describes the native choices of every selected harness for the creation review
+ * @param plugins native marketplace and plugin actions per harness
+ * @param harnesses selected harnesses
+ * @returns one review line per harness
+ */
+export function describePluginSelections(
+  plugins: HarnessPluginActions,
+  harnesses: readonly HarnessId[],
+): string[] {
+  const describe = (choices: string[]): string =>
+    choices.length ? choices.join(', ') : 'none';
+
+  return harnesses.map(
+    (id) =>
+      `${harnessLabel(id)} marketplaces: ${describe(plugins[id].marketplaces)}; plugins: ${describe(plugins[id].plugins)}`,
+  );
+}
+
+/**
+ * asks for independent sources and identities of each selected harness during interactive create
  * @param options already parsed plugin choices and skips
+ * @param harnesses selected harnesses, in catalog order
  * @param interaction optional inline prompt boundary
  * @returns edited normalized one-time native selections
  */
 export async function promptCreatePluginOptions(
   options: CommandOptions,
+  harnesses: readonly HarnessId[],
   interaction?: Interaction,
 ): Promise<NormalizedPluginOptions> {
   let selected = normalizePluginOptions(options);
   if (!interaction || options.nonInteractive || options.plugins === false) {
     return selected;
   }
-  for (const harness of ['claude', 'codex'] as const) {
+  for (const harness of harnesses) {
     selected = await promptHarnessChoices(selected, {
       harness,
       interaction,
@@ -44,34 +66,34 @@ export async function promptCreatePluginOptions(
  */
 async function promptHarnessChoices(
   selected: NormalizedPluginOptions,
-  params: { harness: HarnessName; interaction: Interaction; yes: boolean },
+  params: { harness: HarnessId; interaction: Interaction; yes: boolean },
 ): Promise<NormalizedPluginOptions> {
   const { harness, interaction, yes } = params;
   if (yes || harnessChoicesAlreadySet(selected, harness)) {
     return selected;
   }
   const configure = await interaction.confirm({
-    message: `Configure ${harness} marketplaces or plugins for this workstation?`,
+    message: `Configure ${harnessLabel(harness)} marketplaces or plugins for this workstation?`,
   });
   if (!configure) {
     return selected;
   }
   let choices = { ...selected };
+  const source = marketplaceSourceHarness(choices);
   if (
-    harness === 'codex' &&
-    choices.codex.marketplaces.length === 0 &&
-    !choices.reuseClaudeMarketplaces &&
-    choices.claude.marketplaces.length > 0
+    source &&
+    source !== harness &&
+    choices.harnesses[harness].marketplaces.length === 0 &&
+    !choices.reuseMarketplaces
   ) {
-    choices.reuseClaudeMarketplaces = await interaction.confirm({
-      message:
-        'Use Claude marketplace sources as editable one-time Codex defaults? Compatibility will be checked.',
+    choices.reuseMarketplaces = await interaction.confirm({
+      message: `Use ${harnessLabel(source)} marketplace sources as editable one-time ${harnessLabel(harness)} defaults? Compatibility will be checked.`,
     });
-    choices.reuseClaudeMarketplacesSet = true;
+    choices.reuseMarketplacesSet = true;
   }
   for (;;) {
     const action = await interaction.select<'marketplace' | 'plugin' | 'done'>(
-      { message: `${harness} plugin choices` },
+      { message: `${harnessLabel(harness)} plugin choices` },
       [
         { label: 'Add marketplace source', value: 'marketplace' },
         { label: 'Install and enable a plugin identity', value: 'plugin' },
@@ -85,8 +107,8 @@ async function promptHarnessChoices(
       withBackNavigation(interaction, 'back to plugin choices').input({
         message:
           action === 'marketplace'
-            ? `${harness} marketplace source/ref`
-            : `${harness} native plugin identity`,
+            ? `${harnessLabel(harness)} marketplace source/ref`
+            : `${harnessLabel(harness)} native plugin identity`,
         required: true,
       }),
     );
@@ -101,33 +123,34 @@ async function promptHarnessChoices(
 }
 
 /**
- * Checks whether one harness was skipped or explicitly configured by flags.
+ * checks whether one harness was skipped or explicitly configured by flags
  * @param selected normalized harness choices
  * @param harness native harness to inspect
  * @returns whether the harness choice has already been supplied
  */
 function harnessChoicesAlreadySet(
   selected: NormalizedPluginOptions,
-  harness: HarnessName,
+  harness: HarnessId,
 ): boolean {
-  const choices = selected[harness];
+  const choices = selected.harnesses[harness];
 
   return (
     choices.skipped ||
     choices.marketplaces.length > 0 ||
     choices.plugins.length > 0 ||
-    (harness === 'codex' && selected.reuseClaudeMarketplaces)
+    (selected.reuseMarketplaces &&
+      marketplaceSourceHarness(selected) !== harness)
   );
 }
 
 interface HarnessChoice {
-  harness: HarnessName;
+  harness: HarnessId;
   action: 'marketplace' | 'plugin';
   value: string;
 }
 
 /**
- * Appends one native choice without altering the other harness.
+ * appends one native choice without altering the other harness
  * @param selected normalized choices before this new value
  * @param choice one native marketplace or plugin choice
  * @returns augmented normalized choices
@@ -138,18 +161,19 @@ function appendHarnessChoice(
 ): NormalizedPluginOptions {
   const { harness, action, value } = choice;
   const field = action === 'marketplace' ? 'marketplaces' : 'plugins';
-  const current = selected[harness];
+  const current = selected.harnesses[harness];
+  const source = marketplaceSourceHarness(selected);
+  // a harness's own marketplace replaces the sources it would have reused
+  const isOverride =
+    action === 'marketplace' && source !== undefined && source !== harness;
 
   return {
     ...selected,
-    [harness]: { ...current, [field]: [...current[field], value] },
-    reuseClaudeMarketplaces:
-      harness === 'codex' && action === 'marketplace'
-        ? false
-        : selected.reuseClaudeMarketplaces,
-    reuseClaudeMarketplacesSet:
-      harness === 'codex' && action === 'marketplace'
-        ? true
-        : selected.reuseClaudeMarketplacesSet,
+    harnesses: {
+      ...selected.harnesses,
+      [harness]: { ...current, [field]: [...current[field], value] },
+    },
+    reuseMarketplaces: isOverride ? false : selected.reuseMarketplaces,
+    reuseMarketplacesSet: isOverride ? true : selected.reuseMarketplacesSet,
   };
 }

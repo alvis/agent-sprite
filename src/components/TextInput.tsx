@@ -44,7 +44,7 @@ interface CharacterEditContext extends EditContext {
  * @param root0.required whether a value is required
  * @param root0.secret whether to mask the value
  * @param root0.noColor whether color is disabled
- * @param root0.validate optional inline validation for ordinary text input
+ * @param root0.validate optional inline validation, never echoing a secret value
  * @param root0.onSubmit accepted-value callback
  * @param root0.onCancel cancellation callback
  * @returns editable prompt
@@ -116,7 +116,7 @@ export function TextInput({
  * @returns masked prompt
  */
 export function SecretInput(
-  props: Readonly<Omit<TextInputProps, 'secret' | 'defaultValue' | 'validate'>>,
+  props: Readonly<Omit<TextInputProps, 'secret' | 'defaultValue'>>,
 ): React.JSX.Element {
   return <TextInput {...props} secret />;
 }

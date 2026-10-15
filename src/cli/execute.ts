@@ -134,9 +134,9 @@ function successRecovery(
     outcome: 'unknown',
     details:
       result.command === 'terminate'
-        ? ['Sprite deletion completed; verify tailnet cleanup before retrying.']
+        ? ['Workstation deleted; verify network cleanup before retrying.']
         : [
-            `Inspect: agent-sprite show ${JSON.stringify(machine.name)} --inspect`,
+            `Inspect: open-agent show ${JSON.stringify(machine.name)} --inspect`,
           ],
   };
 }
@@ -325,7 +325,7 @@ function forcedCancellation(
       details: name
         ? [
             'Inspect provider state before retrying any mutation.',
-            `Inspect: agent-sprite show ${JSON.stringify(name)} --inspect`,
+            `Inspect: open-agent show ${JSON.stringify(name)} --inspect`,
           ]
         : undefined,
     },

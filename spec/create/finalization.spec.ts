@@ -6,75 +6,79 @@ import { describe, expect, it, vi } from 'vitest';
 import { writeResult } from '#cli/output';
 import { markCreateIncomplete } from '#create/failure';
 import { finalizeCreate } from '#create/finish';
-import { CommandFault, resultExitCode } from '#errors';
 import {
   MANAGED_LABEL,
   SCHEMA_LABEL,
   SETUP_INCOMPLETE_LABEL,
   SETUP_READY_LABEL,
-} from '#integrations/sprites';
+} from '#drivers/providers/sprite/labels';
+import { toRecord } from '#drivers/providers/sprite/records';
+import { CommandFault, resultExitCode } from '#errors';
 import { OperationContext, withOperation } from '#operation';
-import { resolvePluginActions } from '#plugins';
+import { normalizePluginOptions, resolvePluginActions } from '#plugins';
 import { rememberSecret } from '#utilities/redaction';
+
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+import { guestOf, providerOf } from '../mocks/sprites.js';
 
 import type { CommandOptions, CommandResult } from '#command';
 import type { CreateContext } from '#create/context';
 import type { GuestInspection } from '#integrations/guest/runtime';
 
-const services = ['t3-code', 'agent-sprite-cron'].map((name) => ({
+const services = ['t3-code', 'open-agent-cron'].map((name) => ({
   name,
-  cmd: '/usr/bin/sudo',
-  args: [],
   needs: [],
-  state: { name, status: 'running' as const },
+  status: 'running' as const,
 }));
 
 const observed = {
   services,
-  tailscale: {
+  network: {
     online: false,
     dnsReady: false,
     skipped: true,
-    reason: 'Tailscale is disabled',
+    reason: 'No private network is selected',
   },
   native: {
     claude: {
       gatewayConfigured: false,
       modelDiscoveryEnabled: false,
       pluginListAvailable: false,
+      awakeHooksInstalled: true,
       authentication: 'not-configured',
     },
     codex: {
       gatewayConfigured: false,
       modelDiscoveryEnabled: false,
       pluginListAvailable: false,
+      awakeHooksInstalled: true,
       authentication: 'not-configured',
     },
-    t3ClaudePluginLoading: 'verified',
-    t3CodexPluginLoading: 'verified',
-    t3ProviderDiscovery: {
+    agentEnvironment: {
       ok: true,
-      scope: 't3-provider-discovery',
-      workspace: '/home/agent',
-      providers: [],
-      limits: {
-        ordinaryThreadStartup: 'unverified',
-        runtimeHooks: 'unverified',
-        mcp: 'unverified',
+      serverVersion: '0.0.46-nightly.20261014.3118',
+      orchestrationProtocolVersion: 2,
+    },
+    harnesses: {
+      claude: {
+        selectedPlugins: [],
+        evidence: { sdkPluginLoading: 'not-verified' },
+      },
+      codex: {
+        selectedPlugins: [],
+        evidence: undefined,
       },
     },
-    claudeSdkPluginLoading: 'not-verified',
-    selectedClaudePlugins: [],
-    selectedCodexPlugins: [],
   },
   hub: { skipped: true, reachable: false },
   manifest: {
     schema: 1,
     createdAt: '2026-10-09T00:00:00Z',
     installedVersions: {},
+    profile: DISABLED_NETWORK_PROFILE,
   },
-  integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
   probeFailures: [],
+  governor: { recorded: false, reason: 'no awake event has been recorded yet' },
 } satisfies GuestInspection;
 
 /**
@@ -94,6 +98,7 @@ function createSprite() {
       status: 'running',
     },
   );
+  vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
   const mutations: string[] = [];
   const visibility = vi
     .spyOn(sprite, 'updateURLSettings')
@@ -127,24 +132,21 @@ function createContext(
   sprite: Sprite,
   options: CommandOptions = {},
 ): CreateContext {
-  const integrations = observed.integrations;
-
   return {
     options,
     input: {
       name: sprite.name,
-      spritesToken: 'cor04-generated-sdk-token',
-      integrations,
+      providerToken: 'cor04-generated-sdk-token',
+      profile: DISABLED_NETWORK_PROFILE,
       runtimeEnv: {},
       sources: {},
       missing: [],
     },
     name: sprite.name,
     token: 'cor04-generated-sdk-token',
-    integrations,
-    plugins: resolvePluginActions({}),
+    plugins: resolvePluginActions(normalizePluginOptions({})),
     preflight: { checks: ['provider name was available'], reminders: [] },
-    client: sprite.client,
+    provider: providerOf(sprite.client),
   };
 }
 
@@ -188,9 +190,10 @@ describe('fn:finalizeCreate READY boundary', () => {
     );
 
     const result = await finalizeCreate({
-      sprite,
+      workstation: toRecord(sprite),
+      guest: guestOf(sprite),
       observed,
-      context: createContext(sprite, { withT3PairCode: true }),
+      context: createContext(sprite, { withPairCode: true }),
     });
 
     expect(result).toMatchObject({
@@ -200,12 +203,12 @@ describe('fn:finalizeCreate READY boundary', () => {
         machine: {
           id: 'sprite-ready-42',
           setup: 'ready',
-          t3Url: 'https://ready-workstation.sprites.app/',
+          agentUrl: 'https://ready-workstation.sprites.app/',
         },
         readiness: { ready: true },
         pairing: {
           status: 'failed',
-          retry: 'agent-sprite show "ready-workstation" --with-t3-pair-code',
+          retry: 'open-agent show "ready-workstation" --with-pair-code',
         },
       },
     });
@@ -217,7 +220,7 @@ describe('fn:finalizeCreate READY boundary', () => {
     const json = captureResult(result, { json: true });
     expect(human.stderr).toBe('');
     expect(human.stdout).toContain('https://ready-workstation.sprites.app/');
-    expect(human.stdout).toContain('--with-t3-pair-code');
+    expect(human.stdout).toContain('--with-pair-code');
     expect(human.stdout).toContain('[REDACTED]');
     expect(json.stderr).toBe('');
     expect(json.stdout.trim().split('\n')).toHaveLength(1);
@@ -243,9 +246,10 @@ describe('fn:finalizeCreate READY boundary', () => {
     );
     const pending = withOperation(operation, async () =>
       finalizeCreate({
-        sprite,
+        workstation: toRecord(sprite),
+        guest: guestOf(sprite),
         observed,
-        context: createContext(sprite, { withT3PairCode: true }),
+        context: createContext(sprite, { withPairCode: true }),
       }),
     );
     await vi.waitFor(() => expect(exec).toHaveBeenCalledOnce());
@@ -295,7 +299,8 @@ describe('fn:finalizeCreate READY boundary', () => {
         exitCode: 0,
       });
     const ordinaryResult = await finalizeCreate({
-      sprite: ordinary.sprite,
+      workstation: toRecord(ordinary.sprite),
+      guest: guestOf(ordinary.sprite),
       observed,
       context: createContext(ordinary.sprite),
     });
@@ -305,7 +310,7 @@ describe('fn:finalizeCreate READY boundary', () => {
       data: { pairing: { status: 'not requested' } },
     });
     expect(ordinaryOutput.stdout).not.toContain(token);
-    expect(JSON.parse(ordinaryOutput.stdout).data.machine.t3Url).toBe(
+    expect(JSON.parse(ordinaryOutput.stdout).data.machine.agentUrl).toBe(
       'https://ready-workstation.sprites.app/',
     );
 
@@ -318,18 +323,19 @@ describe('fn:finalizeCreate READY boundary', () => {
         exitCode: 0,
       });
     const permittedResult = await finalizeCreate({
-      sprite: permitted.sprite,
+      workstation: toRecord(permitted.sprite),
+      guest: guestOf(permitted.sprite),
       observed,
-      context: createContext(permitted.sprite, { withT3PairCode: true }),
+      context: createContext(permitted.sprite, { withPairCode: true }),
     });
     const permittedOutput = captureResult(permittedResult, {
       json: true,
-      withT3PairCode: true,
+      withPairCode: true,
     });
     expect(requestedPair).toHaveBeenCalledOnce();
     expect(JSON.parse(permittedOutput.stdout).data).toMatchObject({
       machine: {
-        t3Url: `https://ready-workstation.sprites.app/#token=${token}`,
+        agentUrl: `https://ready-workstation.sprites.app/#token=${token}`,
       },
       pairing: { status: 'created', token },
     });
@@ -344,7 +350,8 @@ describe('fn:finalizeCreate READY boundary', () => {
       .mockRejectedValue(new Error('unexpected native pairing'));
 
     const result = await finalizeCreate({
-      sprite,
+      workstation: toRecord(sprite),
+      guest: guestOf(sprite),
       observed,
       context: createContext(sprite),
     });
@@ -364,7 +371,7 @@ describe('fn:finalizeCreate READY boundary', () => {
     {
       stage: 'missing URL',
       prepare: 'url',
-      message: 'Sprite ready-workstation has no provider URL',
+      message: 'Workstation ready-workstation has no provider URL',
       code: 'PROVIDER',
       beforeRecovery: [],
     },
@@ -415,7 +422,8 @@ describe('fn:finalizeCreate READY boundary', () => {
       }
       const context = createContext(sprite);
       const failure: unknown = await finalizeCreate({
-        sprite,
+        workstation: toRecord(sprite),
+        guest: guestOf(sprite),
         observed,
         context,
       }).then(
@@ -433,7 +441,11 @@ describe('fn:finalizeCreate READY boundary', () => {
       );
       expect(mutations).toEqual(beforeRecovery);
 
-      const result = await markCreateIncomplete(sprite, context, failure);
+      const result = await markCreateIncomplete(
+        toRecord(sprite),
+        context,
+        failure,
+      );
 
       expect(pair).not.toHaveBeenCalled();
       expect(mutations).toEqual([
@@ -515,7 +527,7 @@ describe('fn:markCreateIncomplete pre-READY recovery', () => {
       });
 
       const result = await markCreateIncomplete(
-        sprite,
+        toRecord(sprite),
         createContext(sprite),
         primary,
       );
@@ -562,7 +574,7 @@ describe('fn:markCreateIncomplete pre-READY recovery', () => {
       cause: prior,
     });
     const result = await markCreateIncomplete(
-      sprite,
+      toRecord(sprite),
       createContext(sprite),
       primary,
     );
@@ -586,7 +598,7 @@ describe('fn:markCreateIncomplete pre-READY recovery', () => {
             'Private URL authentication could not be confirmed',
           ),
           expect.stringContaining('incomplete label could not be confirmed'),
-          expect.stringContaining('Sprite ready-workstation was retained'),
+          expect.stringContaining('Workstation ready-workstation was retained'),
         ],
       },
       data: {

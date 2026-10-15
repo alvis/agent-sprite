@@ -12,13 +12,13 @@ import {
 import { OperationContext, withOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
-import { createFilesystemSprite } from '../../mocks/sprites.js';
+import { createFilesystemSprite, guestOf } from '../../mocks/sprites.js';
 
 import type { ExecResult, Sprite } from '@fly/sprites';
 
 const options = { script: 'install-tools.js', timeoutMs: 45_000 } as const;
-const installerPath = '/opt/agent-sprite/install-tools.js';
-const logPath = '/opt/agent-sprite/install-tools.log';
+const installerPath = '/opt/open-agent/guest/install-tools.js';
+const logPath = '/opt/open-agent/install-tools.log';
 
 describe('fn:installerFailureMessage', () => {
   it('should select the first concrete reason after the last allowlisted command', () => {
@@ -38,6 +38,30 @@ describe('fn:installerFailureMessage', () => {
     );
   });
 
+  it('should attribute a failure to the Homebrew installer rather than the command before it', () => {
+    const log = [
+      'Running /usr/bin/install',
+      'Running /bin/bash /tmp/open-agent-homebrew-x/install.sh',
+      'Error: Failed to clone Homebrew',
+    ].join('\n');
+
+    expect(installerFailureMessage(options.script, log)).toBe(
+      'Guest install-tools.js failed during /bin/bash /tmp/open-agent-homebrew-x/install.sh: Error: Failed to clone Homebrew',
+    );
+  });
+
+  it('should name the brew step a component failed in', () => {
+    const log = [
+      'Running /home/linuxbrew/.linuxbrew/bin/brew update',
+      'Running /home/linuxbrew/.linuxbrew/bin/brew info --json=v2 git curl',
+      'Component git failed: No x86_64_linux bottle for curl; refusing to build from source',
+    ].join('\n');
+
+    expect(installerFailureMessage(options.script, log)).toBe(
+      'Guest install-tools.js failed during /home/linuxbrew/.linuxbrew/bin/brew info --json=v2 git curl: Component git failed: No x86_64_linux bottle for curl; refusing to build from source',
+    );
+  });
+
   it('should leave logs without a current command and reason uninterpreted', () => {
     expect(
       installerFailureMessage(
@@ -48,7 +72,7 @@ describe('fn:installerFailureMessage', () => {
     expect(
       installerFailureMessage(
         options.script,
-        'Running /usr/bin/make\nprogress',
+        'Running /home/linuxbrew/.linuxbrew/bin/brew\nprogress',
       ),
     ).toBeUndefined();
     expect(
@@ -57,13 +81,13 @@ describe('fn:installerFailureMessage', () => {
     expect(
       installerFailureMessage(
         options.script,
-        'Running /usr/bin/make\nError: old\nRunning /usr/bin/tar\nprogress',
+        'Running /home/linuxbrew/.linuxbrew/bin/brew\nError: old\nRunning /usr/bin/tar\nprogress',
       ),
     ).toBeUndefined();
   });
 
   it('should accept the byte limit and omit an overflowing log', () => {
-    const ending = 'Running /usr/bin/make\nError: failed';
+    const ending = 'Running /home/linuxbrew/.linuxbrew/bin/brew\nError: failed';
     const withinLimit = `${'x'.repeat(131_071 - Buffer.byteLength(ending))}\n${ending}`;
 
     expect(installerFailureMessage(options.script, withinLimit)).toContain(
@@ -94,7 +118,7 @@ describe('fn:installerFailureMessage', () => {
 describe('fn:runGuestInstaller', () => {
   it('should not read the private log after a successful installer', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-installer-success-'),
+      join(tmpdir(), 'open-agent-installer-success-'),
     );
     const execute = vi.fn<Sprite['execFile']>(async () => ({
       stdout: '',
@@ -103,12 +127,12 @@ describe('fn:runGuestInstaller', () => {
     }));
     const sprite = createFilesystemSprite({ root: directory.path, execute });
 
-    await runGuestInstaller(sprite, options);
+    await runGuestInstaller(guestOf(sprite), options);
 
     expect(execute.mock.calls).toEqual([
       [
         '/usr/bin/sudo',
-        ['-n', '-E', '--', '/opt/agent-sprite/node/bin/node', installerPath],
+        ['-n', '-E', '--', '/opt/open-agent/node/bin/node', installerPath],
         expect.objectContaining({ timeout: options.timeoutMs }),
       ],
     ]);
@@ -116,7 +140,7 @@ describe('fn:runGuestInstaller', () => {
 
   it('should read the private log only after installer failure and keep the original cause private', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-installer-diagnostic-'),
+      join(tmpdir(), 'open-agent-installer-diagnostic-'),
     );
     const secret = 'installer-sdk-private-token-83';
     rememberSecret(secret);
@@ -131,9 +155,10 @@ describe('fn:runGuestInstaller', () => {
     );
     const sprite = createFilesystemSprite({ root: directory.path, execute });
 
-    const failure: unknown = await runGuestInstaller(sprite, options).catch(
-      (error: unknown) => error,
-    );
+    const failure: unknown = await runGuestInstaller(
+      guestOf(sprite),
+      options,
+    ).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(CommandFault);
     expect(failure).toMatchObject({
@@ -163,7 +188,7 @@ describe('fn:runGuestInstaller', () => {
 
   it('should preserve the original failure when the log read fails', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-installer-log-failure-'),
+      join(tmpdir(), 'open-agent-installer-log-failure-'),
     );
     const original = new Error('installer transport failed');
     const execute = vi.fn<Sprite['execFile']>(async (_file, args = []) => {
@@ -174,13 +199,15 @@ describe('fn:runGuestInstaller', () => {
     });
     const sprite = createFilesystemSprite({ root: directory.path, execute });
 
-    await expect(runGuestInstaller(sprite, options)).rejects.toBe(original);
+    await expect(runGuestInstaller(guestOf(sprite), options)).rejects.toBe(
+      original,
+    );
     expect(execute.mock.calls).toHaveLength(2);
   });
 
   it('should preserve the original failure when the log overflows', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-installer-log-overflow-'),
+      join(tmpdir(), 'open-agent-installer-log-overflow-'),
     );
     const original = new Error('installer transport failed');
     const execute = vi.fn<Sprite['execFile']>(async (_file, args = []) => {
@@ -189,20 +216,22 @@ describe('fn:runGuestInstaller', () => {
       }
 
       return {
-        stdout: `${'x'.repeat(131_073)}Running /usr/bin/make\nError: stale`,
+        stdout: `${'x'.repeat(131_073)}Running /home/linuxbrew/.linuxbrew/bin/brew\nError: stale`,
         stderr: '',
         exitCode: 0,
       };
     });
     const sprite = createFilesystemSprite({ root: directory.path, execute });
 
-    await expect(runGuestInstaller(sprite, options)).rejects.toBe(original);
+    await expect(runGuestInstaller(guestOf(sprite), options)).rejects.toBe(
+      original,
+    );
     expect(execute.mock.calls).toHaveLength(2);
   });
 
   it('should avoid log I/O after cancellation interrupts the installer', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-installer-cancel-'),
+      join(tmpdir(), 'open-agent-installer-cancel-'),
     );
     const pending = Promise.withResolvers<ExecResult>();
     const execute = vi.fn<Sprite['execFile']>(async () => pending.promise);
@@ -210,7 +239,7 @@ describe('fn:runGuestInstaller', () => {
     const controller = new AbortController();
     const context = new OperationContext({ signal: controller.signal });
     const result = withOperation(context, async () =>
-      runGuestInstaller(sprite, options),
+      runGuestInstaller(guestOf(sprite), options),
     );
     await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
     controller.abort();

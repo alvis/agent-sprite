@@ -15,7 +15,7 @@ import type { CredentialStoreLocation } from '#integrations/credentials';
 describe('fn:setupLocalCredential consent', () => {
   it('should keep shared credentials unchanged when replacement is declined in real Ink', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-credential-decline-'),
+      join(tmpdir(), 'open-agent-credential-decline-'),
     );
     vi.stubEnv('XDG_CONFIG_HOME', directory.path);
     const observed = await driveInk(
@@ -39,7 +39,7 @@ describe('fn:setupLocalCredential consent', () => {
 
   it('should report the saved backend through real Ink and keeps both management credentials in one isolated store', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-local-save-'),
+      join(tmpdir(), 'open-agent-local-save-'),
     );
     const location = {
       backend: 'protected-file',

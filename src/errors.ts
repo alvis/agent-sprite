@@ -1,15 +1,17 @@
-import { APIError, ExecError, FilesystemError } from '@fly/sprites';
-
+import { ProviderFault } from '#drivers/failures';
 import { InteractionExit } from '#navigation/exit';
 import { redactResolved } from '#utilities/redaction';
 
 import type { CommandError, CommandErrorCode } from '#command/contracts';
+import type { ProviderErrorCode } from '#drivers/contracts';
 
 /** expected fault identity and diagnostic cause */
 export interface CommandFaultParams extends ErrorOptions {
   code: CommandErrorCode;
   message: string;
   causeVisibility?: 'public' | 'private';
+  /** every individual problem, reported together beside the message */
+  details?: readonly string[];
 }
 
 /** portable D10 status derived from the shared failure table */
@@ -18,6 +20,16 @@ export type CommandExitCode = 0 | (typeof FAILURE_EXIT_CODES)[CommandErrorCode];
 const UNAUTHENTICATED_STATUS = 401;
 const ACCESS_DENIED_STATUS = 403;
 const CONFLICT_STATUS = 409;
+const PROVIDER_FAILURE_CODES: Readonly<
+  Record<ProviderErrorCode, CommandErrorCode>
+> = {
+  'authentication': 'AUTH',
+  'not-found': 'PROVIDER',
+  'ownership-mismatch': 'CONFLICT',
+  'conflict': 'CONFLICT',
+  'transient': 'PROVIDER',
+  'failed': 'PROVIDER',
+};
 const FAILURE_EXIT_CODES = {
   USAGE: 2,
   INPUT: 1,
@@ -96,6 +108,7 @@ function safeDiagnostic(value: string): string {
 export class CommandFault extends Error {
   public readonly code: CommandErrorCode;
   public readonly causeVisibility: 'public' | 'private';
+  public readonly details: readonly string[];
 
   /**
    * retains the machine-readable category and original failure
@@ -104,17 +117,20 @@ export class CommandFault extends Error {
    * @param params.message actionable diagnostic
    * @param params.cause original rejection when wrapping a failure
    * @param params.causeVisibility whether the cause can appear in public details
+   * @param params.details every individual problem, reported together
    */
   constructor({
     code,
     message,
     cause,
     causeVisibility = 'public',
+    details = [],
   }: CommandFaultParams) {
     super(message, { cause });
     this.name = 'CommandFault';
     this.code = code;
     this.causeVisibility = causeVisibility;
+    this.details = details;
   }
 }
 
@@ -137,7 +153,7 @@ export function ensureError(exception: unknown): Error {
 }
 
 /**
- * maps typed domain and SDK failures without interpreting message strings
+ * maps typed domain and provider failures without interpreting message strings
  * @param exception caught failure
  * @returns safe D10 error details
  */
@@ -146,9 +162,12 @@ export function commandError(exception: unknown): CommandError {
   const code = errorCode(error);
   const state = recoveryState.get(error);
   const details = [
-    ...(state?.details ?? []),
-    ...publicCauseDetails(error, state),
-  ].slice(0, diagnosticCount);
+    ...(error instanceof CommandFault ? error.details.map(safeDiagnostic) : []),
+    ...[...(state?.details ?? []), ...publicCauseDetails(error, state)].slice(
+      0,
+      diagnosticCount,
+    ),
+  ];
 
   return {
     code,
@@ -225,7 +244,7 @@ export function resultExitCode<
 }
 
 /**
- * categorizes SDK HTTP failures independently of diagnostic text
+ * categorizes HTTP failures independently of diagnostic text
  * @param status observed provider HTTP status
  * @returns D10 authentication, conflict, or provider category
  */
@@ -251,11 +270,8 @@ function errorCode(error: Error): CommandErrorCode {
   if (error instanceof InteractionExit && error.action === 'cancel') {
     return 'CANCELLED';
   }
-  if (error instanceof APIError) {
-    return providerErrorCode(error.statusCode);
-  }
-  if (error instanceof ExecError || error instanceof FilesystemError) {
-    return 'PROVIDER';
+  if (error instanceof ProviderFault) {
+    return PROVIDER_FAILURE_CODES[error.code];
   }
 
   return 'UNEXPECTED';

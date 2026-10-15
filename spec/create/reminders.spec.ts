@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { createPreflightSummary } from '#create/reminders';
 
+import { profileWith } from '../fixtures/profile.js';
+
 import type { ResolvedInputs } from '#input';
 
+const disabled = { network: false, exitNode: false, cliproxyapi: false };
+
 const baseInput: ResolvedInputs = {
-  integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
+  profile: profileWith(disabled),
   runtimeEnv: {},
   sources: {},
   missing: [],
@@ -17,9 +21,13 @@ describe('fn:createPreflightSummary', () => {
     const enabled = createPreflightSummary(
       {
         ...baseInput,
-        integrations: { tailscale: true, exitNode: true, cliproxyapi: true },
-        tailscaleApiKey: 'management-secret',
-        tailscaleAuthKey: 'enrollment-secret',
+        profile: profileWith({
+          network: true,
+          exitNode: true,
+          cliproxyapi: true,
+        }),
+        networkKey: 'management-secret',
+        enrollmentKey: 'enrollment-secret',
         githubToken: 'github-secret',
         gitIdentity: {
           authorName: 'Author',
@@ -32,14 +40,18 @@ describe('fn:createPreflightSummary', () => {
     );
     const enrollmentOnly = createPreflightSummary({
       ...baseInput,
-      integrations: { tailscale: true, exitNode: false, cliproxyapi: false },
-      tailscaleAuthKey: 'enrollment-secret',
+      profile: profileWith({
+        network: true,
+        exitNode: false,
+        cliproxyapi: false,
+      }),
+      enrollmentKey: 'enrollment-secret',
     });
 
     expect(native).toEqual({
       checks: [
         expect.stringMatching(/Required inputs/),
-        expect.stringMatching(/Sprites API/),
+        expect.stringMatching(/Sprite prerequisites/),
       ],
       reminders: [
         expect.stringMatching(/30 minutes.*seven days/),
@@ -51,8 +63,8 @@ describe('fn:createPreflightSummary', () => {
     expect(enabled).toEqual({
       checks: [
         expect.stringMatching(/Required inputs/),
-        expect.stringMatching(/Sprites API/),
-        expect.stringMatching(/Tailnet access/),
+        expect.stringMatching(/Sprite prerequisites/),
+        expect.stringMatching(/Tailscale access/),
         expect.stringMatching(/exit-node identity.*approved IPv4/),
       ],
       reminders: [
@@ -66,7 +78,7 @@ describe('fn:createPreflightSummary', () => {
     expect(enrollmentOnly).toEqual({
       checks: [
         expect.stringMatching(/Required inputs/),
-        expect.stringMatching(/Sprites API/),
+        expect.stringMatching(/Sprite prerequisites/),
       ],
       reminders: [
         expect.stringMatching(/30 minutes.*seven days/),

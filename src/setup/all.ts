@@ -1,27 +1,21 @@
-import {
-  installManagedServices,
-  inspectGuest,
-} from '#integrations/guest/runtime';
-import { setSpritePublic } from '#integrations/sprites';
+import { installManagedServices } from '#integrations/guest/runtime';
 import { traceStage } from '#operation';
-import { ReadinessFault, assessReadiness } from '#readiness';
 import {
   nativeConfigurationSteps,
   runNativeConfigurationSteps,
 } from '#workstation/configuration';
 
+import { setupNetwork } from './network.js';
 import { setupPlugins } from './plugins.js';
 import {
   setupEnvironment,
   setupGit,
   setupGithub,
   setupProxy,
-  setupT3,
+  setupAgent,
   setupTools,
 } from './sections.js';
-import { setupTailscale } from './tailscale.js';
-
-import type { Sprite } from '@fly/sprites';
+import { exposeWhenServing } from './serving.js';
 
 import type {
   AllSetupData,
@@ -30,47 +24,48 @@ import type {
   GithubSetupData,
   PluginsSetupData,
   ProxySetupData,
-  TailscaleSetupData,
+  NetworkSetupData,
   ToolsSetupData,
 } from '#command/data';
+import type { GuestChannel } from '#drivers/guest-channel';
 import type { NativeConfigurationSteps } from '#workstation/configuration';
 
 import type { SetupContext } from './context.js';
 
 /**
  * reconciles all managed guest sections and verify current readiness
- * @param sprite exact managed Sprite
+ * @param guest guest channel of the managed workstation
  * @param context full setup choices, prompts, and redaction values
  * @returns non-secret section outcomes after readiness succeeds
  */
 export async function setupAll(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
 ): Promise<AllSetupData> {
   const steps = nativeConfigurationSteps({
     mode: 'setup',
     initialInstallation: context.initialInstallation,
   });
-  const configured = await configureSetupSections(sprite, context, steps);
-  const t3 = await finalizeSetupAll(sprite, context);
+  const configured = await configureSetupSections(guest, context, steps);
+  const agent = await finalizeSetupAll(guest, context);
 
-  return { ...configured, ...t3 };
+  return { ...configured, ...agent };
 }
 
 /**
  * Apply the context-specific full setup order through existing section owners.
- * @param sprite exact managed Sprite
+ * @param guest guest channel of the managed workstation
  * @param context full setup choices and mutation state
  * @param steps context-specific full setup order
  * @returns completed native and service section outcomes
  */
 async function configureSetupSections(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
   steps: NativeConfigurationSteps,
 ): Promise<AllSetupData> {
   let tools!: ToolsSetupData;
-  let tailscale!: TailscaleSetupData;
+  let network!: NetworkSetupData;
   let github: GithubSetupData | undefined;
   let git: GitSetupData | undefined;
   let proxy!: ProxySetupData;
@@ -78,50 +73,66 @@ async function configureSetupSections(
   let plugins: PluginsSetupData | undefined;
   const handlers = {
     tools: async (): Promise<void> => {
-      tools = await setupTools(sprite, {
+      tools = await setupTools(guest, {
         ...context,
         options: { ...context.options, update: true },
       });
     },
-    tailscale: async (): Promise<void> => {
-      tailscale = await setupTailscale(sprite, context);
+    network: async (): Promise<void> => {
+      network = await setupNetwork(guest, context);
     },
     github: async (): Promise<void> => {
       if (context.options.github !== false) {
-        github = await setupGithub(sprite, context);
+        github = await setupGithub(guest, context);
       }
     },
     git: async (): Promise<void> => {
       if (context.options.gitIdentity !== false) {
-        git = await setupGit(sprite, context);
+        git = await setupGit(guest, context);
       }
     },
     proxy: async (): Promise<void> => {
-      proxy = await setupProxy(sprite, context);
+      proxy = await setupProxy(guest, context);
     },
     environment: async (): Promise<void> => {
       if (context.options.env) {
-        environment = await setupEnvironment(sprite, context);
+        environment = await setupEnvironment(guest, context);
       }
     },
     plugins: async (): Promise<void> => {
       if (context.options.plugins !== false) {
-        plugins = await setupPlugins(sprite, context);
+        plugins = await setupPlugins(guest, context);
       }
     },
-    services: async (): Promise<void> => installManagedServices(sprite),
+    services: async (): Promise<void> => installServices(guest, context),
   };
   await runSetupPhases(steps, handlers);
 
   return {
     ...tools,
-    ...tailscale,
+    ...network,
     ...github,
     ...git,
     ...proxy,
     ...environment,
     ...plugins,
   };
+}
+
+/**
+ * installs the managed services; the tools phase has already installed the
+ * selected release, which only a restarted agent loads, so the agent restarts
+ * when this run changed the release channel
+ * @param guest guest channel of the managed workstation
+ * @param context full setup choices
+ */
+async function installServices(
+  guest: GuestChannel,
+  context: SetupContext,
+): Promise<void> {
+  await installManagedServices(guest, {
+    isAgentRestarted: context.isReleaseChanged,
+  });
 }
 
 /**
@@ -146,22 +157,19 @@ async function runSetupPhases(
 
 /**
  * Verify services before exposure and mint pairing only when requested.
- * @param sprite exact managed Sprite
+ * @param guest guest channel of the managed workstation
  * @param context selected setup options and pairing policy
  * @returns optional requested pairing outcome
  */
 async function finalizeSetupAll(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
-): Promise<Awaited<ReturnType<typeof setupT3>> | undefined> {
-  const inspection = await traceStage('setup.readiness', async () =>
-    inspectGuest(sprite),
-  );
-  const readiness = assessReadiness(inspection);
-  if (!readiness.ready) {
-    throw new ReadinessFault(readiness);
-  }
-  await setSpritePublic(sprite);
+): Promise<Awaited<ReturnType<typeof setupAgent>> | undefined> {
+  // the configuration steps may have restarted the agent service
+  await exposeWhenServing(guest, context);
 
-  return context.options.withT3PairCode ? setupT3(sprite, context) : undefined;
+  // the release was switched by the configuration steps, not by pairing
+  return context.options.withPairCode
+    ? setupAgent(guest, { ...context, isReleaseChanged: false })
+    : undefined;
 }

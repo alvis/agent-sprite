@@ -1,105 +1,85 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
 
-import { describe, expect, it, vi } from 'vitest';
-
+import { defaultProfile } from '#core/profile';
 import { resolveGitIdentity, selectGithubToken } from '#input/github';
 import {
-  resolveCreateIntegrations,
-  resolveSetupIntegrations,
-} from '#input/integrations';
+  readSetupSelection,
+  resolveCreateSelection,
+  resolveSetupSelection,
+} from '#input/selection';
 
 import { driveInk } from '../fixtures/ink.js';
 
 describe('workflow:input source resolution', () => {
-  it('should preserve existing and disabled integration choices under --yes without inventing features', async () => {
-    const home = await mkdtemp(join(tmpdir(), 'agent-sprite-yes-choices-'));
-    for (const name of [
-      'TAILSCALE_ENABLED',
-      'TAILSCALE_EXIT_NODE_ENABLED',
-      'CLIPROXYAPI_ENABLED',
-    ]) {
-      vi.stubEnv(name, undefined);
-    }
-    vi.stubEnv('HOME', home);
-    try {
-      const observed = await driveInk(async (interaction) => {
-        const installed = await resolveSetupIntegrations({
-          options: { yes: true, localCredentials: false },
-          interaction,
-          installed: { tailscale: true, exitNode: true, cliproxyapi: true },
-          selectedSection: 'all',
-        });
-        const create = await resolveCreateIntegrations(
-          { yes: true, localCredentials: false },
-          interaction,
-        );
-        const explicit = await resolveCreateIntegrations(
-          {
-            yes: true,
-            tailscale: true,
-            useExitNode: true,
-            proxy: true,
-            localCredentials: false,
-          },
-          interaction,
-        );
-
-        return {
-          installed,
-          create: create.integrations,
-          explicit: explicit.integrations,
-        };
-      }, []);
-
-      expect(observed.matchedSteps).toBe(0);
-      expect(observed.result).toEqual({
-        installed: { tailscale: true, exitNode: true, cliproxyapi: true },
-        create: { tailscale: false, exitNode: false, cliproxyapi: false },
-        explicit: { tailscale: true, exitNode: true, cliproxyapi: true },
+  it('should preserve the recorded and default selections under --yes without inventing features', async () => {
+    const recorded = defaultProfile('tailscale');
+    const sources = { processEnv: {}, fileEnv: {}, profile: {} };
+    const observed = await driveInk(async (interaction) => {
+      const setup = await resolveSetupSelection({
+        options: { yes: true },
+        sources,
+        interaction,
+        recorded,
+        section: 'all',
+        supplied: readSetupSelection({
+          options: { yes: true },
+          sources,
+          section: 'all',
+        }).value,
       });
-    } finally {
-      await rm(home, { recursive: true, force: true });
-    }
+      const create = await resolveCreateSelection({
+        options: { yes: true },
+        sources,
+        interaction,
+      });
+
+      return { setup: setup.candidate, create: create.candidate };
+    }, []);
+
+    expect(observed.matchedSteps).toBe(0);
+    expect(observed.result.setup).toMatchObject({
+      network: 'tailscale',
+      harnesses: recorded.harnesses,
+    });
+    expect(observed.result.create).toMatchObject({
+      network: 'none',
+      options: { isExitNodeEnabled: false, isProxyEnabled: false },
+    });
   });
 
-  it('should accept installed setup choices and disabled create defaults through five Enter prompts', async () => {
-    const home = await mkdtemp(join(tmpdir(), 'agent-sprite-input-'));
-    vi.stubEnv('HOME', home);
-    try {
-      const observed = await driveInk(
-        async (interaction) => {
-          const setup = await resolveSetupIntegrations({
-            options: { localCredentials: false },
-            interaction,
-            installed: { tailscale: true, exitNode: true, cliproxyapi: true },
-            selectedSection: 'all',
-          });
-          const create = await resolveCreateIntegrations(
-            { localCredentials: false },
-            interaction,
-          );
+  it('should accept the default create selection through Enter at every prompt', async () => {
+    const observed = await driveInk(
+      async (interaction) =>
+        resolveCreateSelection({
+          options: {},
+          sources: { processEnv: {}, fileEnv: {}, profile: {} },
+          interaction,
+        }),
+      [
+        { waitFor: 'Provider', input: '\r' },
+        { waitFor: 'Minimum CPUs', input: '\r' },
+        { waitFor: 'Minimum memory (GB)', input: '\r' },
+        { waitFor: 'Release channel', input: '\r' },
+        { waitFor: 'Harnesses', input: '\r' },
+        { waitFor: 'Network', input: '\r' },
+        { waitFor: 'Route harnesses through CLIProxyAPI?', input: '\r' },
+        { waitFor: 'Suspend after idle', input: '\r' },
+      ],
+    );
 
-          return { setup, create: create.integrations };
-        },
-        [
-          { waitFor: 'Enable Tailscale?', input: '\r' },
-          { waitFor: 'Route through a Tailscale exit node?', input: '\r' },
-          { waitFor: 'Enable CLIProxyAPI?', input: '\r' },
-          { waitFor: 'Enable Tailscale?', input: '\r' },
-          { waitFor: 'Enable CLIProxyAPI?', input: '\r' },
-        ],
-      );
-
-      expect(observed.matchedSteps, observed.output).toBe(5);
-      expect(observed.result).toEqual({
-        setup: { tailscale: true, exitNode: true, cliproxyapi: true },
-        create: { tailscale: false, exitNode: false, cliproxyapi: false },
-      });
-    } finally {
-      await rm(home, { recursive: true, force: true });
-    }
+    expect(observed.matchedSteps, observed.output).toBe(8);
+    expect(observed.result.candidate).toMatchObject({
+      provider: 'sprite',
+      harnesses: ['claude', 'codex'],
+      network: 'none',
+      options: {
+        minCpus: 2,
+        minMemoryGb: 2,
+        agentRelease: 'stable',
+        isProxyEnabled: false,
+        idleTimeoutMinutes: 5,
+      },
+    });
   });
 
   it('should edit prefilled Git fields, navigates to a previous field, then skips identity', async () => {

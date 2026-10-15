@@ -1,8 +1,11 @@
+import { harnessIds, harnessLabel } from '#core/harnesses';
 import { classifyMarketplaceSource } from '#integrations/marketplaces';
+import { recordOf } from '#utilities/records';
 
 import { CommandFault } from './errors.js';
 
-import type { CommandOptions, HarnessName } from '#command/contracts';
+import type { CommandOptions } from '#command/contracts';
+import type { HarnessId } from '#core/catalog';
 
 import type {
   PluginActions,
@@ -17,122 +20,135 @@ export type {
 } from '#integrations/native/plugin-actions';
 
 /**
- * Converts flat CLI plugin flags into one per-harness input record.
- * @param options flat public CLI plugin options
+ * converts parsed plugin flags into one input record per harness
+ * @param options parsed CLI plugin options keyed by harness id
  * @returns normalized per-harness inputs
  */
 export function normalizePluginOptions(
   options: CommandOptions,
 ): NormalizedPluginOptions {
   return {
-    claude: {
-      skipped: options.claudePlugins === false,
-      marketplaces: options.claudeMarketplace ?? [],
-      plugins: options.claudePlugin ?? [],
-      removeMarketplaces: options.removeClaudeMarketplace ?? [],
-      disablePlugins: options.disableClaudePlugin ?? [],
-      uninstallPlugins: options.uninstallClaudePlugin ?? [],
-    },
-    codex: {
-      skipped: options.codexPlugins === false,
-      marketplaces: options.codexMarketplace ?? [],
-      plugins: options.codexPlugin ?? [],
-      removeMarketplaces: options.removeCodexMarketplace ?? [],
-      disablePlugins: options.disableCodexPlugin ?? [],
-      uninstallPlugins: options.uninstallCodexPlugin ?? [],
-    },
-    noPlugins: options.plugins === false,
-    reuseClaudeMarketplaces: options.reuseClaudeMarketplaces === true,
-    reuseClaudeMarketplacesSet: options.reuseClaudeMarketplaces !== undefined,
+    kind: options.plugins === false ? 'skipped' : 'selected',
+    harnesses: recordOf(harnessIds(), (id) => {
+      const selected = options.harnessPlugins?.[id];
+
+      return {
+        skipped: selected?.isEnabled === false,
+        marketplaces: selected?.marketplaces ?? [],
+        plugins: selected?.plugins ?? [],
+        removeMarketplaces: selected?.removeMarketplaces ?? [],
+        disablePlugins: selected?.disablePlugins ?? [],
+        uninstallPlugins: selected?.uninstallPlugins ?? [],
+      };
+    }),
+    reuseMarketplaces: options.reuseMarketplaces === true,
+    reuseMarketplacesSet: options.reuseMarketplaces !== undefined,
   };
 }
 
 /**
- * Resolves explicit changes without treating a skip as a removal.
- * @param options flat or normalized plugin choices
- * @returns validated native actions for each harness
+ * names the harness whose marketplace sources the others reuse
+ * @param selected normalized choices
+ * @returns the first harness, in catalog order, with selected marketplaces
  */
-export function resolvePluginActions(
-  options: CommandOptions | NormalizedPluginOptions,
-): HarnessPluginActions {
-  const selected =
-    'claude' in options && 'codex' in options
-      ? options
-      : normalizePluginOptions(options);
-  const { claude, codex } = selected;
-  if (
-    selected.noPlugins &&
-    (hasActions(claude) ||
-      hasActions(codex) ||
-      selected.reuseClaudeMarketplaces)
-  ) {
-    throw new CommandFault({
-      code: 'USAGE',
-      message: '--no-plugins conflicts with explicit plugin actions',
-    });
-  }
-  if (claude.skipped && hasActions(claude)) {
-    throw new CommandFault({
-      code: 'USAGE',
-      message:
-        '--no-claude-plugins conflicts with explicit Claude plugin actions',
-    });
-  }
-  if (
-    codex.skipped &&
-    (hasActions(codex) || selected.reuseClaudeMarketplaces)
-  ) {
-    throw new CommandFault({
-      code: 'USAGE',
-      message:
-        '--no-codex-plugins conflicts with explicit Codex plugin actions',
-    });
-  }
-  if (selected.reuseClaudeMarketplaces && codex.marketplaces.length > 0) {
-    throw new CommandFault({
-      code: 'USAGE',
-      message:
-        '--reuse-claude-marketplaces conflicts with explicit Codex marketplaces',
-    });
-  }
-
-  return {
-    claude:
-      selected.noPlugins || claude.skipped ? emptyActions() : actions(claude),
-    codex:
-      selected.noPlugins || codex.skipped
-        ? emptyActions()
-        : {
-            ...actions(codex),
-            marketplaces: selected.reuseClaudeMarketplaces
-              ? claude.marketplaces
-              : codex.marketplaces,
-          },
-  };
-}
-
-/**
- * Checks whether explicit plugin mutations require the plugins setup section.
- * @param options public CLI flags
- * @returns whether explicit native plugin actions were requested
- */
-export function hasExplicitPluginActions(
-  options: CommandOptions | NormalizedPluginOptions,
-): boolean {
-  const selected =
-    'claude' in options && 'codex' in options
-      ? options
-      : normalizePluginOptions(options);
-
-  return (
-    hasActions(selected.claude) ||
-    hasActions(selected.codex) ||
-    selected.reuseClaudeMarketplaces
+export function marketplaceSourceHarness(
+  selected: NormalizedPluginOptions,
+): HarnessId | undefined {
+  return harnessIds().find(
+    (id) => selected.harnesses[id].marketplaces.length > 0,
   );
 }
 
 /**
- * Removes prompt-only skip state from one harness's native action request.
+ * resolves explicit changes without treating a skip as a removal
+ * @param selected normalized plugin choices
+ * @param harnesses selected harnesses; actions for any other harness are refused
+ * @returns validated native actions for each harness
+ */
+export function resolvePluginActions(
+  selected: NormalizedPluginOptions,
+  harnesses: readonly HarnessId[] = harnessIds(),
+): HarnessPluginActions {
+  assertPluginChoices(selected, harnesses);
+  const source = marketplaceSourceHarness(selected);
+
+  return recordOf(harnessIds(), (id) => {
+    const own = selected.harnesses[id];
+    if (selected.kind === 'skipped' || own.skipped || !harnesses.includes(id)) {
+      return emptyActions();
+    }
+
+    return {
+      ...actions(own),
+      marketplaces:
+        selected.reuseMarketplaces && source && own.marketplaces.length === 0
+          ? selected.harnesses[source].marketplaces
+          : own.marketplaces,
+    };
+  });
+}
+
+/**
+ * rejects plugin choices that contradict each other or the selected harnesses
+ * @param selected normalized choices
+ * @param harnesses selected harnesses
+ * @throws {CommandFault} for the first conflicting choice
+ */
+function assertPluginChoices(
+  selected: NormalizedPluginOptions,
+  harnesses: readonly HarnessId[],
+): void {
+  const conflict = (message: string): never => {
+    throw new CommandFault({ code: 'USAGE', message });
+  };
+  const withActions = harnessIds().filter((id) =>
+    hasActions(selected.harnesses[id]),
+  );
+  if (
+    selected.kind === 'skipped' &&
+    (withActions.length > 0 || selected.reuseMarketplaces)
+  ) {
+    conflict('--no-plugins conflicts with explicit plugin actions');
+  }
+  for (const id of withActions) {
+    if (selected.harnesses[id].skipped) {
+      conflict(
+        `--no-${id}-plugins conflicts with explicit ${harnessLabel(id)} plugin actions`,
+      );
+    }
+    if (!harnesses.includes(id)) {
+      conflict(
+        `${harnessLabel(id)} plugin actions need ${harnessLabel(id)} to be a selected harness (--harness ${id})`,
+      );
+    }
+  }
+  if (
+    selected.reuseMarketplaces &&
+    harnessIds().filter((id) => selected.harnesses[id].marketplaces.length > 0)
+      .length > 1
+  ) {
+    conflict(
+      '--reuse-marketplaces conflicts with marketplaces chosen for more than one harness',
+    );
+  }
+}
+
+/**
+ * checks whether explicit plugin mutations require the plugins setup section
+ * @param selected normalized plugin choices
+ * @returns whether explicit native plugin actions were requested
+ */
+export function hasExplicitPluginActions(
+  selected: NormalizedPluginOptions,
+): boolean {
+  return (
+    harnessIds().some((id) => hasActions(selected.harnesses[id])) ||
+    selected.reuseMarketplaces
+  );
+}
+
+/**
+ * removes prompt-only skip state from one harness's native action request
  * @param selected one normalized harness choice
  * @returns native actions without prompt-only skip state
  */
@@ -169,7 +185,7 @@ export async function validateMarketplaceSources(
   accessToken?: string,
   requireSelectedPluginCoverage = false,
 ): Promise<void> {
-  for (const harness of ['claude', 'codex'] as const) {
+  for (const harness of harnessIds()) {
     const available = await validateHarnessMarketplaces(
       actions[harness].marketplaces,
       harness,
@@ -194,7 +210,7 @@ export async function validateMarketplaceSources(
  */
 async function validateHarnessMarketplaces(
   sources: string[],
-  harness: HarnessName,
+  harness: HarnessId,
   accessToken?: string,
 ): Promise<Set<string>> {
   const available = new Set<string>();
@@ -234,7 +250,7 @@ async function validateHarnessMarketplaces(
 function ensureSelectedPluginCoverage(
   selected: string[],
   available: Set<string>,
-  harness: HarnessName,
+  harness: HarnessId,
 ): void {
   for (const identity of selected) {
     if (!available.has(identity)) {

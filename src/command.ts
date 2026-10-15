@@ -6,12 +6,12 @@ import type { CommandData, CommandFailureData } from './command/data.js';
 export type {
   CommandName,
   SetupSection,
-  HarnessName,
   CommandOptions,
   CommandRequest,
   InteractionChoice,
   InteractionPrompt,
   TextInputPrompt,
+  SecretInputPrompt,
   ProgressUpdate,
   StatusUpdate,
   Interaction,

@@ -6,61 +6,48 @@ import {
   USER,
   HOME,
   AGENT_PATH,
+  asAgent,
   runAsAgent,
   ensurePrivateDirectory,
   writeOwnedFile,
   removeOwnedFile,
-  ownGuestFile,
 } from '#integrations/guest/account';
 import { isRecord } from '#utilities/guards';
 
-import type { Sprite } from '@fly/sprites';
 import type { TomlTable } from 'smol-toml';
+
+import type { GuestChannel } from '#drivers/guest-channel';
 
 export {
   USER,
   HOME,
-  CLAUDE_SETTINGS,
-  CODEX_CONFIG,
-  CODEX_TOKEN,
-  CLAUDE_PLUGIN_STATE,
-  CODEX_PLUGIN_STATE,
   AGENT_PATH,
+  asAgent,
   runAsAgent,
   readJsonObject,
   readTomlObject,
   ensurePrivateDirectory,
   writeOwnedFile,
   removeOwnedFile,
-  ownGuestFile,
   readSelectedPlugins,
   isRecord,
   isStringArray,
 };
 
-const CLAUDE_SETTINGS = `${HOME}/.claude/settings.json`;
-
-const CODEX_CONFIG = `${HOME}/.codex/config.toml`;
-
-const CODEX_TOKEN = `${HOME}/.codex/cliproxyapi-token`;
-
-const CLAUDE_PLUGIN_STATE = '/opt/agent-sprite/claude-plugins.json';
-const CODEX_PLUGIN_STATE = '/opt/agent-sprite/codex-plugins.json';
-
 /**
  * reads an optional native JSON object without overwriting unrelated fields
- * @param sprite target guest
+ * @param guest target guest
  * @param path native configuration file
  * @returns parsed object, or an empty object for an absent file
  */
 async function readJsonObject(
-  sprite: Sprite,
+  guest: GuestChannel,
   path: string,
 ): Promise<Record<string, unknown>> {
-  if (!(await guestFileExists(sprite, path))) {
+  if (!(await guestFileExists(guest, path))) {
     return {};
   }
-  const text = await readGuestFile(sprite, path);
+  const text = await readGuestFile(guest, path);
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -84,19 +71,19 @@ async function readJsonObject(
 
 /**
  * reads optional native TOML configuration
- * @param sprite target guest
+ * @param guest target guest
  * @param path native configuration file
  * @returns parsed TOML table, or an empty table for an absent file
  */
 async function readTomlObject(
-  sprite: Sprite,
+  guest: GuestChannel,
   path: string,
 ): Promise<TomlTable> {
-  if (!(await guestFileExists(sprite, path))) {
+  if (!(await guestFileExists(guest, path))) {
     return {};
   }
 
-  const text = await readGuestFile(sprite, path);
+  const text = await readGuestFile(guest, path);
   try {
     return parse(text);
   } catch (cause) {
@@ -110,19 +97,19 @@ async function readTomlObject(
 }
 
 /**
- * reads agent-sprite's selected Claude plugin identity record
- * @param sprite target guest
- * @param path managed selection record
+ * reads open-agent's record of the plugin identities it manages for a harness
+ * @param guest target guest
+ * @param path harness's managed selection record
  * @returns selected native identities
  */
 async function readSelectedPlugins(
-  sprite: Sprite,
+  guest: GuestChannel,
   path: string,
 ): Promise<string[]> {
-  if (!(await guestFileExists(sprite, path))) {
+  if (!(await guestFileExists(guest, path))) {
     return [];
   }
-  const text = await readGuestFile(sprite, path);
+  const text = await readGuestFile(guest, path);
   let selection: unknown;
   try {
     selection = JSON.parse(text);

@@ -97,7 +97,7 @@ describe('rc:Display', () => {
         name: 'primary',
         id: 'sprite-id',
         state: 'running',
-        t3Url: 'https://primary.sprites.app',
+        agentUrl: 'https://primary.sprites.app',
         setup: 'ready',
         organization: 'org',
         createdAt: '2026-10-07',
@@ -126,14 +126,14 @@ describe('rc:Display', () => {
     ).toContain('State: ready');
   });
 
-  it('should show labelled T3 and setup facts in narrow and wide lists', () => {
+  it('should show labelled agent and setup facts in narrow and wide lists', () => {
     const machines = [
       {
         name: 'primary',
         id: 'sprite-primary',
         state: 'running',
         createdAt: '2026-10-09',
-        t3Url: 'https://primary.sprites.app/',
+        agentUrl: 'https://primary.sprites.app/',
         setup: 'ready',
         organization: 'example',
       },
@@ -149,10 +149,10 @@ describe('rc:Display', () => {
 
     expect(narrow).toContain('Workstation primary');
     expect(narrow).toContain('Setup: ready');
-    expect(narrow).toContain('T3 URL:');
-    expect(narrow).not.toContain('t3Url');
+    expect(narrow).toContain('Agent URL:');
+    expect(narrow).not.toContain('agentUrl');
     expect(wide).toContain('WORKSTATION');
-    expect(wide).toContain('T3 URL');
+    expect(wide).toContain('AGENT URL');
     expect(wide).toContain('https://primary.sprites.app/');
     expect(wide.split('\n')).toHaveLength(2);
   });

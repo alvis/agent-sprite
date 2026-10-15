@@ -12,7 +12,10 @@ describe('fn:validateCommandRequest', () => {
     expect(() =>
       validateCommandRequest({
         command: 'setup',
-        options: { nonInteractive: true, disableCodexPlugin: ['one@market'] },
+        options: {
+          nonInteractive: true,
+          harnessPlugins: { codex: { disablePlugins: ['one@market'] } },
+        },
       }),
     ).not.toThrow();
     expect(() =>
@@ -24,7 +27,10 @@ describe('fn:validateCommandRequest', () => {
     expect(() =>
       validateCommandRequest({
         command: 'setup',
-        options: { section: 'plugins', claudePlugins: false },
+        options: {
+          section: 'plugins',
+          harnessPlugins: { claude: { isEnabled: false } },
+        },
       }),
     ).not.toThrow();
     expect(() =>
@@ -34,14 +40,19 @@ describe('fn:validateCommandRequest', () => {
 
   it('should reject conflicting requests before credentials or remote access', () => {
     const conflicts: CommandOptions[] = [
-      { tailscale: false, useExitNode: true },
       { gitIdentity: false, gitName: 'Author' },
       { gitIdentity: false, gitEmail: 'author@example.test' },
       { gitIdentity: false, gitCommitterName: 'Committer' },
       { gitIdentity: false, gitCommitterEmail: 'committer@example.test' },
       { github: false, githubTokenSource: 'env:TEST_GITHUB_TOKEN' },
-      { localCredentials: false, spritesTokenSource: 'keychain:test/account' },
-      { plugins: false, claudePlugin: ['one@market'] },
+      {
+        localCredentials: false,
+        providerTokenSource: 'keychain:test/account',
+      },
+      {
+        plugins: false,
+        harnessPlugins: { claude: { plugins: ['one@market'] } },
+      },
     ];
 
     for (const options of conflicts) {
@@ -54,13 +65,13 @@ describe('fn:validateCommandRequest', () => {
   it('should restrict removals to setup and enforce its selected section and harness', () => {
     const setupOnly: CommandOptions[] = [
       { section: 'plugins' },
-      { harness: 'claude' },
-      { removeClaudeMarketplace: ['old'] },
-      { removeCodexMarketplace: ['old'] },
-      { disableClaudePlugin: ['off@market'] },
-      { disableCodexPlugin: ['off@market'] },
-      { uninstallClaudePlugin: ['gone@market'] },
-      { uninstallCodexPlugin: ['gone@market'] },
+      { pluginHarness: 'claude' },
+      { harnessPlugins: { claude: { removeMarketplaces: ['old'] } } },
+      { harnessPlugins: { codex: { removeMarketplaces: ['old'] } } },
+      { harnessPlugins: { claude: { disablePlugins: ['off@market'] } } },
+      { harnessPlugins: { codex: { disablePlugins: ['off@market'] } } },
+      { harnessPlugins: { claude: { uninstallPlugins: ['gone@market'] } } },
+      { harnessPlugins: { codex: { uninstallPlugins: ['gone@market'] } } },
     ];
 
     for (const options of setupOnly) {
@@ -71,16 +82,9 @@ describe('fn:validateCommandRequest', () => {
     expect(() =>
       validateCommandRequest({
         command: 'setup',
-        options: { section: 'git', claudePlugin: ['one@market'] },
-      }),
-    ).toThrow(expect.objectContaining({ code: 'USAGE' }));
-    expect(() =>
-      validateCommandRequest({
-        command: 'setup',
         options: {
-          section: 'plugins',
-          harness: 'claude',
-          codexPlugin: ['one@market'],
+          section: 'git',
+          harnessPlugins: { claude: { plugins: ['one@market'] } },
         },
       }),
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
@@ -89,8 +93,8 @@ describe('fn:validateCommandRequest', () => {
         command: 'setup',
         options: {
           section: 'plugins',
-          harness: 'codex',
-          claudePlugin: ['one@market'],
+          pluginHarness: 'claude',
+          harnessPlugins: { codex: { plugins: ['one@market'] } },
         },
       }),
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
@@ -99,8 +103,8 @@ describe('fn:validateCommandRequest', () => {
         command: 'setup',
         options: {
           section: 'plugins',
-          harness: 'codex',
-          codexPlugin: ['one@market'],
+          pluginHarness: 'codex',
+          harnessPlugins: { codex: { plugins: ['one@market'] } },
         },
       }),
     ).not.toThrow();
@@ -108,34 +112,70 @@ describe('fn:validateCommandRequest', () => {
       validateCommandRequest({ command: 'setup', options: {} }),
     ).not.toThrow();
   });
+
+  it('should refuse a pairing code for a non-pairing section', () => {
+    expect(() =>
+      validateCommandRequest({
+        command: 'setup',
+        options: { section: 'git', withPairCode: true },
+      }),
+    ).toThrow(expect.objectContaining({ code: 'USAGE' }));
+  });
 });
 
 describe('fn:validateSetupIntegrationOptions', () => {
-  it('should allow integration switches only in sections that apply them', () => {
+  it('should allow network and option switches only in sections that apply them', () => {
     expect(() =>
       validateSetupIntegrationOptions(
-        { tailscale: true, useExitNode: false, proxy: false },
+        {
+          network: 'tailscale',
+          useExitNode: false,
+          proxy: false,
+          harness: ['claude'],
+          idleMinutes: 0,
+        },
         'all',
       ),
     ).not.toThrow();
     expect(() => validateSetupIntegrationOptions({}, undefined)).not.toThrow();
     expect(() =>
       validateSetupIntegrationOptions(
-        { tailscale: false, useExitNode: false },
-        'tailscale',
+        { network: 'none', useExitNode: false },
+        'network',
       ),
     ).not.toThrow();
     expect(() =>
       validateSetupIntegrationOptions({ proxy: false }, 'proxy'),
     ).not.toThrow();
     expect(() =>
-      validateSetupIntegrationOptions({ tailscale: false }, 'proxy'),
+      validateSetupIntegrationOptions({ network: 'none' }, 'proxy'),
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
     expect(() =>
       validateSetupIntegrationOptions({ useExitNode: false }, 'git'),
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
     expect(() =>
-      validateSetupIntegrationOptions({ proxy: false }, 'tailscale'),
+      validateSetupIntegrationOptions({ proxy: false }, 'network'),
+    ).toThrow(expect.objectContaining({ code: 'USAGE' }));
+    expect(() =>
+      validateSetupIntegrationOptions({ idleMinutes: 30 }, 'network'),
+    ).toThrow(expect.objectContaining({ code: 'USAGE' }));
+  });
+
+  it('should allow the update interval switches only in the tools section or the full setup', () => {
+    const options = { updateCheckMinutes: 45, updateDueDays: 3 };
+
+    expect(() =>
+      validateSetupIntegrationOptions(options, 'tools'),
+    ).not.toThrow();
+    expect(() => validateSetupIntegrationOptions(options, 'all')).not.toThrow();
+    expect(() => validateSetupIntegrationOptions(options, 'git')).toThrow(
+      expect.objectContaining({ code: 'USAGE' }),
+    );
+    expect(() =>
+      validateSetupIntegrationOptions({ updateDueDays: 3 }, 'proxy'),
+    ).toThrow(expect.objectContaining({ code: 'USAGE' }));
+    expect(() =>
+      validateSetupIntegrationOptions({ updateCheckMinutes: 45 }, 'network'),
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
   });
 });

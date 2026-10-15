@@ -1,7 +1,7 @@
 /** Existing create and setup ordering, including their distinct environment placement. */
 export type NativeConfigurationStep =
   | 'tools'
-  | 'tailscale'
+  | 'network'
   | 'assert'
   | 'environment'
   | 'github'
@@ -30,7 +30,7 @@ export function nativeConfigurationSteps(context: {
 }): NativeConfigurationSteps {
   if (context.mode === 'create') {
     return {
-      preparation: ['tools', 'tailscale'],
+      preparation: ['tools', 'network'],
       configuration: [
         'assert',
         'environment',
@@ -45,8 +45,8 @@ export function nativeConfigurationSteps(context: {
 
   return {
     preparation: context.initialInstallation
-      ? ['tools', 'tailscale']
-      : ['tailscale', 'tools'],
+      ? ['tools', 'network']
+      : ['network', 'tools'],
     configuration: ['github', 'git', 'proxy', 'environment', 'plugins'],
     completion: ['services'],
   };

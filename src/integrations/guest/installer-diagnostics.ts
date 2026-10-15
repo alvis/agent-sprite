@@ -1,4 +1,6 @@
 import { CommandFault } from '#errors';
+import { GUEST_KERNEL, GUEST_NODE, GUEST_ROOT } from '#guest/guest-root';
+import { HOMEBREW } from '#guest/homebrew';
 import { checkOperation } from '#operation';
 import { redactResolved } from '#utilities/redaction';
 
@@ -6,7 +8,7 @@ import { runGuest, runGuestResult } from '../guest.js';
 
 import { sanitizeGuestDiagnostic } from './diagnostics.js';
 
-import type { Sprite } from '@fly/sprites';
+import type { GuestChannel } from '#drivers/guest-channel';
 
 interface InstallerOptions {
   script: 'install-tools.js';
@@ -15,43 +17,42 @@ interface InstallerOptions {
 
 const maximumLogBytes = 131_072;
 const diagnosticLimit = 512;
+// a command is logged as `Running <program> [arguments]`; the Homebrew
+// installer runs as `/bin/bash <script>`
 const installerCommands = new Set([
   '/usr/bin/apt-get',
-  '/usr/bin/make',
+  HOMEBREW.brew,
+  '/bin/bash',
   '/usr/bin/tar',
   '/usr/bin/install',
   '/usr/sbin/runuser',
 ]);
 const failureLine =
-  /^(?:Error(?::| \[)|npm (?:error|ERR!)|error:|fatal:|E: |curl: \(\d+\))/iu;
+  /^(?:Error(?::| \[)|npm (?:error|ERR!)|error:|fatal:|E: |curl: \(\d+\)|Component \S+ failed:)/iu;
 
 /**
  * executes one installer and retains a useful private-log diagnostic on failure
- * @param sprite exact guest whose surrounding transaction owns the log
+ * @param guest exact guest whose surrounding transaction owns the log
  * @param options fixed installer script, arguments and execution deadline
  */
 export async function runGuestInstaller(
-  sprite: Sprite,
+  guest: GuestChannel,
   options: InstallerOptions,
 ): Promise<void> {
   try {
-    await runGuest(
-      sprite,
-      [
-        '/opt/agent-sprite/node/bin/node',
-        `/opt/agent-sprite/${options.script}`,
-      ],
-      { timeoutMs: options.timeoutMs, step: options.script },
-    );
+    await runGuest(guest, [GUEST_NODE, `${GUEST_KERNEL}/${options.script}`], {
+      timeoutMs: options.timeoutMs,
+      step: options.script,
+    });
   } catch (error) {
     checkOperation();
     let diagnostic: string | undefined;
     try {
-      const log = await runGuestResult(sprite, [
+      const log = await runGuestResult(guest, [
         '/usr/bin/head',
         '-c',
         String(maximumLogBytes + 1),
-        '/opt/agent-sprite/install-tools.log',
+        `${GUEST_ROOT}/install-tools.log`,
       ]);
       if (log.exitCode === 0) {
         diagnostic = installerFailureMessage(options.script, log.stdout);
@@ -89,8 +90,10 @@ export function installerFailureMessage(
     .map(sanitizeGuestDiagnostic);
   const commandLine = lines.findLastIndex(
     (line) =>
-      installerCommands.has(line.replace(/^Running /u, '')) &&
-      line.startsWith('Running '),
+      line.startsWith('Running ') &&
+      installerCommands.has(
+        line.slice('Running '.length).split(' ', 1)[0] ?? '',
+      ),
   );
   if (commandLine < 0) {
     return undefined;

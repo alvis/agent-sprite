@@ -1,129 +1,54 @@
 import { buildCommand } from '@stricli/core';
 
+import {
+  createDocumentation,
+  doctorDocumentation,
+  listDocumentation,
+  setupDocumentation,
+  showDocumentation,
+  terminateDocumentation,
+} from './documentation.js';
 import { execute } from './execute.js';
 import {
   commonFlags,
   consentFlags,
   integrationCredentialFlags,
   integrationFlags,
+  networkCredentialFlags,
+  networkSelectionFlags,
   outputFlags,
   pairingFlags,
-  pluginChangeFlags,
   pluginFlags,
   providerCredentialFlags,
+  selectionFlags,
   setupFlags,
-  tailnetCredentialFlags,
-  tailnetSelectionFlags,
 } from './flags.js';
+import {
+  harnessPluginChangeFlags,
+  harnessPluginFlags,
+  harnessPluginOptions,
+} from './harness-flags.js';
 
 import type { Command } from '@stricli/core';
 
 import type { CommandOptions } from '#command/contracts';
 
+import type {
+  HarnessPluginFlagValues,
+  HarnessPluginSelectionValues,
+} from './harness-flags.js';
 import type { InvocationContext } from './parser.js';
-
-/** complete create guidance without turning optional integrations into defaults */
-const createDocumentation = {
-  brief: 'create one new coding workstation',
-  customUsage: ['[--name NAME] [options]'],
-  fullDescription: `Creates a private workstation, verifies readiness, then exposes its T3 URL.
-The flag table follows operation and name, integrations, credentials, plugins,
-then output and automation. Optional integrations and plugins need a selection;
---with-t3-pair-code alone requests a new five-minute pairing code.
-
-EXAMPLES
-  agent-sprite create --name devbox
-  agent-sprite create --name devbox --no-github
-  agent-sprite create --name devbox --with-t3-pair-code --json --non-interactive`,
-} as const;
-
-/** setup sections remain explicit even when pairing selects T3 */
-const setupDocumentation = {
-  brief: 'configure an existing workstation',
-  customUsage: ['[<workstation>] [--section SECTION] [options]'],
-  fullDescription: `Changes only the selected setup section. Without a workstation name,
-interactive mode offers a selection. --with-t3-pair-code selects the T3 section
-when --section is omitted; it also works with --section all. The flag table
-groups operation, integrations, credentials, plugins, then output controls.
-
-EXAMPLES
-  agent-sprite setup devbox --section t3
-  agent-sprite setup devbox --section all --yes
-  agent-sprite setup devbox --with-t3-pair-code`,
-} as const;
-
-/** list guidance keeps the provider-only read and output modes clear */
-const listDocumentation = {
-  brief: 'list owned workstations from Fly live',
-  customUsage: ['[options]'],
-  fullDescription: `Lists current managed workstations from the provider without waking
-their guests. Credentials appear first in the flag table, then output and
-automation controls. --json emits one structured result.
-
-EXAMPLES
-  agent-sprite list
-  agent-sprite list --json
-  agent-sprite list --no-local-credentials --sprites-token-source env:SPRITES_TOKEN`,
-} as const;
-
-/** documents workstation details, explicit inspection and pairing */
-export const showDocumentation = {
-  brief: 'show a workstation from current control-plane state',
-  customUsage: ['[<workstation>] [--inspect] [--with-t3-pair-code] [options]'],
-  fullDescription: `Shows current provider details and the ordinary T3 URL without
-waking the guest. --inspect checks live guest services and may wake it; use
-doctor for a readiness-focused report. --with-t3-pair-code creates one code
-valid for five minutes and appends it to the T3 URL. A bare interactive show
-opens the workstation action menu. Credentials precede output controls below.
-
-EXAMPLES
-  agent-sprite show devbox
-  agent-sprite show devbox --inspect
-  agent-sprite show devbox --with-t3-pair-code --json`,
-};
-
-/** deletion consent is command-specific and exact-name scoped */
-const terminateDocumentation = {
-  brief: 'permanently delete a managed workstation',
-  customUsage: ['[<workstation>] [--yes] [options]'],
-  fullDescription: `Deletes a managed workstation after confirmation. In
-non-interactive mode, provide an exact workstation name and --yes. Tailnet
-cleanup options follow the operation flag; credentials and output controls
-follow them. --yes confirms only the already selected deletion.
-
-EXAMPLES
-  agent-sprite terminate devbox
-  agent-sprite terminate devbox --yes --non-interactive`,
-} as const;
-
-/** readiness checks are separate from control-plane details */
-const doctorDocumentation = {
-  brief: 'check current workstation readiness',
-  customUsage: ['[<workstation>] [options]'],
-  fullDescription: `Inspects current guest services, routing, and native setup;
-the check may wake the guest. Use show for provider details or show --inspect
-for details together with a live inspection. Credentials precede output
-controls in the flag table.
-
-EXAMPLES
-  agent-sprite doctor devbox
-  agent-sprite doctor devbox --json
-  agent-sprite doctor devbox --non-interactive`,
-} as const;
 
 type BooleanKeys<T> = {
   [K in keyof T]-?: NonNullable<T[K]> extends boolean ? K : never;
 }[keyof T];
 type OptionalBooleanKey =
-  | 'withT3PairCode'
-  | 'tailscale'
+  | 'withPairCode'
   | 'proxy'
   | 'useExitNode'
   | 'github'
   | 'gitIdentity'
   | 'plugins'
-  | 'claudePlugins'
-  | 'codexPlugins'
   | 'localCredentials'
   | 'color';
 type RequiredBooleanFields<T> = Omit<T, BooleanKeys<T>> &
@@ -136,34 +61,27 @@ type CommonFlags = FlagsFor<typeof commonFlags>;
 type ConfigurationFlags = FlagsFor<
   typeof consentFlags &
     typeof pairingFlags &
+    typeof selectionFlags &
     typeof integrationFlags &
     typeof providerCredentialFlags &
-    typeof tailnetCredentialFlags &
+    typeof networkCredentialFlags &
     typeof integrationCredentialFlags &
     typeof pluginFlags &
     typeof outputFlags
->;
+> &
+  HarnessPluginSelectionValues;
 type CreateFlags = ConfigurationFlags & Pick<CommandOptions, 'name'>;
-type SetupFlags = FlagsFor<
-  typeof consentFlags &
-    typeof pairingFlags &
-    typeof integrationFlags &
-    typeof providerCredentialFlags &
-    typeof tailnetCredentialFlags &
-    typeof integrationCredentialFlags &
-    typeof pluginFlags &
-    typeof outputFlags &
-    typeof pluginChangeFlags &
-    typeof setupFlags
->;
+type SetupFlags = ConfigurationFlags &
+  FlagsFor<typeof setupFlags> &
+  HarnessPluginFlagValues;
 type InspectFlags = CommonFlags &
   Required<Pick<CommandOptions, 'inspect'>> &
-  Pick<CommandOptions, 'withT3PairCode'>;
+  Pick<CommandOptions, 'withPairCode'>;
 type TerminateFlags = FlagsFor<
   typeof consentFlags &
-    typeof tailnetSelectionFlags &
+    typeof networkSelectionFlags &
     typeof providerCredentialFlags &
-    typeof tailnetCredentialFlags &
+    typeof networkCredentialFlags &
     typeof outputFlags
 >;
 
@@ -186,7 +104,13 @@ const createCommand = buildCommand({
    * @returns completion after final output
    */
   async func(this: InvocationContext, flags: CreateFlags): Promise<void> {
-    return execute({ command: 'create', options: flags }, this.state);
+    return execute(
+      {
+        command: 'create',
+        options: { ...flags, harnessPlugins: harnessPluginOptions(flags) },
+      },
+      this.state,
+    );
   },
   parameters: {
     flags: {
@@ -199,11 +123,13 @@ const createCommand = buildCommand({
       },
       ...consentFlags,
       ...pairingFlags,
+      ...selectionFlags,
       ...integrationFlags,
       ...providerCredentialFlags,
-      ...tailnetCredentialFlags,
+      ...networkCredentialFlags,
       ...integrationCredentialFlags,
       ...pluginFlags,
+      ...harnessPluginFlags,
       ...outputFlags,
     },
   },
@@ -221,19 +147,28 @@ const setupCommand = buildCommand({
     flags: SetupFlags,
     machine?: string,
   ): Promise<void> {
-    return execute({ command: 'setup', machine, options: flags }, this.state);
+    return execute(
+      {
+        command: 'setup',
+        machine,
+        options: { ...flags, harnessPlugins: harnessPluginOptions(flags) },
+      },
+      this.state,
+    );
   },
   parameters: {
     flags: {
       ...setupFlags,
       ...consentFlags,
       ...pairingFlags,
+      ...selectionFlags,
       ...integrationFlags,
       ...providerCredentialFlags,
-      ...tailnetCredentialFlags,
+      ...networkCredentialFlags,
       ...integrationCredentialFlags,
       ...pluginFlags,
-      ...pluginChangeFlags,
+      ...harnessPluginFlags,
+      ...harnessPluginChangeFlags,
       ...outputFlags,
     },
     positional: machinePositional,
@@ -277,7 +212,7 @@ const showCommand = buildCommand({
       ...providerCredentialFlags,
       localCredentials: {
         ...providerCredentialFlags.localCredentials,
-        brief: 'use or skip the Sprites token saved on this computer',
+        brief: 'use or skip the provider credential saved on this computer',
       },
       ...outputFlags,
     },
@@ -305,9 +240,9 @@ const terminateCommand = buildCommand({
   parameters: {
     flags: {
       ...consentFlags,
-      ...tailnetSelectionFlags,
+      ...networkSelectionFlags,
       ...providerCredentialFlags,
-      ...tailnetCredentialFlags,
+      ...networkCredentialFlags,
       ...outputFlags,
     },
     positional: machinePositional,

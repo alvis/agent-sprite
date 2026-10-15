@@ -4,20 +4,23 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  CLAUDE_SETTINGS,
-  CODEX_CONFIG,
-} from '#integrations/native/configuration';
+import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
+import { CODEX_CONFIG } from '#drivers/harnesses/codex/paths';
 import { setupAll } from '#setup/all';
 
-import { createFilesystemSprite } from '../mocks/sprites.js';
+import { profileWith } from '../fixtures/profile.js';
+import {
+  createFilesystemSprite,
+  guestOf,
+  workstationOf,
+} from '../mocks/sprites.js';
 
 import type { SetupContext } from '#setup/context';
 
 describe('fn:setupAll', () => {
   it('should apply native proxy settings before rejecting a restricted env file and before services or exposure', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-setup-order-'),
+      join(tmpdir(), 'open-agent-setup-order-'),
     );
     const envPath = join(directory.path, 'restricted.env');
     await writeFile(envPath, 'PATH=/untrusted/path\n');
@@ -28,11 +31,12 @@ describe('fn:setupAll', () => {
     const services = vi.spyOn(sprite, 'listServices');
     const exposure = vi.spyOn(sprite, 'updateURLSettings');
     const integrations = {
-      tailscale: false,
+      network: false,
       exitNode: false,
       cliproxyapi: true,
     };
     const context: SetupContext = {
+      ...workstationOf(sprite),
       options: {
         env: envPath,
         github: false,
@@ -42,27 +46,29 @@ describe('fn:setupAll', () => {
         nonInteractive: true,
       },
       input: {
-        integrations,
+        profile: profileWith(integrations),
         runtimeEnv: {},
         sources: {},
         missing: [],
         proxyUrl: 'https://proxy.example/v1',
         proxyApiKey: 'client-key',
       },
-      integrations,
-      tailscaleEnrolled: false,
+      profile: profileWith(integrations),
+      persistsProfile: false,
+      isReleaseChanged: false,
+      networkEnrolled: false,
       initialInstallation: false,
       mutation: { started: false },
     };
-    await sprite.filesystem().mkdir('/opt/agent-sprite', { recursive: true });
-    await sprite.filesystem().writeJSON('/opt/agent-sprite/manifest.json', {
+    await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
+    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
       schema: 1,
       createdAt: '2026-10-09T00:00:00Z',
       installedVersions: {},
-      integrations,
+      profile: profileWith(integrations),
     });
 
-    await expect(setupAll(sprite, context)).rejects.toMatchObject({
+    await expect(setupAll(guestOf(sprite), context)).rejects.toMatchObject({
       code: 'INPUT',
     });
 

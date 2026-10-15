@@ -13,10 +13,10 @@ import { redactResolved } from '#utilities/redaction';
 
 describe('fn:readInputSources', () => {
   it('should parse the selected dotenv file and keep only non-secret profile inputs', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'agent-sprite-input-'));
+    const directory = await mkdtemp(join(tmpdir(), 'open-agent-input-'));
     vi.stubEnv('HOME', directory);
     vi.stubEnv('SPRITES_TOKEN', 'process-secret-for-source-test');
-    const profileDirectory = join(directory, '.config', 'agent-sprite');
+    const profileDirectory = join(directory, '.config', 'open-agent');
     const envPath = join(directory, 'chosen.env');
     await mkdir(profileDirectory, { recursive: true });
     await writeFile(
@@ -63,12 +63,12 @@ describe('fn:readInputSources', () => {
   });
 
   it('should tolerate an absent profile and reject malformed or unreadable profiles', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'agent-sprite-profile-'));
+    const directory = await mkdtemp(join(tmpdir(), 'open-agent-profile-'));
     vi.stubEnv('HOME', directory);
     const profilePath = join(
       directory,
       '.config',
-      'agent-sprite',
+      'open-agent',
       'profile.json',
     );
 
@@ -78,7 +78,7 @@ describe('fn:readInputSources', () => {
         fileEnv: {},
         profile: {},
       });
-      await mkdir(join(directory, '.config', 'agent-sprite'), {
+      await mkdir(join(directory, '.config', 'open-agent'), {
         recursive: true,
       });
       for (const profile of [null, [], 'text']) {
@@ -104,7 +104,8 @@ describe('fn:runtimeEnvironment', () => {
       SPRITES_TOKEN: 'sprites-management',
       TAILSCALE_API_KEY: 'tailscale-management',
       TAILSCALE_AUTH_KEY: 'transient-enrollment',
-      TAILSCALE_ENABLED: 'true',
+      OPEN_AGENT_NETWORK: 'tailscale',
+      OPEN_AGENT_IDLE_MINUTES: '0',
       CLIPROXYAPI_API_KEY: 'native-proxy-client',
       GH_TOKEN: 'native-github-client',
       GIT_AUTHOR_NAME: 'Author',
@@ -137,8 +138,8 @@ describe('fn:runtimeEnvironment', () => {
 
 describe('fn:resolveSecret', () => {
   it('should use explicit environment and file references ahead of fallback values', async () => {
-    vi.stubEnv('AGENT_SPRITE_TEST_SECRET', 'environment-selected-secret');
-    const directory = await mkdtemp(join(tmpdir(), 'agent-sprite-secret-'));
+    vi.stubEnv('OPEN_AGENT_TEST_SECRET', 'environment-selected-secret');
+    const directory = await mkdtemp(join(tmpdir(), 'open-agent-secret-'));
     const path = join(directory, 'secret');
     await writeFile(path, ' file-selected-secret\n\n');
 
@@ -146,7 +147,7 @@ describe('fn:resolveSecret', () => {
       const values = [
         await resolveSecret(undefined, 'fallback-secret'),
         await resolveSecret(undefined, ''),
-        await resolveSecret('env:AGENT_SPRITE_TEST_SECRET', 'fallback-secret'),
+        await resolveSecret('env:OPEN_AGENT_TEST_SECRET', 'fallback-secret'),
         await resolveSecret(`file:${path}`, 'fallback-secret'),
       ];
 
@@ -167,16 +168,14 @@ describe('fn:resolveSecret', () => {
   });
 
   it('should reject empty or malformed explicit references instead of falling back', async () => {
-    vi.stubEnv('AGENT_SPRITE_EMPTY_SECRET', '');
-    const directory = await mkdtemp(
-      join(tmpdir(), 'agent-sprite-empty-secret-'),
-    );
+    vi.stubEnv('OPEN_AGENT_EMPTY_SECRET', '');
+    const directory = await mkdtemp(join(tmpdir(), 'open-agent-empty-secret-'));
     const path = join(directory, 'secret');
     await writeFile(path, '\n');
 
     try {
       await expect(
-        resolveSecret('env:AGENT_SPRITE_EMPTY_SECRET', 'fallback-secret'),
+        resolveSecret('env:OPEN_AGENT_EMPTY_SECRET', 'fallback-secret'),
       ).rejects.toEqual(expect.objectContaining({ code: 'INPUT' }));
       await expect(
         resolveSecret(`file:${path}`, 'fallback-secret'),

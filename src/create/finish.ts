@@ -1,42 +1,38 @@
+import { networkDriver } from '#core/networks';
+import { agentPort, pairAgent } from '#core/services';
 import { commandError } from '#errors';
 import { sanitizeGuestDiagnostic } from '#integrations/guest/diagnostics';
 import { inspectGuest } from '#integrations/guest/runtime';
-import { pairT3 } from '#integrations/native';
-import {
-  getSpriteUrl,
-  setManagedSpriteLabels,
-  setSpritePublic,
-  SETUP_READY_LABEL,
-} from '#integrations/sprites';
-import { matchesExitNode } from '#integrations/tailscale';
-import { summarizeMachine } from '#machine';
+import { inspectAgentEnvironment } from '#integrations/native';
+import { requireWorkstationUrl, summarizeMachine } from '#machine';
 import {
   cancellationReason,
   checkOperation,
   currentOperation,
 } from '#operation';
 import { ReadinessFault, assessReadiness } from '#readiness';
+import { inspectUntilServing } from '#serving';
 import { PairingSecret } from '#utilities/pairing-secret';
 
 import { configureNewWorkstation } from './configure.js';
-
-import type { Sprite } from '@fly/sprites';
+import { withCreateHold } from './hold.js';
 
 import type { CommandResult } from '#command';
 import type { Interaction } from '#command/contracts';
+import type { AgentPairing, WorkstationRecord } from '#drivers/contracts';
+import type { GuestChannel } from '#drivers/guest-channel';
 import type {
   CredentialSaveResult,
   ManagementCredentialName,
 } from '#integrations/credentials';
 import type { GuestInspection } from '#integrations/guest/runtime';
-import type { T3Pairing } from '#integrations/native';
 
 import type { CreateContext, CreatePreflight } from './context.js';
 
 interface ResultContext {
-  sprite: Sprite;
+  workstation: WorkstationRecord;
   observed: GuestInspection;
-  pairing?: T3Pairing;
+  pairing?: AgentPairing;
   pairingFailure?: string;
   preflight: CreatePreflight;
   retainedCredentials?: Partial<
@@ -45,7 +41,8 @@ interface ResultContext {
 }
 
 interface CreateFinalizationContext {
-  sprite: Sprite;
+  workstation: WorkstationRecord;
+  guest: GuestChannel;
   observed: GuestInspection;
   context: CreateContext;
   interaction?: Interaction;
@@ -54,75 +51,90 @@ interface CreateFinalizationContext {
 const PAIRING_REASON_LIMIT = 512;
 
 /**
- * configure, verify, expose, and pair one newly created private Sprite
- * @param sprite exact newly created provider Sprite
+ * configure, verify, expose, and pair one newly created private workstation
+ * @param workstation exact newly created provider workstation
  * @param context inputs confirmed before creation
  * @param interaction optional progress boundary
  * @returns ready machine and current non-secret guest evidence
  */
 export async function finishCreate(
-  sprite: Sprite,
+  workstation: WorkstationRecord,
   context: CreateContext,
   interaction?: Interaction,
 ): Promise<CommandResult> {
   checkOperation();
-  await configureNewWorkstation(
-    sprite,
-    {
-      integrations: context.integrations,
-      authKey: context.authKey,
-      exitNode: context.effectiveExitNode,
-      proxyUrl: context.input.proxyUrl,
-      proxyApiKey: context.input.proxyApiKey,
-      githubToken: context.input.githubToken,
-      githubHost: context.options.githubHost,
-      gitIdentity: context.input.gitIdentity,
-      runtimeEnv: context.input.runtimeEnv,
-      plugins: context.plugins,
-    },
-    interaction,
-  );
-  const observed = await inspectGuest(sprite);
+  const guest = await context.provider.openGuest(workstation);
 
-  return finalizeCreate({
-    sprite,
-    observed,
-    context,
-    interaction,
+  return withCreateHold(guest, async () => {
+    await configureNewWorkstation(
+      guest,
+      {
+        hostname: workstation.name,
+        profile: context.input.profile,
+        authKey: context.authKey,
+        exitNode: context.effectiveExitNode,
+        proxyUrl: context.input.proxyUrl,
+        proxyApiKey: context.input.proxyApiKey,
+        githubToken: context.input.githubToken,
+        githubHost: context.options.githubHost,
+        gitIdentity: context.input.gitIdentity,
+        runtimeEnv: context.input.runtimeEnv,
+        plugins: context.plugins,
+      },
+      interaction,
+    );
+    const observed = await inspectUntilServing(
+      async () => inspectAgentEnvironment(guest, context.input.profile.agent),
+      async () => inspectGuest(guest),
+    );
+
+    return finalizeCreate({
+      workstation,
+      guest,
+      observed,
+      context,
+      interaction,
+    });
   });
 }
 
 /**
- * verifies and exposes a configured Sprite, then handles optional pairing
- * @param finalization real Sprite, fresh guest inspection, and create inputs
+ * verifies and exposes a configured workstation, then handles optional pairing
+ * @param finalization real workstation, fresh guest inspection, and create inputs
  * @returns ready machine or a retained ready pairing failure
  */
 export async function finalizeCreate(
   finalization: CreateFinalizationContext,
 ): Promise<CommandResult> {
-  const { sprite, observed, context } = finalization;
+  const { workstation, observed, context } = finalization;
   assertCreateReadiness(observed, context.effectiveExitNode);
-  getSpriteUrl(sprite);
-  await setSpritePublic(sprite);
-  const readySprite = await setManagedSpriteLabels(sprite, [SETUP_READY_LABEL]);
+  requireWorkstationUrl(workstation);
+  await context.provider.expose(
+    workstation,
+    agentPort(context.input.profile.agent),
+    'public',
+  );
+  const ready = await context.provider.setMetadata(workstation, {
+    setup: 'ready',
+  });
 
-  return finishReadyCreate({ ...finalization, sprite: readySprite });
+  return finishReadyCreate({ ...finalization, workstation: ready });
 }
 
 /**
  * keeps optional pairing and cancellation after the confirmed READY boundary
- * @param ready Sprite returned by the fulfilled READY label update and inputs
+ * @param ready workstation returned by the fulfilled READY metadata update and inputs
  * @returns ready result or a retained ready cancellation/failure
  */
 async function finishReadyCreate(
   ready: CreateFinalizationContext,
 ): Promise<CommandResult> {
-  const { sprite, observed, context, interaction } = ready;
-  let pairing: T3Pairing | undefined;
+  const { workstation, guest, observed, context, interaction } = ready;
+  let pairing: AgentPairing | undefined;
   let pairingFailure: string | undefined;
-  if (context.options.withT3PairCode) {
+  if (context.options.withPairCode) {
     try {
-      pairing = await pairT3(sprite);
+      pairing = await pairAgent(guest, context.input.profile.agent);
     } catch (error) {
       const failure = readyError(error);
       if (
@@ -137,7 +149,7 @@ async function finishReadyCreate(
       pairingFailure =
         sanitizeGuestDiagnostic(commandError(failure).message).slice(
           -PAIRING_REASON_LIMIT,
-        ) || 'T3 pairing could not be completed';
+        ) || 'Agent pairing could not be completed';
     }
   }
   try {
@@ -147,7 +159,7 @@ async function finishReadyCreate(
       message: `Workstation ${context.name} is ready`,
     });
     const result = createResult({
-      sprite,
+      workstation,
       observed,
       pairing,
       pairingFailure,
@@ -164,7 +176,7 @@ async function finishReadyCreate(
 
 /**
  * records an error after READY without demoting the retained machine
- * @param ready confirmed READY Sprite and inputs
+ * @param ready confirmed READY workstation and inputs
  * @param error pairing, cancellation or result failure
  * @returns typed retained ready failure with machine identity
  */
@@ -172,7 +184,7 @@ function readyCreateFailure(
   ready: CreateFinalizationContext,
   error: unknown,
 ): CommandResult {
-  const { sprite, observed, context } = ready;
+  const { workstation, observed, context } = ready;
   const failure = commandError(readyError(error));
 
   return {
@@ -186,12 +198,12 @@ function readyCreateFailure(
     error: {
       ...failure,
       outcome: 'retained',
-      machine: sprite.name,
-      machineId: sprite.id,
+      machine: workstation.name,
+      machineId: workstation.id,
       details: [
         ...(failure.details ?? []),
         'The workstation is ready; setup was not demoted.',
-        `Pair later: ${pairingRetry(sprite.name)}`,
+        `Pair later: ${pairingRetry(workstation.name)}`,
       ],
     },
   };
@@ -208,11 +220,11 @@ function readyError(error: unknown): unknown {
 
 /**
  * names the explicit command that can mint another pairing code
- * @param name confirmed READY Sprite name
+ * @param name confirmed READY workstation name
  * @returns retry command with a quoted workstation name
  */
 function pairingRetry(name: string): string {
-  return `agent-sprite show ${JSON.stringify(name)} --with-t3-pair-code`;
+  return `open-agent show ${JSON.stringify(name)} --with-pair-code`;
 }
 
 /**
@@ -226,9 +238,10 @@ function assertCreateReadiness(
 ): void {
   const readiness = assessReadiness(observed);
   const { failures } = readiness;
+  const network = networkDriver(observed.manifest.profile.network);
   if (
     selectedExitNode &&
-    !matchesExitNode(selectedExitNode, observed.tailscale)
+    !network.matchesExitNode(selectedExitNode, observed.network)
   ) {
     failures.push('selected exit node');
   }
@@ -239,12 +252,12 @@ function assertCreateReadiness(
 
 /**
  * returns a successful create with pairing only after an explicit request
- * @param context ready Sprite, guest evidence, and optional pairing
+ * @param context ready workstation, guest evidence, and optional pairing
  * @returns final structured create result
  */
 function createResult(context: ResultContext): CommandResult {
   const {
-    sprite,
+    workstation,
     observed,
     pairing,
     pairingFailure,
@@ -257,28 +270,28 @@ function createResult(context: ResultContext): CommandResult {
     ok: true,
     data: {
       machine: summarizeMachine(
-        sprite,
+        workstation,
         pairing ? new PairingSecret({ token: pairing.token }) : undefined,
       ),
       preflight,
       retainedCredentials,
-      integrations: observed.integrations,
+      profile: observed.manifest.profile,
       readiness: assessReadiness(observed),
-      tailscale: {
-        deviceId: observed.tailscale.deviceId,
-        exitNode: observed.tailscale.exitNode,
-        exitNodeIp: observed.tailscale.exitNodeIp,
-        online: observed.tailscale.online,
-        routeDevice: observed.tailscale.routeDevice,
-        dnsReady: observed.tailscale.dnsReady,
-        egressIp: observed.tailscale.egressIp,
-        skipped: observed.tailscale.skipped,
-        reason: observed.tailscale.reason,
+      network: {
+        deviceId: observed.network.deviceId,
+        exitNode: observed.network.exitNode,
+        exitNodeIp: observed.network.exitNodeIp,
+        online: observed.network.online,
+        routeDevice: observed.network.routeDevice,
+        dnsReady: observed.network.dnsReady,
+        egressIp: observed.network.egressIp,
+        skipped: observed.network.skipped,
+        reason: observed.network.reason,
       },
       hub: observed.hub,
       services: observed.services.map((service) => ({
         name: service.name,
-        state: service.state?.status,
+        state: service.status,
       })),
       native: observed.native,
       pairing: pairing
@@ -291,7 +304,7 @@ function createResult(context: ResultContext): CommandResult {
           ? {
               status: 'failed',
               reason: pairingFailure,
-              retry: pairingRetry(sprite.name),
+              retry: pairingRetry(workstation.name),
             }
           : { status: 'not requested' },
     },

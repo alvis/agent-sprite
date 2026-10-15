@@ -146,7 +146,7 @@ export function MachineTable({
   columns?: number;
 }>): React.JSX.Element {
   const urlWidth = machines.reduce(
-    (width, machine) => Math.max(width, machine.t3Url?.length ?? 0),
+    (width, machine) => Math.max(width, machine.agentUrl?.length ?? 0),
     MIN_URL_WIDTH,
   );
   const fitsWideTable =
@@ -186,7 +186,7 @@ export function MachineTable({
         {tableCell('CREATED', CREATED_WIDTH)}
         {tableCell('SETUP', SETUP_WIDTH)}
         {tableCell('ORGANIZATION', ORGANIZATION_WIDTH)}
-        T3 URL
+        AGENT URL
       </Text>
       {machines.map((machine, index) => (
         <Text key={machine.id ?? machine.name ?? String(index)}>
@@ -196,7 +196,7 @@ export function MachineTable({
           {tableCell(machine.createdAt, CREATED_WIDTH)}
           {tableCell(machine.setup ?? 'not recorded', SETUP_WIDTH)}
           {tableCell(machine.organization ?? 'unknown', ORGANIZATION_WIDTH)}
-          {machine.t3Url ?? 'not recorded'}
+          {machine.agentUrl ?? 'not recorded'}
         </Text>
       ))}
     </Box>
@@ -204,7 +204,7 @@ export function MachineTable({
 }
 
 /**
- * keeps the final table column free for an unbroken T3 URL
+ * keeps the final table column free for an unbroken agent URL
  * @param value column value
  * @param width space reserved for this column
  * @returns one padded table cell

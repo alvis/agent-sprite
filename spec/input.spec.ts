@@ -7,11 +7,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   resolveCreateInputs,
   resolveInputs,
-  resolveSpritesToken,
+  resolveProviderCredential,
 } from '#input';
 
+import { profileWith } from './fixtures/profile.js';
+
 describe('fn:resolveInputs', () => {
-  it('should aggregate all missing integration inputs before account discovery', async () => {
+  it('should aggregate all missing selection inputs before account discovery', async () => {
     const input = await resolveInputs(
       {
         nonInteractive: true,
@@ -24,15 +26,19 @@ describe('fn:resolveInputs', () => {
         sources: { processEnv: {}, fileEnv: {}, profile: {} },
         required: [
           'name',
-          'spritesToken',
-          'tailscaleEnrollment',
-          'tailnet',
+          'providerToken',
+          'networkEnrollment',
+          'networkAccount',
           'exitNode',
           'proxyUrl',
           'proxyApiKey',
           'gitIdentity',
         ],
-        integrations: { tailscale: true, exitNode: true, cliproxyapi: true },
+        profile: profileWith({
+          network: true,
+          exitNode: true,
+          cliproxyapi: true,
+        }),
       },
     );
     const defaults = await resolveInputs(
@@ -51,17 +57,13 @@ describe('fn:resolveInputs', () => {
     expect([input.missing, defaults.missing]).toEqual([
       [
         expect.stringContaining('--name'),
-        expect.stringContaining('SPRITES_TOKEN'),
         expect.stringContaining('TAILSCALE_API_KEY'),
         expect.stringContaining('TAILSCALE_TAILNET'),
         expect.stringContaining('TAILSCALE_EXIT_NODE'),
         expect.stringContaining('CLIPROXYAPI_BASE_URL'),
         expect.stringContaining('CLIPROXYAPI_API_KEY'),
       ],
-      [
-        expect.stringContaining('--name'),
-        expect.stringContaining('SPRITES_TOKEN'),
-      ],
+      [expect.stringContaining('--name')],
     ]);
   });
 
@@ -132,7 +134,7 @@ describe('fn:resolveInputs', () => {
     vi.stubEnv('GIT_AUTHOR_NAME', undefined);
     vi.stubEnv('GIT_AUTHOR_EMAIL', undefined);
     const directory = await mkdtemp(
-      join(tmpdir(), 'agent-sprite-missing-identity-'),
+      join(tmpdir(), 'open-agent-missing-identity-'),
     );
     vi.stubEnv('HOME', directory);
     const options = {
@@ -144,7 +146,7 @@ describe('fn:resolveInputs', () => {
     try {
       const before = await resolveInputs(options, undefined, {
         sources: { processEnv: {}, fileEnv: {}, profile: {} },
-        required: ['spritesToken', 'gitIdentity'],
+        required: ['providerToken', 'gitIdentity'],
       });
       const after = await resolveInputs(options, undefined, ['gitIdentity']);
       const known = await resolveInputs(
@@ -152,17 +154,16 @@ describe('fn:resolveInputs', () => {
         undefined,
         {
           sources: { processEnv: {}, fileEnv: {}, profile: {} },
-          required: ['spritesToken', 'gitIdentity'],
+          required: ['providerToken', 'gitIdentity'],
         },
       );
 
+      // the provider token is a declared provider prerequisite, reported by
+      // the aggregated provider preflight rather than as a missing input
       expect([before.missing, after.missing, known.missing]).toEqual([
-        [
-          expect.stringContaining('SPRITES_TOKEN'),
-          expect.stringContaining('Git author'),
-        ],
         [expect.stringContaining('Git author')],
-        [expect.stringContaining('SPRITES_TOKEN')],
+        [expect.stringContaining('Git author')],
+        [],
       ]);
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -181,14 +182,12 @@ describe('fn:resolveInputs', () => {
     ]) {
       vi.stubEnv(name, undefined);
     }
-    const directory = await mkdtemp(
-      join(tmpdir(), 'agent-sprite-create-input-'),
-    );
+    const directory = await mkdtemp(join(tmpdir(), 'open-agent-create-input-'));
     vi.stubEnv('HOME', directory);
 
     try {
       const selected = await resolveCreateInputs({
-        tailscale: true,
+        network: 'tailscale',
         useExitNode: true,
         proxy: true,
         nonInteractive: true,
@@ -198,13 +197,17 @@ describe('fn:resolveInputs', () => {
       });
 
       expect({
-        integrations: selected.integrations,
+        network: selected.profile.network,
+        options: selected.profile.options,
         missing: selected.missing,
       }).toEqual({
-        integrations: { tailscale: true, exitNode: true, cliproxyapi: true },
+        network: 'tailscale',
+        options: expect.objectContaining({
+          isExitNodeEnabled: true,
+          isProxyEnabled: true,
+        }),
         missing: [
           expect.stringContaining('--name'),
-          expect.stringContaining('SPRITES_TOKEN'),
           expect.stringContaining('TAILSCALE_API_KEY'),
           expect.stringContaining('TAILSCALE_TAILNET'),
           expect.stringContaining('TAILSCALE_EXIT_NODE'),
@@ -220,16 +223,16 @@ describe('fn:resolveInputs', () => {
   it('should resolve a read-only provider token from the selected file or explicit reference', async () => {
     vi.stubEnv('SPRITES_TOKEN', undefined);
     const directory = await mkdtemp(
-      join(tmpdir(), 'agent-sprite-provider-token-'),
+      join(tmpdir(), 'open-agent-provider-token-'),
     );
     vi.stubEnv('HOME', directory);
     const path = join(directory, 'chosen.env');
     const secretPath = join(directory, 'secret');
-    await mkdir(join(directory, '.config', 'agent-sprite'), {
+    await mkdir(join(directory, '.config', 'open-agent'), {
       recursive: true,
     });
     await writeFile(
-      join(directory, '.config', 'agent-sprite', 'profile.json'),
+      join(directory, '.config', 'open-agent', 'profile.json'),
       'malformed unrelated profile',
     );
     await writeFile(
@@ -245,19 +248,28 @@ describe('fn:resolveInputs', () => {
 
     try {
       const values = [
-        await resolveSpritesToken({ env: path, localCredentials: false }),
-        await resolveSpritesToken({
-          env: path,
-          spritesTokenSource: `file:${secretPath}`,
-          localCredentials: false,
-        }),
-        await resolveSpritesToken({ localCredentials: false }),
+        await resolveProviderCredential(
+          { env: path, localCredentials: false },
+          'sprite',
+        ),
+        await resolveProviderCredential(
+          { env: path, localCredentials: false },
+          'sprite',
+          { reference: `file:${secretPath}` },
+        ),
+        await resolveProviderCredential({ localCredentials: false }, 'sprite'),
       ];
 
       expect(values).toEqual([
-        'file-provider-secret',
-        'explicit-provider-secret',
-        undefined,
+        {
+          token: 'file-provider-secret',
+          source: `SPRITES_TOKEN in ${path}`,
+        },
+        {
+          token: 'explicit-provider-secret',
+          source: `--provider-token-source file:${secretPath}`,
+        },
+        {},
       ]);
     } finally {
       await rm(directory, { recursive: true, force: true });

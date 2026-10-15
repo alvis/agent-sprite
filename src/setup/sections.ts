@@ -1,6 +1,14 @@
+import { catalog } from '#core/catalog';
+import {
+  configureHarnesses,
+  harnessDrivers,
+  proxyRoute,
+} from '#core/harnesses';
+import { selectedChannel } from '#core/release-channels';
+import { pairAgent } from '#core/services';
 import { CommandFault } from '#errors';
 import { resolveInputs } from '#input';
-import { assertGuestIntegrations } from '#integrations/guest/manifest';
+import { assertGuestProfile } from '#integrations/guest/manifest';
 import {
   installGuestTools,
   installManagedServices,
@@ -8,51 +16,55 @@ import {
 } from '#integrations/guest/runtime';
 import { withGuestTransaction } from '#integrations/guest/transaction';
 import {
-  configureClaude,
-  configureCodex,
   configureGit,
   configureGithub,
   configureRuntimeEnv,
-  pairT3,
 } from '#integrations/native';
 import { promptUnavailableDetail } from '#operation';
 import { PairingSecret } from '#utilities/pairing-secret';
 
-import type { Sprite } from '@fly/sprites';
+import { exposeWhenServing } from './serving.js';
 
 import type { Interaction } from '#command/contracts';
 import type {
-  T3SetupData,
+  AgentSetupData,
+  ComponentCounts,
   GithubSetupData,
   GitSetupData,
   ProxySetupData,
   EnvironmentSetupData,
   ToolsSetupData,
 } from '#command/data';
+import type { GuestChannel } from '#drivers/guest-channel';
+import type { GuestManifest } from '#integrations/guest/runtime';
 
 import type { SetupContext } from './context.js';
 
 /**
- * installs persistent T3 services or mint a requested native pairing
- * @param sprite exact managed Sprite
+ * installs persistent agent services, moves the agent to the release channel
+ * this run selected, or mints a requested native pairing
+ * @param guest guest channel of the managed workstation
  * @param context pairing options, status reporter, and mutation state
  * @returns service or pairing outcome
  */
-export async function setupT3(
-  sprite: Sprite,
+export async function setupAgent(
+  guest: GuestChannel,
   context: SetupContext,
-): Promise<T3SetupData> {
-  const { options, interaction, mutation } = context;
-  if (!options.withT3PairCode) {
+): Promise<AgentSetupData> {
+  const { options, interaction, mutation, profile } = context;
+  if (context.isReleaseChanged) {
+    await switchAgentRelease(guest, context);
+  } else if (!options.withPairCode) {
     mutation.started = true;
-    await installManagedServices(sprite);
-
+    await installManagedServices(guest);
+  }
+  if (!options.withPairCode) {
     return { service: 'configured', pairing: { status: 'not requested' } };
   }
-  const pairing = await pairT3(sprite);
+  const pairing = await pairAgent(guest, profile.agent);
   interaction?.status({
     kind: 'success',
-    message: `New T3 pairing expires ${pairing.expiresAt ?? 'per native policy'}`,
+    message: `New ${catalog.agents[profile.agent].displayName} pairing expires ${pairing.expiresAt ?? 'per native policy'}`,
   });
 
   return {
@@ -65,13 +77,40 @@ export async function setupT3(
 }
 
 /**
- * sets optional GitHub authentication for T3 and the default provider shell
- * @param sprite exact managed Sprite
+ * installs the release the selected channel currently publishes, which is a
+ * downgrade when the channel is older, restarts the agent service so it runs
+ * that release, then waits for the agent to serve and exposes it
+ * @param guest guest channel of the managed workstation
+ * @param context selection already stored with the selected channel, prompts and mutation state
+ */
+async function switchAgentRelease(
+  guest: GuestChannel,
+  context: SetupContext,
+): Promise<void> {
+  const { interaction, mutation, profile } = context;
+  const { displayName, releaseChannels } = catalog.agents[profile.agent];
+  const channel = selectedChannel(
+    releaseChannels,
+    profile.options.agentRelease,
+  );
+  interaction?.progress({
+    stage: 'agent',
+    message: `Installing the ${channel?.id ?? 'selected'} release of ${displayName}; this may take several minutes`,
+  });
+  mutation.started = true;
+  await installGuestTools(guest, profile);
+  await installManagedServices(guest, { isAgentRestarted: true });
+  await exposeWhenServing(guest, context);
+}
+
+/**
+ * sets optional GitHub authentication for the agent and the provider shell accounts
+ * @param guest guest channel of the managed workstation
  * @param context GitHub choices, prompts, and redaction values
  * @returns gitHub configuration outcome
  */
 export async function setupGithub(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
 ): Promise<GithubSetupData> {
   const { options, interaction, mutation } = context;
@@ -83,19 +122,22 @@ export async function setupGithub(
     return { github: 'skipped' };
   }
   mutation.started = true;
-  await configureGithub(sprite, input.githubToken, options.githubHost);
+  await configureGithub(guest, input.githubToken, {
+    hostname: options.githubHost,
+    shellAccounts: catalog.providers[context.profile.provider].shellAccounts,
+  });
 
   return { github: 'configured' };
 }
 
 /**
  * sets author and committer identity in the guest's Git configuration
- * @param sprite exact managed Sprite
+ * @param guest guest channel of the managed workstation
  * @param context Git identity options, prompts, and mutation state
  * @returns git configuration outcome
  */
 export async function setupGit(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
 ): Promise<GitSetupData> {
   const { options, interaction, mutation } = context;
@@ -113,41 +155,42 @@ export async function setupGit(
     });
   }
   mutation.started = true;
-  await configureGit(sprite, input.gitIdentity);
+  await configureGit(guest, input.gitIdentity);
 
   return { gitIdentity: 'configured' };
 }
 
 /**
- * configures Claude and Codex against the selected CLIProxyAPI gateway
- * @param sprite exact managed Sprite
+ * configures each selected harness against the selected CLIProxyAPI gateway
+ * @param guest guest channel of the managed workstation
  * @param context gateway choices, prompts, and redaction values
  * @returns non-secret gateway summary
  */
 export async function setupProxy(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
 ): Promise<ProxySetupData> {
-  return withGuestTransaction(sprite, async () => {
-    const { input, integrations, mutation } = context;
-    await assertGuestIntegrations(sprite, integrations);
-    if (integrations.cliproxyapi && (!input.proxyUrl || !input.proxyApiKey)) {
+  return withGuestTransaction(guest, async () => {
+    const { input, profile, mutation } = context;
+    const { isProxyEnabled } = profile.options;
+    await assertGuestProfile(guest, profile);
+    if (isProxyEnabled && (!input.proxyUrl || !input.proxyApiKey)) {
       throw new Error('Validated CLIProxyAPI inputs were unavailable');
     }
     mutation.started = true;
-    await configureClaude(
-      sprite,
-      integrations.cliproxyapi ? input.proxyUrl : undefined,
-      integrations.cliproxyapi ? input.proxyApiKey : undefined,
-    );
-    await configureCodex(
-      sprite,
-      integrations.cliproxyapi ? input.proxyUrl : undefined,
-      integrations.cliproxyapi ? input.proxyApiKey : undefined,
-    );
+    const drivers = harnessDrivers(profile.harnesses);
+    await configureHarnesses(guest, {
+      drivers,
+      proxy: proxyRoute({
+        enabled: isProxyEnabled,
+        url: input.proxyUrl,
+        apiKey: input.proxyApiKey,
+        drivers,
+      }),
+    });
 
     return {
-      proxy: integrations.cliproxyapi
+      proxy: isProxyEnabled
         ? { status: 'configured', baseUrl: input.proxyUrl }
         : { status: 'disabled' },
     };
@@ -156,12 +199,12 @@ export async function setupProxy(
 
 /**
  * loads and write a selected runtime environment file
- * @param sprite exact managed Sprite
+ * @param guest guest channel of the managed workstation
  * @param context environment choice, prompts, and redaction values
  * @returns names of configured runtime variables
  */
 export async function setupEnvironment(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
 ): Promise<EnvironmentSetupData> {
   const { options, interaction, mutation } = context;
@@ -187,7 +230,7 @@ export async function setupEnvironment(
     [],
   );
   mutation.started = true;
-  await configureRuntimeEnv(sprite, input.runtimeEnv);
+  await configureRuntimeEnv(guest, input.runtimeEnv);
 
   return {
     runtimeEnvironment: {
@@ -198,16 +241,23 @@ export async function setupEnvironment(
 }
 
 /**
- * refreshes managed developer tools on the guest
- * @param sprite exact managed Sprite
+ * refreshes managed developer tools on the guest; an update also redeploys the
+ * update gate and entry and rewrites the interval file from the stored profile,
+ * while viewing recorded versions changes nothing
+ * @param guest guest channel of the managed workstation
  * @param context parsed update flag, prompts, and mutation state
  * @returns tool update outcome
  */
 export async function setupTools(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
 ): Promise<ToolsSetupData> {
-  const { options, interaction, integrations, mutation } = context;
+  const { options, interaction, profile, mutation } = context;
+  // a changed interval was stored with its schedule before this section ran;
+  // with nothing else asked for and nobody to ask, that is the whole outcome
+  if (context.persistsProfile && !options.update && !interaction) {
+    return { tools: 'scheduled' };
+  }
   if (!options.update && !interaction) {
     throw new CommandFault({
       code: 'USAGE',
@@ -223,7 +273,7 @@ export async function setupTools(
     ? 'update'
     : await selectToolsAction(interaction!);
   if (action === 'versions') {
-    const manifest = await readGuestManifest(sprite);
+    const manifest = await readGuestManifest(guest);
 
     return {
       tools: {
@@ -239,7 +289,7 @@ export async function setupTools(
     !options.yes &&
     !(await interaction.confirm({
       message:
-        'Install latest stable tools and restart managed T3/Tailscale services now?',
+        'Install latest stable tools now? Running services are not restarted.',
     }))
   ) {
     return { tools: 'unchanged' };
@@ -247,12 +297,30 @@ export async function setupTools(
   interaction?.progress({
     stage: 'tools',
     message:
-      'Installing latest stable tools and restarting managed services; this may take several minutes',
+      'Installing latest stable tools in place; this may take several minutes',
   });
   mutation.started = true;
-  await installGuestTools(sprite, integrations);
+  const outcomes = await installGuestTools(guest, profile);
 
-  return { tools: 'updated' };
+  return outcomes
+    ? { tools: 'updated', components: countOutcomes(outcomes) }
+    : { tools: 'updated' };
+}
+
+/**
+ * summarizes an install run as counts of changed and already-current components
+ * @param outcomes what the run did to each component
+ * @returns how many components were installed and how many were skipped
+ */
+function countOutcomes(
+  outcomes: NonNullable<GuestManifest['componentOutcomes']>,
+): ComponentCounts {
+  const statuses = Object.values(outcomes).map(({ status }) => status);
+
+  return {
+    installed: statuses.filter((status) => status === 'installed').length,
+    skipped: statuses.filter((status) => status === 'skipped').length,
+  };
 }
 
 /**
@@ -265,7 +333,7 @@ async function selectToolsAction(interaction: Interaction): Promise<string> {
     {
       message: 'Managed tools',
       description:
-        'Viewing versions makes no changes. Updating installs latest stable tools and restarts managed services.',
+        'Viewing versions makes no changes. Updating installs latest stable tools in place and never restarts a running service.',
     },
     [
       {
@@ -278,7 +346,7 @@ async function selectToolsAction(interaction: Interaction): Promise<string> {
         value: 'update',
         label: 'Update tools now',
         description:
-          'May take several minutes; restarts T3 and enabled Tailscale',
+          'May take several minutes; running services keep their current process',
       },
     ],
   );

@@ -4,39 +4,35 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { mergeManifestUpdate as untypedMergeManifestUpdate } from '#guest/update-manifest';
+import { updateOptions } from '#guest/update-options';
 import {
   readGuestManifest,
-  writeGuestIntegrations,
-  writeGuestTailnetIdentity,
+  writeGuestNetworkIdentity,
+  writeGuestProfile,
 } from '#integrations/guest/manifest';
-import { mergeManifestUpdate as untypedMergeManifestUpdate } from '#scripts/update-manifest';
-import { updateOptions as untypedUpdateOptions } from '#scripts/update-options';
 
-import { createFilesystemSprite } from '../../mocks/sprites.js';
-
-import type { GuestManifest } from '#integrations/guest/manifest';
+import { profileWith, TAILSCALE_PROFILE } from '../../fixtures/profile.js';
+import { createFilesystemSprite, guestOf } from '../../mocks/sprites.js';
 
 const mergeManifestUpdate = untypedMergeManifestUpdate;
-const updateOptions = untypedUpdateOptions as (
-  manifest: GuestManifest,
-  argv: string[],
-) => { force: boolean; services: string[] };
 
 describe('guest manifest transaction', () => {
   it('should merge fresh CLI and updater-owned fields on a real temporary file', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-manifest-transaction-'),
+      join(tmpdir(), 'open-agent-manifest-transaction-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
-    const guestPath = '/opt/agent-sprite/manifest.json';
+    const guestPath = '/opt/open-agent/manifest.json';
     const hostPath = join(directory.path, guestPath);
-    await sprite.filesystem().mkdir('/opt/agent-sprite', { recursive: true });
+    await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
     await writeFile(
       hostPath,
       JSON.stringify({
         schema: 1,
         createdAt: '2026-01-01T00:00:00Z',
         installedVersions: { node: '24.0.0' },
+        profile: TAILSCALE_PROFILE,
       }),
     );
 
@@ -46,43 +42,36 @@ describe('guest manifest transaction', () => {
       lastUpdateStatus: 'failed',
       lastUpdateError: 'bounded failure',
     });
-    await writeGuestIntegrations(sprite, {
-      tailscale: false,
-      exitNode: false,
-      cliproxyapi: true,
+    await writeGuestProfile(
+      guestOf(sprite),
+      profileWith({ network: false, exitNode: false, cliproxyapi: true }),
+    );
+    await writeGuestNetworkIdentity(guestOf(sprite), {
+      network: 'tailscale',
+      deviceId: 'device-1',
     });
-    await writeGuestTailnetIdentity(sprite, { deviceId: 'device-1' });
     await mergeManifestUpdate(hostPath, {
       lastSuccessfulUpdate: '2026-01-03T00:00:00Z',
       lastUpdateStatus: 'succeeded',
     });
 
-    const manifest = await readGuestManifest(sprite);
+    const manifest = await readGuestManifest(guestOf(sprite));
     expect(manifest).toMatchObject({
       installedVersions: { node: '24.1.0' },
       lastAttemptedUpdate: '2026-01-02T00:00:00Z',
       lastSuccessfulUpdate: '2026-01-03T00:00:00Z',
       lastUpdateStatus: 'succeeded',
-      integrations: {
-        tailscale: false,
-        exitNode: false,
-        cliproxyapi: true,
+      profile: {
+        network: 'none',
+        options: { isExitNodeEnabled: false, isProxyEnabled: true },
       },
-      tailnetIdentity: { deviceId: 'device-1' },
+      networkIdentity: { network: 'tailscale', deviceId: 'device-1' },
     });
     expect(manifest).not.toHaveProperty('lastUpdateError');
     expect(JSON.parse(await readFile(hostPath, 'utf8'))).toEqual(manifest);
-    expect(updateOptions(manifest, ['node', 'updater.js']).services).toEqual([
-      't3-code',
-    ]);
-    expect(
-      updateOptions(
-        {
-          ...manifest,
-          integrations: { ...manifest.integrations!, tailscale: true },
-        },
-        ['node', 'updater.js', '--force'],
-      ).services,
-    ).toEqual(['t3-code', 'tailscaled']);
+    expect(updateOptions(['node', 'updater.js'])).toEqual({ force: false });
+    expect(updateOptions(['node', 'updater.js', '--force'])).toEqual({
+      force: true,
+    });
   });
 });
