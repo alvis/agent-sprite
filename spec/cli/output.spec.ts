@@ -174,6 +174,27 @@ describe('fn:writeResult', () => {
     stderr.destroy();
   });
 
+  it('should name each unavailable provider on stderr beside piped TSV rows', () => {
+    const reason =
+      'workstation status unknown, no Fly organization token was found; supply one in FLY_API_TOKEN, or with --provider fly-machine --provider-token-source, to list its workstations';
+    const output = captureResult(
+      {
+        command: 'list',
+        ok: true,
+        data: {
+          machines: [{ ...machine, name: 'alpha', id: 'sprite-alpha' }],
+          unavailable: [{ provider: 'fly-machine', code: 'INPUT', reason }],
+        },
+      },
+      {},
+    );
+
+    expect(output).toEqual({
+      stdout: 'alpha\tsprite-alpha\trunning\t\t\tready\texample\tsprite\n',
+      stderr: `Unavailable provider fly-machine: ${reason}\n`,
+    });
+  });
+
   it('should emit no TSV row for an empty list', () => {
     const output = captureResult(
       { command: 'list', ok: true, data: { machines: [], unavailable: [] } },
