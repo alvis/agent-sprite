@@ -5,6 +5,7 @@ import type {
   GuestAccount,
   GuestChannel,
   GuestCommand,
+  GuestProcess,
   GuestServiceState,
   ServiceDefinition,
 } from './guest-channel.js';
@@ -322,6 +323,17 @@ export interface ProviderDriver<
    * @returns the guest channel
    */
   openGuest(workstation: WorkstationRecord): Promise<GuestChannel>;
+  /**
+   * opens a root shell that reads its commands from standard input, for a
+   * setup session; how it becomes root is the provider's own
+   * @param workstation managed workstation
+   * @param shell absolute path of the OS family's shell, such as `/bin/dash`
+   * @returns the running shell
+   */
+  openRootShell(
+    workstation: WorkstationRecord,
+    shell: string,
+  ): Promise<GuestProcess>;
   /**
    * waits until the guest has finished booting, so setup never races the
    * provider's own boot work

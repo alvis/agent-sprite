@@ -32,7 +32,7 @@ import type {
   WorkstationMetadata,
   WorkstationRecord,
 } from '#drivers/contracts';
-import type { GuestChannel } from '#drivers/guest-channel';
+import type { GuestChannel, GuestProcess } from '#drivers/guest-channel';
 import type { OsImage } from '#os/contracts';
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -254,6 +254,21 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
     channels.set(workstation.id, channel);
 
     return channel;
+  }
+
+  /**
+   * opens a root shell over the exec API, behind `sudo -n` as every privileged Sprite command is
+   * @param workstation managed workstation
+   * @param shell absolute path of the OS family's shell
+   * @returns the running shell
+   */
+  public async openRootShell(
+    workstation: WorkstationRecord,
+    shell: string,
+  ): Promise<GuestProcess> {
+    const guest = await this.openGuest(workstation);
+
+    return guest.spawn({ program: shell, arguments: [] });
   }
 
   /**

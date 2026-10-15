@@ -30,11 +30,10 @@ import type {
   ProviderBinding,
   ProviderDriver,
   ProviderPreflightParams,
-  ProviderPrerequisites,
   WorkstationMetadata,
   WorkstationRecord,
 } from '#drivers/contracts';
-import type { GuestChannel } from '#drivers/guest-channel';
+import type { GuestChannel, GuestProcess } from '#drivers/guest-channel';
 
 import type { FlyApp, FlyIpType, FlyMachine } from './wire.js';
 
@@ -80,8 +79,7 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
   public readonly machines = FLY_MACHINES;
   // the spec implies no driver combination a Fly Machine cannot host
   public readonly incompatibilities: readonly ProfileIncompatibility[] = [];
-  public readonly prerequisites: ProviderPrerequisites =
-    FLY_MACHINE_PREREQUISITES;
+  public readonly prerequisites = FLY_MACHINE_PREREQUISITES;
   public readonly shellAccounts = flyMachineGuestLeaf.shellAccounts;
   public readonly images = FLY_MACHINE_IMAGES;
   public readonly serviceBackend = flyMachineGuestLeaf.serviceBackend;
@@ -334,6 +332,21 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
     channels.set(workstation.id, channel);
 
     return channel;
+  }
+
+  /**
+   * opens a root shell over `fly ssh console`, which logs in as root
+   * @param workstation managed workstation
+   * @param shell absolute path of the OS family's shell
+   * @returns the running shell
+   */
+  public async openRootShell(
+    workstation: WorkstationRecord,
+    shell: string,
+  ): Promise<GuestProcess> {
+    const guest = await this.openGuest(workstation);
+
+    return guest.spawn({ program: shell, arguments: [] });
   }
 
   /**
