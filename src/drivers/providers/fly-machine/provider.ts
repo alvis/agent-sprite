@@ -83,6 +83,7 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
   public readonly shellAccounts = flyMachineGuestLeaf.shellAccounts;
   public readonly images = FLY_MACHINE_IMAGES;
   public readonly serviceBackend = flyMachineGuestLeaf.serviceBackend;
+  public readonly bootHook = flyMachineGuestLeaf.bootHook;
   public readonly awakeAdapter = flyMachineGuestLeaf.awakeAdapter;
   readonly #session?: FlySession;
 

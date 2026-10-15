@@ -25,18 +25,19 @@ import { providerPreflight } from '#core/preflight';
 import { defaultProfile } from '#core/profile';
 import { FlyApi } from '#drivers/providers/fly-machine/api';
 import {
+  BOOT_LOG,
+  BOOT_STATUS,
+  BOOT_STEPS,
+  PROFILE_PATH,
+  ROOTFS_RESTORED,
+  VOLUME_LAYOUT,
+} from '#drivers/providers/fly-machine/boot-layout';
+import {
   decodeToken,
   deriveSshToken,
   FLYCTL,
   flyctlConfigDirectory,
 } from '#drivers/providers/fly-machine/flyctl';
-import {
-  BOOT_LOG,
-  BOOT_STATUS,
-  BOOT_STEPS,
-  PROFILE_PATH,
-  VOLUME_LAYOUT,
-} from '#drivers/providers/fly-machine/guest/boot-paths';
 import { tokenScopeProblem } from '#drivers/providers/fly-machine/token-scope';
 import { summarizeProfile } from '#drivers/providers/recorded';
 import { GUEST_ROOT } from '#guest/guest-root';
@@ -171,7 +172,7 @@ const PROCESS_SNAPSHOT = [
 /** a file on the root filesystem, which a cold boot discards */
 const ROOTFS_MARKER = '/root/open-agent-cold-boot';
 /** removes what the boot script rebuilds on the root filesystem: Node's links, the login profile, the package Node needs and the marker */
-const RESET_ROOTFS = `rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx ${PROFILE_PATH} ${ROOTFS_MARKER} && dpkg --remove --force-depends libatomic1 >/dev/null`;
+const RESET_ROOTFS = `rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx ${PROFILE_PATH} ${ROOTFS_MARKER} ${ROOTFS_RESTORED} && dpkg --remove --force-depends libatomic1 >/dev/null`;
 /** the installer's environment for brew, so its configuration is read as the installer runs it */
 const BREW = `runuser -u ${HOMEBREW.account} -- /usr/bin/env -i HOME=${HOMEBREW.home} PATH=/usr/bin:/bin HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_BOTTLE_SOURCE_FALLBACK=1 ${HOMEBREW.brew}`;
 const STEP_TIMEOUT_MS = 120_000;

@@ -172,7 +172,7 @@ export interface ProviderDeclaration<
   images: readonly [OsImage, ...OsImage[]];
   /** who runs the guest services: the provider itself, or a backend setup installs */
   serviceBackend: ServiceBackendId;
-  /** guest program each boot runs to restore what the provider resets; absent when the root disk persists */
+  /** guest program each boot runs to restore what the provider resets, such as a rebuilt root disk; absent when it resets nothing */
   bootHook?: GuestAsset;
 }
 

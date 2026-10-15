@@ -15,11 +15,16 @@ import type { ReleaseInstallSource } from './install-sources.js';
 /**
  * the guest facts of a provider the payload pipeline needs before any driver
  * loads: its login accounts, the capability axes the idle governor reads, who
- * runs its services and the awake adapter module it deploys
+ * runs its services, the boot hook it keeps and the awake adapter module it
+ * deploys
  */
 export type ProviderGuestLeaf = Pick<
   ProviderDriver,
-  'shellAccounts' | 'capabilities' | 'serviceBackend' | 'awakeAdapter'
+  | 'shellAccounts'
+  | 'capabilities'
+  | 'serviceBackend'
+  | 'bootHook'
+  | 'awakeAdapter'
 >;
 
 /** the guest facts of a harness the payload pipeline needs before any driver loads */
