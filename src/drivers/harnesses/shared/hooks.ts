@@ -1,9 +1,9 @@
 import { CommandFault } from '#errors';
-import { AWAKE_DEADLINE_MS } from '#guest/idle/command';
+import { AWAKE_DEADLINE_MS } from '#integrations/guest/awake';
 import { isRecord } from '#utilities/guards';
 
 import type { AwakeHookCommand } from '#drivers/contracts';
-import type { AwakeAction } from '#guest/idle/command';
+import type { AwakeAction } from '#integrations/guest/awake';
 
 /** one native hook event a harness reports to the idle governor */
 export interface WorkHook {

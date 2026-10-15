@@ -152,6 +152,7 @@ const FIELDS: Readonly<Record<string, Check>> = {
     transportNetworks: listOf(text),
     idleTimeoutMinutes: atLeast(0),
     holdMaxMinutes: atLeast(1),
+    awakeAdapter: (value) => value === null || path(value),
   }),
   agent: shape({
     id: text,

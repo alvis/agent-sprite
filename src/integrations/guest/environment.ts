@@ -77,6 +77,8 @@ export interface EnvironmentProvider {
   idleTimeoutMinutes: number;
   /** minutes a turn hold lasts after its last refresh, capped at the deadline limit */
   holdMaxMinutes: number;
+  /** where the provider's awake adapter is installed; null when it deploys none */
+  awakeAdapter: string | null;
 }
 
 /** a command recorded for a guest program to run */

@@ -1,4 +1,5 @@
 import { CommandFault } from '#errors';
+import { sessionAwakeHold } from '#integrations/guest/awake';
 
 import {
   inlineScript,
@@ -61,7 +62,8 @@ export interface WorkstationSessionParams extends Omit<
 
 /**
  * waits until the guest has booted, opens a root shell and opens a session
- * on it
+ * on it, which holds the workstation awake while its shell lives unless
+ * another hold is given
  * @param params the provider, workstation, family and awake hold
  * @returns a session that holds the guest's setup lock
  */
@@ -72,7 +74,12 @@ export async function openWorkstationSession(
   await provider.awaitGuestReady(workstation);
   const shell = await provider.openRootShell(workstation, rest.family.shell);
 
-  return openGuestSession({ ...rest, shell, images: provider.images });
+  return openGuestSession({
+    awakeHold: sessionAwakeHold,
+    ...rest,
+    shell,
+    images: provider.images,
+  });
 }
 
 /**

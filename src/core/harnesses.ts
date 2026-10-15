@@ -1,6 +1,6 @@
 import { recordHub } from '#drivers/shared/cliproxyapi/hub';
 import { CommandFault } from '#errors';
-import { AWAKE_COMMAND } from '#guest/idle/command';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { recordOf } from '#utilities/records';
 
 import { catalog, DEFAULT_SELECTION } from './catalog.js';

@@ -42,7 +42,7 @@ import { tokenScopeProblem } from '#drivers/providers/fly-machine/token-scope';
 import { summarizeProfile } from '#drivers/providers/recorded';
 import { GUEST_ROOT } from '#guest/guest-root';
 import { HOMEBREW } from '#guest/homebrew';
-import { AWAKE_COMMAND } from '#guest/idle/command';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { isRecord } from '#utilities/guards';
 
 import { createLiveCli, successData } from './cli.js';

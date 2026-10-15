@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { withCreateHold } from '#create/hold';
-import { AWAKE_COMMAND } from '#guest/idle/command';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 

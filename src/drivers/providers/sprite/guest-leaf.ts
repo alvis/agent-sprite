@@ -1,3 +1,6 @@
+import { guestAsset } from '#guest/assets';
+import { SHARED_MODE } from '#os/contracts';
+
 import { SPRITE_AWAKE_MODULE } from './guest-modules.js';
 
 import type { ProviderGuestLeaf } from '#drivers/contracts';
@@ -26,4 +29,9 @@ export const spriteGuestLeaf: ProviderGuestLeaf = {
   serviceBackend: 'provider',
   // the agent account applies the deadline, so the adapter never needs root
   awakeAdapter: { module: SPRITE_AWAKE_MODULE, account: 'agent' },
+  // the governor applies deadlines as the agent, so the agent runs the adapter
+  awakeAsset: guestAsset(
+    'drivers/providers/sprite/guest/sprite-awake.sh',
+    SHARED_MODE,
+  ),
 };
