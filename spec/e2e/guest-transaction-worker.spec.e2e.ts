@@ -28,13 +28,13 @@ interface WorkerFrame {
  * @returns worker process, observed frames and event waiters
  */
 function startWorker(lockPath: string) {
-  const packedBin = process.env.AGENT_SPRITE_PACKED_BIN;
+  const packedBin = process.env.OPEN_AGENT_PACKED_BIN;
   if (!packedBin) {
     throw new Error('Worker process proof requires the packed E2E runner');
   }
   const workerPath = join(
     dirname(realpathSync(packedBin)),
-    '../lib/scripts/guest-transaction.js',
+    '../lib/guest/guest-transaction.js',
   );
   const descriptor = openSync(lockPath, 'w');
   const worker = spawn(
@@ -42,7 +42,7 @@ function startWorker(lockPath: string) {
     [
       '-c',
       'umask 077; exec "$@"',
-      'agent-sprite-worker',
+      'open-agent-worker',
       process.execPath,
       workerPath,
       '0',
@@ -101,7 +101,7 @@ function startWorker(lockPath: string) {
 describe('actual guest transaction worker', () => {
   it('should honor a requested executable mode despite the private launch umask', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-worker-mode-'),
+      join(tmpdir(), 'open-agent-worker-mode-'),
     );
     const executable = join(directory.path, 'managed-executable');
     const contents = '#!/bin/sh\nexit 0\n';
@@ -136,7 +136,7 @@ describe('actual guest transaction worker', () => {
 
   it('should keep an accepted child alive through settlement before release', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-worker-child-'),
+      join(tmpdir(), 'open-agent-worker-child-'),
     );
     const marker = join(directory.path, 'child-finished');
     const { worker, closed, frames, next } = startWorker(
@@ -177,7 +177,7 @@ describe('actual guest transaction worker', () => {
 
   it('should remove a transient file before acknowledging release', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-worker-cleanup-'),
+      join(tmpdir(), 'open-agent-worker-cleanup-'),
     );
     const transient = join(directory.path, 'private');
     const { worker, closed, next } = startWorker(join(directory.path, 'lock'));

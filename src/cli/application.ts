@@ -3,6 +3,8 @@ import process from 'node:process';
 
 import { buildApplication, buildRouteMap } from '@stricli/core';
 
+import { catalog } from '#core/catalog';
+
 import { commandRoutes } from './commands.js';
 import { emitResult } from './execute.js';
 import {
@@ -15,14 +17,23 @@ import type { Application, RouteMap } from '@stricli/core';
 
 import type { ExecutionState, InvocationContext } from './parser.js';
 
+const ENVIRONMENT_NAME_WIDTH = 19;
 const ROOT_HELP_FOOTER = `ENVIRONMENT
-  SPRITES_TOKEN       Fly Sprites token; --sprites-token-source selects another source.
+${Object.values(catalog.providers)
+  .map(
+    ({ displayName, prerequisites: { credential } }) =>
+      `  ${credential.environment.padEnd(ENVIRONMENT_NAME_WIDTH)} ${displayName} credential; --provider-token-source selects another source.`,
+  )
+  .join('\n')}
+  OPEN_AGENT_*        Driver and option selection; see open-agent create --help.
   CI, NON_INTERACTIVE Disable prompts when set to 1, true, yes, or on.
   NO_COLOR            Disable color unless --color is selected.
 
 LEARN MORE
-  https://docs.fly.io/sprites/cli/authentication
-  https://docs.fly.io/sprites/quickstart`;
+${Object.values(catalog.providers)
+  .flatMap(({ prerequisites: { documentation } }) => documentation)
+  .map((link) => `  ${link}`)
+  .join('\n')}`;
 
 /**
  * appends environment guidance after Stricli's complete root command table
@@ -51,11 +62,11 @@ function createApplication(
     withRootHelpFooter(
       buildRouteMap({
         routes: commandRoutes,
-        docs: { brief: 'manage persistent coding workstations on Fly Sprites' },
+        docs: { brief: 'manage persistent coding workstations' },
       }),
     ),
     {
-      name: 'agent-sprite',
+      name: 'open-agent',
       versionInfo: {
         currentVersion: (
           JSON.parse(

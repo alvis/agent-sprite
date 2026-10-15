@@ -6,47 +6,62 @@ import { SpritesClient } from '@fly/sprites';
 import { parse } from 'smol-toml';
 import { describe, expect, it, vi } from 'vitest';
 
-import { MANAGED_LABEL, SCHEMA_LABEL } from '#integrations/sprites';
+import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { setupWorkstation } from '#setup';
 import { setupPlugins } from '#setup/plugins';
 import { setupTools } from '#setup/sections';
 
 import { driveInk } from '../fixtures/ink.js';
-import { createFilesystemSprite } from '../mocks/sprites.js';
+import { pluginFlags } from '../fixtures/plugin-flags.js';
+import { DISABLED_NETWORK_PROFILE, profileWith } from '../fixtures/profile.js';
+import {
+  createFilesystemSprite,
+  guestOf,
+  providerOf,
+  workstationOf,
+} from '../mocks/sprites.js';
 
 import type { SetupContext } from '#setup/context';
 
-const integrations = { tailscale: false, exitNode: false, cliproxyapi: false };
+const integrations = { network: false, exitNode: false, cliproxyapi: false };
 
 describe('workflow:scoped setup', () => {
   it('should view recorded tool versions and declines an update without guest mutation', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'agent-sprite-setup-'));
+    const root = await mkdtemp(join(tmpdir(), 'open-agent-setup-'));
     try {
       const sprite = createFilesystemSprite({ root });
-      await mkdir(join(root, 'opt/agent-sprite'), { recursive: true });
+      await mkdir(join(root, 'opt/open-agent'), { recursive: true });
       await writeFile(
-        join(root, 'opt/agent-sprite/manifest.json'),
+        join(root, 'opt/open-agent/manifest.json'),
         JSON.stringify({
           schema: 1,
           createdAt: '2026-10-01',
           installedVersions: { node: '24.9.0' },
           lastSuccessfulUpdate: '2026-10-01T00:00:00Z',
-          integrations,
+          profile: profileWith(integrations),
         }),
       );
       const context: SetupContext = {
+        ...workstationOf(sprite),
         options: { localCredentials: false },
-        input: { integrations, runtimeEnv: {}, sources: {}, missing: [] },
-        integrations,
-        tailscaleEnrolled: false,
+        input: {
+          profile: DISABLED_NETWORK_PROFILE,
+          runtimeEnv: {},
+          sources: {},
+          missing: [],
+        },
+        profile: DISABLED_NETWORK_PROFILE,
+        persistsProfile: false,
+        isReleaseChanged: false,
+        networkEnrolled: false,
         initialInstallation: false,
         mutation: { started: false },
       };
       const observed = await driveInk(
         async (interaction) => {
           context.interaction = interaction;
-          const versions = await setupTools(sprite, context);
-          const declined = await setupTools(sprite, context);
+          const versions = await setupTools(guestOf(sprite), context);
+          const declined = await setupTools(guestOf(sprite), context);
 
           return { versions, declined };
         },
@@ -54,7 +69,7 @@ describe('workflow:scoped setup', () => {
           { waitFor: 'Managed tools', input: '\r' },
           { waitFor: 'Managed tools', input: 'Update tools now' },
           { waitFor: 'Search: Update tools now', input: '\r' },
-          { waitFor: 'Install latest stable tools and restart', input: '\r' },
+          { waitFor: 'Install latest stable tools now', input: '\r' },
         ],
       );
 
@@ -74,7 +89,7 @@ describe('workflow:scoped setup', () => {
   }, 15_000);
 
   it('should return from tools to sections, then skips Git identity without mutation', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'agent-sprite-setup-'));
+    const root = await mkdtemp(join(tmpdir(), 'open-agent-setup-'));
     vi.stubEnv('HOME', root);
     try {
       const sprite = Object.assign(createFilesystemSprite({ root }), {
@@ -84,14 +99,14 @@ describe('workflow:scoped setup', () => {
       });
       const client = new SpritesClient('test-token');
       vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
-      await mkdir(join(root, 'opt/agent-sprite'), { recursive: true });
+      await mkdir(join(root, 'opt/open-agent'), { recursive: true });
       await writeFile(
-        join(root, 'opt/agent-sprite/manifest.json'),
+        join(root, 'opt/open-agent/manifest.json'),
         JSON.stringify({
           schema: 1,
           createdAt: '2026-10-01',
           installedVersions: {},
-          integrations,
+          profile: profileWith(integrations),
         }),
       );
       const observed = await driveInk(
@@ -108,7 +123,7 @@ describe('workflow:scoped setup', () => {
                 gitEmail: 'ada@example.test',
               },
             },
-            client,
+            providerOf(client),
             interaction,
           ),
         [
@@ -132,7 +147,7 @@ describe('workflow:scoped setup', () => {
   }, 15_000);
 
   it('should recover plugin harness, action and value choices while retaining queued actions', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'agent-sprite-setup-'));
+    const root = await mkdtemp(join(tmpdir(), 'open-agent-setup-'));
     try {
       const sprite = createFilesystemSprite({
         root,
@@ -143,40 +158,48 @@ describe('workflow:scoped setup', () => {
         }),
       });
       const context: SetupContext = {
+        ...workstationOf(sprite),
         options: { localCredentials: false },
-        input: { integrations, runtimeEnv: {}, sources: {}, missing: [] },
-        integrations,
-        tailscaleEnrolled: false,
+        input: {
+          profile: DISABLED_NETWORK_PROFILE,
+          runtimeEnv: {},
+          sources: {},
+          missing: [],
+        },
+        profile: DISABLED_NETWORK_PROFILE,
+        persistsProfile: false,
+        isReleaseChanged: false,
+        networkEnrolled: false,
         initialInstallation: false,
         mutation: { started: false },
       };
       await mkdir(join(root, 'home/agent/.codex'), { recursive: true });
-      await mkdir(join(root, 'opt/agent-sprite'), { recursive: true });
+      await mkdir(join(root, 'opt/open-agent'), { recursive: true });
       await writeFile(
         join(root, 'home/agent/.codex/config.toml'),
         'model = "existing-model"',
       );
       const observed = await driveInk(
         async (interaction) =>
-          setupPlugins(sprite, {
+          setupPlugins(guestOf(sprite), {
             ...context,
             interaction,
           }),
         [
           { waitFor: 'Select plugin harness', input: '\r' },
-          { waitFor: 'claude plugin action', input: '\x1b' },
+          { waitFor: 'Claude plugin action', input: '\x1b' },
           { waitFor: 'Select plugin harness', input: 'Codex' },
           { waitFor: 'Search: Codex', input: '\r' },
-          { waitFor: 'codex plugin action', input: 'Disable plugin' },
+          { waitFor: 'Codex plugin action', input: 'Disable plugin' },
           { waitFor: 'Search: Disable plugin', input: '\r' },
           { waitFor: 'Native plugin identity:', input: '\x1b' },
-          { waitFor: 'codex plugin action', input: 'Disable plugin' },
+          { waitFor: 'Codex plugin action', input: 'Disable plugin' },
           { waitFor: 'Search: Disable plugin', input: '\r' },
           { waitFor: 'Native plugin identity:', input: 'coding@alvis' },
           { waitFor: 'coding@alvis', input: '\r' },
           { waitFor: 'Select plugin harness', input: 'Codex' },
           { waitFor: 'Search: Codex', input: '\r' },
-          { waitFor: 'codex plugin action', input: 'Apply queued' },
+          { waitFor: 'Codex plugin action', input: 'Apply queued' },
           { waitFor: 'Search: Apply queued', input: '\r' },
         ],
       );
@@ -200,7 +223,7 @@ describe('workflow:scoped setup', () => {
     }
   }, 15_000);
   it('should preserve Git identity when explicitly skipped without guest mutation', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'agent-sprite-setup-'));
+    const root = await mkdtemp(join(tmpdir(), 'open-agent-setup-'));
     vi.stubEnv('HOME', root);
     try {
       const sprite = Object.assign(createFilesystemSprite({ root }), {
@@ -210,14 +233,14 @@ describe('workflow:scoped setup', () => {
       });
       const client = new SpritesClient('test-token');
       vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
-      await mkdir(join(root, 'opt/agent-sprite'), { recursive: true });
+      await mkdir(join(root, 'opt/open-agent'), { recursive: true });
       await writeFile(
-        join(root, 'opt/agent-sprite/manifest.json'),
+        join(root, 'opt/open-agent/manifest.json'),
         JSON.stringify({
           schema: 1,
           createdAt: '2026-10-01',
           installedVersions: {},
-          integrations,
+          profile: profileWith(integrations),
         }),
       );
 
@@ -232,7 +255,7 @@ describe('workflow:scoped setup', () => {
             gitIdentity: false,
           },
         },
-        client,
+        providerOf(client),
       );
 
       expect(result).toMatchObject({
@@ -246,7 +269,7 @@ describe('workflow:scoped setup', () => {
   });
 
   it('should apply an explicit Codex plugin action through the real setup workflow', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'agent-sprite-setup-'));
+    const root = await mkdtemp(join(tmpdir(), 'open-agent-setup-'));
     try {
       const sprite = createFilesystemSprite({
         root,
@@ -257,24 +280,32 @@ describe('workflow:scoped setup', () => {
         }),
       });
       const context: SetupContext = {
-        options: {
+        ...workstationOf(sprite),
+        options: pluginFlags({
           localCredentials: false,
           disableCodexPlugin: ['coding@alvis'],
+        }),
+        input: {
+          profile: DISABLED_NETWORK_PROFILE,
+          runtimeEnv: {},
+          sources: {},
+          missing: [],
         },
-        input: { integrations, runtimeEnv: {}, sources: {}, missing: [] },
-        integrations,
-        tailscaleEnrolled: false,
+        profile: DISABLED_NETWORK_PROFILE,
+        persistsProfile: false,
+        isReleaseChanged: false,
+        networkEnrolled: false,
         initialInstallation: false,
         mutation: { started: false },
       };
       await mkdir(join(root, 'home/agent/.codex'), { recursive: true });
-      await mkdir(join(root, 'opt/agent-sprite'), { recursive: true });
+      await mkdir(join(root, 'opt/open-agent'), { recursive: true });
       await writeFile(
         join(root, 'home/agent/.codex/config.toml'),
         'model = "existing-model"',
       );
 
-      const outcome = await setupPlugins(sprite, context);
+      const outcome = await setupPlugins(guestOf(sprite), context);
       const config = parse(
         await readFile(join(root, 'home/agent/.codex/config.toml'), 'utf8'),
       );

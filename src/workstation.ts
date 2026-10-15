@@ -1,12 +1,15 @@
+import { catalog, DEFAULT_SELECTION } from '#core/catalog';
+import { providerIds } from '#core/ids';
+import {
+  enteredCredentialProblem,
+  prerequisiteDetails,
+  providerPreflight,
+} from '#core/preflight';
+import { bindProvider } from '#core/providers';
 import { createWorkstation } from '#create';
 import { commandError } from '#errors';
-import { resolveSpritesToken, retainManagementCredential } from '#input';
-import {
-  spritesTokenGuidance,
-  spritesTokenPromptDescription,
-} from '#input/token-guidance';
+import { resolveProviderCredential, retainManagementCredential } from '#input';
 import { doctorWorkstation, listWorkstations, showWorkstation } from '#inspect';
-import { createSpritesClient } from '#integrations/sprites';
 import {
   currentOperation,
   cancellationReason,
@@ -20,12 +23,17 @@ import { rememberSecret } from '#utilities/redaction';
 import { validateCommandRequest } from '#validation';
 
 import { chooseWorkstationAction } from './workstation/actions.js';
-
-import type { SpritesClient } from '@fly/sprites';
+import {
+  locateProvider,
+  providerAvailability,
+  skippedProvider,
+} from './workstation/providers.js';
 
 import type { CommandResult } from '#command';
 import type { CommandRequest, Interaction } from '#command/contracts';
-import type { CredentialSaveResult } from '#integrations/credentials';
+import type { ProviderId } from '#core/catalog';
+import type { PrerequisiteProblem, ProviderDriver } from '#drivers/contracts';
+import type { ProviderCredential } from '#input/provider-credential';
 import type { OperationContext } from '#operation';
 
 /**
@@ -57,34 +65,34 @@ export async function runCommand(
     if (request.command === 'create') {
       return await createWorkstation(request, interaction);
     }
-    const { token, retainedCredential } = await resolveCommandToken(
+    if (request.command === 'list') {
+      return await listAvailableProviders(request, interaction);
+    }
+    const provider =
+      request.options.provider ??
+      (await locateProvider(request, interaction)) ??
+      DEFAULT_SELECTION.provider;
+    const credential = await resolveCommandCredential(
       request,
+      provider,
       interaction,
     );
-    if (!token) {
-      const promptHint = promptUnavailableDetail();
-
-      return {
-        command: request.command,
-        ok: false,
-        error: {
-          code: 'INPUT',
-          message: 'SPRITES_TOKEN is required.',
-          details: [
-            ...spritesTokenGuidance,
-            ...(promptHint ? [promptHint] : []),
-          ],
-        },
-      };
+    const problems = await providerPreflight(provider, credential);
+    if (!credential.token || problems.length > 0) {
+      return prerequisiteFailure(request, problems);
     }
-
     const result = await dispatchAuthenticated(
       request,
-      createSpritesClient(token),
+      bindProvider(provider, credential.token),
       interaction,
     );
 
-    return attachRetainedCredential(result, retainedCredential);
+    return await retainAcceptedCredential(result, {
+      request,
+      provider,
+      credential,
+      interaction,
+    });
   } catch (error) {
     return commandFailureResult(
       error,
@@ -122,7 +130,7 @@ function commandFailureResult(
         failure.code === 'CANCELLED' && machine
           ? [
               ...(failure.details ?? []),
-              `Inspect: agent-sprite show ${JSON.stringify(machine)} --inspect`,
+              `Inspect: open-agent show ${JSON.stringify(machine)} --inspect`,
               'Remote work may be unfinished; inspect before retrying mutations.',
             ]
           : failure.details,
@@ -130,78 +138,213 @@ function commandFailureResult(
   };
 }
 
-/**
- * Carries observed local storage into the command's printable result.
- * @param result authenticated command result
- * @param retainedCredential observed local save, if consented
- * @returns result with non-secret storage metadata
- */
-function attachRetainedCredential(
-  result: CommandResult,
-  retainedCredential?: CredentialSaveResult,
-): CommandResult {
-  return result.ok && retainedCredential
-    ? { ...result, retainedCredential }
-    : result;
+/** a provider credential, and whether the caller entered it in this run */
+interface CommandCredential extends ProviderCredential {
+  /** entered at the prompt, so not yet saved anywhere */
+  isEntered?: boolean;
+}
+
+/** what deciding whether to save an entered credential needs */
+interface RetentionContext {
+  request: CommandRequest;
+  provider: ProviderId;
+  credential: CommandCredential;
+  interaction?: Interaction;
 }
 
 /**
- * resolves a local provider credential and asks only in interactive mode
- * @param request parsed command and credential source
- * @param interaction optional secret prompt
- * @returns the provider token, if available
+ * offers to save an entered credential only once the command succeeded, which
+ * proves the provider accepted it, and carries the outcome into the result
+ * @param result authenticated command result
+ * @param context command, provider, entered credential and consent prompt
+ * @returns the result with non-secret storage metadata when the credential was saved
  */
-async function resolveCommandToken(
+async function retainAcceptedCredential(
+  result: CommandResult,
+  context: RetentionContext,
+): Promise<CommandResult> {
+  const { request, provider, credential, interaction } = context;
+  if (
+    !result.ok ||
+    !credential.isEntered ||
+    !credential.token ||
+    !interaction ||
+    request.options.localCredentials === false
+  ) {
+    return result;
+  }
+  const retainedCredential = await retainManagementCredential(
+    catalog.providers[provider].prerequisites.credential.store,
+    credential.token,
+    { interaction, options: request.options },
+  );
+
+  return retainedCredential ? { ...result, retainedCredential } : result;
+}
+
+/**
+ * reports every missing or misconfigured provider prerequisite at once
+ * @param request parsed command
+ * @param problems problems the provider preflight found
+ * @returns a typed INPUT failure before any provider call
+ */
+function prerequisiteFailure(
+  request: CommandRequest,
+  problems: readonly PrerequisiteProblem[],
+): CommandResult {
+  const promptHint = promptUnavailableDetail();
+
+  return {
+    command: request.command,
+    ok: false,
+    error: {
+      code: 'INPUT',
+      message: 'Provider prerequisites are missing or misconfigured',
+      details: [
+        ...prerequisiteDetails(problems),
+        ...(promptHint ? [promptHint] : []),
+      ],
+    },
+  };
+}
+
+/**
+ * lists workstations on every provider whose credential is available, so a
+ * failing provider is reported as unavailable rather than empty
+ * @param request parsed list command
+ * @param interaction optional secret prompt when no provider has a credential
+ * @returns merged workstations and unavailable providers
+ */
+async function listAvailableProviders(
   request: CommandRequest,
   interaction?: Interaction,
-): Promise<{ token?: string; retainedCredential?: CredentialSaveResult }> {
-  let token = await resolveSpritesToken(request.options);
-  let retainedCredential: CredentialSaveResult | undefined;
-  if (!token && interaction && !request.options.nonInteractive) {
-    token = await interaction.secret({
-      message: 'Sprites API token',
-      description: spritesTokenPromptDescription,
-      required: true,
-    });
-    rememberSecret(token);
-    if (token && request.options.localCredentials !== false) {
-      retainedCredential = await retainManagementCredential('sprites', token, {
-        interaction,
-        options: request.options,
-      });
-    }
+): Promise<CommandResult> {
+  const { options } = request;
+  // an explicit source names the credential of the selected provider only
+  const references = new Map<ProviderId, string>(
+    options.providerTokenSource
+      ? [
+          [
+            options.provider ?? DEFAULT_SELECTION.provider,
+            options.providerTokenSource,
+          ],
+        ]
+      : [],
+  );
+  const found = await Promise.all(
+    providerIds().map(async (id) => ({
+      id,
+      credential: await resolveProviderCredential(options, id, {
+        reference: references.get(id),
+      }),
+    })),
+  );
+  const available = found.filter(({ credential }) => credential.token);
+  if (available.length > 0) {
+    // a provider with no credential is skipped with a note, not a failure
+    return listWorkstations([
+      ...(await providerAvailability(available)),
+      ...found
+        .filter(({ credential }) => !credential.token)
+        .map(({ id }) => skippedProvider(id)),
+    ]);
+  }
+  const provider = DEFAULT_SELECTION.provider;
+  const credential = await enterCommandCredential(
+    request,
+    provider,
+    interaction,
+  );
+  const problems = await providerPreflight(provider, credential);
+  if (!credential.token || problems.length > 0) {
+    return prerequisiteFailure(request, problems);
   }
 
-  return { token, retainedCredential };
+  return retainAcceptedCredential(
+    await listWorkstations([
+      {
+        id: provider,
+        driver: bindProvider(provider, credential.token),
+      },
+    ]),
+    { request, provider, credential, interaction },
+  );
 }
 
 /**
- * routes a command after authenticating the provider client
+ * resolves the selected provider's credential, asking only in interactive mode
+ * @param request parsed command and credential source
+ * @param provider selected provider whose declared credential is read
+ * @param interaction optional secret prompt
+ * @returns the credential and its source, if available
+ */
+async function resolveCommandCredential(
+  request: CommandRequest,
+  provider: ProviderId,
+  interaction?: Interaction,
+): Promise<CommandCredential> {
+  const resolved = await resolveProviderCredential(request.options, provider, {
+    reference: request.options.providerTokenSource,
+  });
+
+  return resolved.token
+    ? resolved
+    : enterCommandCredential(request, provider, interaction);
+}
+
+/**
+ * asks for a provider credential in interactive mode, asking again while the
+ * entered value is a credential shape the provider refuses
+ * @param request parsed command and interactive policy
+ * @param provider provider whose declared credential is entered
+ * @param interaction optional secret prompt
+ * @returns the entered credential, or none in non-interactive mode
+ */
+async function enterCommandCredential(
+  request: CommandRequest,
+  provider: ProviderId,
+  interaction?: Interaction,
+): Promise<CommandCredential> {
+  if (!interaction || request.options.nonInteractive) {
+    return {};
+  }
+  const { credential } = catalog.providers[provider].prerequisites;
+  const token = await interaction.secret({
+    message: credential.label,
+    description: `It needs ${credential.scope}. ${credential.obtain}`,
+    required: true,
+    validate: (value) => enteredCredentialProblem(provider, value),
+  });
+  rememberSecret(token);
+
+  return { token, source: 'the entered token', isEntered: true };
+}
+
+/**
+ * routes a command after authenticating the provider driver
  * @param request parsed command and flags
- * @param client authenticated Sprite client
+ * @param provider authenticated provider driver
  * @param interaction optional inline interaction boundary
  * @returns the selected workflow's result
  */
 async function dispatchAuthenticated(
   request: CommandRequest,
-  client: SpritesClient,
+  provider: ProviderDriver,
   interaction?: Interaction,
 ): Promise<CommandResult> {
   switch (request.command) {
-    case 'list':
-      return listWorkstations(client);
     case 'show':
       return interaction &&
-        !request.options.withT3PairCode &&
+        !request.options.withPairCode &&
         !request.options.inspect
-        ? chooseWorkstationAction(request, client, interaction)
-        : showWorkstation(request, client, interaction);
+        ? chooseWorkstationAction(request, provider, interaction)
+        : showWorkstation(request, provider, interaction);
     case 'doctor':
-      return doctorWorkstation(client, request.machine, interaction);
+      return doctorWorkstation(provider, request.machine, interaction);
     case 'setup':
-      return setupWorkstation(request, client, interaction);
+      return setupWorkstation(request, provider, interaction);
     case 'terminate':
-      return terminateWorkstation(request, client, interaction);
+      return terminateWorkstation(request, provider, interaction);
     default:
       throw new Error(`Unsupported command: ${request.command}`);
   }

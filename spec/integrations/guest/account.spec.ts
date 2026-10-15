@@ -1,4 +1,4 @@
-import { mkdtempDisposable, readFile } from 'node:fs/promises';
+import { mkdtempDisposable } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   ensurePrivateDirectory,
-  ownGuestFile,
   removeOwnedFile,
   runAsAgent,
   writeOwnedFile,
@@ -15,16 +14,13 @@ import {
 import {
   createFilesystemSprite,
   executeNativeConfiguration,
+  guestOf,
 } from '../../mocks/sprites.js';
-
-import type { Sprite } from '@fly/sprites';
-
-import type { FilesystemChownRecord } from '../../mocks/sprites.js';
 
 describe('fn:runAsAgent', () => {
   it('should start native commands in the runtime home instead of the provider shell directory', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-native-home-'),
+      join(tmpdir(), 'open-agent-native-home-'),
     );
     const sprite = createFilesystemSprite({
       root: directory.path,
@@ -37,96 +33,9 @@ describe('fn:runAsAgent', () => {
       }),
     });
 
-    const result = await runAsAgent(sprite, ['/bin/pwd']);
+    const result = await runAsAgent(guestOf(sprite), ['/bin/pwd']);
 
     expect(result.stdout.trim()).toBe('/home/agent');
-  });
-});
-
-describe('fn:ownGuestFile', () => {
-  it('should transfer ownership using validated guest numeric IDs', async () => {
-    await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-account-id-'),
-    );
-    const chownRecords: FilesystemChownRecord[] = [];
-    const sprite = createFilesystemSprite({
-      root: directory.path,
-      chownRecords,
-      execute: async (_file, args = []) => ({
-        stdout: args.at(-2) === '-u' ? '1001\n' : '1002\n',
-        stderr: '',
-        exitCode: 0,
-      }),
-    });
-    const path = '/opt/agent-sprite/native.json';
-    await sprite.filesystem().mkdir('/opt/agent-sprite', { recursive: true });
-    await sprite.filesystem().writeFile(path, '{}');
-
-    await ownGuestFile(sprite, path);
-
-    expect(sprite.filesystem().chown).toHaveBeenCalledExactlyOnceWith(path, {
-      uid: 1001,
-      gid: 1002,
-      asRoot: true,
-    });
-    expect(chownRecords).toEqual([{ path, uid: 1001, gid: 1002 }]);
-  });
-
-  it('should refuse nonnumeric and root user or group IDs before changing file ownership', async () => {
-    for (const [uid, gid] of [
-      ['invalid', '1000'],
-      ['0', '1000'],
-      ['1000', 'invalid'],
-      ['1000', '0'],
-    ]) {
-      await using directory = await mkdtempDisposable(
-        join(tmpdir(), 'agent-sprite-account-id-'),
-      );
-      const execution = {
-        execFile: vi.fn<Sprite['execFile']>(async (_file, args = []) => ({
-          stdout: args.includes('-u') ? uid! : gid!,
-          stderr: '',
-          exitCode: 0,
-        })),
-      } satisfies Partial<Sprite>;
-      const sprite = createFilesystemSprite({
-        root: directory.path,
-        execute: execution.execFile,
-      });
-      const path = '/opt/agent-sprite/native.json';
-      await sprite.filesystem().mkdir('/opt/agent-sprite', {
-        recursive: true,
-      });
-      await sprite.filesystem().writeFile(path, '{"userSetting":true}');
-
-      await expect(ownGuestFile(sprite, path)).rejects.toEqual(
-        expect.objectContaining({ code: 'PREFLIGHT' }),
-      );
-      expect(sprite.filesystem().chown).not.toHaveBeenCalled();
-      expect(await readFile(join(directory.path, path), 'utf8')).toBe(
-        '{"userSetting":true}',
-      );
-    }
-  });
-
-  it('should refuse home and noncanonical root ownership paths before any SDK call', async () => {
-    await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-root-ownership-'),
-    );
-    const sprite = createFilesystemSprite({ root: directory.path });
-
-    for (const path of [
-      '/home/agent/native.json',
-      '/home/sprite/native.json',
-      '/opt/../home/agent/native.json',
-      'relative.json',
-    ]) {
-      await expect(ownGuestFile(sprite, path)).rejects.toThrow(
-        /home files must be changed as their owning account/,
-      );
-    }
-    expect(sprite.execFile).not.toHaveBeenCalled();
-    expect(sprite.filesystem().chown).not.toHaveBeenCalled();
   });
 });
 
@@ -152,15 +61,22 @@ describe('native account SDK boundary', () => {
 
   it('should dispatch both accounts through runuser and sends private writes over HTTP stdin', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-native-dispatch-'),
+      join(tmpdir(), 'open-agent-native-dispatch-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
-    await ensurePrivateDirectory(sprite, '/home/agent/.config');
-    await ensurePrivateDirectory(sprite, '/home/sprite/.config', 'sprite');
-    await writeOwnedFile(sprite, '/home/agent/.config/native.json', 'private');
-    await removeOwnedFile(sprite, '/home/agent/.config/native.json');
+    await ensurePrivateDirectory(guestOf(sprite), '/home/agent/.config');
+    await ensurePrivateDirectory(guestOf(sprite), '/home/sprite/.config', {
+      user: 'sprite',
+      shellAccounts: ['sprite'],
+    });
+    await writeOwnedFile(
+      guestOf(sprite),
+      '/home/agent/.config/native.json',
+      'private',
+    );
+    await removeOwnedFile(guestOf(sprite), '/home/agent/.config/native.json');
 
-    const helper = '/opt/agent-sprite/native-files.js';
+    const helper = '/opt/open-agent/guest/native-files.js';
     const commands = vi
       .mocked(sprite.execFile)
       .mock.calls.map(([, args]) => args ?? [])
@@ -185,7 +101,7 @@ describe('native account SDK boundary', () => {
       '-u',
       'agent',
       '--',
-      '/opt/agent-sprite/node/bin/node',
+      '/opt/open-agent/node/bin/node',
       helper,
       'write',
       '/home/agent',
@@ -205,18 +121,18 @@ describe('native account SDK boundary', () => {
 
   it('should reject escaped native paths before helper deployment or SDK execution', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-native-path-'),
+      join(tmpdir(), 'open-agent-native-path-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
     for (const path of [
       '/home/sprite/settings.json',
       '/home/agent/../sprite/settings.json',
       '/home/agent/.config/../settings.json',
-      '/opt/agent-sprite/settings.json',
+      '/opt/open-agent/settings.json',
     ]) {
-      await expect(writeOwnedFile(sprite, path, 'private')).rejects.toThrow(
-        /inside its owning account home/,
-      );
+      await expect(
+        writeOwnedFile(guestOf(sprite), path, 'private'),
+      ).rejects.toThrow(/inside its owning account home/);
     }
     expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
     expect(sprite.execFile).not.toHaveBeenCalled();

@@ -19,8 +19,7 @@ export type TransactionRequest =
       contents: string;
       mode: number;
       removeOnRelease?: boolean;
-    }
-  | { type: 'chown'; path: string; uid: number; gid: number };
+    };
 
 /** resolver retained only until the guest acknowledges actual settlement */
 export interface PendingRequest {

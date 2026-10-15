@@ -1,32 +1,29 @@
-import { writeGuestFile } from './files.js';
-import { ROOT_SCRIPT_MODE, readGuestPayload } from './payloads/assets.js';
+import { GUEST_ROOT } from '#guest/guest-root';
 
-import type { Sprite } from '@fly/sprites';
+import { writeGuestFile } from './files.js';
+import { payloadMode, readGuestPayload } from './payloads/assets.js';
+
+import type { GuestChannel } from '#drivers/guest-channel';
 
 export {
   compiledPayloads,
   guestPayloadFrame,
   payloadUrl,
   readGuestPayload,
-  ROOT_SCRIPT_MODE,
 } from './payloads/assets.js';
-
-export const PAYLOAD_DIRECTORY = '/opt/agent-sprite';
 
 /**
  * deploys a bundled asset through the current guest transaction
- * @param sprite target guest
- * @param filename fixed compiled asset name
- * @param mode intended permissions
+ * @param guest target guest
+ * @param filename fixed compiled asset name, deployed with its one table mode
  */
 export async function deployGuestPayload(
-  sprite: Sprite,
+  guest: GuestChannel,
   filename: string,
-  mode = ROOT_SCRIPT_MODE,
 ): Promise<void> {
-  await writeGuestFile(sprite, {
-    path: `${PAYLOAD_DIRECTORY}/${filename}`,
+  await writeGuestFile(guest, {
+    path: `${GUEST_ROOT}/${filename}`,
     contents: await readGuestPayload(filename),
-    mode,
+    mode: payloadMode(filename),
   });
 }

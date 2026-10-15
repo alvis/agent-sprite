@@ -1,14 +1,12 @@
-/** selected direct guest integrations */
-export interface GuestIntegrations {
-  tailscale: boolean;
-  exitNode: boolean;
-  cliproxyapi: boolean;
-}
+import type { NetworkId } from '#core/catalog';
+import type { WorkstationProfile } from '#core/profile';
+import type { NetworkIdentity } from '#drivers/contracts';
+import type { ComponentOutcome } from '#guest/component-outcome';
 
-/** retained non-secret tailnet identity for authorised cleanup */
-export interface GuestTailnetIdentity {
-  deviceId?: string;
-  ip?: string;
+/** retained non-secret network device identity for authorised cleanup */
+export interface GuestNetworkIdentity extends NetworkIdentity {
+  /** the network whose device this identity names, which stays owner after a switch */
+  network: NetworkId;
 }
 
 /** non-secret persistent installation and maintenance record */
@@ -19,9 +17,13 @@ export interface GuestManifest {
   lastSuccessfulUpdate?: string;
   lastUpdateStatus?: 'succeeded' | 'failed';
   lastUpdateError?: string;
+  /** why the update schedule runs on a fallback value, when it does */
+  lastUpdateDiagnostic?: string;
   installedVersions: Record<string, string>;
-  integrations?: GuestIntegrations;
-  tailnetIdentity?: GuestTailnetIdentity;
+  /** what the last install run did to each component */
+  componentOutcomes?: Record<string, ComponentOutcome>;
+  profile: WorkstationProfile;
+  networkIdentity?: GuestNetworkIdentity;
 }
 
 /** arguments for a bounded guest command */
@@ -49,19 +51,4 @@ export interface GuestFileParams {
   contents: string;
   mode?: number;
   removeOnRelease?: boolean;
-}
-
-/** current tailnet identity and exit-route status */
-export interface TailnetStatus {
-  deviceId?: string;
-  ip?: string;
-  online: boolean;
-  exitNode?: string;
-  exitNodeIp?: string;
-  exitNodeName?: string;
-  routeDevice?: string;
-  dnsReady: boolean;
-  egressIp?: string;
-  skipped: boolean;
-  reason?: string;
 }

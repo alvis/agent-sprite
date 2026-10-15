@@ -57,7 +57,14 @@ export function MultiSelect<V extends string>({
 }: Readonly<MultiSelectProps<V>>): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
-  const [selected, setSelected] = useState<ReadonlySet<V>>(new Set());
+  const [selected, setSelected] = useState<ReadonlySet<V>>(
+    () =>
+      new Set(
+        choices
+          .filter(({ isPreselected }) => isPreselected === true)
+          .map(({ value }) => value),
+      ),
+  );
   const [feedback, setFeedback] = useState('');
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const matches = choices.filter((choice) =>

@@ -1,5 +1,12 @@
+import { catalog } from '#core/catalog';
+import { harnessDrivers } from '#core/harnesses';
+import { networkDriver } from '#core/networks';
+import { isSupervisedProvider, maintenanceService } from '#core/services';
+import { finding, gatedFinding } from '#drivers/findings';
+
 import { CommandFault } from './errors.js';
 
+import type { ReadinessFinding } from '#drivers/contracts';
 import type {
   GuestInspection,
   InspectionProbeFailure,
@@ -12,8 +19,6 @@ export interface ReadinessAssessment {
   skipped: string[];
   probeFailures: InspectionProbeFailure[];
 }
-
-type ReadinessCheck = readonly [passed: boolean, name: string];
 
 /** failed readiness retains the observed checks rather than just their prose */
 export class ReadinessFault extends CommandFault {
@@ -40,9 +45,10 @@ export class ReadinessFault extends CommandFault {
 export function assessReadiness(
   inspection: GuestInspection,
 ): ReadinessAssessment {
-  const failures = readinessChecks(inspection)
-    .filter(([passed]) => !passed)
-    .map(([, name]) => name);
+  const findings = readinessChecks(inspection);
+  const failures = findings
+    .filter(({ status }) => status === 'failed')
+    .map(({ name }) => name);
   failures.push(
     ...inspection.probeFailures.map(
       ({ probe }) => `${probe} inspection unavailable`,
@@ -52,156 +58,54 @@ export function assessReadiness(
   return {
     ready: failures.length === 0,
     failures,
-    skipped: skippedReadinessChecks(inspection),
+    skipped: findings
+      .filter(({ status }) => status === 'skipped')
+      .map(({ name }) => name),
     probeFailures: inspection.probeFailures,
   };
 }
 
 /**
- * builds required service, plugin, provider, and enabled-integration checks
+ * builds required service, environment, and enabled-integration checks,
+ * interleaving the agent, network, gateway and harness findings in reporting order
  * @param inspection fresh guest inspection
- * @returns named readiness predicates
+ * @returns named readiness findings in reporting order
  */
-function readinessChecks(inspection: GuestInspection): ReadinessCheck[] {
-  return [
-    ...coreReadinessChecks(inspection),
-    ...integrationReadinessChecks(inspection),
-  ];
-}
-
-/**
- * builds readiness checks that apply to every workstation
- * @param inspection fresh guest inspection
- * @returns service and native loading checks
- */
-function coreReadinessChecks(inspection: GuestInspection): ReadinessCheck[] {
-  const t3 = inspection.services.find((service) => service.name === 't3-code');
-  const discovery = inspection.native?.t3ProviderDiscovery;
+function readinessChecks(inspection: GuestInspection): ReadinessFinding[] {
+  const { profile } = inspection.manifest;
+  const { native } = inspection;
+  const { isExitNodeEnabled, isProxyEnabled } = profile.options;
+  const drivers = harnessDrivers(profile.harnesses);
+  const agent = catalog.agents[profile.agent].readiness({
+    services: inspection.services,
+    environment: native?.agentEnvironment,
+  });
+  const network = networkDriver(profile.network);
+  // a supervised provider's schedule runs on the guest supervisor's timer, not cron
+  const maintenance = maintenanceService(profile.provider);
 
   return [
-    [t3?.state?.status === 'running', 'T3 service'],
-    [
+    ...agent.service,
+    finding(
       inspection.services.some(
         (service) =>
-          service.name === 'agent-sprite-cron' &&
-          service.state?.status === 'running',
+          service.name === maintenance && service.status === 'running',
       ),
-      'maintenance cron service',
-    ],
-    [discovery?.ok === true, 'fresh T3 provider discovery'],
-    [
-      inspection.native?.t3ClaudePluginLoading === 'verified',
-      'selected Claude plugin visibility in T3',
-    ],
-    [
-      inspection.native?.t3CodexPluginLoading === 'verified',
-      'selected Codex plugin visibility in T3',
-    ],
-  ];
-}
-
-/**
- * builds checks only for integrations selected in the guest manifest
- * @param inspection fresh guest inspection
- * @returns enabled Tailscale and proxy checks
- */
-function integrationReadinessChecks(
-  inspection: GuestInspection,
-): ReadinessCheck[] {
-  const claudeReady = isProviderReady(inspection, 'claudeAgent');
-  const codexReady = isProviderReady(inspection, 'codex');
-
-  return [
-    ...(inspection.integrations.tailscale
-      ? ([
-          [inspection.tailscale.online, 'Tailscale connectivity'],
-          ...(inspection.integrations.exitNode
-            ? ([
-                [
-                  inspection.tailscale.routeDevice === 'tailscale0',
-                  'Tailscale exit route',
-                ],
-                [inspection.tailscale.dnsReady, 'Tailscale DNS'],
-                [
-                  Boolean(inspection.tailscale.egressIp),
-                  'observed network egress',
-                ],
-              ] as ReadinessCheck[])
-            : []),
-        ] as ReadinessCheck[])
-      : []),
-    ...(inspection.integrations.cliproxyapi
-      ? ([
-          [inspection.hub.reachable, 'CLIProxyAPI gateway'],
-          [claudeReady, 'Claude provider ready in T3'],
-          [codexReady, 'Codex provider ready in T3'],
-          [
-            inspection.native?.claude.gatewayConfigured === true,
-            'Claude gateway configuration',
-          ],
-          [
-            inspection.native?.claude.modelDiscoveryEnabled === true,
-            'Claude model discovery',
-          ],
-          [
-            inspection.native?.codex.gatewayConfigured === true,
-            'Codex gateway configuration',
-          ],
-          [
-            inspection.native?.codex.modelDiscoveryEnabled === true,
-            'Codex model discovery',
-          ],
-        ] as ReadinessCheck[])
-      : []),
-  ];
-}
-
-/**
- * detects one installed and authenticated provider in fresh T3 discovery
- * @param inspection fresh guest inspection
- * @param driver native T3 provider driver
- * @returns whether the provider reported ready
- */
-function isProviderReady(
-  inspection: GuestInspection,
-  driver: 'claudeAgent' | 'codex',
-): boolean {
-  return (inspection.native?.t3ProviderDiscovery?.providers ?? []).some(
-    (provider) =>
-      provider.driver === driver &&
-      provider.enabled &&
-      provider.installed &&
-      provider.status === 'ready',
-  );
-}
-
-/**
- * names integration checks intentionally omitted by persisted selections
- * @param inspection fresh guest inspection
- * @returns explicitly skipped check names
- */
-function skippedReadinessChecks(inspection: GuestInspection): string[] {
-  return [
-    ...(!inspection.integrations.tailscale
-      ? [
-          'Tailscale connectivity',
-          'Tailscale exit route',
-          'Tailscale DNS',
-          'observed network egress',
-        ]
-      : !inspection.integrations.exitNode
-        ? ['Tailscale exit route', 'Tailscale DNS', 'observed network egress']
-        : []),
-    ...(!inspection.integrations.cliproxyapi
-      ? [
-          'CLIProxyAPI gateway',
-          'Claude provider ready in T3',
-          'Codex provider ready in T3',
-          'Claude gateway configuration',
-          'Claude model discovery',
-          'Codex gateway configuration',
-          'Codex model discovery',
-        ]
-      : []),
+      isSupervisedProvider(profile.provider)
+        ? 'maintenance timer'
+        : 'maintenance cron service',
+    ),
+    ...agent.environment,
+    ...network.readiness(inspection.network, { isExitNodeEnabled }),
+    gatedFinding({
+      isSelected: isProxyEnabled,
+      passed: inspection.hub.reachable,
+      name: 'CLIProxyAPI gateway',
+    }),
+    ...drivers.flatMap((driver) =>
+      driver.readiness(native?.[driver.id], {
+        proxy: isProxyEnabled,
+      }),
+    ),
   ];
 }

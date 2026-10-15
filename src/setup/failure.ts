@@ -1,21 +1,17 @@
 import { commandError, ensureError, retainRecoveryFailure } from '#errors';
-import {
-  setManagedSpriteLabels,
-  SETUP_INCOMPLETE_LABEL,
-} from '#integrations/sprites';
 import { InteractionExit } from '#navigation';
 import { recoverOperation } from '#operation';
 import { ReadinessFault } from '#readiness';
 
-import type { Sprite } from '@fly/sprites';
-
 import type { CommandResult } from '#command';
 import type { SetupSection } from '#command/contracts';
+import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 
 import type { SetupProgress } from './context.js';
 
 interface SetupFailureParams {
-  sprite: Sprite;
+  provider: ProviderDriver;
+  workstation: WorkstationRecord;
   mutation: SetupProgress;
   error: unknown;
   section?: SetupSection;
@@ -29,7 +25,7 @@ interface SetupFailureParams {
 export async function setupFailure(
   params: SetupFailureParams,
 ): Promise<CommandResult> {
-  const { sprite, mutation, section } = params;
+  const { provider, workstation, mutation, section } = params;
   const error =
     params.error instanceof InteractionExit &&
     params.error.action === 'back' &&
@@ -38,7 +34,7 @@ export async function setupFailure(
       : params.error;
   const primary = ensureError(error);
   const incompleteLabel = mutation.started
-    ? await recoverIncompleteLabel(sprite, primary)
+    ? await recoverIncompleteLabel(provider, workstation, primary)
     : undefined;
   const failure = commandError(primary);
 
@@ -62,8 +58,8 @@ export async function setupFailure(
         mutation.started
           ? 'Setup stopped after changes began; workstation requires inspection and recovery.'
           : failure.message,
-      machine: sprite.name,
-      machineId: sprite.id,
+      machine: workstation.name,
+      machineId: workstation.id,
       setupIncomplete: mutation.started ? true : undefined,
       details: [
         ...(failure.details ?? []),
@@ -72,10 +68,11 @@ export async function setupFailure(
               'The incomplete label could not be confirmed; inspect provider state.',
             ]
           : []),
-        ...(section
+        // a usage refusal names its own fix; a bare section retry would drop it
+        ...(section && failure.code !== 'USAGE'
           ? [
               `Failed setup section: ${section}`,
-              `Retry: agent-sprite setup ${JSON.stringify(sprite.name)} --section ${section}`,
+              `Retry: open-agent setup ${JSON.stringify(workstation.name)} --section ${section}`,
             ]
           : []),
       ],
@@ -85,17 +82,19 @@ export async function setupFailure(
 
 /**
  * attempts incomplete labelling without replacing the original failure
- * @param sprite exact retained workstation
+ * @param provider provider hosting the workstation
+ * @param workstation exact retained workstation
  * @param primary setup failure
  * @returns observed label confirmation
  */
 async function recoverIncompleteLabel(
-  sprite: Sprite,
+  provider: ProviderDriver,
+  workstation: WorkstationRecord,
   primary: Error,
 ): Promise<'confirmed' | 'unconfirmed'> {
   try {
     await recoverOperation(async () =>
-      setManagedSpriteLabels(sprite, [SETUP_INCOMPLETE_LABEL]),
+      provider.setMetadata(workstation, { setup: 'incomplete' }),
     );
 
     return 'confirmed';

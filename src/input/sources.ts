@@ -3,6 +3,11 @@ import { join } from 'node:path';
 
 import { parse } from 'dotenv';
 
+import { catalog } from '#core/catalog';
+import { harnessEnvironmentNames } from '#core/environment';
+import { networksWithInputs } from '#core/networks';
+import { SELECTION_INPUTS } from '#core/selection-inputs';
+import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
 import { checkOperation } from '#operation';
 
@@ -19,16 +24,14 @@ export interface InputSources {
 }
 
 const RESERVED_ENV = new Set([
-  'SPRITES_TOKEN',
-  'TAILSCALE_API_KEY',
-  'TAILSCALE_ENABLED',
-  'TAILSCALE_TAILNET',
-  'TAILSCALE_AUTH_KEY',
-  'TAILSCALE_EXIT_NODE',
-  'TAILSCALE_EXIT_NODE_ENABLED',
-  'CLIPROXYAPI_BASE_URL',
-  'CLIPROXYAPI_API_KEY',
-  'CLIPROXYAPI_ENABLED',
+  ...Object.values(catalog.providers).map(
+    ({ prerequisites }) => prerequisites.credential.environment,
+  ),
+  ...networksWithInputs().flatMap(({ inputs }) =>
+    Object.values(inputs).map(({ environment }) => environment),
+  ),
+  ...Object.values(SELECTION_INPUTS).map(({ environment }) => environment),
+  ...Object.values(CLIPROXYAPI_INPUTS).map(({ environment }) => environment),
   'GH_TOKEN',
   'GITHUB_TOKEN',
   'GIT_AUTHOR_NAME',
@@ -39,6 +42,14 @@ const RESERVED_ENV = new Set([
   'CI',
   'TERM',
   'NO_COLOR',
+]);
+/** non-secret values the local input profile may hold */
+const PROFILE_KEYS = new Set([
+  ...networksWithInputs().flatMap(({ inputs }) => [
+    inputs.account.environment,
+    inputs.exitNode.environment,
+  ]),
+  CLIPROXYAPI_INPUTS.baseUrl.environment,
 ]);
 const REJECTED_ENV = new Set([
   'HOME',
@@ -61,13 +72,7 @@ const REJECTED_ENV = new Set([
   'GIT_SSH_COMMAND',
   'GIT_ASKPASS',
   'SSH_ASKPASS',
-  'CODEX_HOME',
-  'CLAUDE_CONFIG_DIR',
-  'ANTHROPIC_BASE_URL',
-  'ANTHROPIC_API_KEY',
-  'ANTHROPIC_AUTH_TOKEN',
-  'OPENAI_BASE_URL',
-  'OPENAI_API_KEY',
+  ...harnessEnvironmentNames(),
   'HTTP_PROXY',
   'HTTPS_PROXY',
   'ALL_PROXY',
@@ -113,12 +118,7 @@ export async function readInputSources(
   options: CommandOptions,
 ): Promise<InputSources> {
   const environment = await readEnvironmentSources(options);
-  const profilePath = join(
-    homedir(),
-    '.config',
-    'agent-sprite',
-    'profile.json',
-  );
+  const profilePath = join(homedir(), '.config', 'open-agent', 'profile.json');
   const profileText = await readInputFile(profilePath).catch(
     (error: NodeJS.ErrnoException) => {
       checkOperation();
@@ -146,12 +146,7 @@ export async function readInputSources(
   const profile = Object.fromEntries(
     Object.entries(profileValue).filter(
       (entry): entry is [string, string] =>
-        typeof entry[1] === 'string' &&
-        [
-          'TAILSCALE_TAILNET',
-          'TAILSCALE_EXIT_NODE',
-          'CLIPROXYAPI_BASE_URL',
-        ].includes(entry[0]),
+        typeof entry[1] === 'string' && PROFILE_KEYS.has(entry[0]),
     ),
   );
 

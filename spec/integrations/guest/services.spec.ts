@@ -1,19 +1,30 @@
-import { mkdtempDisposable } from 'node:fs/promises';
+import { mkdtempDisposable, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { ServiceLogStream } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
-import { installManagedServices } from '#integrations/guest/services';
+import {
+  UPDATE_CHECK_FILE,
+  UPDATE_GATE_SCRIPT,
+  updateEntryCommand,
+} from '#guest/update-schedule';
+import {
+  installManagedServices,
+  installUpdateSchedule,
+} from '#integrations/guest/services';
 
-import { createFilesystemSprite } from '../../mocks/sprites.js';
+import { profileWith } from '../../fixtures/profile.js';
+import { createFilesystemSprite, guestOf } from '../../mocks/sprites.js';
 
 import type { Sprite } from '@fly/sprites';
 
+import type { ProviderId } from '#core/catalog';
+
 const helpPath = '/home/agent/.local/bin/t3';
-const agentPath =
-  'PATH=/home/agent/.local/bin:/opt/agent-sprite/node/bin:/usr/local/bin:/usr/bin:/bin';
+const agentPath = 'PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin';
 const helpArgv = [
   '-n',
   '-E',
@@ -33,7 +44,7 @@ const helpArgv = [
 describe('fn:installManagedServices T3 startup validation', () => {
   it('should check private startup flags as agent with managed Node before registering services', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-service-flags-'),
+      join(tmpdir(), 'open-agent-service-flags-'),
     );
     const execute = vi.fn<Sprite['execFile']>(async (_file, args = []) => ({
       stdout: args.includes('/usr/bin/id')
@@ -63,18 +74,22 @@ describe('fn:installManagedServices T3 startup validation', () => {
         })),
       },
     );
-    await sprite.filesystem().mkdir('/opt/agent-sprite/t3-provider-probe', {
+    await sprite.filesystem().mkdir('/opt/open-agent/t3-environment-probe', {
       recursive: true,
     });
     await sprite.filesystem().mkdir('/etc/cron.d', { recursive: true });
-    await sprite.filesystem().writeJSON('/opt/agent-sprite/manifest.json', {
+    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
       schema: 1,
       createdAt: '2026-10-09T00:00:00Z',
       installedVersions: {},
-      integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
+      profile: profileWith({
+        network: false,
+        exitNode: false,
+        cliproxyapi: false,
+      }),
     });
 
-    await installManagedServices(sprite);
+    await installManagedServices(guestOf(sprite));
 
     expect(
       execute.mock.calls.filter(([, args]) => args?.includes(helpPath)),
@@ -92,8 +107,8 @@ describe('fn:installManagedServices T3 startup validation', () => {
             '-u',
             'agent',
             '--',
-            '/opt/agent-sprite/node/bin/node',
-            '/opt/agent-sprite/t3-launcher.js',
+            '/opt/open-agent/node/bin/node',
+            '/opt/open-agent/drivers/agents/t3/guest/t3-launcher.js',
           ],
           needs: [],
           httpPort: 3773,
@@ -101,7 +116,7 @@ describe('fn:installManagedServices T3 startup validation', () => {
         '5s',
       ],
       [
-        'agent-sprite-cron',
+        'open-agent-cron',
         expect.objectContaining({
           cmd: '/usr/bin/sudo',
           args: ['-n', '-E', '--', '/usr/sbin/cron', '-f'],
@@ -114,7 +129,7 @@ describe('fn:installManagedServices T3 startup validation', () => {
 
   it('should report a missing Node shebang dependency without registering a service', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-service-path-failure-'),
+      join(tmpdir(), 'open-agent-service-path-failure-'),
     );
     const execute = vi.fn<Sprite['execFile']>(async (_file, args = []) => ({
       stdout: args.includes('/usr/bin/id') ? '1002\n' : '',
@@ -127,17 +142,21 @@ describe('fn:installManagedServices T3 startup validation', () => {
     const createService = vi
       .spyOn(sprite, 'createService')
       .mockRejectedValue(new Error('unexpected service registration'));
-    await sprite.filesystem().mkdir('/opt/agent-sprite/t3-provider-probe', {
+    await sprite.filesystem().mkdir('/opt/open-agent/t3-environment-probe', {
       recursive: true,
     });
-    await sprite.filesystem().writeJSON('/opt/agent-sprite/manifest.json', {
+    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
       schema: 1,
       createdAt: '2026-10-09T00:00:00Z',
       installedVersions: {},
-      integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
+      profile: profileWith({
+        network: false,
+        exitNode: false,
+        cliproxyapi: false,
+      }),
     });
 
-    await expect(installManagedServices(sprite)).rejects.toEqual(
+    await expect(installManagedServices(guestOf(sprite))).rejects.toEqual(
       expect.objectContaining({
         code: 'PROVIDER',
         message: expect.stringMatching(
@@ -150,5 +169,107 @@ describe('fn:installManagedServices T3 startup validation', () => {
       execute.mock.calls.filter(([, args]) => args?.includes(helpPath)),
     ).toEqual([['/usr/bin/sudo', helpArgv, expect.any(Object)]]);
     expect(createService).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * records a manifest whose profile selects a provider
+ * @param sprite filesystem-backed Sprite
+ * @param provider the selected provider
+ */
+async function writeManifest(
+  sprite: Sprite,
+  provider: ProviderId = 'sprite',
+): Promise<void> {
+  await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
+    schema: 1,
+    createdAt: '2026-10-09T00:00:00Z',
+    installedVersions: {},
+    profile: {
+      ...profileWith({ network: false, exitNode: false, cliproxyapi: false }),
+      provider,
+    },
+  });
+}
+
+describe('fn:installUpdateSchedule', () => {
+  it.each([1, 30, 45, 90])(
+    'should record a %i minute interval in the interval file and leave the shared cron entry unchanged',
+    async (minutes) => {
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-update-schedule-'),
+      );
+      const sprite = createFilesystemSprite({ root: directory.path });
+      await writeManifest(sprite);
+      const listServices = vi.spyOn(sprite, 'listServices');
+      const createService = vi.spyOn(sprite, 'createService');
+
+      await installUpdateSchedule(guestOf(sprite), minutes);
+
+      const files = sprite.filesystem();
+      const [interval, cron] = await Promise.all([
+        files.readFile(UPDATE_CHECK_FILE, 'utf8'),
+        files.readFile('/etc/cron.d/open-agent', 'utf8'),
+      ]);
+      expect({
+        interval,
+        cron,
+        services: [
+          listServices.mock.calls.length,
+          createService.mock.calls.length,
+        ],
+      }).toEqual({
+        interval: `${String(minutes)}\n`,
+        cron: `* * * * * root /bin/sh -c '${updateEntryCommand()}' >/dev/null 2>&1\n`,
+        services: [0, 0],
+      });
+    },
+  );
+
+  it('should deploy the gate the repository ships and give each file its mode', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-update-modes-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    const shipped = await readFile(
+      fileURLToPath(
+        new URL('../../../src/guest/update-gate.sh', import.meta.url),
+      ),
+      'utf8',
+    );
+    await writeManifest(sprite);
+
+    await installUpdateSchedule(guestOf(sprite), 45);
+
+    const modeOf = async (path: string): Promise<number> =>
+      (await stat(join(directory.path, path))).mode & 0o777;
+    expect({
+      gate: await sprite.filesystem().readFile(UPDATE_GATE_SCRIPT, 'utf8'),
+      modes: [
+        await modeOf(UPDATE_GATE_SCRIPT),
+        await modeOf(UPDATE_CHECK_FILE),
+        await modeOf('/etc/cron.d/open-agent'),
+      ],
+    }).toEqual({ gate: shipped, modes: [0o700, 0o600, 0o644] });
+  });
+
+  it('should write no cron entry for a provider whose services the guest supervisor runs', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-update-supervised-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    await writeManifest(sprite, 'fly-machine');
+
+    await installUpdateSchedule(guestOf(sprite), 45);
+
+    const files = sprite.filesystem();
+    expect({
+      interval: await files.readFile(UPDATE_CHECK_FILE, 'utf8'),
+      gate: (await stat(join(directory.path, UPDATE_GATE_SCRIPT))).mode & 0o777,
+      cron: await files.readFile('/etc/cron.d/open-agent', 'utf8').then(
+        () => 'present',
+        () => 'absent',
+      ),
+    }).toEqual({ interval: '45\n', gate: 0o700, cron: 'absent' });
   });
 });

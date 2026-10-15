@@ -2,7 +2,7 @@ import { CommandFault } from '#errors';
 
 import { sanitizeGuestDiagnostic } from '../diagnostics.js';
 
-import type { SpriteCommand } from '@fly/sprites';
+import type { GuestProcess } from '#drivers/guest-channel';
 
 const maximumStartupDiagnosticChars = 65_536;
 const diagnosticLimit = 512;
@@ -12,7 +12,7 @@ const diagnosticLimit = 512;
  * @param command transport whose stderr is private after readiness
  * @returns startup collector and bounded failure builder
  */
-export function transactionDiagnostics(command: SpriteCommand): {
+export function transactionDiagnostics(command: GuestProcess): {
   clear: () => void;
   failure: (message: string, cause?: unknown) => CommandFault;
 } {

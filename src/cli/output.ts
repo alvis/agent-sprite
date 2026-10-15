@@ -44,9 +44,10 @@ const LIST_TSV_COLUMNS = [
   'id',
   'state',
   'createdAt',
-  't3Url',
+  'agentUrl',
   'setup',
   'organization',
+  'provider',
 ] as const;
 
 /**
@@ -121,7 +122,7 @@ function humanResult(result: SerializedResult, columns: number): string {
   }
   const machines = machineRows(result.data);
   if (result.command === 'list' && machines) {
-    return `${error}${renderToString(machineTableElement(machines, columns))}\n`;
+    return `${error}${renderToString(machineTableElement(machines, columns))}\n${unavailableProviders(result.data)}`;
   }
   if (result.data) {
     const details = renderToString(
@@ -142,16 +143,16 @@ function humanResult(result: SerializedResult, columns: number): string {
 }
 
 /**
- * prints the single T3 URL and optional code without wrapping so copying preserves them
+ * prints the single agent URL and optional code without wrapping so copying preserves them
  * @param data already redacted command data
  * @returns unwrapped connection lines
  */
 function humanConnection(data: JsonObject): string {
   const lines: string[] = [];
   const machine = isJsonObject(data.machine) ? data.machine : undefined;
-  const t3Url = machine?.t3Url ?? data.t3Url;
-  if (typeof t3Url === 'string') {
-    lines.push(`    T3 URL: ${t3Url}\n`);
+  const agentUrl = machine?.agentUrl ?? data.agentUrl;
+  if (typeof agentUrl === 'string') {
+    lines.push(`    Agent URL: ${agentUrl}\n`);
   }
   const pairing = isJsonObject(data.pairing) ? data.pairing : undefined;
   if (typeof pairing?.token === 'string') {
@@ -176,7 +177,7 @@ function humanError(result: Extract<SerializedResult, { ok: false }>): string {
   }
   if (result.error.setupIncomplete) {
     lines.push(
-      'Setup is incomplete; run agent-sprite setup on this workstation.\n',
+      'Setup is incomplete; run open-agent setup on this workstation.\n',
     );
   }
   const recovery = isJsonObject(result.data?.recovery)
@@ -225,6 +226,23 @@ function escapeTsvCell(value: string): string {
     .replaceAll('\r', '\\r')
     .replaceAll('\u001b', '\\u001b')
     .replaceAll('\u009b', '\\u009b');
+}
+
+/**
+ * names providers a list could not query, so an absent workstation is not mistaken for none
+ * @param data list command data
+ * @returns one line per unavailable provider
+ */
+function unavailableProviders(data: JsonObject | undefined): string {
+  const unavailable = Array.isArray(data?.unavailable) ? data.unavailable : [];
+
+  return unavailable
+    .filter(isJsonObject)
+    .map(
+      ({ provider, reason }) =>
+        `Unavailable provider ${typeof provider === 'string' ? provider : 'unknown'}: ${typeof reason === 'string' ? reason : 'not reported'}\n`,
+    )
+    .join('');
 }
 
 /**

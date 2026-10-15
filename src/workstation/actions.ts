@@ -1,3 +1,4 @@
+import { catalog, DEFAULT_SELECTION } from '#core/catalog';
 import { commandError, CommandFault } from '#errors';
 import { selectManagedMachine, showWorkstation } from '#inspect';
 import { copyUrl } from '#integrations/clipboard';
@@ -7,8 +8,6 @@ import { currentOperation, checkOperation } from '#operation';
 import { setupWorkstation } from '#setup';
 import { terminateWorkstation } from '#terminate';
 
-import type { SpritesClient } from '@fly/sprites';
-
 import type { CommandResult } from '#command';
 import type {
   CommandName,
@@ -16,61 +15,78 @@ import type {
   Interaction,
   InteractionChoice,
 } from '#command/contracts';
+import type { ProviderDriver } from '#drivers/contracts';
 import type { MachineSummary } from '#machine';
 
 interface WorkstationActionContext {
   request: CommandRequest;
   machine: MachineSummary;
-  client: SpritesClient;
+  provider: ProviderDriver;
   interaction: Interaction;
 }
 
 type WorkstationAction =
   'details' | 'pair' | 'inspect' | 'setup' | 'copy' | 'terminate';
 
-const WORKSTATION_ACTIONS: Array<InteractionChoice<WorkstationAction>> = [
-  { label: 'Show details', value: 'details' },
-  {
-    label: 'Pair another T3 client',
-    value: 'pair',
-    description: 'Add a new pairing code to the T3 URL, valid for 5 minutes',
-  },
-  {
-    label: 'Inspect workstation',
-    value: 'inspect',
-    description:
-      'Check live services, routing and native harnesses; may wake the Sprite',
-  },
-  {
-    label: 'Configure a section',
-    value: 'setup',
-    description:
-      'Choose plugins, Tailscale, proxy, Git, tools or another setup area',
-  },
-  { label: 'Copy T3 URL', value: 'copy' },
-  { label: 'Permanently terminate', value: 'terminate' },
-];
+/**
+ * lists the actions for one workstation, named after its recorded drivers
+ * @param machine selected workstation and its recorded driver selection
+ * @returns menu choices; pairing only when the recorded agent supports it
+ */
+function workstationActions(
+  machine: MachineSummary,
+): Array<InteractionChoice<WorkstationAction>> {
+  const agent =
+    catalog.agents[machine.profile?.agent ?? DEFAULT_SELECTION.agent];
+
+  return [
+    { label: 'Show details', value: 'details' },
+    ...(agent.supportsPairing
+      ? [
+          {
+            label: `Pair another ${agent.displayName} client`,
+            value: 'pair' as const,
+            description: `Add a new pairing code to the ${agent.displayName} URL, valid for 5 minutes`,
+          },
+        ]
+      : []),
+    {
+      label: 'Inspect workstation',
+      value: 'inspect',
+      description:
+        'Check live services, routing and native harnesses; may wake the workstation',
+    },
+    {
+      label: 'Configure a section',
+      value: 'setup',
+      description:
+        'Choose plugins, network, proxy, Git, tools or another setup area',
+    },
+    { label: `Copy ${agent.displayName} URL`, value: 'copy' },
+    { label: 'Permanently terminate', value: 'terminate' },
+  ];
+}
 
 /**
  * presents explicit actions after showing a control-plane machine summary
  * @param request parsed show command
- * @param client authenticated Sprite client
+ * @param provider authenticated provider driver
  * @param interaction interactive UI boundary
  * @returns the selected action's structured result
  */
 export async function chooseWorkstationAction(
   request: CommandRequest,
-  client: SpritesClient,
+  provider: ProviderDriver,
   interaction: Interaction,
 ): Promise<CommandResult> {
   let requestedMachine = request.machine;
   for (;;) {
-    const sprite = await selectManagedMachine(
-      client,
+    const workstation = await selectManagedMachine(
+      provider,
       requestedMachine,
       interaction,
     );
-    const machine = summarizeMachine(sprite);
+    const machine = summarizeMachine(workstation);
     checkOperation();
     interaction.status({
       kind: 'info',
@@ -79,7 +95,7 @@ export async function chooseWorkstationAction(
     const result = await chooseMachineAction({
       request,
       machine,
-      client,
+      provider,
       interaction,
     });
     if (result) {
@@ -91,7 +107,7 @@ export async function chooseWorkstationAction(
 
 /**
  * keeps pre-mutation action navigation within the selected workstation
- * @param context original request, machine summary, client and active prompts
+ * @param context original request, machine summary, provider and active prompts
  * @returns final action result or back to the machine list
  */
 async function chooseMachineAction(
@@ -101,7 +117,10 @@ async function chooseMachineAction(
   const menu = withBackNavigation(interaction, 'back to workstation list');
   for (;;) {
     const action = await returnOnBack(async () =>
-      menu.select({ message: 'Workstation action' }, WORKSTATION_ACTIONS),
+      menu.select(
+        { message: 'Workstation action' },
+        workstationActions(machine),
+      ),
     );
     if (!action) {
       return undefined;
@@ -121,14 +140,14 @@ async function chooseMachineAction(
 /**
  * dispatches an explicitly selected action with a safe parent destination
  * @param action selected task identity
- * @param context exact request, live summary, provider client and prompts
+ * @param context exact request, live summary, provider and prompts
  * @returns the selected task result
  */
 async function applyWorkstationAction(
   action: WorkstationAction,
   context: WorkstationActionContext,
 ): Promise<CommandResult> {
-  const { request, machine, client, interaction } = context;
+  const { request, machine, provider, interaction } = context;
   const nested = withBackNavigation(interaction, 'back to actions');
   const actionRequest = menuActionRequest(request);
   currentOperation()?.select(
@@ -142,14 +161,14 @@ async function applyWorkstationAction(
     if (action === 'setup') {
       return await setupWorkstation(
         { ...actionRequest, command: 'setup' },
-        client,
+        provider,
         nested,
       );
     }
     if (action === 'terminate') {
       return await terminateWorkstation(
         { ...actionRequest, command: 'terminate' },
-        client,
+        provider,
         nested,
       );
     }
@@ -162,11 +181,11 @@ async function applyWorkstationAction(
         ...actionRequest,
         options: {
           ...actionRequest.options,
-          withT3PairCode: action === 'pair',
+          withPairCode: action === 'pair',
           inspect: action === 'inspect',
         },
       },
-      client,
+      provider,
       nested,
     );
   } catch (error) {
@@ -187,23 +206,23 @@ async function applyWorkstationAction(
 }
 
 /**
- * sends the provider T3 URL to the desktop clipboard
+ * sends the provider agent URL to the desktop clipboard
  * @param machine current machine summary containing a provider URL
  * @returns the completed local action and machine summary
  */
 async function copyWorkstationUrl(
   machine: MachineSummary,
 ): Promise<CommandResult> {
-  if (!machine.t3Url) {
+  if (!machine.agentUrl) {
     throw new CommandFault({
       code: 'PROVIDER',
-      message: 'Sprite has no provider T3 URL',
+      message: 'Workstation has no provider agent URL',
     });
   }
   await copyUrl(
-    typeof machine.t3Url === 'string'
-      ? machine.t3Url
-      : machine.t3Url.disclose(false)!,
+    typeof machine.agentUrl === 'string'
+      ? machine.agentUrl
+      : machine.agentUrl.disclose(false)!,
   );
 
   return { command: 'show', ok: true, data: { machine, action: 'copy' } };
@@ -220,7 +239,7 @@ function menuActionRequest(request: CommandRequest): CommandRequest {
     options: {
       ...request.options,
       yes: false,
-      withT3PairCode: false,
+      withPairCode: false,
       inspect: false,
     },
   };

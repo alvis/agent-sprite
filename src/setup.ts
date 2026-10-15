@@ -1,44 +1,29 @@
-import { CommandFault } from '#errors';
-
-import { resolveInputs } from '#input';
-import {
-  integrationRequirements,
-  resolveSetupIntegrations,
-} from '#input/integrations';
+import { requireValidSuppliedSelection } from '#input';
+import { readSetupSelection } from '#input/selection';
+import { readInputSources } from '#input/sources';
 import { selectManagedMachine } from '#inspect';
-import { guestFileExists } from '#integrations/guest';
-import {
-  inspectTailscale,
-  readGuestManifest,
-} from '#integrations/guest/runtime';
-import {
-  setManagedSpriteLabels,
-  SETUP_READY_LABEL,
-} from '#integrations/sprites';
 import { summarizeMachine } from '#machine';
 import { InteractionExit, returnOnBack, withBackNavigation } from '#navigation';
-import { promptUnavailableDetail, traceStage } from '#operation';
+import { traceStage } from '#operation';
 
 import { validateSetupIntegrationOptions } from '#validation';
 
 import { setupAll } from './setup/all.js';
 import { setupLocalCredential } from './setup/credentials.js';
 import { setupFailure } from './setup/failure.js';
-import { persistSetupIntegrations } from './setup/integrations.js';
+import { recordSetupMetadata } from './setup/metadata.js';
+import { setupNetwork } from './setup/network.js';
 import { setupPlugins } from './setup/plugins.js';
+import { prepareSetupContext } from './setup/prepare.js';
 import {
   setupEnvironment,
   setupGit,
   setupGithub,
+  setupAgent,
   setupProxy,
-  setupT3,
   setupTools,
 } from './setup/sections.js';
 import { selectSetupSection } from './setup/selection.js';
-
-import { setupTailscale, verifySetupExitNode } from './setup/tailscale.js';
-
-import type { SpritesClient, Sprite } from '@fly/sprites';
 
 import type { CommandResult } from '#command';
 import type {
@@ -48,36 +33,31 @@ import type {
   SetupSection,
 } from '#command/contracts';
 import type { AppliedSetupSection } from '#command/data';
-import type { GuestManifest } from '#integrations/guest/types';
+import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
+import type { GuestChannel } from '#drivers/guest-channel';
+import type { SuppliedSelection } from '#input/selection';
+import type { InputSources } from '#input/sources';
 
-import type { SetupContext, SetupProgress } from './setup/context.js';
+import type { SetupContext } from './setup/context.js';
 import type { SetupSelection } from './setup/selection.js';
-
-interface SetupPreparationParams {
-  sprite: Sprite;
-  section: SetupSection;
-  options: CommandOptions;
-  interaction?: Interaction;
-  mutation: SetupProgress;
-}
 
 interface SetupSelectionParams {
   request: CommandRequest;
   section: SetupSelection;
-  client: SpritesClient;
+  provider: ProviderDriver;
   interaction?: Interaction;
 }
 
 /**
  * applies only the requested setup section to one live managed machine
  * @param request parsed setup request and target name
- * @param client authenticated provider client
+ * @param provider authenticated provider driver
  * @param interaction optional inline prompts
  * @returns the section outcome and current control-plane summary
  */
 export async function setupWorkstation(
   request: CommandRequest,
-  client: SpritesClient,
+  provider: ProviderDriver,
   interaction?: Interaction,
 ): Promise<CommandResult> {
   let currentRequest = request;
@@ -87,7 +67,12 @@ export async function setupWorkstation(
       interaction,
     );
     const result = await returnOnBack(async () =>
-      setupSelection({ request: currentRequest, section, client, interaction }),
+      setupSelection({
+        request: currentRequest,
+        section,
+        provider,
+        interaction,
+      }),
     );
     if (result) {
       return result;
@@ -101,7 +86,7 @@ export async function setupWorkstation(
 
 /**
  * applies one section while retaining mutation-aware cancellation
- * @param params request, selected section, provider client and active prompts
+ * @param params request, selected section, provider driver and active prompts
  * @param params.section selected guest or local task
  * @param params.interaction optional active prompts
  * @returns section result
@@ -109,20 +94,32 @@ export async function setupWorkstation(
 async function setupSelection(
   params: SetupSelectionParams,
 ): Promise<CommandResult> {
-  const { request, section, client, interaction } = params;
+  const { request, section, provider, interaction } = params;
   const nested = interaction
     ? withBackNavigation(interaction, 'back to sections')
     : interaction;
-  if (section === 'tailscale-credential') {
+  if (section === 'network-credential') {
     return setupLocalCredential(nested, request.options);
   }
-  validateSetupIntegrationOptions(request.options, section);
-  const sprite = await selectManagedMachine(client, request.machine, nested);
+  const { sources, supplied } = await readStaticSetupInputs(
+    request.options,
+    section,
+  );
+  const workstation = await selectManagedMachine(
+    provider,
+    request.machine,
+    nested,
+  );
+  const opened = await provider.openGuest(workstation);
   const mutation = { started: false };
   try {
-    const context = await traceStage('setup.preparation', async () =>
+    const { context, guest } = await traceStage('setup.preparation', async () =>
       prepareSetupContext({
-        sprite,
+        provider,
+        supplied,
+        sources,
+        workstation,
+        guest: opened,
         section,
         options: request.options,
         interaction: nested,
@@ -135,24 +132,13 @@ async function setupSelection(
         'stop setup (changes may already be applied)',
       );
     }
-    const result = await applySection(sprite, section, context);
-    const updated =
-      section === 'all'
-        ? await setManagedSpriteLabels(sprite, [SETUP_READY_LABEL])
-        : sprite;
+    const result = await applySection(guest, section, context);
 
-    return {
-      command: 'setup',
-      ok: true,
-      data: {
-        machine: summarizeMachine(
-          updated,
-          'pairing' in result ? result.pairing?.token : undefined,
-        ),
-        retainedCredentials: context.input.retainedCredentials,
-        ...result,
-      },
-    };
+    return setupSuccess(
+      await recordSetupMetadata(section, context),
+      result,
+      context,
+    );
   } catch (error) {
     if (
       error instanceof InteractionExit &&
@@ -162,195 +148,89 @@ async function setupSelection(
       throw error;
     }
 
-    return setupFailure({ sprite, error, mutation, section });
+    return setupFailure({ provider, workstation, error, mutation, section });
   }
 }
 
 /**
- * resolves and persists setup integration choices before section mutations
- * @param params target, selected section, input choices, and diagnostic state
- * @returns complete setup context for the selected section
+ * reads and validates every static setup input before any provider or guest
+ * call: integration flags, catalog ids, option bounds and determined capabilities
+ * @param options parsed setup flags
+ * @param section targeted setup area
+ * @returns the input sources and the validated supplied values
  */
-async function prepareSetupContext(
-  params: SetupPreparationParams,
-): Promise<SetupContext> {
-  const { sprite, section, options, interaction, mutation } = params;
-  const manifest = await readSetupManifest(sprite, section);
-  const hasManifest = manifest !== undefined;
-  const installed = manifest?.integrations ?? {
-    tailscale: hasManifest,
-    exitNode: hasManifest,
-    cliproxyapi: hasManifest,
-  };
-  const integrations = await resolveSetupIntegrations({
-    options,
-    interaction,
-    installed,
-    selectedSection:
-      section === 'all' || section === 'tailscale' || section === 'proxy'
-        ? section
-        : undefined,
-  });
-  const updatesIntegrations = integrationUpdateSelected(section, options);
-  const requiredIntegrations = requiredSetupIntegrations(
-    section,
-    options,
-    integrations,
-  );
-  const enrolled =
-    Boolean(manifest?.tailnetIdentity?.deviceId) ||
-    (hasManifest && requiredIntegrations.tailscale && installed.tailscale
-      ? Boolean((await inspectTailscale(sprite)).deviceId)
-      : false);
-  const input = await resolveInputs(options, interaction, {
-    required: updatesIntegrations
-      ? integrationRequirements(requiredIntegrations, [], enrolled)
-      : [],
-    integrations,
-  });
-  if (input.missing.length > 0) {
-    throw new CommandFault({
-      code: 'INPUT',
-      message: missingSetupMessage(input.missing),
-    });
-  }
-  const exitNode = await verifySetupExitNode(input, requiredIntegrations);
-  if (updatesIntegrations && hasManifest) {
-    const persistence = { mutation, expected: installed };
-    await persistSetupIntegrations(sprite, integrations, persistence);
-  }
-
-  return {
-    options,
-    interaction,
-    input,
-    integrations,
-    tailscaleEnrolled: enrolled,
-    verifiedExitNode: exitNode,
-    initialInstallation:
-      !manifest || !sprite.labels.includes(SETUP_READY_LABEL),
-    mutation,
-  };
-}
-
-/**
- * adds terminal guidance only when an implicit blocker hid a required prompt
- * @param missing unresolved setup inputs
- * @returns actionable INPUT message
- */
-function missingSetupMessage(missing: string[]): string {
-  return [`Missing: ${missing.join(', ')}`, promptUnavailableDetail()]
-    .filter(Boolean)
-    .join('. ');
-}
-
-/**
- * detects whether this setup invocation changes persisted integration choices
- * @param section selected setup area
- * @param options parsed tri-state choices
- * @returns whether integration persistence is required
- */
-function integrationUpdateSelected(
-  section: SetupSection,
+async function readStaticSetupInputs(
   options: CommandOptions,
-): boolean {
-  return (
-    section === 'all' ||
-    section === 'tailscale' ||
-    section === 'proxy' ||
-    options.tailscale !== undefined ||
-    options.proxy !== undefined ||
-    options.useExitNode !== undefined
-  );
-}
-/**
- * limits preflight credentials to integrations targeted by this setup run
- * @param section selected setup area
- * @param options parsed tri-state choices
- * @param integrations effective persisted selections
- * @returns integration subset whose credentials must be present
- */
-function requiredSetupIntegrations(
   section: SetupSection,
-  options: CommandOptions,
-  integrations: SetupContext['integrations'],
-): SetupContext['integrations'] {
+): Promise<{ sources: InputSources; supplied: SuppliedSelection }> {
+  validateSetupIntegrationOptions(options, section);
+  const sources = await readInputSources(options);
+  const supplied = readSetupSelection({ options, sources, section });
+  requireValidSuppliedSelection(supplied, options);
+
+  return { sources, supplied: supplied.value };
+}
+
+/**
+ * reports a completed section with the current control-plane summary
+ * @param workstation workstation as labelled after the section
+ * @param result non-secret section outcome
+ * @param context setup inputs carrying retained credential outcomes
+ * @returns successful setup result
+ */
+function setupSuccess(
+  workstation: WorkstationRecord,
+  result: AppliedSetupSection,
+  context: SetupContext,
+): CommandResult {
   return {
-    tailscale:
-      integrations.tailscale &&
-      (section === 'all' ||
-        section === 'tailscale' ||
-        options.tailscale !== undefined ||
-        options.useExitNode !== undefined),
-    exitNode:
-      integrations.exitNode &&
-      (section === 'all' ||
-        section === 'tailscale' ||
-        options.useExitNode !== undefined),
-    cliproxyapi:
-      integrations.cliproxyapi &&
-      (section === 'all' || section === 'proxy' || options.proxy !== undefined),
+    command: 'setup',
+    ok: true,
+    data: {
+      machine: summarizeMachine(
+        workstation,
+        'pairing' in result ? result.pairing?.token : undefined,
+      ),
+      retainedCredentials: context.input.retainedCredentials,
+      ...result,
+    },
   };
 }
 
 /**
  * applies one selected section without changing unrelated sections
- * @param sprite exact managed Sprite
+ * @param guest guest channel of the managed workstation
  * @param section area selected for setup
  * @param context parsed options, prompts, and redaction values
  * @returns non-secret section outcome
  */
 async function applySection(
-  sprite: Sprite,
+  guest: GuestChannel,
   section: SetupSection,
   context: SetupContext,
 ): Promise<AppliedSetupSection> {
   return traceStage(`setup.${section}`, async () => {
     switch (section) {
-      case 't3':
-        return { section, ...(await setupT3(sprite, context)) };
-      case 'tailscale':
-        return { section, ...(await setupTailscale(sprite, context)) };
+      case 'agent':
+        return { section, ...(await setupAgent(guest, context)) };
+      case 'network':
+        return { section, ...(await setupNetwork(guest, context)) };
       case 'github':
-        return { section, ...(await setupGithub(sprite, context)) };
+        return { section, ...(await setupGithub(guest, context)) };
       case 'git':
-        return { section, ...(await setupGit(sprite, context)) };
+        return { section, ...(await setupGit(guest, context)) };
       case 'proxy':
-        return { section, ...(await setupProxy(sprite, context)) };
+        return { section, ...(await setupProxy(guest, context)) };
       case 'env':
-        return { section, ...(await setupEnvironment(sprite, context)) };
+        return { section, ...(await setupEnvironment(guest, context)) };
       case 'plugins':
-        return { section, ...(await setupPlugins(sprite, context)) };
+        return { section, ...(await setupPlugins(guest, context)) };
       case 'tools':
-        return { section, ...(await setupTools(sprite, context)) };
+        return { section, ...(await setupTools(guest, context)) };
       case 'all':
-        return { section, ...(await setupAll(sprite, context)) };
+        return { section, ...(await setupAll(guest, context)) };
       default:
         throw new Error(`Unsupported setup section: ${section}`);
     }
   });
-}
-
-/**
- * requires full recovery when initial installation has no manifest
- * @param sprite selected managed guest
- * @param section requested setup scope
- * @returns persisted manifest, or undefined for initial full recovery
- */
-async function readSetupManifest(
-  sprite: Sprite,
-  section: SetupSection,
-): Promise<GuestManifest | undefined> {
-  if (await guestFileExists(sprite, '/opt/agent-sprite/manifest.json')) {
-    return readGuestManifest(sprite);
-  }
-  if (section !== 'all') {
-    throw new CommandFault({
-      code: 'PREFLIGHT',
-      message:
-        'Initial installation is incomplete; recover with setup --section all',
-    });
-  }
-
-  return undefined;
 }

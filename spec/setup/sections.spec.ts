@@ -5,19 +5,24 @@ import { join } from 'node:path';
 import { ServiceLogStream } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
-import { setupT3 } from '#setup/sections';
+import { setupAgent } from '#setup/sections';
 import { PairingSecret } from '#utilities/pairing-secret';
 
-import { createFilesystemSprite } from '../mocks/sprites.js';
+import { DISABLED_NETWORK_PROFILE, profileWith } from '../fixtures/profile.js';
+import {
+  createFilesystemSprite,
+  guestOf,
+  workstationOf,
+} from '../mocks/sprites.js';
 
 import type { SetupContext } from '#setup/context';
 
-const integrations = { tailscale: false, exitNode: false, cliproxyapi: false };
+const integrations = { network: false, exitNode: false, cliproxyapi: false };
 
-describe('fn:setupT3', () => {
+describe('fn:setupAgent', () => {
   it('should mint zero codes when omitted and exactly one when requested', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-setup-t3-'),
+      join(tmpdir(), 'open-agent-setup-t3-'),
     );
     const token = 'setup-t3-requested-pairing';
     const sprite = createFilesystemSprite({
@@ -34,18 +39,18 @@ describe('fn:setupT3', () => {
         exitCode: 0,
       }),
     });
-    await sprite.filesystem().mkdir('/opt/agent-sprite', {
+    await sprite.filesystem().mkdir('/opt/open-agent', {
       recursive: true,
     });
-    await sprite.filesystem().mkdir('/opt/agent-sprite/t3-provider-probe', {
+    await sprite.filesystem().mkdir('/opt/open-agent/t3-environment-probe', {
       recursive: true,
     });
     await sprite.filesystem().mkdir('/etc/cron.d', { recursive: true });
-    await sprite.filesystem().writeJSON('/opt/agent-sprite/manifest.json', {
+    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
       schema: 1,
       createdAt: '2026-10-09T00:00:00Z',
       installedVersions: {},
-      integrations,
+      profile: profileWith(integrations),
     });
     vi.spyOn(sprite, 'listServices').mockResolvedValue([]);
     vi.spyOn(sprite, 'getService').mockImplementation(async (name) => ({
@@ -62,15 +67,23 @@ describe('fn:setupT3', () => {
         ),
     );
     const context: SetupContext = {
+      ...workstationOf(sprite),
       options: {},
-      input: { integrations, runtimeEnv: {}, sources: {}, missing: [] },
-      integrations,
-      tailscaleEnrolled: false,
+      input: {
+        profile: DISABLED_NETWORK_PROFILE,
+        runtimeEnv: {},
+        sources: {},
+        missing: [],
+      },
+      profile: DISABLED_NETWORK_PROFILE,
+      persistsProfile: false,
+      isReleaseChanged: false,
+      networkEnrolled: false,
       initialInstallation: false,
       mutation: { started: false },
     };
 
-    const ordinary = await setupT3(sprite, context);
+    const ordinary = await setupAgent(guestOf(sprite), context);
 
     expect(ordinary).toEqual({
       service: 'configured',
@@ -80,9 +93,9 @@ describe('fn:setupT3', () => {
     const calls = vi.mocked(sprite.execFile).mock.calls;
     expect(calls.filter(([, args]) => args?.includes('pair'))).toHaveLength(0);
 
-    context.options = { withT3PairCode: true };
+    context.options = { withPairCode: true };
     context.mutation.started = false;
-    const requested = await setupT3(sprite, context);
+    const requested = await setupAgent(guestOf(sprite), context);
 
     expect(requested).toMatchObject({
       pairing: {

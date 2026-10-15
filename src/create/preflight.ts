@@ -1,31 +1,22 @@
-import { commandError, CommandFault } from '#errors';
-import { resolveCreateInputs } from '#input';
-import { spritesTokenGuidance } from '#input/token-guidance';
-import { createSpritesClient } from '#integrations/sprites';
-import {
-  assertTailnetHostnameAvailable,
-  createTailscaleAuthKey,
-  resolveExitNode,
-} from '#integrations/tailscale';
-import { validateMachineName } from '#machine';
+import { catalog } from '#core/catalog';
+import { networkDriver } from '#core/networks';
+import { prerequisiteDetails, providerPreflight } from '#core/preflight';
+import { bindProvider } from '#core/providers';
+import { commandError } from '#errors';
+import { resolveCreateInputs, retainEnteredProviderToken } from '#input';
+import { networkManagement, resolveEnrollmentKey } from '#input/management';
+import { machineNameProblem } from '#machine';
 import {
   runOperation,
   checkOperation,
-  publishStatus,
   promptUnavailableDetail,
 } from '#operation';
-import {
-  hasActions,
-  resolvePluginActions,
-  validateMarketplaceSources,
-} from '#plugins';
+import { resolvePluginActions, validateMarketplaceSources } from '#plugins';
 
 import { authorizationFailure } from './failure.js';
 import { promptCreatePluginOptions } from './plugins.js';
-
 import { createPreflightSummary } from './reminders.js';
-
-import type { SpritesClient } from '@fly/sprites';
+import { confirmCreation, reviewCreatePlan } from './review.js';
 
 import type {
   CommandError,
@@ -33,49 +24,33 @@ import type {
   CommandRequest,
   Interaction,
 } from '#command/contracts';
+import type {
+  NetworkExitNode,
+  PrerequisiteProblem,
+  ProviderDriver,
+} from '#drivers/contracts';
 import type { ResolvedInputs } from '#input/types';
-import type { HarnessPluginActions } from '#integrations/native/plugin-actions';
-import type { TailnetExitNode } from '#integrations/tailscale';
-
-import type { CreatePreflight } from './context.js';
 
 import type { CreatePreparation } from './preparation.js';
-
-interface RequiredCreateValues {
-  name: string;
-  token: string;
-}
-
-interface ReviewContext {
-  values: RequiredCreateValues;
-  input: ResolvedInputs;
-  plugins: HarnessPluginActions;
-  verifiedExitNode?: TailnetExitNode;
-  interaction?: Interaction;
-  preflight: CreatePreflight;
-}
+import type { RequiredCreateValues, ReviewContext } from './review.js';
 
 interface CreateProviderChecks {
+  /** the provider answered with the entered credential */
+  providerAccepted: boolean;
   collision: boolean;
-  verifiedExitNode?: TailnetExitNode;
+  verifiedExitNode?: NetworkExitNode;
   issues: CommandError[];
-}
-
-interface ConfirmationContext {
-  name: string;
-  request: CommandRequest;
-  plugins: HarnessPluginActions;
 }
 
 interface CreateAuthorizationContext extends ReviewContext {
   request: CommandRequest;
-  client: SpritesClient;
+  provider: ProviderDriver;
 }
 
 export type { CreatePreparation } from './preparation.js';
 
 /**
- * resolve, verify, and confirm all deterministic inputs before Sprite creation
+ * resolve, verify, and confirm all deterministic inputs before workstation creation
  * @param request parsed create command and explicit selections
  * @param interaction optional inline review and consent prompts
  * @returns complete provisioning context or a preflight/cancel result
@@ -85,39 +60,33 @@ export async function prepareCreate(
   interaction?: Interaction,
 ): Promise<CreatePreparation> {
   const input = await resolveCreateInputs(request.options, interaction);
-  if (input.missing.length > 0) {
-    return result('INPUT', 'Required provisioning inputs are missing', {
-      details: missingCreateDetails(input.missing),
-    });
+  const { profile } = input;
+  const blocked = await inputFailure(input);
+  if (blocked) {
+    return blocked;
   }
   const values = requireCreateValues(input);
-  validateMachineName(values.name);
   const pluginOptions = await promptCreatePluginOptions(
     request.options,
+    profile.harnesses,
     interaction,
   );
-  const plugins = resolvePluginActions(pluginOptions);
-  const marketplaceToken =
-    request.options.githubHost &&
-    request.options.githubHost.toLowerCase() !== 'github.com'
-      ? undefined
-      : input.githubToken;
-  await validateMarketplaceSources(plugins, marketplaceToken, true);
-  const client = createSpritesClient(values.token);
-  const names = await checkProviderAndTailnet(client, values, input);
-  if (names.issues.length > 0) {
-    return result(
-      names.issues[0]!.code,
-      'Provider preflight checks failed; no Sprite was created',
-      {
-        details: names.issues.map((issue) => issue.message),
-      },
-    );
-  }
-  if (names.collision) {
-    return result('CONFLICT', `Sprite ${values.name} already exists`, {
-      machine: values.name,
-    });
+  const plugins = resolvePluginActions(pluginOptions, profile.harnesses);
+  await validateMarketplaceSources(
+    plugins,
+    marketplaceToken(request, input),
+    true,
+  );
+  const provider = bindProvider(profile.provider, values.token);
+  const names = await checkProviderAndNetwork(provider, values, input);
+  const refused = await providerCheckFailure(names, {
+    input,
+    request,
+    interaction,
+    name: values.name,
+  });
+  if (refused) {
+    return refused;
   }
   const { verifiedExitNode } = names;
   const preflight = createPreflightSummary(input, verifiedExitNode);
@@ -130,7 +99,7 @@ export async function prepareCreate(
     interaction,
     preflight,
     request,
-    client,
+    provider,
   }).catch((error: unknown) => {
     checkOperation();
 
@@ -139,16 +108,133 @@ export async function prepareCreate(
 }
 
 /**
- * preserves required-input guidance and the actual implicit prompt blocker
+ * retains a provider credential the provider accepted, then reports the first
+ * blocking provider or network check
+ * @param names provider and network check outcomes
+ * @param context resolved inputs, request, prompts and requested name
+ * @param context.input resolved create inputs
+ * @param context.request parsed create command
+ * @param context.interaction optional inline prompts
+ * @param context.name requested workstation name
+ * @returns the failure to return, or undefined when provisioning may continue
+ */
+async function providerCheckFailure(
+  names: CreateProviderChecks,
+  context: {
+    input: ResolvedInputs;
+    request: CommandRequest;
+    interaction?: Interaction;
+    name: string;
+  },
+): Promise<CreatePreparation | undefined> {
+  const { input, request, interaction, name } = context;
+  if (names.providerAccepted) {
+    await retainEnteredProviderToken(input, {
+      interaction,
+      options: request.options,
+    });
+  }
+  const [firstIssue] = names.issues;
+  if (firstIssue) {
+    return result(
+      firstIssue.code,
+      'Provider preflight checks failed; no workstation was created',
+      { details: names.issues.map((issue) => issue.message) },
+    );
+  }
+
+  return names.collision
+    ? result('CONFLICT', `Workstation ${name} already exists`, {
+        machine: name,
+      })
+    : undefined;
+}
+
+/**
+ * reports missing inputs, an invalid workstation name and provider
+ * prerequisite problems together, before any provider call
+ * @param input resolved create inputs
+ * @returns the INPUT failure, or undefined when nothing blocks provisioning
+ */
+async function inputFailure(
+  input: ResolvedInputs,
+): Promise<CreatePreparation | undefined> {
+  const { credential } =
+    catalog.providers[input.profile.provider].prerequisites;
+  const prerequisites = await providerPreflight(input.profile.provider, {
+    token: input.providerToken,
+    source: input.sources[credential.environment],
+  });
+  const nameProblem = input.name ? machineNameProblem(input.name) : undefined;
+  const invalid = nameProblem ? [nameProblem] : [];
+  if (
+    input.missing.length === 0 &&
+    invalid.length === 0 &&
+    prerequisites.length === 0
+  ) {
+    return undefined;
+  }
+
+  return result('INPUT', inputFailureMessage(input.missing, invalid), {
+    details: missingCreateDetails(
+      [...input.missing, ...invalid],
+      prerequisites,
+    ),
+  });
+}
+
+/**
+ * summarises what blocks provisioning before any provider call
  * @param missing required inputs unresolved before provider work
+ * @param invalid supplied inputs that cannot be used
+ * @returns the headline of the INPUT failure
+ */
+function inputFailureMessage(
+  missing: readonly string[],
+  invalid: readonly string[],
+): string {
+  if (missing.length > 0) {
+    return 'Required provisioning inputs are missing';
+  }
+
+  return invalid.length > 0
+    ? 'Provisioning inputs are invalid'
+    : 'Provider prerequisites are missing or misconfigured';
+}
+
+/**
+ * selects the GitHub token marketplace sources may use; only github.com receives it
+ * @param request parsed create command
+ * @param input resolved GitHub token
+ * @returns the token for github.com marketplace sources, if any
+ */
+function marketplaceToken(
+  request: CommandRequest,
+  input: ResolvedInputs,
+): string | undefined {
+  const host = request.options.githubHost;
+
+  return host && host.toLowerCase() !== 'github.com'
+    ? undefined
+    : input.githubToken;
+}
+
+/**
+ * aggregates missing inputs, provider prerequisite problems and the actual
+ * implicit prompt blocker into one failure
+ * @param missing required inputs unresolved, or supplied but invalid, before provider work
+ * @param prerequisites problems the provider preflight found, each with its fix
  * @returns safe details for the typed INPUT failure
  */
-function missingCreateDetails(missing: string[]): string[] {
+function missingCreateDetails(
+  missing: readonly string[],
+  prerequisites: readonly PrerequisiteProblem[],
+): string[] {
   const promptHint = promptUnavailableDetail();
 
   return [
     ...missing,
-    ...(missing.includes('SPRITES_TOKEN') ? spritesTokenGuidance : []),
+    ...prerequisiteDetails(prerequisites),
     ...(promptHint ? [promptHint] : []),
   ];
 }
@@ -169,18 +255,19 @@ async function authorizeCreate(
     interaction,
     preflight,
     request,
-    client,
+    provider,
   } = context;
   reviewCreatePlan(context);
   const declined = await confirmCreation(
-    { name: values.name, request, plugins },
+    { name: values.name, request, plugins, profile: input.profile },
     interaction,
   );
   if (declined) {
     return result('CANCELLED', declined);
   }
-  const authKey = input.integrations.tailscale
-    ? await resolveEnrollmentKey(input)
+  const network = networkDriver(input.profile.network);
+  const authKey = network.inputs
+    ? await resolveEnrollmentKey(network, input)
     : undefined;
 
   return {
@@ -190,59 +277,54 @@ async function authorizeCreate(
       input,
       name: values.name,
       token: values.token,
-      integrations: input.integrations,
-      effectiveExitNode: input.integrations.exitNode
+      effectiveExitNode: input.profile.options.isExitNodeEnabled
         ? (verifiedExitNode?.ip ?? input.exitNode)
         : undefined,
       authKey,
       plugins,
       preflight,
-      client,
+      provider,
     },
   };
 }
 
 /**
- * checks the provider name and exact tailnet hostname before creating a Sprite
- * @param client authenticated Sprite client
+ * checks the provider name and exact network hostname before creating a workstation
+ * @param provider authenticated provider driver
  * @param values required create inputs
- * @param input caller-side Tailscale management credential, if available
+ * @param input caller-side network management credential, if available
  * @returns collision status, verified exit-node identity, and all failed checks
  */
-async function checkProviderAndTailnet(
-  client: SpritesClient,
+async function checkProviderAndNetwork(
+  provider: ProviderDriver,
   values: RequiredCreateValues,
   input: ResolvedInputs,
 ): Promise<CreateProviderChecks> {
-  const [provider, exit, hostname] = await runOperation(async () =>
+  const network = networkDriver(input.profile.network);
+  const { isExitNodeEnabled } = input.profile.options;
+  const [taken, preflight] = await runOperation(async () =>
     Promise.allSettled([
-      runOperation(async () => client.listAllSprites()),
-      input.integrations.exitNode && input.tailscaleApiKey && input.tailnet
-        ? resolveExitNode(input.tailscaleApiKey, input.tailnet, input.exitNode!)
-        : Promise.resolve(undefined),
-      input.integrations.tailscale && input.tailscaleApiKey && input.tailnet
-        ? assertTailnetHostnameAvailable(
-            input.tailscaleApiKey,
-            input.tailnet,
-            values.name,
-          )
-        : Promise.resolve(),
+      provider.isNameTaken(values.name),
+      network.preflight({
+        hostname: values.name,
+        management: networkManagement(input),
+        exitNode: isExitNodeEnabled ? input.exitNode : undefined,
+      }),
     ]),
   );
+  const checked =
+    preflight.status === 'fulfilled' ? preflight.value : undefined;
 
   return {
-    collision:
-      provider.status === 'fulfilled' &&
-      provider.value.some((sprite) => sprite.name === values.name),
-    verifiedExitNode: exit.status === 'fulfilled' ? exit.value : undefined,
-    issues: [provider, exit, hostname].flatMap((check) => {
-      if (check.status !== 'rejected') {
-        return [];
-      }
-      const failure = commandError(check.reason);
-
-      return [failure];
-    }),
+    providerAccepted: taken.status === 'fulfilled',
+    collision: taken.status === 'fulfilled' && taken.value,
+    verifiedExitNode: checked?.exitNode,
+    issues: [
+      ...(taken.status === 'rejected' ? [commandError(taken.reason)] : []),
+      ...(preflight.status === 'rejected'
+        ? [commandError(preflight.reason)]
+        : (checked?.problems ?? []).map((problem) => commandError(problem))),
+    ],
   };
 }
 
@@ -252,7 +334,7 @@ async function checkProviderAndTailnet(
  * @returns values required to create one workstation
  */
 function requireCreateValues(input: ResolvedInputs): RequiredCreateValues {
-  const { name, spritesToken: token } = input;
+  const { name, providerToken: token } = input;
   if (!name || !token) {
     throw new Error('Validated create inputs were unavailable');
   }
@@ -261,110 +343,7 @@ function requireCreateValues(input: ResolvedInputs): RequiredCreateValues {
 }
 
 /**
- * presents non-secret values and native code selections for review
- * @param context required create values and optional status reporter
- */
-function reviewCreatePlan(context: ReviewContext): void {
-  const { values, input, plugins, verifiedExitNode, interaction, preflight } =
-    context;
-  const exitNode = verifiedExitNode?.name ?? input.exitNode;
-  const tailscale = input.integrations.tailscale
-    ? input.integrations.exitNode
-      ? `Tailscale enabled, exit node ${exitNode}`
-      : 'Tailscale enabled, direct routing'
-    : 'Tailscale disabled';
-  publishStatus(
-    {
-      kind: 'info',
-      message: [
-        `Create ${values.name} in the current Fly organization`,
-        tailscale,
-        input.integrations.cliproxyapi
-          ? `CLIProxyAPI ${input.proxyUrl}`
-          : 'CLIProxyAPI disabled',
-        'T3 exposed after readiness',
-        `Sprites credential: ${input.sources.SPRITES_TOKEN ?? 'prompt/session'}`,
-        `Tailscale credential: ${input.sources.TAILSCALE_API_KEY ?? (input.tailscaleAuthKey ? 'auth key' : 'prompt/session')}`,
-        `GitHub: ${input.githubToken ? 'selected' : 'skipped'}; Git identity: ${input.gitIdentity ? 'configured' : 'skipped'}`,
-        `Claude marketplaces: ${describeSelections(plugins.claude.marketplaces)}; plugins: ${describeSelections(plugins.claude.plugins)}`,
-        `Codex marketplaces: ${describeSelections(plugins.codex.marketplaces)}; plugins: ${describeSelections(plugins.codex.plugins)}`,
-      ].join('\n'),
-    },
-    interaction,
-  );
-  for (const message of preflight.reminders) {
-    publishStatus({ kind: 'warning', message }, interaction);
-  }
-}
-
-/**
- * describes an optional list without treating an empty list as a selection
- * @param choices native sources or plugin identities
- * @returns a compact review label
- */
-function describeSelections(choices: string[]): string {
-  return choices.length ? choices.join(', ') : 'none';
-}
-
-/**
- * confirms selected native code and provider provisioning separately
- * @param context exact name, parsed consent flags, and selected code
- * @param interaction optional confirmation prompts
- * @returns cancellation reason when a confirmation was declined
- */
-async function confirmCreation(
-  context: ConfirmationContext,
-  interaction?: Interaction,
-): Promise<string | undefined> {
-  const { name, request, plugins } = context;
-  if (
-    interaction &&
-    !request.options.yes &&
-    (hasActions(plugins.claude) || hasActions(plugins.codex))
-  ) {
-    const trusted = await interaction.confirm({
-      message:
-        'Install the selected native marketplace/plugin code, including executable hooks?',
-    });
-    if (!trusted) {
-      return 'Plugin selection was not accepted; no Sprite was created';
-    }
-  }
-  if (interaction && !request.options.nonInteractive && !request.options.yes) {
-    const accepted = await interaction.confirm({
-      message: `Create ${name} in the current Fly organization and expose authenticated T3 at its provider URL?`,
-    });
-    if (!accepted) {
-      return 'Create was cancelled before provisioning';
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * selects a provided auth key or mint a short-lived single-use key
- * @param input resolved caller-side Tailscale credentials
- * @returns transient key for one new device
- */
-async function resolveEnrollmentKey(input: ResolvedInputs): Promise<string> {
-  const authKey =
-    input.tailscaleAuthKey ??
-    (input.tailscaleApiKey && input.tailnet
-      ? await createTailscaleAuthKey(input.tailscaleApiKey, input.tailnet)
-      : undefined);
-  if (!authKey) {
-    throw new CommandFault({
-      code: 'INPUT',
-      message: 'Tailscale enrolment requires an auth key or management API key',
-    });
-  }
-
-  return authKey;
-}
-
-/**
- * returns a structured preflight outcome before any Sprite exists
+ * returns a structured preflight outcome before any workstation exists
  * @param code machine-readable preflight status
  * @param message safe explanation for the caller
  * @param extra optional collision or missing-input detail

@@ -4,13 +4,15 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { resolveSpritesToken } from '#input';
+import { resolveProviderCredential } from '#input';
 import { resolveBaseInputs } from '#input/base';
 import {
   readLocalCredential,
   saveLocalCredential,
 } from '#integrations/credentials';
 import { redactResolved } from '#utilities/redaction';
+
+import { TAILSCALE_PROFILE } from '../fixtures/profile.js';
 
 import type { CredentialStoreLocation } from '#integrations/credentials';
 
@@ -24,7 +26,7 @@ describe('fn:management credential precedence', () => {
     'should fail when a $name protected store is selected, but bypasses it for higher sources',
     async ({ content, mode }) => {
       await using directory = await mkdtempDisposable(
-        join(tmpdir(), 'agent-sprite-credential-precedence-'),
+        join(tmpdir(), 'open-agent-credential-precedence-'),
       );
       const path = join(directory.path, 'credentials.json');
       const secretPath = join(directory.path, 'explicit-token');
@@ -35,35 +37,45 @@ describe('fn:management credential precedence', () => {
       await writeFile(path, content, { mode });
       await chmod(path, mode);
       await writeFile(secretPath, 'file-selected-token\n', { mode: 0o600 });
-      vi.stubEnv('AGENT_SPRITE_CREDENTIAL_REFERENCE', 'env-selected-token');
+      vi.stubEnv('OPEN_AGENT_CREDENTIAL_REFERENCE', 'env-selected-token');
       vi.stubEnv('SPRITES_TOKEN', undefined);
 
       await expect(readLocalCredential('sprites', location)).rejects.toEqual(
         expect.objectContaining({ code: 'INPUT' }),
       );
-      await expect(resolveSpritesToken({}, location)).rejects.toEqual(
-        expect.objectContaining({ code: 'INPUT' }),
-      );
+      await expect(
+        resolveProviderCredential({}, 'sprite', { credentialStore: location }),
+      ).rejects.toEqual(expect.objectContaining({ code: 'INPUT' }));
       await expect(
         resolveBaseInputs({}, emptySources, { credentialStore: location }),
       ).rejects.toEqual(expect.objectContaining({ code: 'INPUT' }));
 
       expect(
-        await resolveSpritesToken(
-          { spritesTokenSource: 'env:AGENT_SPRITE_CREDENTIAL_REFERENCE' },
-          location,
-        ),
-      ).toBe('env-selected-token');
+        await resolveProviderCredential({}, 'sprite', {
+          reference: 'env:OPEN_AGENT_CREDENTIAL_REFERENCE',
+          credentialStore: location,
+        }),
+      ).toEqual({
+        token: 'env-selected-token',
+        source: '--provider-token-source env:OPEN_AGENT_CREDENTIAL_REFERENCE',
+      });
       expect(
-        await resolveSpritesToken(
-          { spritesTokenSource: `file:${secretPath}` },
-          location,
-        ),
+        (
+          await resolveProviderCredential({}, 'sprite', {
+            reference: `file:${secretPath}`,
+            credentialStore: location,
+          })
+        ).token,
       ).toBe('file-selected-token');
       vi.stubEnv('SPRITES_TOKEN', 'process-selected-token');
-      expect(await resolveSpritesToken({}, location)).toBe(
-        'process-selected-token',
-      );
+      expect(
+        await resolveProviderCredential({}, 'sprite', {
+          credentialStore: location,
+        }),
+      ).toEqual({
+        token: 'process-selected-token',
+        source: 'SPRITES_TOKEN in the process environment',
+      });
 
       const direct = await resolveBaseInputs(
         {},
@@ -73,19 +85,19 @@ describe('fn:management credential precedence', () => {
         },
         { credentialStore: location },
       );
-      expect(direct.input.spritesToken).toBe('process-selected-token');
+      expect(direct.input.providerToken).toBe('process-selected-token');
       const referenced = await resolveBaseInputs(
-        { spritesTokenSource: `file:${secretPath}` },
+        { providerTokenSource: `file:${secretPath}` },
         emptySources,
         { credentialStore: location },
       );
-      expect(referenced.input.spritesToken).toBe('file-selected-token');
+      expect(referenced.input.providerToken).toBe('file-selected-token');
     },
   );
 
   it('should read the Tailscale store only for selected enrollment and honors a direct key first', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-tailnet-store-'),
+      join(tmpdir(), 'open-agent-tailnet-store-'),
     );
     const path = join(directory.path, 'credentials.json');
     const location = {
@@ -100,9 +112,9 @@ describe('fn:management credential precedence', () => {
         ...emptySources,
         processEnv: { SPRITES_TOKEN: 'provider-token' },
       },
-      { tailscaleEnrollment: false, credentialStore: location },
+      { networkEnrollment: false, credentialStore: location },
     );
-    expect(unused.input.tailscaleApiKey).toBeUndefined();
+    expect(unused.input.networkKey).toBeUndefined();
 
     const direct = await resolveBaseInputs(
       { github: false },
@@ -113,9 +125,13 @@ describe('fn:management credential precedence', () => {
           TAILSCALE_API_KEY: 'selected-key',
         },
       },
-      { tailscaleEnrollment: true, credentialStore: location },
+      {
+        profile: TAILSCALE_PROFILE,
+        networkEnrollment: true,
+        credentialStore: location,
+      },
     );
-    expect(direct.input.tailscaleApiKey).toBe('selected-key');
+    expect(direct.input.networkKey).toBe('selected-key');
 
     await expect(
       resolveBaseInputs(
@@ -124,14 +140,18 @@ describe('fn:management credential precedence', () => {
           ...emptySources,
           processEnv: { SPRITES_TOKEN: 'provider-token' },
         },
-        { tailscaleEnrollment: true, credentialStore: location },
+        {
+          profile: TAILSCALE_PROFILE,
+          networkEnrollment: true,
+          credentialStore: location,
+        },
       ),
     ).rejects.toEqual(expect.objectContaining({ code: 'INPUT' }));
   });
 
   it('should use a generated absent Keychain location without touching the default Keychain', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-absent-keychain-'),
+      join(tmpdir(), 'open-agent-absent-keychain-'),
     );
     const location = {
       backend: 'keychain',
@@ -139,7 +159,11 @@ describe('fn:management credential precedence', () => {
     } satisfies CredentialStoreLocation;
 
     expect(await readLocalCredential('sprites', location)).toBeUndefined();
-    expect(await resolveSpritesToken({}, location)).toBeUndefined();
+    expect(
+      await resolveProviderCredential({}, 'sprite', {
+        credentialStore: location,
+      }),
+    ).toEqual({});
     await expect(
       saveLocalCredential('sprites', 'secret', {
         consent: false,
@@ -156,7 +180,7 @@ describe('fn:management credential precedence', () => {
 
   it('should report the actual protected-file backend and retains private file and directory modes', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-protected-save-'),
+      join(tmpdir(), 'open-agent-protected-save-'),
     );
     const vault = join(directory.path, 'vault');
     const path = join(vault, 'credentials.json');
@@ -185,7 +209,7 @@ describe('fn:management credential precedence', () => {
 
   it('should report a safe fallback reason before any Keychain command can accept unsafe input', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-credential-fallback-'),
+      join(tmpdir(), 'open-agent-credential-fallback-'),
     );
     const vault = join(directory.path, 'vault');
     const path = join(vault, 'credentials.json');

@@ -1,28 +1,26 @@
-/** native plugin changes for one harness. Empty arrays preserve existing state */
-export interface PluginActions {
-  marketplaces: string[];
-  plugins: string[];
-  removeMarketplaces: string[];
-  disablePlugins: string[];
-  uninstallPlugins: string[];
-}
+import type { HarnessId } from '#core/catalog';
+import type { PluginActions } from '#drivers/contracts';
 
-/** independently selected Claude and Codex actions */
-export interface HarnessPluginActions {
-  claude: PluginActions;
-  codex: PluginActions;
-}
+/** native marketplace and plugin changes for one harness */
+export type { PluginActions };
 
-/** Parsed choices for one harness before skip and inheritance are applied. */
+/** independently selected native actions for every harness */
+export type HarnessPluginActions = Record<HarnessId, PluginActions>;
+
+/** parsed choices for one harness before skip and inheritance are applied */
 export interface HarnessPluginOptions extends PluginActions {
+  /** whether the harness's plugins were explicitly skipped */
   skipped: boolean;
 }
 
-/** One-time normalized plugin input shared by create and setup prompts. */
+/** one-time normalized plugin input shared by create and setup prompts */
 export interface NormalizedPluginOptions {
-  claude: HarnessPluginOptions;
-  codex: HarnessPluginOptions;
-  noPlugins: boolean;
-  reuseClaudeMarketplaces: boolean;
-  reuseClaudeMarketplacesSet: boolean;
+  /** whether every native plugin was skipped (`--no-plugins`) or chosen per harness */
+  kind: 'skipped' | 'selected';
+  /** parsed choices of every catalog harness, keyed by harness id */
+  harnesses: Record<HarnessId, HarnessPluginOptions>;
+  /** whether harnesses without their own marketplaces reuse the first harness's sources */
+  reuseMarketplaces: boolean;
+  /** whether the reuse choice was made explicitly */
+  reuseMarketplacesSet: boolean;
 }

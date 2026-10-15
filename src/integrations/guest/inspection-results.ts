@@ -8,11 +8,11 @@ import type {
   GuestInspection,
   InspectionProbeFailure,
 } from './inspection-types.js';
-import type { GuestIntegrations, GuestManifest } from './types.js';
+import type { GuestManifest } from './types.js';
 
 type InspectionResults = readonly [
   PromiseSettledResult<GuestInspection['services']>,
-  PromiseSettledResult<GuestInspection['tailscale']>,
+  PromiseSettledResult<GuestInspection['network']>,
   PromiseSettledResult<NonNullable<GuestInspection['native']>>,
   PromiseSettledResult<GuestInspection['hub']>,
 ];
@@ -22,30 +22,25 @@ const DIAGNOSTIC_LIMIT = 512;
 /**
  * turns operational probe failures into current-state evidence without losing siblings
  * @param manifest current guest manifest
- * @param integrations selected integration state
  * @param results independently settled probe outcomes
  * @returns current inspection with explicit unavailable-probe evidence
  */
 export function settleInspectionResults(
   manifest: GuestManifest,
-  integrations: GuestIntegrations,
   results: InspectionResults,
-): GuestInspection {
+): Omit<GuestInspection, 'governor'> {
   checkOperation();
-  const [serviceProbe, tailscaleProbe, nativeProbe, proxyProbe] = results;
+  const [serviceProbe, networkProbe, nativeProbe, proxyProbe] = results;
   const probeFailures: InspectionProbeFailure[] = [];
   const services =
     inspectionValue(serviceProbe, 'services', probeFailures) ?? [];
-  const tailscale = inspectionValue(
-    tailscaleProbe,
-    'tailscale',
-    probeFailures,
-  ) ?? {
-    ...manifest.tailnetIdentity,
+  const network = inspectionValue(networkProbe, 'network', probeFailures) ?? {
+    deviceId: manifest.networkIdentity?.deviceId,
+    ip: manifest.networkIdentity?.ip,
     online: false,
     dnsReady: false,
     skipped: false,
-    reason: probeFailures.find((failure) => failure.probe === 'tailscale')
+    reason: probeFailures.find((failure) => failure.probe === 'network')
       ?.reason,
   };
   const native = inspectionValue(nativeProbe, 'native', probeFailures);
@@ -57,11 +52,10 @@ export function settleInspectionResults(
 
   return {
     services,
-    tailscale,
+    network,
     native,
     hub,
     manifest,
-    integrations,
     probeFailures,
   };
 }

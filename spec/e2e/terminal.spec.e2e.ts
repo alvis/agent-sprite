@@ -32,4 +32,25 @@ describe('fixture:native terminal', () => {
     expect(result.matchedSteps).toBe(2);
     expect(result.output).toContain('{"first":"a","second":"b"}');
   });
+
+  it('should stop early when the next prompt does not appear within the step timeout', async () => {
+    const program = `
+      process.stdout.write('First prompt: ');
+      process.stdin.once('data', () => setInterval(() => {}, 1000));
+    `;
+    const result = await runTerminal(
+      execPath,
+      [
+        { waitFor: 'First prompt:', input: 'a' },
+        { waitFor: 'Second prompt:', input: 'b' },
+      ],
+      { args: ['--eval', program], stepTimeout: 500, timeout: 15_000 },
+    );
+
+    expect({
+      timedOut: result.timedOut,
+      matchedSteps: result.matchedSteps,
+      early: result.elapsedMs < 5_000,
+    }).toEqual({ timedOut: true, matchedSteps: 1, early: true });
+  });
 });

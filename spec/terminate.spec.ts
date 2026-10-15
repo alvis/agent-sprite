@@ -5,11 +5,19 @@ import { join } from 'node:path';
 import { SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
-import { MANAGED_LABEL, SCHEMA_LABEL } from '#integrations/sprites';
+import {
+  TAILSCALE_STATE_DIRECTORY,
+  TAILSCALE_STATE_FILE,
+} from '#drivers/networks/tailscale/guest/tailscale-state';
+import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { InteractionExit } from '#navigation';
 import { terminateWorkstation } from '#terminate';
 
-import { createFilesystemSprite } from './mocks/sprites.js';
+import {
+  DISABLED_NETWORK_PROFILE,
+  TAILSCALE_PROFILE,
+} from './fixtures/profile.js';
+import { createFilesystemSprite, providerOf } from './mocks/sprites.js';
 
 import type { Sprite } from '@fly/sprites';
 
@@ -20,7 +28,7 @@ const manifest = {
   schema: 1,
   createdAt: '2026-10-01T12:00:00Z',
   installedVersions: {},
-  integrations: { tailscale: true, exitNode: false, cliproxyapi: false },
+  profile: TAILSCALE_PROFILE,
 } satisfies GuestManifest;
 
 /**
@@ -50,7 +58,7 @@ async function createTerminationBoundary(root: string): Promise<{
   const envPath = join(root, 'selected.env');
   await writeFile(
     envPath,
-    ['TAILSCALE_ENABLED=false', 'CLIPROXYAPI_ENABLED=false', ''].join('\n'),
+    ['OPEN_AGENT_NETWORK=none', 'CLIPROXYAPI_ENABLED=false', ''].join('\n'),
   );
   vi.stubEnv('TAILSCALE_API_KEY', '');
   const request = {
@@ -71,18 +79,23 @@ async function createTerminationBoundary(root: string): Promise<{
 describe('fn:terminateWorkstation', () => {
   it('should refuse a supplied name that differs from the ownership-verified Sprite before deletion', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-terminate-mismatch-'),
+      join(tmpdir(), 'open-agent-terminate-mismatch-'),
     );
     const { sprite, client, request } = await createTerminationBoundary(
       directory.path,
     );
 
     await expect(
-      terminateWorkstation({ ...request, machine: 'different-target' }, client),
+      terminateWorkstation(
+        { ...request, machine: 'different-target' },
+        providerOf(client),
+      ),
     ).rejects.toEqual(
       expect.objectContaining({
         code: 'CONFLICT',
-        message: expect.stringMatching(/does not match the verified Sprite/),
+        message: expect.stringMatching(
+          /does not match the verified workstation/,
+        ),
       }),
     );
 
@@ -96,28 +109,26 @@ describe('fn:terminateWorkstation', () => {
   it('should delete a verified incomplete workstation without requiring an absent manifest or enrollment state', async () => {
     for (const hasManifest of [false, true]) {
       await using directory = await mkdtempDisposable(
-        join(tmpdir(), 'agent-sprite-terminate-incomplete-'),
+        join(tmpdir(), 'open-agent-terminate-incomplete-'),
       );
       const { sprite, client, request } = await createTerminationBoundary(
         directory.path,
       );
       if (hasManifest) {
+        await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
         await sprite
           .filesystem()
-          .mkdir('/opt/agent-sprite', { recursive: true });
-        await sprite
-          .filesystem()
-          .writeJSON('/opt/agent-sprite/manifest.json', manifest);
+          .writeJSON('/opt/open-agent/manifest.json', manifest);
       }
 
-      const result = await terminateWorkstation(request, client);
+      const result = await terminateWorkstation(request, providerOf(client));
 
       expect(result).toMatchObject({
         command: 'terminate',
         ok: true,
         data: {
-          sprite: { status: 'deleted', id: sprite.id, name: sprite.name },
-          tailnet: { status: 'no device identity recorded' },
+          workstation: { status: 'deleted', id: sprite.id, name: sprite.name },
+          network: { status: 'no device identity recorded' },
         },
       });
       expect(client.deleteSprite).toHaveBeenCalledExactlyOnceWith(sprite.name);
@@ -125,94 +136,227 @@ describe('fn:terminateWorkstation', () => {
     }
   });
 
-  it('should preserve disabled recorded identity and report required cleanup after Sprite deletion without an API token', async () => {
+  it('should skip network cleanup for a workstation that joined no private network', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-terminate-disabled-'),
+      join(tmpdir(), 'open-agent-terminate-none-'),
     );
     const { sprite, client, request } = await createTerminationBoundary(
       directory.path,
     );
-    const filesystem = sprite.filesystem();
-    await filesystem.mkdir('/opt/agent-sprite', { recursive: true });
-    await filesystem.mkdir('/var/lib/tailscale', { recursive: true });
-    await filesystem.writeFile(
-      '/var/lib/tailscale/tailscaled.state',
-      'enrolled',
-    );
-    await filesystem.writeJSON('/opt/agent-sprite/manifest.json', {
+    await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
+    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
       ...manifest,
-      integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
-      tailnetIdentity: { deviceId: 'managed-node', ip: '100.100.100.1' },
+      profile: DISABLED_NETWORK_PROFILE,
     });
 
-    const result = await terminateWorkstation(request, client);
+    const result = await terminateWorkstation(request, providerOf(client));
 
     expect(result).toMatchObject({
       command: 'terminate',
-      ok: false,
+      ok: true,
       data: {
-        sprite: { status: 'deleted', id: sprite.id, name: sprite.name },
-        tailnet: {
-          status: 'cleanup required',
-          deviceId: 'managed-node',
-          tailnetIp: '100.100.100.1',
-        },
+        workstation: { status: 'deleted', id: sprite.id, name: sprite.name },
+        network: { status: 'no device identity recorded' },
       },
-      error: { code: 'INPUT' },
     });
     expect(client.deleteSprite).toHaveBeenCalledExactlyOnceWith(sprite.name);
     expect(sprite.execFile).not.toHaveBeenCalled();
   });
 
-  it('should refuse deletion when enrollment state exists but native inspection cannot capture an identity', async () => {
+  it('should preserve disabled recorded identity and report required cleanup after Sprite deletion without an API token', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-terminate-identity-'),
+      join(tmpdir(), 'open-agent-terminate-disabled-'),
     );
     const { sprite, client, request } = await createTerminationBoundary(
       directory.path,
     );
-    await sprite.filesystem().mkdir('/var/lib/tailscale', { recursive: true });
-    await sprite
-      .filesystem()
-      .writeFile('/var/lib/tailscale/tailscaled.state', 'enrolled');
+    const filesystem = sprite.filesystem();
+    await filesystem.mkdir('/opt/open-agent', { recursive: true });
+    await filesystem.mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+    await filesystem.writeFile(TAILSCALE_STATE_FILE, 'enrolled');
+    await filesystem.writeJSON('/opt/open-agent/manifest.json', {
+      ...manifest,
+      profile: DISABLED_NETWORK_PROFILE,
+      networkIdentity: {
+        network: 'tailscale',
+        deviceId: 'managed-node',
+        ip: '100.100.100.1',
+      },
+    });
 
-    await expect(terminateWorkstation(request, client)).rejects.toEqual(
-      expect.objectContaining({ code: 'PREFLIGHT' }),
-    );
+    const result = await terminateWorkstation(request, providerOf(client));
 
-    expect(client.deleteSprite).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      command: 'terminate',
+      ok: false,
+      data: {
+        workstation: { status: 'deleted', id: sprite.id, name: sprite.name },
+        network: {
+          status: 'cleanup required',
+          deviceId: 'managed-node',
+          address: '100.100.100.1',
+        },
+      },
+      error: { code: 'INPUT' },
+    });
+    expect(client.deleteSprite).toHaveBeenCalledExactlyOnceWith(sprite.name);
+    // the stopped daemon cannot report, so the recorded identity stands
     expect(sprite.execFile).toHaveBeenCalledExactlyOnceWith(
       '/usr/bin/sudo',
-      [
-        '-n',
-        '-E',
-        '--',
-        '/opt/agent-sprite/tools/tailscale',
-        'status',
-        '--json',
-      ],
+      ['-n', '-E', '--', '/opt/open-agent/tools/tailscale', 'status', '--json'],
       expect.any(Object),
     );
   });
 
-  it('should retain the caught status parser failure as a private provider cause before deletion', async () => {
+  it('should delete the recorded device with the management credential of the recorded network', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-terminate-probe-'),
+      join(tmpdir(), 'open-agent-terminate-network-'),
     );
     const { sprite, client, request } = await createTerminationBoundary(
       directory.path,
     );
-    await sprite.filesystem().mkdir('/var/lib/tailscale', { recursive: true });
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(null, { status: 204 }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    vi.stubEnv('TAILSCALE_API_KEY', 'generated-management-key');
+    await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
+    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
+      ...manifest,
+      networkIdentity: {
+        network: 'tailscale',
+        deviceId: 'managed-node',
+        ip: '100.100.100.1',
+      },
+    });
+
+    const result = await terminateWorkstation(request, providerOf(client));
+
+    expect(result).toMatchObject({
+      command: 'terminate',
+      ok: true,
+      data: {
+        workstation: { status: 'deleted', id: sprite.id, name: sprite.name },
+        network: { status: 'deleted', deviceId: 'managed-node' },
+      },
+    });
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(
+      new URL('https://api.tailscale.com/api/v2/device/managed-node'),
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer generated-management-key',
+        }),
+      }),
+    );
+  });
+
+  it('should refuse deletion when enrollment state exists but native inspection cannot capture an identity', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-terminate-identity-'),
+    );
+    const { sprite, client, request } = await createTerminationBoundary(
+      directory.path,
+    );
     await sprite
       .filesystem()
-      .writeFile('/var/lib/tailscale/tailscaled.state', 'enrolled');
+      .mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+    await sprite.filesystem().writeFile(TAILSCALE_STATE_FILE, 'enrolled');
+
+    await expect(
+      terminateWorkstation(request, providerOf(client)),
+    ).rejects.toEqual(expect.objectContaining({ code: 'PREFLIGHT' }));
+
+    expect(client.deleteSprite).not.toHaveBeenCalled();
+    expect(sprite.execFile).toHaveBeenCalledExactlyOnceWith(
+      '/usr/bin/sudo',
+      ['-n', '-E', '--', '/opt/open-agent/tools/tailscale', 'status', '--json'],
+      expect.any(Object),
+    );
+  });
+
+  it('should refuse deletion when a deselected network kept enrollment state but no identity was recorded', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-terminate-deselected-'),
+    );
+    const { sprite, client, request } = await createTerminationBoundary(
+      directory.path,
+    );
+    const filesystem = sprite.filesystem();
+    await filesystem.mkdir('/opt/open-agent', { recursive: true });
+    await filesystem.mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+    await filesystem.writeFile(TAILSCALE_STATE_FILE, 'enrolled');
+    await filesystem.writeJSON('/opt/open-agent/manifest.json', {
+      ...manifest,
+      profile: DISABLED_NETWORK_PROFILE,
+    });
+
+    await expect(
+      terminateWorkstation(request, providerOf(client)),
+    ).rejects.toEqual(
+      expect.objectContaining({
+        code: 'PREFLIGHT',
+        message: expect.stringMatching(
+          /device identity could not be captured/u,
+        ),
+      }),
+    );
+
+    expect(client.deleteSprite).not.toHaveBeenCalled();
+  });
+
+  it('should name the network that recorded the identity as owner after the workstation switched to none', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-terminate-recorded-owner-'),
+    );
+    const { sprite, client, request } = await createTerminationBoundary(
+      directory.path,
+    );
+    const filesystem = sprite.filesystem();
+    await filesystem.mkdir('/opt/open-agent', { recursive: true });
+    await filesystem.writeJSON('/opt/open-agent/manifest.json', {
+      ...manifest,
+      profile: DISABLED_NETWORK_PROFILE,
+      networkIdentity: {
+        network: 'tailscale',
+        deviceId: 'managed-node',
+        ip: '100.100.100.1',
+      },
+    });
+
+    const result = await terminateWorkstation(request, providerOf(client));
+
+    expect(result).toMatchObject({
+      ok: false,
+      data: {
+        network: { status: 'cleanup required', deviceId: 'managed-node' },
+      },
+      error: {
+        message: expect.stringMatching(/Tailscale device managed-node/u),
+      },
+    });
+  });
+
+  it('should retain the caught status parser failure as a private provider cause before deletion', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-terminate-probe-'),
+    );
+    const { sprite, client, request } = await createTerminationBoundary(
+      directory.path,
+    );
+    await sprite
+      .filesystem()
+      .mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+    await sprite.filesystem().writeFile(TAILSCALE_STATE_FILE, 'enrolled');
     vi.mocked(sprite.execFile).mockResolvedValueOnce({
       stdout: '{private-body',
       stderr: '',
       exitCode: 0,
     });
 
-    await expect(terminateWorkstation(request, client)).rejects.toEqual(
+    await expect(
+      terminateWorkstation(request, providerOf(client)),
+    ).rejects.toEqual(
       expect.objectContaining({
         code: 'PROVIDER',
         cause: expect.any(SyntaxError),
@@ -224,19 +368,21 @@ describe('fn:terminateWorkstation', () => {
 
   it('should preserve cancellation identity when the status probe is interrupted', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-terminate-cancel-'),
+      join(tmpdir(), 'open-agent-terminate-cancel-'),
     );
     const { sprite, client, request } = await createTerminationBoundary(
       directory.path,
     );
-    await sprite.filesystem().mkdir('/var/lib/tailscale', { recursive: true });
     await sprite
       .filesystem()
-      .writeFile('/var/lib/tailscale/tailscaled.state', 'enrolled');
+      .mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+    await sprite.filesystem().writeFile(TAILSCALE_STATE_FILE, 'enrolled');
     const cancelled = new InteractionExit('cancel');
     vi.mocked(sprite.execFile).mockRejectedValueOnce(cancelled);
 
-    await expect(terminateWorkstation(request, client)).rejects.toBe(cancelled);
+    await expect(
+      terminateWorkstation(request, providerOf(client)),
+    ).rejects.toBe(cancelled);
     expect(client.deleteSprite).not.toHaveBeenCalled();
   });
 });

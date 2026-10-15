@@ -8,16 +8,29 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { writeResult } from '#cli/output';
 import { serializeResult } from '#cli/serialization';
+import { AWAKE_HOOK_COMMAND } from '#core/harnesses';
+import { CLAUDE_WORK_HOOKS } from '#drivers/harnesses/claude/hooks';
+import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
+import { CODEX_WORK_HOOKS } from '#drivers/harnesses/codex/hooks';
+import { CODEX_HOOKS } from '#drivers/harnesses/codex/paths';
+import { mergeWorkHooks } from '#drivers/harnesses/shared/hooks';
+import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { resultExitCode } from '#errors';
 import { doctorWorkstation, showWorkstation } from '#inspect';
-import { MANAGED_LABEL, SCHEMA_LABEL } from '#integrations/sprites';
 import { OperationContext } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 import { runCommand } from '#workstation';
 import { chooseWorkstationAction } from '#workstation/actions';
 
 import { driveInk } from '../fixtures/ink.js';
-import { createFilesystemSprite } from '../mocks/sprites.js';
+import { profileWith } from '../fixtures/profile.js';
+import {
+  createFilesystemSprite,
+  providerOf,
+  serveServiceRegistry,
+} from '../mocks/sprites.js';
+
+import type { WorkHooks } from '#drivers/harnesses/shared/hooks';
 
 /**
  * creates a managed SDK boundary with one installed disposable workstation
@@ -29,7 +42,7 @@ async function installedSprite(root: string): Promise<{
   sprite: Sprite;
   fixtureWriteCalls: number;
 }> {
-  const client = new SpritesClient('sdk-only-test-token');
+  const client = new SpritesClient('test-org/1/0abc/0def');
   const sprite = Object.assign(
     createFilesystemSprite({
       root,
@@ -44,15 +57,20 @@ async function installedSprite(root: string): Promise<{
       listServices: vi.fn<Sprite['listServices']>(async () => []),
     },
   );
+  serveServiceRegistry(sprite);
   vi.spyOn(client, 'listAllSprites').mockResolvedValue([sprite]);
   vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
   vi.spyOn(client, 'deleteSprite').mockResolvedValue(undefined);
-  await sprite.filesystem().mkdir('/opt/agent-sprite', { recursive: true });
-  await sprite.filesystem().writeJSON('/opt/agent-sprite/manifest.json', {
+  await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
+  await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
     schema: 1,
     createdAt: '2026-10-01T12:00:00Z',
     installedVersions: { node: '24.9.0' },
-    integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
+    profile: profileWith({
+      network: false,
+      exitNode: false,
+      cliproxyapi: false,
+    }),
   });
   const fixtureWriteCalls = vi.mocked(sprite.filesystem().writeFile).mock.calls
     .length;
@@ -64,7 +82,7 @@ function managedSprite(pairingCode: string): {
   client: SpritesClient;
   sprite: Sprite;
 } {
-  const client = new SpritesClient('sdk-only-test-token');
+  const client = new SpritesClient('test-org/1/0abc/0def');
   const sprite = Object.assign(new Sprite('primary', client), {
     id: 'sprite-primary',
     organizationName: 'test-org',
@@ -78,6 +96,23 @@ function managedSprite(pairingCode: string): {
     })),
   });
   vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
+  // pairing reads the recorded agent from the guest manifest
+  const manifest = JSON.stringify({
+    schema: 1,
+    createdAt: '2026-10-01T12:00:00Z',
+    installedVersions: {},
+    profile: profileWith({
+      network: false,
+      exitNode: false,
+      cliproxyapi: false,
+    }),
+  });
+  const filesystem = sprite.filesystem();
+  vi.spyOn(sprite, 'filesystem').mockReturnValue(
+    Object.assign(filesystem, {
+      readFile: vi.fn(async () => manifest),
+    }),
+  );
 
   return { client, sprite };
 }
@@ -86,7 +121,7 @@ describe('cmd:show', () => {
   it('should serialize a non-Error SDK rejection as one redacted JSON failure', async () => {
     const privateRejection = 'sdk-private-rejection';
     rememberSecret(privateRejection);
-    vi.stubEnv('SPRITES_TOKEN', 'sdk-only-test-token');
+    vi.stubEnv('SPRITES_TOKEN', 'test-org/1/0abc/0def');
     vi.spyOn(SpritesClient.prototype, 'getSprite').mockRejectedValueOnce(
       privateRejection,
     );
@@ -130,7 +165,7 @@ describe('cmd:show', () => {
       ['Permanently terminate', 'terminate'],
     ] as const) {
       await using directory = await mkdtempDisposable(
-        join(tmpdir(), 'agent-sprite-action-failure-'),
+        join(tmpdir(), 'open-agent-action-failure-'),
       );
       const { client, sprite } = await installedSprite(directory.path);
       vi.mocked(client.getSprite)
@@ -141,7 +176,7 @@ describe('cmd:show', () => {
         async (interaction) =>
           chooseWorkstationAction(
             { command: 'show', machine: 'temporary', options: {} },
-            client,
+            providerOf(client),
             interaction,
           ),
         [
@@ -172,59 +207,65 @@ describe('cmd:show', () => {
     }
   }, 15_000);
 
-  it('should return a ready doctor result only from current service and provider discovery evidence', async () => {
+  it('should return a ready doctor result only from current service and environment endpoint evidence', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-doctor-ready-'),
+      join(tmpdir(), 'open-agent-doctor-ready-'),
     );
     const { client, sprite } = await installedSprite(directory.path);
     await sprite
       .filesystem()
-      .writeFile('/opt/agent-sprite/t3-provider-probe.js', 'probe installed');
+      .writeFile(
+        '/opt/open-agent/drivers/agents/t3/guest/t3-environment-probe.js',
+        'probe installed',
+      );
+    const hooks = (owned: WorkHooks): Record<string, unknown> =>
+      mergeWorkHooks({}, { owned, command: AWAKE_HOOK_COMMAND });
+    await sprite.filesystem().mkdir('/home/agent/.claude', { recursive: true });
+    await sprite.filesystem().mkdir('/home/agent/.codex', { recursive: true });
+    await sprite
+      .filesystem()
+      .writeFile(
+        CLAUDE_SETTINGS,
+        JSON.stringify({ hooks: hooks(CLAUDE_WORK_HOOKS) }),
+      );
+    await sprite
+      .filesystem()
+      .writeFile(
+        CODEX_HOOKS,
+        JSON.stringify({ hooks: hooks(CODEX_WORK_HOOKS) }),
+      );
     vi.mocked(sprite.listServices).mockResolvedValue([
       {
         name: 't3-code',
-        cmd: '/opt/agent-sprite/t3-launcher',
+        cmd: '/opt/open-agent/t3-launcher',
         args: [],
         needs: [],
         state: { name: 't3-code', status: 'running' },
       },
       {
-        name: 'agent-sprite-cron',
-        cmd: '/opt/agent-sprite/update-schedule',
+        name: 'open-agent-cron',
+        cmd: '/opt/open-agent/update-schedule',
         args: [],
         needs: [],
-        state: { name: 'agent-sprite-cron', status: 'running' },
+        state: { name: 'open-agent-cron', status: 'running' },
       },
     ]);
-    const discovery = {
+    const environment = {
       ok: true,
-      scope: 't3-provider-discovery',
-      workspace: '/home/agent',
-      providers: ['claudeAgent', 'codex'].map((driver) => ({
-        driver,
-        instanceId: `${driver}-1`,
-        enabled: true,
-        installed: true,
-        status: 'ready',
-        checkedAt: '2026-10-09T00:00:00Z',
-        commands: [],
-        skills: [],
-      })),
-      limits: {
-        ordinaryThreadStartup: 'unverified',
-        runtimeHooks: 'unverified',
-        mcp: 'unverified',
-      },
+      serverVersion: '0.0.46-nightly.20261014.3118',
+      orchestrationProtocolVersion: 2,
     };
     vi.mocked(sprite.execFile).mockImplementation(async (_file, args) => ({
-      stdout: args?.includes('/opt/agent-sprite/t3-provider-probe.js')
-        ? JSON.stringify(discovery)
+      stdout: args?.includes(
+        '/opt/open-agent/drivers/agents/t3/guest/t3-environment-probe.js',
+      )
+        ? JSON.stringify(environment)
         : '[]',
       stderr: '',
       exitCode: 0,
     }));
 
-    const result = await doctorWorkstation(client, 'temporary');
+    const result = await doctorWorkstation(providerOf(client), 'temporary');
 
     expect(result).toMatchObject({
       command: 'doctor',
@@ -235,11 +276,14 @@ describe('cmd:show', () => {
           failures: [],
           services: expect.arrayContaining([
             { name: 't3-code', state: 'running' },
-            { name: 'agent-sprite-cron', state: 'running' },
+            { name: 'open-agent-cron', state: 'running' },
           ]),
           native: {
-            t3ClaudePluginLoading: 'verified',
-            t3CodexPluginLoading: 'verified',
+            agentEnvironment: {
+              ok: true,
+              serverVersion: '0.0.46-nightly.20261014.3118',
+              orchestrationProtocolVersion: 2,
+            },
           },
         },
       },
@@ -254,11 +298,11 @@ describe('cmd:show', () => {
 
   it('should return typed failed doctor readiness from a real guest inspection', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-doctor-'),
+      join(tmpdir(), 'open-agent-doctor-'),
     );
     const { client } = await installedSprite(directory.path);
 
-    const result = await doctorWorkstation(client, 'temporary');
+    const result = await doctorWorkstation(providerOf(client), 'temporary');
 
     expect(result).toMatchObject({
       command: 'doctor',
@@ -274,7 +318,7 @@ describe('cmd:show', () => {
           ready: false,
           failures: expect.arrayContaining(['T3 service']),
           skipped: expect.arrayContaining([
-            'Tailscale connectivity',
+            'private network',
             'CLIProxyAPI gateway',
           ]),
         },
@@ -290,7 +334,7 @@ describe('cmd:show', () => {
 
   it('should report a failed service probe with sibling evidence in doctor and both output modes', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-doctor-probe-failure-'),
+      join(tmpdir(), 'open-agent-doctor-probe-failure-'),
     );
     const { client, sprite } = await installedSprite(directory.path);
     const secret = 'cor02-service-private-token';
@@ -299,7 +343,7 @@ describe('cmd:show', () => {
       new Error(`service list failed ${secret}`),
     );
 
-    const result = await doctorWorkstation(client, 'temporary');
+    const result = await doctorWorkstation(providerOf(client), 'temporary');
     expect(result).toMatchObject({
       command: 'doctor',
       ok: false,
@@ -311,10 +355,10 @@ describe('cmd:show', () => {
           probeFailures: [
             {
               probe: 'services',
-              reason: expect.stringContaining('[REDACTED]'),
+              reason: 'Service registry response could not be read.',
             },
           ],
-          tailscale: { skipped: true },
+          network: { skipped: true },
           native: expect.any(Object),
         },
       },
@@ -348,14 +392,16 @@ describe('cmd:show', () => {
         });
       } else {
         expect(out).toBe('');
-        expect(err).toContain('service list failed');
+        expect(err.replaceAll(/\s+/g, ' ')).toContain(
+          'Probe: services · Reason: Service registry response could not be read.',
+        );
       }
     }
   });
 
   it('should keep failed native inspection visible in show --inspect', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-show-probe-failure-'),
+      join(tmpdir(), 'open-agent-show-probe-failure-'),
     );
     const { client, sprite } = await installedSprite(directory.path);
     vi.mocked(sprite.execFile).mockImplementation(async (_file, args) => {
@@ -368,7 +414,7 @@ describe('cmd:show', () => {
 
     const result = await showWorkstation(
       { command: 'show', machine: 'temporary', options: { inspect: true } },
-      client,
+      providerOf(client),
     );
     expect(result).toMatchObject({
       command: 'show',
@@ -392,14 +438,14 @@ describe('cmd:show', () => {
 
   it('should return cancellation exit 130 during a deferred doctor probe', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-doctor-cancel-'),
+      join(tmpdir(), 'open-agent-doctor-cancel-'),
     );
     const { sprite } = await installedSprite(directory.path);
     const pending =
       Promise.withResolvers<Awaited<ReturnType<Sprite['listServices']>>>();
     vi.mocked(sprite.listServices).mockReturnValue(pending.promise);
     vi.spyOn(SpritesClient.prototype, 'getSprite').mockResolvedValue(sprite);
-    vi.stubEnv('SPRITES_TOKEN', 'sdk-only-test-token');
+    vi.stubEnv('SPRITES_TOKEN', 'test-org/1/0abc/0def');
     const controller = new AbortController();
     const context = new OperationContext({ signal: controller.signal });
     try {
@@ -430,7 +476,7 @@ describe('cmd:show', () => {
 
   it('should not carry show --yes into termination after selecting a workstation', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-show-terminate-'),
+      join(tmpdir(), 'open-agent-show-terminate-'),
     );
     const { client, sprite } = await installedSprite(directory.path);
 
@@ -438,7 +484,7 @@ describe('cmd:show', () => {
       async (interaction) =>
         chooseWorkstationAction(
           { command: 'show', options: { yes: true } },
-          client,
+          providerOf(client),
           interaction,
         ),
       [
@@ -462,7 +508,7 @@ describe('cmd:show', () => {
 
   it('should not carry show consent into setup tools, and still navigates real sections', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-show-setup-'),
+      join(tmpdir(), 'open-agent-show-setup-'),
     );
     const { client, sprite, fixtureWriteCalls } = await installedSprite(
       directory.path,
@@ -474,13 +520,13 @@ describe('cmd:show', () => {
             command: 'show',
             options: {
               yes: true,
-              withT3PairCode: true,
+              withPairCode: true,
               inspect: true,
               localCredentials: false,
               github: false,
             },
           },
-          client,
+          providerOf(client),
           interaction,
         ),
       [
@@ -493,7 +539,7 @@ describe('cmd:show', () => {
         { waitFor: 'Search: Update tools now', input: '\r' },
         {
           waitFor:
-            'Install latest stable tools and restart managed T3/Tailscale services now?',
+            'Install latest stable tools now? Running services are not restarted.',
           input: '\r',
         },
       ],
@@ -515,7 +561,7 @@ describe('cmd:show', () => {
 
   it('should keep inspection and pairing off for details, then inspects only when selected', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-show-inspect-'),
+      join(tmpdir(), 'open-agent-show-inspect-'),
     );
     const { client, sprite } = await installedSprite(directory.path);
     const details = await driveInk(
@@ -526,10 +572,10 @@ describe('cmd:show', () => {
             machine: 'temporary',
             options: {
               inspect: true,
-              withT3PairCode: true,
+              withPairCode: true,
             },
           },
-          client,
+          providerOf(client),
           interaction,
         ),
       [{ waitFor: 'Workstation action', input: '\r' }],
@@ -546,7 +592,7 @@ describe('cmd:show', () => {
       async (interaction) =>
         chooseWorkstationAction(
           { command: 'show', machine: 'temporary', options: {} },
-          client,
+          providerOf(client),
           interaction,
         ),
       [
@@ -567,14 +613,14 @@ describe('cmd:show', () => {
 
   it('should return from the action menu to workstation selection before a new action', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-show-back-'),
+      join(tmpdir(), 'open-agent-show-back-'),
     );
     const { client } = await installedSprite(directory.path);
     const observed = await driveInk(
       async (interaction) =>
         chooseWorkstationAction(
           { command: 'show', options: {} },
-          client,
+          providerOf(client),
           interaction,
         ),
       [
@@ -601,7 +647,7 @@ describe('cmd:show', () => {
             machine: 'primary',
             options: {},
           },
-          client,
+          providerOf(client),
           interaction,
         ),
       [
@@ -640,9 +686,9 @@ describe('cmd:show', () => {
     expect(human).toContain('2099-01-01T00:00:00Z');
     expect(human.match(/https:\/\/primary\.sprites\.app/gu)).toHaveLength(1);
     expect(human).not.toContain('Pairing URL:');
-    expect(human).not.toContain('sdk-only-test-token');
+    expect(human).not.toContain('test-org/1/0abc/0def');
     expect(diagnostic).toBe('');
-    expect(observed.output).not.toContain('sdk-only-test-token');
+    expect(observed.output).not.toContain('test-org/1/0abc/0def');
     expect(sprite.execFile).toHaveBeenCalledOnce();
   });
 
@@ -654,15 +700,17 @@ describe('cmd:show', () => {
       {
         command: 'show',
         machine: 'primary',
-        options: { withT3PairCode: true },
+        options: { withPairCode: true },
       },
-      client,
+      providerOf(client),
     );
 
     expect(serializeResult(result)).toMatchObject({
       ok: true,
       data: {
-        machine: { t3Url: `https://primary.sprites.app/#token=${pairingCode}` },
+        machine: {
+          agentUrl: `https://primary.sprites.app/#token=${pairingCode}`,
+        },
         pairing: { token: pairingCode, expiresAt: '2099-01-01T00:00:00Z' },
       },
     });
@@ -678,12 +726,12 @@ describe('cmd:show', () => {
         machine: 'primary',
         options: {},
       },
-      client,
+      providerOf(client),
     );
 
     expect(result).toMatchObject({
       ok: true,
-      data: { machine: { t3Url: 'https://primary.sprites.app' } },
+      data: { machine: { agentUrl: 'https://primary.sprites.app' } },
     });
     expect(result.data).not.toHaveProperty('pairing');
     expect(sprite.execFile).not.toHaveBeenCalled();

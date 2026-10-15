@@ -1,3 +1,6 @@
+import type { CommandErrorCode } from '#command/contracts';
+import type { HarnessId, ProviderId } from '#core/catalog';
+import type { WorkstationProfile } from '#core/profile';
 import type { CreatePreflight } from '#create/types';
 import type {
   CredentialSaveResult,
@@ -31,18 +34,31 @@ export interface CreateData {
   >;
   machine: MachineSummary;
   preflight: CreatePreflight;
-  integrations: GuestInspection['integrations'];
+  /** driver selection and options the workstation recorded */
+  profile: WorkstationProfile;
   readiness: ReadinessAssessment;
-  tailscale: GuestInspection['tailscale'];
+  network: GuestInspection['network'];
   hub: GuestInspection['hub'];
   services: ServiceSummary[];
   native: GuestInspection['native'];
   pairing: PairingData;
 }
 
-/** live control-plane list */
+/** live control-plane list merged across every provider with credentials */
+/** a provider list could not query, with the normalized failure code */
+export interface UnavailableProvider {
+  /** provider that could not be queried */
+  provider: ProviderId;
+  /** failure class, such as AUTH for a revoked credential */
+  code: CommandErrorCode;
+  /** redacted reason */
+  reason: string;
+}
+
 export interface ListData {
-  machines: MachineSummary[];
+  machines: Array<MachineSummary & { provider: ProviderId }>;
+  /** providers that could not be queried, with the reason */
+  unavailable: UnavailableProvider[];
 }
 
 /** selected workstation and explicitly requested inspection or local action */
@@ -55,11 +71,12 @@ export interface ShowData {
 
 /** readiness evidence retained even when the workstation is not ready */
 export interface CurrentReadiness extends ReadinessAssessment {
-  tailscale: GuestInspection['tailscale'];
+  network: GuestInspection['network'];
   hub: GuestInspection['hub'];
   native: GuestInspection['native'];
   services: ServiceSummary[];
   manifest: GuestManifest;
+  governor: GuestInspection['governor'];
 }
 
 /** bounded doctor inspection result */
@@ -68,30 +85,30 @@ export interface DoctorData {
   currentReadiness: CurrentReadiness;
 }
 
-/** completed Sprite deletion and separately observed tailnet cleanup */
+/** completed workstation deletion and separately observed network cleanup */
 export interface TerminateData {
   machine: MachineSummary;
-  sprite: { status: 'deleted'; id: string; name: string };
-  tailnet: {
+  workstation: { status: 'deleted'; id: string; name: string };
+  network: {
     status:
       | 'no device identity recorded'
       | 'cleanup required'
       | 'deleted'
       | 'cleanup failed';
     deviceId?: string;
-    tailnetIp?: string;
+    address?: string;
   };
 }
 
-/** native T3 setup or explicitly requested pairing */
-export interface T3SetupData {
+/** native agent setup or explicitly requested pairing */
+export interface AgentSetupData {
   service?: 'configured';
   pairing: PairingData;
 }
 
 /** selected native networking outcome */
-export interface TailscaleSetupData {
-  tailscale:
+export interface NetworkSetupData {
+  network:
     | { status: 'configured'; exitNode?: string }
     | { status: 'disabled'; readiness: 'skipped' };
 }
@@ -118,13 +135,24 @@ export interface EnvironmentSetupData {
 
 /** selected plugin changes by native harness */
 export interface PluginsSetupData {
-  plugins: { claude: 'applied' | 'preserved'; codex: 'applied' | 'preserved' };
+  plugins: Record<HarnessId, 'applied' | 'preserved'>;
 }
 
-/** tool mutation or recorded installation facts */
+/** how many components an install run changed and how many it found current */
+export interface ComponentCounts {
+  /** components the run installed or upgraded */
+  installed: number;
+  /** components already at the latest stable version */
+  skipped: number;
+}
+
+/** tool mutation, an update schedule change, or recorded installation facts */
 export interface ToolsSetupData {
+  /** what the run did to the managed components, when it recorded any */
+  components?: ComponentCounts;
   tools:
     | 'updated'
+    | 'scheduled'
     | 'unchanged'
     | {
         status: 'recorded versions';
@@ -136,20 +164,20 @@ export interface ToolsSetupData {
 /** all-section recovery retains each independently selected outcome */
 export interface AllSetupData
   extends
-    Partial<T3SetupData>,
+    Partial<AgentSetupData>,
     Partial<GithubSetupData>,
     Partial<GitSetupData>,
     Partial<EnvironmentSetupData>,
     Partial<PluginsSetupData>,
-    TailscaleSetupData,
+    NetworkSetupData,
     ProxySetupData,
     ToolsSetupData {}
 
 /** concrete outcomes keyed by the executed guest setup section */
 export interface SetupSectionData {
   all: AllSetupData;
-  t3: T3SetupData;
-  tailscale: TailscaleSetupData;
+  agent: AgentSetupData;
+  network: NetworkSetupData;
   github: GithubSetupData;
   git: GitSetupData;
   proxy: ProxySetupData;

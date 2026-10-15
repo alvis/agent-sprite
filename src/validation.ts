@@ -1,3 +1,5 @@
+import { harnessIds } from '#core/harnesses';
+
 import { CommandFault, ensureError } from './errors.js';
 import { validateMachineName } from './machine.js';
 import { promptUnavailableDetail } from './operation.js';
@@ -79,12 +81,6 @@ export function validateCommandRequest(
  * @param options parsed flags common to every command
  */
 function validateCommonOptions(options: CommandOptions): void {
-  if (options.tailscale === false && options.useExitNode === true) {
-    throw new CommandValidationError({
-      message:
-        '--use-exit-node requires Tailscale; it conflicts with --no-tailscale',
-    });
-  }
   if (
     options.gitIdentity === false &&
     (options.gitName ||
@@ -104,8 +100,9 @@ function validateCommonOptions(options: CommandOptions): void {
   if (
     options.localCredentials === false &&
     [
-      options.spritesTokenSource,
-      options.tailscaleApiKeySource,
+      options.providerTokenSource,
+      options.networkKeySource,
+      options.networkAuthKeySource,
       options.githubTokenSource,
       options.proxyApiKeySource,
     ].some((source) => source?.startsWith('keychain:'))
@@ -127,13 +124,13 @@ function validateNonSetupOptions(
 ): void {
   if (
     options.section ||
-    options.harness ||
-    plugins.claude.removeMarketplaces.length ||
-    plugins.codex.removeMarketplaces.length ||
-    plugins.claude.disablePlugins.length ||
-    plugins.codex.disablePlugins.length ||
-    plugins.claude.uninstallPlugins.length ||
-    plugins.codex.uninstallPlugins.length
+    options.pluginHarness ||
+    harnessIds().some(
+      (id) =>
+        plugins[id].removeMarketplaces.length ||
+        plugins[id].disablePlugins.length ||
+        plugins[id].uninstallPlugins.length,
+    )
   ) {
     throw new CommandValidationError({
       message: 'Setup-only options require the setup command',
@@ -153,19 +150,19 @@ function validateSetupOptions(
   normalized: NormalizedPluginOptions,
 ): void {
   const explicit = hasExplicitPluginActions(normalized);
-  if (options.withT3PairCode && explicit) {
+  if (options.withPairCode && explicit) {
     throw new CommandValidationError({
-      message: '--with-t3-pair-code conflicts with explicit plugin actions',
+      message: '--with-pair-code conflicts with explicit plugin actions',
     });
   }
   if (
-    options.withT3PairCode &&
+    options.withPairCode &&
     options.section !== undefined &&
-    options.section !== 't3' &&
+    options.section !== 'agent' &&
     options.section !== 'all'
   ) {
     throw new CommandValidationError({
-      message: '--with-t3-pair-code requires --section t3 or --section all',
+      message: '--with-pair-code requires --section agent or --section all',
     });
   }
   if (explicit && options.section && options.section !== 'plugins') {
@@ -181,7 +178,7 @@ function validateSetupOptions(
   if (
     !options.section &&
     !explicit &&
-    !options.withT3PairCode &&
+    !options.withPairCode &&
     options.nonInteractive
   ) {
     throw new CommandValidationError({
@@ -194,11 +191,14 @@ function validateSetupOptions(
     });
   }
   if (
-    options.harness &&
-    hasActions(plugins[options.harness === 'claude' ? 'codex' : 'claude'])
+    options.pluginHarness &&
+    harnessIds().some(
+      (id) => id !== options.pluginHarness && hasActions(plugins[id]),
+    )
   ) {
     throw new CommandValidationError({
-      message: 'Plugin actions for another harness conflict with --harness',
+      message:
+        'Plugin actions for another harness conflict with --plugin-harness',
     });
   }
 }
@@ -216,12 +216,35 @@ export function validateSetupIntegrationOptions(
     return;
   }
   if (
-    section !== 'tailscale' &&
-    (options.tailscale !== undefined || options.useExitNode !== undefined)
+    section !== 'tools' &&
+    (options.updateCheckMinutes !== undefined ||
+      options.updateDueDays !== undefined)
   ) {
     throw new CommandValidationError({
       message:
-        'Tailscale switches require --section tailscale or --section all',
+        'Update interval switches require --section tools or --section all',
+    });
+  }
+  if (
+    section !== 'network' &&
+    (options.network !== undefined || options.useExitNode !== undefined)
+  ) {
+    throw new CommandValidationError({
+      message: 'Network switches require --section network or --section all',
+    });
+  }
+  if (
+    options.harness !== undefined ||
+    options.idleMinutes !== undefined ||
+    options.holdMaxMinutes !== undefined
+  ) {
+    throw new CommandValidationError({
+      message: 'Harness and idle switches require --section all',
+    });
+  }
+  if (section !== 'agent' && options.release !== undefined) {
+    throw new CommandValidationError({
+      message: 'Release switches require --section agent or --section all',
     });
   }
   if (section !== 'proxy' && options.proxy !== undefined) {

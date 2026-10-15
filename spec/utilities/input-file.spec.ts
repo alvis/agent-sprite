@@ -14,7 +14,7 @@ const execFileAsync = promisify(execFile);
 describe('fn:readInputFile', () => {
   it('should read a selected regular file under an invocation scope', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-input-file-'),
+      join(tmpdir(), 'open-agent-input-file-'),
     );
     const path = join(directory.path, 'selected.env');
     await writeFile(path, 'SAMPLE=value\n');
@@ -31,7 +31,7 @@ describe('fn:readInputFile', () => {
 
   it('should reject a FIFO promptly without waiting for a writer', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-input-fifo-'),
+      join(tmpdir(), 'open-agent-input-fifo-'),
     );
     const path = join(directory.path, 'selected.env');
     await execFileAsync('mkfifo', [path]);
@@ -46,7 +46,7 @@ describe('fn:readInputFile', () => {
 
   it('should open no file for an already cancelled invocation', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-input-abort-'),
+      join(tmpdir(), 'open-agent-input-abort-'),
     );
     const path = join(directory.path, 'selected.env');
     await writeFile(path, 'SAMPLE=value\n');

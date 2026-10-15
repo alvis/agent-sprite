@@ -1,5 +1,8 @@
 import { Box, Text } from 'ink';
 
+import { catalog } from '#core/catalog';
+import { harnessDrivers, harnessIds } from '#core/harnesses';
+
 import type { FC, ReactElement } from 'react';
 
 /** props for a grouped, already redacted command result */
@@ -9,33 +12,38 @@ export type ResultDetailsProps = {
 };
 
 const FIELD_LABELS: Record<string, string> = {
-  machine: 'Workstation',
-  currentReadiness: 'Readiness',
-  t3Url: 'T3 URL',
-  pairing: 'T3 pairing',
-  expiresAt: 'Expires at',
-  id: 'ID',
-  ip: 'IP address',
-  deviceId: 'Device ID',
-  exitNodeName: 'Exit node',
-  exitNodeIp: 'Exit node IP',
-  egressIp: 'Public IP',
-  dnsReady: 'DNS ready',
-  gatewayConfigured: 'Proxy configured',
-  modelDiscoveryEnabled: 'Model discovery enabled',
-  pluginListAvailable: 'Native plugin inventory available',
-  loadedInT3: 'Plugins loaded by T3',
-  cliproxyapi: 'CLIProxyAPI',
-  gh: 'GitHub CLI',
-  jj: 'Jujutsu',
-  t3: 'T3 Code',
-  node: 'Node.js',
-  github: 'GitHub',
-  env: 'Environment variables',
-  codex: 'Codex',
-  claude: 'Claude Code',
-  claudeAgent: 'Claude Code',
-  mcp: 'MCP',
+  'machine': 'Workstation',
+  'currentReadiness': 'Readiness',
+  'agentUrl': 'Agent URL',
+  'pairing': 'Agent pairing',
+  'expiresAt': 'Expires at',
+  'id': 'ID',
+  'ip': 'IP address',
+  'deviceId': 'Device ID',
+  'exitNodeName': 'Exit node',
+  'exitNodeIp': 'Exit node IP',
+  'egressIp': 'Public IP',
+  'dnsReady': 'DNS ready',
+  'gatewayConfigured': 'Proxy configured',
+  'modelDiscoveryEnabled': 'Model discovery enabled',
+  'pluginListAvailable': 'Native plugin inventory available',
+  'awakeHooksInstalled': 'Awake hooks installed',
+  'cliproxyapi': 'CLIProxyAPI',
+  'gh': 'GitHub CLI',
+  'jj': 'Jujutsu',
+  'node': 'Node.js',
+  'guest-node': 'open-agent Node.js',
+  'python3': 'Python',
+  'httpie': 'HTTPie',
+  'rust': 'Rust',
+  'github': 'GitHub',
+  'env': 'Environment variables',
+  ...Object.fromEntries(
+    [...Object.values(catalog.agents), ...harnessDrivers(harnessIds())].map(
+      (driver) => [driver.id, driver.displayName],
+    ),
+  ),
+  'mcp': 'MCP',
 };
 
 /**

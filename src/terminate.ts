@@ -1,61 +1,56 @@
+import { networkDriver, networksWithDaemon } from '#core/networks';
+import { defaultProfile } from '#core/profile';
+import { GUEST_ROOT } from '#guest/guest-root';
 import { resolveInputs } from '#input';
+import { networkManagement } from '#input/management';
+import { readGuestManifest } from '#integrations/guest/runtime';
 
-import {
-  inspectTailscale,
-  readGuestManifest,
-} from '#integrations/guest/runtime';
-import { deleteManagedSprite } from '#integrations/sprites';
-import { deleteTailnetDevice, resolveExitNode } from '#integrations/tailscale';
-
-import { CommandFault, ensureError, commandError } from './errors.js';
+import { CommandFault, commandError } from './errors.js';
 import { selectManagedMachine } from './inspect.js';
 import { summarizeMachine } from './machine.js';
-import {
-  checkOperation,
-  runBoundedIO,
-  currentOperation,
-  cancellationReason,
-  traceStage,
-} from './operation.js';
-
-import type { SpritesClient, Sprite } from '@fly/sprites';
+import { runBoundedIO, traceStage } from './operation.js';
 
 import type { CommandResult } from '#command';
 import type { CommandRequest, Interaction } from '#command/contracts';
 import type { TerminateData } from '#command/data';
+import type { RegisteredNetwork } from '#core/networks';
+import type { WorkstationProfile } from '#core/profile';
+import type {
+  NetworkCleanup,
+  NetworkStatus,
+  ProviderDriver,
+  WorkstationRecord,
+} from '#drivers/contracts';
+import type { GuestChannel } from '#drivers/guest-channel';
 import type { ResolvedInputs } from '#input/types';
-import type { TailnetStatus } from '#integrations/guest/types';
 
 import type { MachineSummary } from './machine.js';
 
 interface CleanupContext {
-  sprite: Sprite;
+  workstation: WorkstationRecord;
   machine: MachineSummary;
   input: ResolvedInputs;
-  guestNodeId?: string;
-  tailnetIp?: string;
+  capture: NetworkIdentityCapture;
 }
 
-interface CleanupOutcome {
-  ok: boolean;
-  status:
-    | 'no device identity recorded'
-    | 'cleanup required'
-    | 'deleted'
-    | 'cleanup failed';
-  cause?: Error;
+/** the network a workstation's device belongs to, and its captured identity */
+interface NetworkIdentityCapture {
+  network?: RegisteredNetwork;
+  identity?: NetworkStatus;
+  /** the recorded profile, when it selects the captured network */
+  profile?: WorkstationProfile;
 }
 
 /**
- * permanently deletes one verified managed Sprite and report tailnet cleanup separately
+ * permanently deletes one verified managed workstation and report network cleanup separately
  * @param request parsed termination target and confirmation options
- * @param client authenticated provider client
+ * @param provider authenticated provider driver
  * @param interaction optional inline confirmation and progress boundary
- * @returns exact deletion and any outstanding tailnet cleanup outcome
+ * @returns exact deletion and any outstanding network cleanup outcome
  */
 export async function terminateWorkstation(
   request: CommandRequest,
-  client: SpritesClient,
+  provider: ProviderDriver,
   interaction?: Interaction,
 ): Promise<CommandResult> {
   if (!interaction && (!request.machine || !request.options.yes)) {
@@ -65,13 +60,13 @@ export async function terminateWorkstation(
         'Non-interactive termination requires an exact workstation name and --yes',
     });
   }
-  const sprite = await selectManagedMachine(
-    client,
+  const workstation = await selectManagedMachine(
+    provider,
     request.machine,
     interaction,
   );
-  assertTerminationTarget(sprite, request);
-  if (!(await confirmDeletion(sprite, request, interaction))) {
+  assertTerminationTarget(workstation, request);
+  if (!(await confirmDeletion(workstation, request, interaction))) {
     return {
       command: 'terminate',
       ok: false,
@@ -81,103 +76,97 @@ export async function terminateWorkstation(
       },
     };
   }
-  const input = await resolveInputs(request.options, undefined, []);
-  const machine = summarizeMachine(sprite);
-  const state = await captureTailnetIdentity(sprite);
-  await assertSafeTailnetTarget(input, state);
+  const machine = summarizeMachine(workstation);
+  const capture = await captureNetworkIdentity(
+    await provider.openGuest(workstation),
+  );
+  // management credentials resolve only for the network that owns the device
+  const input = await resolveInputs(request.options, undefined, {
+    required: [],
+    profile: capture.network
+      ? (capture.profile ?? defaultProfile(capture.network.id))
+      : undefined,
+  });
+  if (capture.network && capture.identity) {
+    await capture.network.assertSafeTarget({
+      identity: capture.identity,
+      management: networkManagement(input),
+      exitNode: input.exitNode,
+    });
+  }
   interaction?.progress({
     stage: 'terminate',
-    message: `Deleting Sprite ${sprite.name}`,
+    message: `Deleting workstation ${workstation.name}`,
   });
   await traceStage('terminate.provider', async () =>
-    deleteManagedSprite(client, {
-      name: sprite.name,
-      expectedId: machine.id,
-      expectedOrganization: machine.organization,
-    }),
+    provider.delete(workstation),
   );
 
   return traceStage(
-    'terminate.tailnet',
-    async () =>
-      cleanupTailnet({
-        sprite,
-        machine,
-        input,
-        guestNodeId: state.deviceId,
-        tailnetIp: state.ip,
-      }),
+    'terminate.network',
+    async () => cleanupNetwork({ workstation, machine, input, capture }),
     { succeeded: (result) => result.ok },
   );
 }
 
 /**
- * captures enrolled identity without requiring a completed installation
- * @param sprite ownership-checked target before permanent deletion
- * @returns captured native or persisted managed tailnet identity
+ * captures enrolled identity without requiring a completed installation; the
+ * network the manifest recorded the identity for owns the device, then the
+ * selected network, then any other network that runs a daemon and still holds
+ * enrollment state, so a network deselected earlier is still cleaned up
+ * @param guest ownership-checked target before permanent deletion
+ * @returns the owning network and its captured identity, if any
  */
-async function captureTailnetIdentity(sprite: Sprite): Promise<TailnetStatus> {
-  const filesystem = sprite.filesystem();
+async function captureNetworkIdentity(
+  guest: GuestChannel,
+): Promise<NetworkIdentityCapture> {
   const manifest = (await runBoundedIO(async () =>
-    filesystem.exists('/opt/agent-sprite/manifest.json'),
+    guest.exists(`${GUEST_ROOT}/manifest.json`),
   ))
-    ? await readGuestManifest(sprite)
+    ? await readGuestManifest(guest)
     : undefined;
-  const offline = {
-    ...manifest?.tailnetIdentity,
-    online: false,
-    dnsReady: false,
-    skipped: true,
-  };
-  if (
-    manifest?.integrations?.tailscale === false ||
-    !(await runBoundedIO(async () =>
-      filesystem.exists('/var/lib/tailscale/tailscaled.state'),
-    ))
-  ) {
-    return offline;
-  }
-  let inspected: TailnetStatus | undefined;
-  let inspectionFailure: { cause: unknown } | undefined;
-  try {
-    inspected = await inspectTailscale(sprite);
-  } catch (error) {
-    checkOperation();
-    if (commandError(error).code === 'CANCELLED') {
-      throw error;
+  const selected = manifest && networkDriver(manifest.profile.network);
+  const recorded = manifest?.networkIdentity;
+  const candidates = networksWithDaemon();
+  const ordered = [
+    ...candidates.filter(({ id }) => id === recorded?.network),
+    ...candidates.filter(({ id }) => id === selected?.id),
+    ...candidates,
+  ].filter((network, index, all) => all.indexOf(network) === index);
+  let fallback: NetworkIdentityCapture = {};
+  for (const network of ordered) {
+    const isSelected = network.id === selected?.id;
+    const identity = await network.identify(guest, {
+      identity:
+        recorded?.network === network.id
+          ? { deviceId: recorded.deviceId, ip: recorded.ip }
+          : undefined,
+    });
+    const capture = {
+      network,
+      identity,
+      profile: isSelected ? manifest?.profile : undefined,
+    };
+    if (identity.deviceId || identity.ip) {
+      return capture;
     }
-    inspectionFailure = { cause: error };
+    if (isSelected) {
+      fallback = capture;
+    }
   }
-  if (inspected?.deviceId) {
-    return inspected;
-  }
-  if (offline.deviceId) {
-    return inspected
-      ? {
-          ...inspected,
-          deviceId: offline.deviceId,
-          ip: inspected.ip ?? offline.ip,
-        }
-      : offline;
-  }
-  throw new CommandFault({
-    code: inspectionFailure ? 'PROVIDER' : 'PREFLIGHT',
-    message:
-      'Tailnet enrollment state exists but its device identity could not be captured; recover setup before termination. No resources were deleted.',
-    cause: inspectionFailure?.cause,
-    causeVisibility: 'private',
-  });
+
+  return fallback;
 }
 
 /**
  * requires an exact typed name unless the caller supplied exact target and consent
- * @param sprite the ownership-checked live Sprite
+ * @param workstation the ownership-checked live workstation
  * @param request parsed target and non-interactive consent
  * @param interaction optional inline confirmation prompt
  * @returns whether deletion was confirmed
  */
 async function confirmDeletion(
-  sprite: Sprite,
+  workstation: WorkstationRecord,
   request: CommandRequest,
   interaction?: Interaction,
 ): Promise<boolean> {
@@ -186,119 +175,71 @@ async function confirmDeletion(
     (request.options.yes &&
       request.machine !== undefined &&
       request.machine.length > 0 &&
-      request.machine === sprite.name)
+      request.machine === workstation.name)
   ) {
     return true;
   }
   interaction.status({
     kind: 'warning',
-    message: `Permanently deleting ${sprite.name} (${sprite.id}) destroys its filesystem and repositories.`,
+    message: `Permanently deleting ${workstation.name} (${workstation.id}) destroys its filesystem and repositories.`,
   });
   const typedName = await interaction.input({
-    message: `Type ${sprite.name} to delete it`,
+    message: `Type ${workstation.name} to delete it`,
     required: true,
   });
 
-  return typedName === sprite.name;
+  return typedName === workstation.name;
 }
 
 /**
- * protects the selected home exit node from cleanup even under a bad identity
- * @param input local management credential and selected home exit node
- * @param state current guest tailnet identity and selected route
- */
-async function assertSafeTailnetTarget(
-  input: ResolvedInputs,
-  state: TailnetStatus,
-): Promise<void> {
-  const { deviceId: guestNodeId, ip: tailnetIp, exitNode: exitNodeId } = state;
-  if (guestNodeId && guestNodeId === exitNodeId) {
-    throw new CommandFault({
-      code: 'CONFLICT',
-      message: 'Refusing to delete a Sprite configured as its own exit node',
-    });
-  }
-  if (
-    !guestNodeId ||
-    !input.tailscaleApiKey ||
-    !input.tailnet ||
-    !input.exitNode
-  ) {
-    return;
-  }
-  const homeNode = await resolveExitNode(
-    input.tailscaleApiKey,
-    input.tailnet,
-    input.exitNode,
-  );
-  if (homeNode.id === guestNodeId || homeNode.ip === tailnetIp) {
-    throw new CommandFault({
-      code: 'CONFLICT',
-      message: 'Refusing to delete the selected home exit node',
-    });
-  }
-}
-
-/**
- * deletes the captured guest node after Sprite deletion, or report work remaining
+ * deletes the captured device after workstation deletion, or report work remaining
  * @param context captured identities and local management credential
- * @returns separate Sprite and tailnet cleanup statuses
+ * @returns separate workstation and network cleanup statuses
  */
-async function cleanupTailnet(context: CleanupContext): Promise<CommandResult> {
-  const { guestNodeId, tailnetIp, input } = context;
-  if (currentOperation()?.signal.aborted) {
-    return cleanupResult(context, {
-      ok: false,
-      status: 'cleanup required',
-      cause: cancellationReason(),
-    });
-  }
-  if (!guestNodeId && !tailnetIp) {
-    return cleanupResult(context, {
-      ok: true,
-      status: 'no device identity recorded',
-    });
-  }
-  if (!input.tailscaleApiKey || !guestNodeId) {
-    return cleanupResult(context, { ok: false, status: 'cleanup required' });
-  }
-  try {
-    await deleteTailnetDevice(input.tailscaleApiKey, guestNodeId);
+async function cleanupNetwork(context: CleanupContext): Promise<CommandResult> {
+  const { capture, input } = context;
 
-    return cleanupResult(context, { ok: true, status: 'deleted' });
-  } catch (error) {
-    return cleanupResult(context, {
-      ok: false,
-      status: 'cleanup failed',
-      cause: ensureError(error),
-    });
-  }
+  return cleanupResult(
+    context,
+    capture.network && capture.identity
+      ? await capture.network.cleanup({
+          identity: {
+            deviceId: capture.identity.deviceId,
+            ip: capture.identity.ip,
+          },
+          management: networkManagement(input),
+        })
+      : { ok: true, status: 'no device identity recorded' },
+  );
 }
 
 /**
- * reports exact provider deletion separately from subsequent tailnet cleanup
+ * reports exact provider deletion separately from subsequent network cleanup
  * @param context captured identities and machine summary
- * @param outcome current tailnet cleanup status and optional failure
+ * @param outcome current network cleanup status and optional failure
  * @returns structured termination outcome
  */
 function cleanupResult(
   context: CleanupContext,
-  outcome: CleanupOutcome,
+  outcome: NetworkCleanup,
 ): CommandResult {
   const { ok, status, cause } = outcome;
-  const { sprite, machine, guestNodeId, tailnetIp } = context;
+  const { workstation, machine, capture } = context;
+  const deviceId = capture.identity?.deviceId;
+  const address = capture.identity?.ip;
   const data: TerminateData = {
     machine,
-    sprite: { status: 'deleted', id: machine.id, name: sprite.name },
-    tailnet: { status, deviceId: guestNodeId, tailnetIp },
+    workstation: { status: 'deleted', id: machine.id, name: workstation.name },
+    network: { status, deviceId, address },
   };
+  const network = capture.network?.displayName ?? 'network';
   if (ok) {
     return { command: 'terminate', ok: true, data };
   }
   const reason = cause?.message ?? 'unknown cleanup failure';
   const message = cause
-    ? `Sprite deleted; tailnet cleanup for ${guestNodeId ?? tailnetIp ?? 'the recorded device'} could not be confirmed: ${reason}`
-    : `Sprite deleted; tailnet device ${guestNodeId ?? tailnetIp} needs management-API cleanup`;
+    ? `Workstation deleted; ${network} cleanup for ${deviceId ?? address ?? 'the recorded device'} could not be confirmed: ${reason}`
+    : `Workstation deleted; ${network} device ${deviceId ?? address} needs management-API cleanup`;
 
   return {
     command: 'terminate',
@@ -307,32 +248,32 @@ function cleanupResult(
     error: {
       code: cause ? commandError(cause).code : 'INPUT',
       message,
-      machine: sprite.name,
-      machineId: sprite.id,
+      machine: workstation.name,
+      machineId: workstation.id,
     },
   };
 }
 
 /**
  * checks immutable identity and the exact requested name before deletion consent
- * @param sprite selected provider workstation
+ * @param workstation selected provider workstation
  * @param request explicitly requested deletion target
  */
 function assertTerminationTarget(
-  sprite: Sprite,
+  workstation: WorkstationRecord,
   request: CommandRequest,
 ): void {
-  if (!sprite.id || !sprite.organizationName) {
+  if (!workstation.id || !workstation.organization) {
     throw new CommandFault({
       code: 'PROVIDER',
-      message: 'Selected Sprite lacks immutable provider identity',
+      message: 'Selected workstation lacks immutable provider identity',
     });
   }
-  if (request.machine && request.machine !== sprite.name) {
+  if (request.machine && request.machine !== workstation.name) {
     throw new CommandFault({
       code: 'CONFLICT',
       message:
-        'Named termination target does not match the verified Sprite; no resources were deleted',
+        'Named termination target does not match the verified workstation; no resources were deleted',
     });
   }
 }

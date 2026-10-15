@@ -13,6 +13,8 @@ import {
 import { OperationContext, withOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
+import { guestOf } from '../../mocks/sprites.js';
+
 import type { SpriteCommand } from '@fly/sprites';
 
 type Request = { type: string; id: number };
@@ -128,7 +130,7 @@ describe('fn:withGuestTransaction', () => {
     rememberSecret(token);
     const { sprite } = createFrameSprite(success, {
       stderrChunks: [
-        'cannot open /var/lock/agent-sprite-update.lock: ',
+        'cannot open /var/lock/open-agent-update.lock: ',
         token.slice(0, 12),
         token.slice(12),
         '\x1b[31m directory absent\n',
@@ -136,9 +138,10 @@ describe('fn:withGuestTransaction', () => {
       event: { type: 'error', cause: sdkCause },
     });
     const action = vi.fn(async () => undefined);
-    const failure: unknown = await withGuestTransaction(sprite, action).catch(
-      (error: unknown) => error,
-    );
+    const failure: unknown = await withGuestTransaction(
+      guestOf(sprite),
+      action,
+    ).catch((error: unknown) => error);
     const diagnostic = commandError(failure);
 
     expect(action).not.toHaveBeenCalled();
@@ -154,7 +157,7 @@ describe('fn:withGuestTransaction', () => {
       code: 'PROVIDER',
       details: [
         expect.stringContaining(
-          'Guest transaction transport failed: cannot open /var/lock/agent-sprite-update.lock',
+          'Guest transaction transport failed: cannot open /var/lock/open-agent-update.lock',
         ),
       ],
     });
@@ -170,7 +173,7 @@ describe('fn:withGuestTransaction', () => {
       event: { type: 'exit', code: 2 },
     });
     const failure: unknown = await withGuestTransaction(
-      sprite,
+      guestOf(sprite),
       async () => undefined,
     ).catch((error: unknown) => error);
     const diagnostic = commandError(failure);
@@ -192,10 +195,10 @@ describe('fn:withGuestTransaction', () => {
       exit();
     });
     const failure: unknown = await withGuestTransaction(
-      framed.sprite,
+      guestOf(framed.sprite),
       async () =>
-        writeGuestFile(framed.sprite, {
-          path: '/opt/agent-sprite/post-ready',
+        writeGuestFile(guestOf(framed.sprite), {
+          path: '/opt/open-agent/post-ready',
           contents: 'private-test-value',
         }),
     ).catch((error: unknown) => error);
@@ -224,9 +227,9 @@ describe('fn:withGuestTransaction', () => {
     });
 
     await expect(
-      withGuestTransaction(sprite, async () =>
-        writeGuestFile(sprite, {
-          path: '/opt/agent-sprite/malformed-settlement',
+      withGuestTransaction(guestOf(sprite), async () =>
+        writeGuestFile(guestOf(sprite), {
+          path: '/opt/open-agent/malformed-settlement',
           contents: 'private-test-value',
         }),
       ),
@@ -238,40 +241,34 @@ describe('fn:withGuestTransaction', () => {
     {
       name: 'run',
       invoke: async (sprite: Sprite) =>
-        currentGuestTransaction(sprite)!.run(['/bin/true'], {}),
+        currentGuestTransaction(guestOf(sprite))!.run(['/bin/true'], {}),
       result: { stdout: '', stderr: '', exitCode: 'zero' },
     },
     {
       name: 'read',
       invoke: async (sprite: Sprite) =>
-        currentGuestTransaction(sprite)!.read('/opt/data'),
+        currentGuestTransaction(guestOf(sprite))!.read('/opt/data'),
       result: { contents: 3 },
     },
     {
       name: 'exists',
       invoke: async (sprite: Sprite) =>
-        currentGuestTransaction(sprite)!.exists('/opt/data'),
+        currentGuestTransaction(guestOf(sprite))!.exists('/opt/data'),
       result: { exists: 'yes' },
     },
     {
       name: 'write',
       invoke: async (sprite: Sprite) =>
-        currentGuestTransaction(sprite)!.write({
+        currentGuestTransaction(guestOf(sprite))!.write({
           path: '/opt/data',
           contents: 'x',
         }),
       result: { unexpected: true },
     },
     {
-      name: 'chown',
-      invoke: async (sprite: Sprite) =>
-        currentGuestTransaction(sprite)!.chown('/opt/data', 1000, 1000),
-      result: [],
-    },
-    {
       name: 'remove',
       invoke: async (sprite: Sprite) =>
-        currentGuestTransaction(sprite)!.remove('/opt/data'),
+        currentGuestTransaction(guestOf(sprite))!.remove('/opt/data'),
       result: null,
     },
   ])(
@@ -283,7 +280,7 @@ describe('fn:withGuestTransaction', () => {
       });
 
       await expect(
-        withGuestTransaction(sprite, async () => {
+        withGuestTransaction(guestOf(sprite), async () => {
           await invoke(sprite);
         }),
       ).rejects.toMatchObject({ code: 'PROVIDER' });
@@ -296,8 +293,8 @@ describe('fn:withGuestTransaction', () => {
     });
 
     await expect(
-      withGuestTransaction(sprite, async () =>
-        currentGuestTransaction(sprite)!.write({
+      withGuestTransaction(guestOf(sprite), async () =>
+        currentGuestTransaction(guestOf(sprite))!.write({
           path: '/opt/data',
           contents: 'x',
         }),
@@ -309,15 +306,15 @@ describe('fn:withGuestTransaction', () => {
     const first = createFrameSprite(success);
     const second = createFrameSprite(success);
 
-    await withGuestTransaction(first.sprite, async () => {
-      await withGuestTransaction(first.sprite, async () => {
-        await currentGuestTransaction(first.sprite)!.write({
+    await withGuestTransaction(guestOf(first.sprite), async () => {
+      await withGuestTransaction(guestOf(first.sprite), async () => {
+        await currentGuestTransaction(guestOf(first.sprite))!.write({
           path: '/opt/first',
           contents: 'x',
         });
       });
-      await withGuestTransaction(second.sprite, async () => {
-        await currentGuestTransaction(second.sprite)!.write({
+      await withGuestTransaction(guestOf(second.sprite), async () => {
+        await currentGuestTransaction(guestOf(second.sprite))!.write({
           path: '/opt/second',
           contents: 'y',
         });
@@ -337,10 +334,10 @@ describe('fn:withGuestTransaction', () => {
 
     await expect(
       withOperation(context, async () =>
-        withGuestTransaction(sprite, async () => {
+        withGuestTransaction(guestOf(sprite), async () => {
           controller.abort();
 
-          return currentGuestTransaction(sprite)!.write({
+          return currentGuestTransaction(guestOf(sprite))!.write({
             path: '/opt/late',
             contents: 'x',
           });
@@ -357,8 +354,8 @@ describe('fn:withGuestTransaction', () => {
     });
 
     await expect(
-      withGuestTransaction(sprite, async () =>
-        currentGuestTransaction(sprite)!.write({
+      withGuestTransaction(guestOf(sprite), async () =>
+        currentGuestTransaction(guestOf(sprite))!.write({
           path: '/opt/data',
           contents: 'x',
         }),

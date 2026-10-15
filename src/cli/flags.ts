@@ -1,5 +1,12 @@
 import { buildChoiceParser } from '@stricli/core';
 
+import { harnessIds } from '#core/harnesses';
+import { agentIds, providerIds, releaseChannelIds } from '#core/ids';
+import { networkIds } from '#core/networks';
+
+import { machineFlags } from './machine-flags.js';
+import { parseWholeNumber } from './whole-number.js';
+
 /** local provider credential selection shared by every operation */
 export const providerCredentialFlags = {
   env: {
@@ -9,12 +16,12 @@ export const providerCredentialFlags = {
     placeholder: 'FILE',
     brief: 'FILE · explicit env file',
   },
-  spritesTokenSource: {
+  providerTokenSource: {
     kind: 'parsed',
     parse: String,
     optional: true,
     placeholder: 'SOURCE',
-    brief: 'SOURCE · Sprites token source reference',
+    brief: 'SOURCE · provider management credential source reference',
   },
   localCredentials: {
     kind: 'boolean',
@@ -57,8 +64,8 @@ export const consentFlags = {
   },
 } as const;
 
-/** tailnet identity and routing inputs also used for deletion cleanup */
-export const tailnetSelectionFlags = {
+/** network identity and routing inputs also used for deletion cleanup */
+export const networkSelectionFlags = {
   exitNode: {
     kind: 'parsed',
     parse: String,
@@ -66,44 +73,109 @@ export const tailnetSelectionFlags = {
     placeholder: 'NODE',
     brief: 'NODE · home exit node',
   },
-  tailnet: {
+  networkAccount: {
     kind: 'parsed',
     parse: String,
     optional: true,
-    placeholder: 'TAILNET',
-    brief: 'TAILNET · Tailscale API ID, DNS domain, or subdomain',
+    placeholder: 'ACCOUNT',
+    brief: 'ACCOUNT · account or network the network key manages',
   },
 } as const;
 
-/** selected Tailscale management credential source */
-export const tailnetCredentialFlags = {
-  tailscaleApiKeySource: {
+/** selected network management credential source */
+export const networkCredentialFlags = {
+  networkKeySource: {
     kind: 'parsed',
     parse: String,
     optional: true,
     placeholder: 'SOURCE',
-    brief: 'SOURCE · Tailscale API key source reference',
+    brief: 'SOURCE · network management key source reference',
   },
 } as const;
 
 /** explicit pairing action, separate from ordinary integration choices */
 export const pairingFlags = {
-  withT3PairCode: {
+  withPairCode: {
     kind: 'boolean',
     optional: true,
     withNegated: false,
-    brief: 'create and display a pairing code in the T3 URL (5 minutes)',
+    brief:
+      'create and display a pairing code in the agent URL (5 minutes); alias --with-<agent>-pair-code',
+  },
+} as const;
+
+/** driver and option selection, in the order interactive setup asks for it */
+export const selectionFlags = {
+  provider: {
+    kind: 'parsed',
+    parse: buildChoiceParser(providerIds()),
+    optional: true,
+    placeholder: 'PROVIDER',
+    brief: `PROVIDER · ${providerIds().join(', ')}`,
+  },
+  ...machineFlags,
+  agent: {
+    kind: 'parsed',
+    parse: buildChoiceParser(agentIds()),
+    optional: true,
+    placeholder: 'AGENT',
+    brief: `AGENT · ACP agent: ${agentIds().join(', ')}`,
+  },
+  release: {
+    kind: 'parsed',
+    parse: buildChoiceParser(releaseChannelIds()),
+    optional: true,
+    placeholder: 'CHANNEL',
+    brief: `CHANNEL · ACP agent release channel: ${releaseChannelIds().join(', ')}; the agent's default when omitted`,
+  },
+  harness: {
+    kind: 'parsed',
+    parse: buildChoiceParser(harnessIds()),
+    optional: true,
+    variadic: true,
+    placeholder: 'HARNESS',
+    brief: `HARNESS · ${harnessIds().join(', ')} (repeatable)`,
+  },
+  network: {
+    kind: 'parsed',
+    parse: buildChoiceParser(networkIds()),
+    optional: true,
+    placeholder: 'NETWORK',
+    brief: `NETWORK · ${networkIds().join(', ')}`,
+  },
+  idleMinutes: {
+    kind: 'parsed',
+    parse: parseWholeNumber,
+    optional: true,
+    placeholder: 'MINUTES',
+    brief: 'MINUTES · suspend after idle; 0 never suspends (default 5)',
+  },
+  holdMaxMinutes: {
+    kind: 'parsed',
+    parse: parseWholeNumber,
+    optional: true,
+    placeholder: 'MINUTES',
+    brief: 'MINUTES · turn-hold lifetime after its last refresh (default 60)',
+  },
+  updateCheckMinutes: {
+    kind: 'parsed',
+    parse: parseWholeNumber,
+    optional: true,
+    placeholder: 'MINUTES',
+    brief: 'MINUTES · between scheduled update checks, at least 1 (default 30)',
+  },
+  updateDueDays: {
+    kind: 'parsed',
+    parse: parseWholeNumber,
+    optional: true,
+    placeholder: 'DAYS',
+    brief:
+      'DAYS · after the last successful update before another is due, at least 1 (default 7)',
   },
 } as const;
 
 /** non-secret provision and setup integration choices */
 export const integrationFlags = {
-  tailscale: {
-    kind: 'boolean',
-    optional: true,
-    withNegated: true,
-    brief: 'enable or disable managed Tailscale',
-  },
   proxy: {
     kind: 'boolean',
     optional: true,
@@ -114,7 +186,7 @@ export const integrationFlags = {
     kind: 'boolean',
     optional: true,
     withNegated: true,
-    brief: 'enable or disable Tailscale exit-node routing',
+    brief: 'enable or disable exit-node routing on the selected network',
   },
   github: {
     kind: 'boolean',
@@ -170,17 +242,17 @@ export const integrationFlags = {
     placeholder: 'HOST',
     brief: 'HOST · GitHub host',
   },
-  ...tailnetSelectionFlags,
+  ...networkSelectionFlags,
 } as const;
 
 /** credential source references for selected integrations */
 export const integrationCredentialFlags = {
-  tailscaleAuthKeySource: {
+  networkAuthKeySource: {
     kind: 'parsed',
     parse: String,
     optional: true,
     placeholder: 'SOURCE',
-    brief: 'SOURCE · Tailscale auth key source reference',
+    brief: 'SOURCE · single-use network enrollment key source reference',
   },
   proxyApiKeySource: {
     kind: 'parsed',
@@ -198,7 +270,7 @@ export const integrationCredentialFlags = {
   },
 } as const;
 
-/** optional native plugin and marketplace selections */
+/** optional native plugin and marketplace selections; per-harness flags come from harness-flags */
 export const pluginFlags = {
   plugins: {
     kind: 'boolean',
@@ -206,95 +278,11 @@ export const pluginFlags = {
     withNegated: true,
     brief: 'enable or disable plugins',
   },
-  claudePlugins: {
-    kind: 'boolean',
-    optional: true,
-    withNegated: true,
-    brief: 'enable or disable Claude plugins',
-  },
-  codexPlugins: {
-    kind: 'boolean',
-    optional: true,
-    withNegated: true,
-    brief: 'enable or disable Codex plugins',
-  },
-  claudeMarketplace: {
-    kind: 'parsed',
-    parse: String,
-    optional: true,
-    variadic: true,
-    placeholder: 'SOURCE',
-    brief: 'SOURCE · Claude marketplace source (repeatable)',
-  },
-  codexMarketplace: {
-    kind: 'parsed',
-    parse: String,
-    optional: true,
-    variadic: true,
-    placeholder: 'SOURCE',
-    brief: 'SOURCE · Codex marketplace source (repeatable)',
-  },
-  claudePlugin: {
-    kind: 'parsed',
-    parse: String,
-    optional: true,
-    variadic: true,
-    placeholder: 'PLUGIN',
-    brief: 'PLUGIN · Claude plugin (repeatable)',
-  },
-  codexPlugin: {
-    kind: 'parsed',
-    parse: String,
-    optional: true,
-    variadic: true,
-    placeholder: 'PLUGIN',
-    brief: 'PLUGIN · Codex plugin (repeatable)',
-  },
-  reuseClaudeMarketplaces: {
+  reuseMarketplaces: {
     kind: 'boolean',
     default: false,
-    brief: 'reuse Claude marketplace sources for Codex once',
+    brief: 'reuse the first harness marketplace sources for the others once',
   },
-} as const;
-
-/**
- * defines a repeatable native plugin value with its visible help label
- * @param placeholder value kind shown in help
- * @param description action associated with each supplied value
- * @returns typed parsed flag metadata
- */
-function repeatableFlag(
-  placeholder: 'SOURCE' | 'PLUGIN',
-  description: string,
-): {
-  kind: 'parsed';
-  parse: StringConstructor;
-  optional: true;
-  variadic: true;
-  placeholder: 'SOURCE' | 'PLUGIN';
-  brief: string;
-} {
-  return {
-    kind: 'parsed',
-    parse: String,
-    optional: true,
-    variadic: true,
-    placeholder,
-    brief: `${placeholder} · ${description}`,
-  } as const;
-}
-
-/** explicit setup-only native plugin removals and deactivation */
-export const pluginChangeFlags = {
-  removeClaudeMarketplace: repeatableFlag(
-    'SOURCE',
-    'remove Claude marketplace',
-  ),
-  removeCodexMarketplace: repeatableFlag('SOURCE', 'remove Codex marketplace'),
-  disableClaudePlugin: repeatableFlag('PLUGIN', 'disable Claude plugin'),
-  disableCodexPlugin: repeatableFlag('PLUGIN', 'disable Codex plugin'),
-  uninstallClaudePlugin: repeatableFlag('PLUGIN', 'uninstall Claude plugin'),
-  uninstallCodexPlugin: repeatableFlag('PLUGIN', 'uninstall Codex plugin'),
 } as const;
 
 /** setup-only action selectors */
@@ -303,8 +291,8 @@ export const setupFlags = {
     kind: 'parsed',
     parse: buildChoiceParser([
       'all',
-      't3',
-      'tailscale',
+      'agent',
+      'network',
       'github',
       'git',
       'proxy',
@@ -315,14 +303,14 @@ export const setupFlags = {
     optional: true,
     placeholder: 'SECTION',
     brief:
-      'SECTION · all, t3, tailscale, github, git, proxy, env, plugins, or tools',
+      'SECTION · all, agent, network, github, git, proxy, env, plugins, or tools',
   },
-  harness: {
+  pluginHarness: {
     kind: 'parsed',
-    parse: buildChoiceParser(['claude', 'codex'] as const),
+    parse: buildChoiceParser(harnessIds()),
     optional: true,
     placeholder: 'HARNESS',
-    brief: 'HARNESS · Claude or Codex plugin harness',
+    brief: `HARNESS · plugin harness: ${harnessIds().join(', ')}`,
   },
   update: { kind: 'boolean', default: false, brief: 'update managed tools' },
 } as const;

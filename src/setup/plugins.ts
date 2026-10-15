@@ -1,6 +1,11 @@
+import {
+  harnessDrivers,
+  harnessIds,
+  harnessLabel,
+  mapHarnesses,
+} from '#core/harnesses';
 import { resolveInputs } from '#input';
 import { withGuestTransaction } from '#integrations/guest/transaction';
-import { applyClaudePlugins, applyCodexPlugins } from '#integrations/native';
 import { returnOnBack, withBackNavigation } from '#navigation';
 import {
   hasActions,
@@ -10,14 +15,10 @@ import {
   validateMarketplaceSources,
 } from '#plugins';
 
-import type { Sprite } from '@fly/sprites';
-
-import type {
-  CommandOptions,
-  HarnessName,
-  Interaction,
-} from '#command/contracts';
+import type { CommandOptions, Interaction } from '#command/contracts';
 import type { PluginsSetupData } from '#command/data';
+import type { HarnessId } from '#core/catalog';
+import type { GuestChannel } from '#drivers/guest-channel';
 import type {
   NormalizedPluginOptions,
   PluginActions,
@@ -30,7 +31,7 @@ type PluginActionName =
 
 interface PluginValueParams {
   selected: NormalizedPluginOptions;
-  harness: HarnessName;
+  harness: HarnessId;
   action: PluginActionName;
   interaction: Interaction;
   yes: boolean;
@@ -46,19 +47,20 @@ const OPTION_FOR_ACTION: Record<PluginActionName, keyof PluginActions> = {
 
 /**
  * applies independent native plugin actions for each harness
- * @param sprite exact managed Sprite
+ * @param guest guest channel of the managed workstation
  * @param context plugin actions, prompts, and mutation state
- * @returns native plugin operation outcomes, without claiming T3 load
+ * @returns native plugin operation outcomes, without claiming the agent loads them
  */
 export async function setupPlugins(
-  sprite: Sprite,
+  guest: GuestChannel,
   context: SetupContext,
 ): Promise<PluginsSetupData> {
-  const { options, interaction, mutation } = context;
+  const { options, interaction, mutation, profile } = context;
   const actions = resolvePluginActions(
-    await promptPluginActions(options, interaction),
+    await promptPluginActions(options, profile.harnesses, interaction),
+    profile.harnesses,
   );
-  if (actions.claude.marketplaces.length || actions.codex.marketplaces.length) {
+  if (harnessIds().some((id) => actions[id].marketplaces.length)) {
     const access = await resolveInputs(options, undefined, ['githubToken']);
     const marketplaceToken =
       options.githubHost && options.githubHost.toLowerCase() !== 'github.com'
@@ -67,29 +69,30 @@ export async function setupPlugins(
     await validateMarketplaceSources(actions, marketplaceToken);
   }
   if (
-    options.harness &&
-    hasActions(actions[options.harness === 'claude' ? 'codex' : 'claude'])
+    options.pluginHarness &&
+    harnessIds().some(
+      (id) => id !== options.pluginHarness && hasActions(actions[id]),
+    )
   ) {
     throw new Error(
-      'Plugin actions for another harness conflict with --harness',
+      'Plugin actions for another harness conflict with --plugin-harness',
     );
   }
 
-  return withGuestTransaction(sprite, async () => {
-    if (hasActions(actions.claude)) {
-      mutation.started = true;
-      await applyClaudePlugins(sprite, actions.claude);
-    }
-    if (hasActions(actions.codex)) {
-      mutation.started = true;
-      await applyCodexPlugins(sprite, actions.codex);
+  return withGuestTransaction(guest, async () => {
+    const applied = new Set<HarnessId>();
+    for (const driver of harnessDrivers(profile.harnesses)) {
+      if (hasActions(actions[driver.id])) {
+        mutation.started = true;
+        await driver.plugins.apply(guest, actions[driver.id]);
+        applied.add(driver.id);
+      }
     }
 
     return {
-      plugins: {
-        claude: hasActions(actions.claude) ? 'applied' : 'preserved',
-        codex: hasActions(actions.codex) ? 'applied' : 'preserved',
-      },
+      plugins: mapHarnesses((driver) =>
+        applied.has(driver.id) ? 'applied' : 'preserved',
+      ),
     };
   });
 }
@@ -97,11 +100,13 @@ export async function setupPlugins(
 /**
  * collects repeatable native plugin mutations from the inline action menu
  * @param options existing parsed plugin actions
+ * @param harnesses harnesses the workstation selects
  * @param interaction optional action prompts
  * @returns the augmented one-time plugin selections
  */
 async function promptPluginActions(
   options: CommandOptions,
+  harnesses: readonly HarnessId[],
   interaction?: Interaction,
 ): Promise<NormalizedPluginOptions> {
   const normalized = normalizePluginOptions(options);
@@ -116,7 +121,8 @@ async function promptPluginActions(
   let selected = normalized;
   for (;;) {
     const next = await promptOnePluginAction(selected, {
-      preferredHarness: options.harness,
+      preferredHarness: options.pluginHarness,
+      harnesses,
       interaction,
       yes: options.yes === true,
     });
@@ -132,6 +138,7 @@ async function promptPluginActions(
  * @param selected actions already chosen in this setup session
  * @param params harness preference and interactive choices
  * @param params.preferredHarness harness fixed by the caller, if selected
+ * @param params.harnesses harnesses the workstation selects
  * @param params.interaction interactive native action prompts
  * @param params.yes whether destructive changes were already approved
  * @returns updated actions or an explicit finish marker
@@ -139,21 +146,22 @@ async function promptPluginActions(
 async function promptOnePluginAction(
   selected: NormalizedPluginOptions,
   params: {
-    preferredHarness: HarnessName | undefined;
+    preferredHarness: HarnessId | undefined;
+    harnesses: readonly HarnessId[];
     interaction: Interaction;
     yes: boolean;
   },
 ): Promise<NormalizedPluginOptions | 'done'> {
-  const { preferredHarness, interaction, yes } = params;
+  const { preferredHarness, harnesses, interaction, yes } = params;
   for (;;) {
     const harness =
       preferredHarness ??
-      (await interaction.select<HarnessName>(
+      (await interaction.select<HarnessId>(
         { message: 'Select plugin harness' },
-        [
-          { label: 'Claude', value: 'claude' },
-          { label: 'Codex', value: 'codex' },
-        ],
+        harnessDrivers(harnesses).map((driver) => ({
+          label: harnessLabel(driver.id),
+          value: driver.id,
+        })),
       ));
     const collect = async (): Promise<NormalizedPluginOptions | 'done'> =>
       collectHarnessAction(selected, {
@@ -185,12 +193,12 @@ async function promptOnePluginAction(
  */
 async function collectHarnessAction(
   selected: NormalizedPluginOptions,
-  params: { harness: HarnessName; interaction: Interaction; yes: boolean },
+  params: { harness: HarnessId; interaction: Interaction; yes: boolean },
 ): Promise<NormalizedPluginOptions | 'done'> {
   const { harness, interaction, yes } = params;
   for (;;) {
     const action = await interaction.select<PluginActionName | 'done'>(
-      { message: `${harness} plugin action` },
+      { message: `${harnessLabel(harness)} plugin action` },
       [
         { label: 'Add marketplace', value: 'marketplace' },
         { label: 'Install and enable plugin', value: 'install' },
@@ -240,19 +248,22 @@ async function collectPluginValue(
     (action === 'remove' || action === 'uninstall') &&
     !yes &&
     !(await interaction.confirm({
-      message: `Remove ${value} from ${harness}? Native removal may also remove related plugins.`,
+      message: `Remove ${value} from ${harnessLabel(harness)}? Native removal may also remove related plugins.`,
     }))
   ) {
     return selected;
   }
   const optionName = OPTION_FOR_ACTION[action];
-  const current = selected[harness];
+  const current = selected.harnesses[harness];
 
   return {
     ...selected,
-    [harness]: {
-      ...current,
-      [optionName]: [...current[optionName], value],
+    harnesses: {
+      ...selected.harnesses,
+      [harness]: {
+        ...current,
+        [optionName]: [...current[optionName], value],
+      },
     },
   };
 }

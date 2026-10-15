@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="./logo.svg" alt="agent-sprite mascot" width="220" />
+<img src="./logo.svg" alt="open-agent mascot" width="220" />
 
-# agent-sprite
+# open-agent
 
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?style=flat-square&logo=nodedotjs&logoColor=white)](./package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -13,7 +13,7 @@ _Create persistent Fly Sprites with T3 Code, Claude Code, Codex, and your native
 
 </div>
 
-> 🧩 **Built on [Fly Sprites](https://sprites.dev/) and [T3 Code](https://github.com/pingdotgg/t3code).** `agent-sprite` manages the workstation through the official Sprites SDK while Claude and Codex keep their own native configuration and plugins.
+> 🧩 **Built on [Fly Sprites](https://sprites.dev/) and [T3 Code](https://github.com/pingdotgg/t3code).** `open-agent` manages the workstation through the official Sprites SDK while Claude and Codex keep their own native configuration and plugins.
 
 <br/>
 <div align="center">
@@ -35,19 +35,19 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Get a Sprites management token using the [Fly Sprites authentication guide](https://docs.fly.io/sprites/cli/authentication). Put it in `SPRITES_TOKEN` in the protected `.env` file, add credentials for any selected integrations, then create a workstation:
+Meet the selected provider's [prerequisites](#-prerequisites); for the default Fly Sprite provider, put a Sprites organization token in `SPRITES_TOKEN` in the protected `.env` file. Add credentials for any selected network or proxy, then create a workstation:
 
 ```bash
-pnpm run local -- create --env .env --name my-workstation --with-t3-pair-code
+pnpm run local -- create --env .env --name my-workstation --with-pair-code
 ```
 
-Interactive creation asks whether to enable Tailscale, exit-node routing, and CLIProxyAPI. GitHub authentication and Git/Jujutsu identity are separate choices. Copy the returned T3 URL into your client; its native pairing code is valid for five minutes.
+Interactive creation asks, in order, for the provider, the minimum CPUs and the minimum memory in GB (both default to 2; asked again with the reason when the provider offers no machine that large), ACP agent, the agent's release channel (only when the agent declares more than one; T3 Code offers `stable` and `nightly`), harnesses (only those the agent supports), network, then the options those drivers support: an exit node only when the network supports one, CLIProxyAPI only when a selected harness supports it, and idle minutes only when the provider keeps workstations awake. A step with a single choice is skipped. GitHub authentication and Git/Jujutsu identity are separate choices. Copy the returned agent URL into your client; its native pairing code is valid for five minutes.
 
 Dotenv files are loaded only when explicitly selected with `--env FILE`. See [.env.example](.env.example) for every supported environment input and its meaning.
 
 ---
 
-## ✨ Why agent-sprite?
+## ✨ Why open-agent?
 
 ### 😩 The Problem
 
@@ -60,7 +60,7 @@ A remote coding workstation involves more than installing an editor:
 
 ### 💡 The Solution
 
-`agent-sprite` brings these operations into one terminal workflow:
+`open-agent` brings these operations into one terminal workflow:
 
 - **Create persistent workstations**: install tools, configure selected integrations, check readiness, and expose T3 last
 - **Change one section**: configure GitHub, Git identity, networking, proxy routing, environment variables, or native plugins independently
@@ -72,15 +72,15 @@ A remote coding workstation involves more than installing an editor:
 
 ## 🚀 Key Features
 
-| Feature                           | What it gives you                                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Six workstation commands**      | Create, configure, list, show, diagnose, and permanently terminate managed Sprites                                        |
-| **Persistent T3 workstation**     | T3 Code with Claude Code, Codex, Git, Jujutsu, and GitHub CLI                                                             |
-| **Optional networking and proxy** | Join a tailnet, select exit-node routing, or route both harnesses to an existing CLIProxyAPI hub                          |
-| **Independent native plugins**    | Repeatable marketplace and plugin actions for Claude and Codex, without converting one harness’s plugins into the other’s |
-| **Readable terminal interaction** | Searchable selectors, labelled back navigation, masked credential prompts, and grouped inspection results                 |
-| **Live provider discovery**       | Paginated provider queries and exact managed-target checks, without a local machine registry                              |
-| **Scheduled tool maintenance**    | Latest stable managed-tool updates after seven days, checked every 30 minutes while running                               |
+| Feature                           | What it gives you                                                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Six workstation commands**      | Create, configure, list, show, diagnose, and permanently terminate managed Sprites                                                      |
+| **Persistent T3 workstation**     | T3 Code with Claude Code, Codex, a Node, Python and Rust toolchain, Git, Jujutsu, GitHub CLI, and network diagnostics                   |
+| **Optional networking and proxy** | Join a tailnet, select exit-node routing, or route both harnesses to an existing CLIProxyAPI hub                                        |
+| **Independent native plugins**    | Repeatable marketplace and plugin actions for Claude and Codex, without converting one harness’s plugins into the other’s               |
+| **Readable terminal interaction** | Searchable selectors, labelled back navigation, masked credential prompts, and grouped inspection results                               |
+| **Live provider discovery**       | Paginated provider queries and exact managed-target checks, without a local machine registry                                            |
+| **Scheduled tool maintenance**    | Latest stable managed-tool updates once due (default seven days), checked on a configurable interval (default 30 minutes) while running |
 
 ---
 
@@ -97,7 +97,7 @@ A remote coding workstation involves more than installing an editor:
 | GitHub authentication                 | ✅      | Separate protected native credentials for T3’s `agent` account and the provider’s `sprite` account |
 | Tailscale and exit-node routing       | ✅      | Optional; exit routing requires an existing approved exit node and permitted access                |
 | Existing CLIProxyAPI hub              | ✅      | Optional client configuration; the manager does not host a new hub                                 |
-| Activity holds                        | ⚠️      | Native work hooks and managed setup/update tasks; arbitrary shells and tools can bypass hooks      |
+| Idle governor                         | ⚠️      | Native work hooks and managed setup/update holds; arbitrary shells and tools can bypass hooks      |
 
 Local execution requires Node.js 24+. Packaged terminal regression checks use `node-pty`; Windows terminals and screen-reader behavior remain outside the verified platform scope.
 
@@ -105,19 +105,62 @@ Local execution requires Node.js 24+. Packaged terminal regression checks use `n
 
 ## 💡 Core Concept
 
-A **managed workstation** is a persistent Sprite with provider-owned identity and native guest configuration. The CLI discovers machines from Fly rather than keeping a local registry.
+A **managed workstation** is a persistent machine with provider-owned identity and native guest configuration. Its profile selects one provider, one ACP agent, the harnesses that agent drives, a network and options. The CLI discovers machines from the provider rather than keeping a local registry.
 
 Creation runs in this order:
 
 1. **Resolve inputs and preflight**: validate credentials, configuration, provider identity, and determinable tailnet issues before provisioning
-2. **Provision privately**: install managed tools and configure the selected integrations
-3. **Join the tailnet first**: establish optional Tailscale connectivity before reaching a private proxy hub
-4. **Verify readiness**: check services, routing, proxy access, native configuration, and T3 provider discovery
-5. **Expose and optionally pair**: make T3 public after readiness passes, then mint a code only when `--with-t3-pair-code` was requested
+2. **Provision privately**: install managed tools and configure the selected integrations; every developer tool comes from a Homebrew prebuilt bottle and nothing is built from source
+3. **Join the network first**: establish the selected private network before reaching a private proxy hub
+4. **Verify readiness**: check services, routing, proxy access, native configuration, and the agent's environment endpoint
 
-`list` and ordinary `show` read the control plane. `show --inspect` and `doctor` explicitly check the guest and may wake it. A stored setup label is not a current health result.
+### Installed tools
+
+Every workstation gets these tools for the `agent` account, linked in `/usr/local/bin`:
+
+| Tool                 | Commands                                                        | Source                                     |
+| -------------------- | --------------------------------------------------------------- | ------------------------------------------ |
+| Git, Jujutsu, GitHub | `git`, `jj`, `gh`                                               | Homebrew bottles                           |
+| Node.js              | `node`, `npm`, `npx`                                            | Homebrew `node`, its Current release line  |
+| pnpm                 | `pnpm`, `pnpx`                                                  | Homebrew bottle                            |
+| Python               | `python3`, `pip3`, `python`, `pip`                              | Homebrew `python3`, the current release    |
+| uv                   | `uv`, `uvx`                                                     | Homebrew bottle                            |
+| Rust                 | `rustup`, `cargo`, `rustc`, `rustfmt`, and more                 | Homebrew `rustup`, with a stable toolchain |
+| HTTPie               | `http`, `https`, `httpie`                                       | Homebrew bottle                            |
+| C compiler           | `gcc`, `libc6-dev`                                              | Debian packages, so cargo and pip can link |
+| Network diagnostics  | `ping`, `telnet`, `dig`, `nc`, `traceroute`, `ip`, `ss`, `wget` | Debian packages                            |
+
+The Node.js on the agent's `PATH` is Homebrew's Current line. open-agent's own guest code runs on a separate, private Node under `/opt/open-agent/node`, which is never on the agent's `PATH`, so updating either one leaves the other alone. The Rust toolchain is the `stable` channel with the minimal profile plus `clippy` and `rustfmt`, installed in the agent's home by `rustup`; `show` and `doctor` report each tool's version.
+
+`list` and ordinary `show` read the control plane. `show --inspect` and `doctor` explicitly check the guest and may wake it. A stored setup label is not a current health result. `list` queries every provider whose credential is available and notes the others as skipped, so one missing credential never fails the list; every other command finds the workstation on any such provider without `--provider`, and asks for `--provider` only when the same name exists on several.
 
 For boundaries, runtime flow, and design decisions, see the [architecture index](docs/architecture/README.md).
+
+---
+
+## 🧾 Prerequisites
+
+Each provider declares the host tools and the management credential it needs. `create` checks them all before any provider call and reports every missing or misconfigured prerequisite, with its fix, in one `INPUT` error; it never provisions half a workstation for a fixable local problem. `list`, `show`, `setup`, `doctor` and `terminate` run the same check for the provider they use.
+
+### Fly Sprite (`--provider sprite`)
+
+- **Host tools**: none; the provider uses the Sprites SDK
+- **Credential**: `SPRITES_TOKEN`, a Sprites organization token for the organization that owns the workstations. Get one at [sprites.dev/account](https://sprites.dev/account): sign in with Fly and select the intended organization. `--provider-token-source env:NAME|file:PATH|keychain:SERVICE/ACCOUNT` selects another source; an interactive run can also prompt for it and save it on this computer
+- **Scope check**: a Fly API token (`FlyV1 …`, `fm2_…`, `fo1_…`) is refused offline, before any provider call, with the fix above and the source it came from. Any other value goes to the provider; one it rejects fails with `AUTH` and is never saved on this computer
+- **Learn more**: [Sprites CLI authentication](https://docs.fly.io/sprites/cli/authentication), [Sprites quickstart](https://docs.fly.io/sprites/quickstart)
+
+### Fly Machine (`--provider fly-machine`)
+
+- **Host tools**: `fly` (flyctl) 0.4.108 or newer on `PATH`; [install or upgrade it](https://fly.io/docs/flyctl/install/). open-agent runs it with its own configuration directory, `$XDG_CONFIG_HOME/open-agent/flyctl`, so your own flyctl login, WireGuard peers and agent are never read or changed
+- **Credential**: `FLY_API_TOKEN`, a Fly organization token able to create apps, machines and volumes: `fly tokens create org -o <organization>`. The organization it names owns the workstations. `--provider-token-source` selects another source, as for Sprites
+- **Scope check**: before any provider call, flyctl decodes the token offline (`fly tokens debug`); a deploy, SSH or other narrowed token, an expired token, or a value that is not a Fly token is refused with its fix. A Sprites token is refused by its shape without being decoded
+- **Placement**: each workstation is one app named after it, holding one machine and one volume, in `OPEN_AGENT_FLY_REGION` or, when unset, the region nearest this computer. Its URL is `https://<name>.fly.dev`, routed only after setup makes it ready
+- **Cold boot**: a stop resets the machine's root filesystem, so the installed tools, both accounts' homes and an apt cache live on its volume. A boot script, the machine's init, binds them back, recreates the `agent` and `linuxbrew` accounts under their original ids and reinstalls the recorded apt packages from the cache in seconds, before any command reaches the guest. It logs each step to `/opt/open-agent/boot.log` and `fly logs`, and records the last boot in `/opt/open-agent/boot-status.json`
+- **Idle**: the idle governor, run by the guest supervisor as root, suspends the machine from memory with a `POST` to the guest-local `/.fly/api` socket when the deadline passes, and stops it through the same socket when the machine has more than 2 GB of memory, swap or a schedule, or the suspend is refused. No token is on the guest, and the agent account cannot reach the socket. A URL request resumes a suspended machine or cold-boots a stopped one
+- **Guest access**: commands run over `fly ssh console` with a token derived in memory from the organization token; it is never written to disk or sent to the guest. It has full access only to its own app, but it can still read everything in the organization (every app, machine and volume), and it can issue SSH certificates and add WireGuard peers to the organization, because an SSH session needs both. It expires with the organization token
+- **WireGuard peer**: the first SSH session creates an organization WireGuard peer, named `interactive-<host>-…`, and stores its private key in `$XDG_CONFIG_HOME/open-agent/flyctl/config.yml`; later sessions reuse it. List the organization's peers with `fly wireguard list <organization>` and remove this one with `fly wireguard remove <organization> <name>`; the next session then creates a new one
+- **flyctl agent**: flyctl has no in-process mode, so every SSH session goes through a flyctl agent started from the private configuration directory, and that agent holds the derived token. open-agent runs `fly agent stop` for that directory as soon as its last SSH session ends. If open-agent is killed during a session, the agent keeps running until you stop it with `FLY_CONFIG_DIR=$XDG_CONFIG_HOME/open-agent/flyctl fly agent stop` or restart the computer; your own agent, of `~/.fly`, is never touched
+- **Learn more**: [Machines API](https://fly.io/docs/machines/api/), [Fly tokens](https://fly.io/docs/security/tokens/)
 
 ---
 
@@ -125,34 +168,45 @@ For boundaries, runtime flow, and design decisions, see the [architecture index]
 
 ### CLI Runtime
 
-Pass `--env FILE` for dotenv input. Explicit flags and credential references precede process environment, selected dotenv values, eligible profile/local defaults, and prompts.
+Pass `--env FILE` for dotenv input. Explicit flags and credential references precede process environment, selected dotenv values, eligible profile/local defaults, prompts, and defaults. A malformed flag value is a `USAGE` error. Selection values from every source, option bounds and boolean environment values are then validated together before any provider call: every problem, such as an unknown driver, a malformed number or an out-of-range timeout, is reported in one `INPUT` error.
 
-| Variables                                            | Meaning                                                                                    |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `SPRITES_TOKEN`                                      | Locally held Sprites management token; the only universally required credential            |
-| `TAILSCALE_ENABLED`                                  | Enable or disable managed Tailscale                                                        |
-| `TAILSCALE_TAILNET`                                  | Tailnet API ID, full DNS domain, or bare DNS subdomain; required when Tailscale is enabled |
-| `TAILSCALE_API_KEY`                                  | Local management key for enrollment and authorized device cleanup                          |
-| `TAILSCALE_AUTH_KEY`                                 | Optional enrollment key; an auth key alone cannot authorize device deletion                |
-| `TAILSCALE_EXIT_NODE_ENABLED`, `TAILSCALE_EXIT_NODE` | Separate exit-routing choice and existing approved exit-node identity                      |
-| `CLIPROXYAPI_ENABLED`                                | Enable or disable direct proxy routing for both harnesses                                  |
-| `CLIPROXYAPI_BASE_URL`, `CLIPROXYAPI_API_KEY`        | Existing hub URL and its client key, required when proxy routing is enabled                |
-| `GH_TOKEN`, `GITHUB_TOKEN`                           | Optional GitHub credential; `GH_TOKEN` wins within the same input source                   |
-| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`                | Explicit Git/Jujutsu author identity                                                       |
-| `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`          | Optional distinct committer identity                                                       |
-| `NON_INTERACTIVE`, `CI`, `TERM`                      | Interaction controls; automation markers or `TERM=dumb` disable prompts                    |
-| `NO_COLOR`                                           | A nonempty value disables color                                                            |
+| Variables                                     | Meaning                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `OPEN_AGENT_PROVIDER`, `OPEN_AGENT_AGENT`     | Provider and ACP agent; fixed after creation                                                |
+| `OPEN_AGENT_HARNESSES`                        | Comma-separated harnesses the agent drives                                                  |
+| `OPEN_AGENT_NETWORK`                          | `none` or `tailscale`; `none` keeps the workstation off any private network                 |
+| `OPEN_AGENT_CPU`, `OPEN_AGENT_MEM`            | Minimum CPUs and minimum memory in GB, whole numbers from `1`; default `2` and `2`          |
+| `OPEN_AGENT_IDLE_MINUTES`                     | Suspend after this many idle minutes; `0` never suspends                                    |
+| `OPEN_AGENT_HOLD_MAX_MINUTES`                 | Turn-hold lifetime after its last refresh; never prompted                                   |
+| `OPEN_AGENT_UPDATE_CHECK_MINUTES`             | Minutes between update checks, `1` to `10080`; never prompted                               |
+| `OPEN_AGENT_UPDATE_DUE_DAYS`                  | Days after the last update before another is due, `1` to `365`; never prompted              |
+| `OPEN_AGENT_USE_EXIT_NODE`                    | Route egress through an exit node on the selected network                                   |
+| `SPRITES_TOKEN`                               | Fly Sprite provider credential; see [Prerequisites](#-prerequisites)                        |
+| `FLY_API_TOKEN`                               | Fly Machine provider credential; see [Prerequisites](#-prerequisites)                       |
+| `OPEN_AGENT_FLY_REGION`                       | Fly region of new Fly Machine workstations; the nearest region when unset                   |
+| `TAILSCALE_TAILNET`                           | Tailnet API ID, full DNS domain, or bare DNS subdomain; required with `--network tailscale` |
+| `TAILSCALE_API_KEY`                           | Local management key for enrollment and authorized device cleanup                           |
+| `TAILSCALE_AUTH_KEY`                          | Optional enrollment key; an auth key alone cannot authorize device deletion                 |
+| `TAILSCALE_EXIT_NODE`                         | Existing approved exit-node identity                                                        |
+| `CLIPROXYAPI_ENABLED`                         | Enable or disable direct proxy routing for the selected harnesses                           |
+| `CLIPROXYAPI_BASE_URL`, `CLIPROXYAPI_API_KEY` | Existing hub URL and its client key, required when proxy routing is enabled                 |
+| `GH_TOKEN`, `GITHUB_TOKEN`                    | Optional GitHub credential; `GH_TOKEN` wins within the same input source                    |
+| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`         | Explicit Git/Jujutsu author identity                                                        |
+| `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`   | Optional distinct committer identity                                                        |
+| `NON_INTERACTIVE`, `CI`, `TERM`               | Interaction controls; automation markers or `TERM=dumb` disable prompts                     |
+| `NO_COLOR`                                    | A nonempty value disables color                                                             |
 
 [.env.example](.env.example) also explains the process-only `XDG_CONFIG_HOME` and `WAYLAND_DISPLAY` settings. Extra non-reserved dotenv names become explicitly requested guest runtime variables. Process-injection variables and managed-routing overrides are rejected.
 
 ### Optional Integrations and Preflight
 
-- **Tailscale**: supply the tailnet identity and enrollment authorization when enabled. An API key is needed for authorized device deletion; an enrollment key alone is insufficient
+- **No private network**: choose `none` with `--network none`, `OPEN_AGENT_NETWORK=none`, or the **Network** choice in interactive creation. The workstation then installs no Tailscale tool, registers no `tailscaled` service, and starts the agent service without waiting for a network. Readiness, `show --inspect` and `doctor` report that no private network is selected, and `terminate` has no device to clean up. Tools install and update only for the selected network; switching to Tailscale later with `setup --section network` installs it, and a previously installed network's files stay on disk but are no longer updated
+- **Tailscale**: supply the tailnet identity and enrollment authorization when enabled. An API key is needed for authorized device deletion; an enrollment key alone is insufficient. `setup --section network` asks the live Tailscale daemon, not the recorded device, whether the workstation is enrolled: a daemon that has logged out (for example after its state was lost) enrols again with a fresh key minted from the API key, and before enrolling it deletes the device the manifest recorded for this workstation, if the tailnet still holds it, so the new device keeps the workstation name instead of `<name>-1`. When the API key cannot delete that device, setup fails and names it. With only an enrollment key, setup cannot check or delete the earlier device
 - **Tailnet DNS names**: a bare subdomain is tried as supplied, then retried with `.ts.net` if the device query returns 404. Existing API IDs and full domains are retained
 - **Exit nodes**: supply an unambiguous short machine name, device ID, or Tailscale IPv4 address. Short names are matched case-insensitively. Advertising routes is insufficient: enable **Use as exit node** in Tailscale administration and ensure policy permits access
 - **CLIProxyAPI**: supply an existing hub URL and client key when enabled. Claude uses the hub root; Codex uses `/v1`. A private hub is checked after joining the tailnet
 
-Interactive creation asks unresolved integration choices. Non-interactive creation infers enablement from supplied inputs unless an explicit switch overrides it. Setup preserves installed choices when omitted; explicit switches take precedence.
+Interactive creation asks unresolved selection questions. Non-interactive creation infers the network and options from supplied inputs unless an explicit flag or `OPEN_AGENT_*` value overrides them. Setup preserves the recorded profile when omitted; `setup --section all` can change the release channel, harnesses, network and options, and `setup --section agent --release CHANNEL` changes only the release channel, while a different provider or ACP agent is refused because it needs a new workstation. `setup --cpu N --mem GB` (either flag, in any section) resizes the machine to the smallest size meeting the minimums and records them; an omitted one keeps its recorded value. Fly restarts the machine to apply a size, so setup warns that "Resizing NAME to SIZE restarts the machine to take effect; running sessions and processes stop", asks (default no) when interactive, proceeds with `--yes`, and otherwise fails with a usage error before changing anything.
 
 Preflight aggregates determinable issues before provisioning and reminds users about routing, DNS, policy, enrollment expiry, GitHub/Git identity, proxy access, and disruptive updates. Passing preflight does not replace guest readiness checks.
 
@@ -168,15 +222,15 @@ Supply references rather than raw secret arguments:
 - `file:PATH`: read a credential file
 - `keychain:SERVICE/ACCOUNT`: read a macOS Keychain item
 
-Source flags are `--sprites-token-source`, `--tailscale-api-key-source`, `--tailscale-auth-key-source`, `--proxy-api-key-source`, and `--github-token-source`.
+Source flags are `--provider-token-source`, `--network-key-source`, `--network-auth-key-source`, `--proxy-api-key-source`, and `--github-token-source`. The network sources are read only when the selected network uses them.
 
-Sprites and Tailscale management credentials stay on the invoking computer. Enrollment keys are discarded after enrollment. Selected GitHub and proxy client credentials intentionally persist in protected native guest configuration.
+Provider and network management credentials stay on the invoking computer. Enrollment keys are discarded after enrollment. Selected GitHub and proxy client credentials intentionally persist in protected native guest configuration.
 
-### Show Needs Only the Sprites Token
+### Show Needs Only the Provider Token
 
-`show` resolves its Sprites token from an explicit source, process environment, selected dotenv file, or a token previously saved on this computer. It does not load unrelated integration-profile values. GitHub, Tailscale, and proxy credentials are unnecessary, including for inspection and pairing.
+`show` resolves its provider token from an explicit source, process environment, selected dotenv file, or a token previously saved on this computer. It does not load unrelated integration-profile values. GitHub, Tailscale, and proxy credentials are unnecessary, including for inspection and pairing.
 
-`--no-local-credentials` skips the saved Sprites-token fallback and prevents saving a prompted token. Environment and explicit file credentials still work. On other commands, it also disables eligible local credential discovery. `--local-credentials` explicitly permits that fallback; neither flag selects another integration.
+`--no-local-credentials` skips the saved provider-token fallback and prevents saving a prompted token. Environment and explicit file credentials still work. On other commands, it also disables eligible local credential discovery. `--local-credentials` explicitly permits that fallback; neither flag selects another integration.
 
 ### Native GitHub Authentication
 
@@ -185,23 +239,23 @@ GitHub access is optional. Eligible local `gh` discovery can supply a default; i
 GitHub setup runs native `gh auth login` with the selected token over stdin, configures HTTPS Git authentication, and checks `gh auth status`. It configures both accounts with separate protected credential stores:
 
 - **`agent`**: the non-root account used by T3
-- **`sprite`**: Sprites’ default provider shell account
+- **`sprite`**: the Fly Sprite provider's default shell account; each provider declares its own shell accounts
 
 `--github-host` selects the GitHub host. Git/Jujutsu author and committer identity are configured separately from GitHub authentication.
 
-### T3 Pairing
+### Agent Pairing
 
-Ordinary `show` returns the normal T3 URL without creating a code. `--with-t3-pair-code` explicitly mints and discloses a five-minute code in that same URL using T3’s native `#token=CODE` fragment.
+Ordinary `show` returns the normal agent URL without creating a code. `--with-pair-code` explicitly mints and discloses a five-minute code in that same URL; T3 Code uses its native `#token=CODE` fragment.
 
-JSON returns the URL as `data.machine.t3Url`, with the code and expiry in `data.pairing`. There is no separate pairing URL. Human output keeps the URL and code contiguous for copying.
+JSON returns the URL as `data.machine.agentUrl`, with the code and expiry in `data.pairing`. There is no separate pairing URL. Human output keeps the URL and code contiguous for copying.
 
-Create, setup and show mint no code by default. `--with-t3-pair-code` is the only pairing flag. Interactive **Pair another T3 client** also requests a code explicitly. Setup infers the T3 section from the flag when no section was selected; unrelated sections and plugin actions conflict.
+Create, setup and show mint no code by default. `--with-pair-code` is the canonical pairing flag; each ACP agent also accepts its own alias, such as `--with-t3-pair-code` for T3. An alias is rewritten only where it stands as a flag, never when it is the value of another flag. Interactive **Pair another {agent} client** also requests a code explicitly. Setup infers the `agent` section from the flag when no section was selected; it also works with `--section all`, while unrelated sections and plugin actions conflict.
 
 ---
 
 ## 📐 Architecture
 
-Root workflows coordinate domain modules and narrow integrations. `src/scripts` contains deployable guest payloads, `src/components` owns Ink views, and `src/cli` owns parsing and terminal adapters. Cloud mutations stay outside React rendering.
+Root workflows coordinate domain modules and narrow integrations. `src/guest` is the guest kernel and each driver's `guest/` folder holds its own deployable payloads, `src/components` owns Ink views, and `src/cli` owns parsing and terminal adapters. Cloud mutations stay outside React rendering.
 
 `bin/cli.mjs` launches the installed compiled CLI. Source aliases intentionally point at TypeScript; packed aliases point at compiled JavaScript. Use `pnpm run local --` for checkout execution. See the [architecture index](docs/architecture/README.md) for runtime boundaries and accepted decisions.
 
@@ -209,46 +263,50 @@ Root workflows coordinate domain modules and narrow integrations. `src/scripts` 
 
 ## 📖 Usage
 
-Use the interactive CLI to select workstations and configure sections, or pass names and flags for automation. In the examples below, replace `agent-sprite` with `pnpm run local --` when working from this unpublished checkout. The temporary runner preserves arguments, environment, working directory, signals and exit status; it does not install a global command.
+Use the interactive CLI to select workstations and configure sections, or pass names and flags for automation. In the examples below, replace `open-agent` with `pnpm run local --` when working from this unpublished checkout. The temporary runner preserves arguments, environment, working directory, signals and exit status; it does not install a global command.
 
 ### CLI Command Surface
 
-| Command              | Behavior                                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------------------- |
-| `create --name NAME` | Provision privately, configure selected integrations, verify readiness and expose T3; pairing is opt-in |
-| `setup [NAME]`       | Configure one section or explicit actions on a verified managed workstation                             |
-| `list`               | List managed Sprites from the live paginated provider API                                               |
-| `show [NAME]`        | Show provider information and the T3 URL; inspection and pairing require explicit actions               |
-| `doctor [NAME]`      | Report current service, native harness, and enabled-integration readiness                               |
-| `terminate [NAME]`   | Permanently delete the exact managed Sprite and report tailnet cleanup separately                       |
+| Command              | Behavior                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `create --name NAME` | Provision privately, configure the selected drivers, verify readiness and expose the agent; pairing is opt-in |
+| `setup [NAME]`       | Configure one section or explicit actions on a verified managed workstation                                   |
+| `list`               | List managed workstations from every provider; providers that cannot be listed are reported as unavailable    |
+| `show [NAME]`        | Show provider information and the agent URL; inspection and pairing require explicit actions                  |
+| `doctor [NAME]`      | Report current service, native harness, and selected-driver readiness                                         |
+| `terminate [NAME]`   | Permanently delete the exact managed workstation and report network cleanup separately                        |
 
-Run `agent-sprite COMMAND --help` for the complete command-specific flag list, or `pnpm run local -- COMMAND --help` from this checkout.
+Run `open-agent COMMAND --help` for the complete command-specific flag list, or `pnpm run local -- COMMAND --help` from this checkout.
 
 ### Common Options
 
-| Flags                                                                                                              | Purpose                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `--env PATH`                                                                                                       | Select a dotenv file explicitly                                                                            |
-| `--json`, `--non-interactive`                                                                                      | Disable prompts; JSON emits one structured final result on stdout                                          |
-| `--yes`                                                                                                            | On create/setup/terminate, approve already-selected actions; termination still requires an explicit target |
-| `--color` / `--no-color`, `--quiet`, `--verbose`                                                                   | Color, routine-progress suppression and redacted timings                                                   |
-| `--local-credentials` / `--no-local-credentials`                                                                   | Skip eligible saved/discovered local credentials and saving prompted credentials                           |
-| `--tailscale` / `--no-tailscale`                                                                                   | Enable or disable managed Tailscale                                                                        |
-| `--use-exit-node` / `--no-use-exit-node`, `--exit-node`, `--tailnet`                                               | Choose exit routing and its non-secret identities separately                                               |
-| `--proxy` / `--no-proxy`, `--proxy-url`                                                                            | Enable or disable direct harness proxy routing                                                             |
-| `--section`                                                                                                        | Select `all`, `t3`, `tailscale`, `github`, `git`, `proxy`, `env`, `plugins`, or `tools`                    |
-| `--harness`                                                                                                        | Restrict setup plugin actions to Claude or Codex                                                           |
-| `--claude-marketplace`, `--codex-marketplace`, `--claude-plugin`, `--codex-plugin`                                 | Repeatable native source and plugin selections                                                             |
-| `--remove-claude-marketplace`, `--remove-codex-marketplace`                                                        | Repeatable source removal                                                                                  |
-| `--disable-claude-plugin`, `--disable-codex-plugin`                                                                | Repeatable disablement                                                                                     |
-| `--uninstall-claude-plugin`, `--uninstall-codex-plugin`                                                            | Repeatable removal                                                                                         |
-| `--reuse-claude-marketplaces`                                                                                      | Reuse Claude marketplace sources for Codex in this operation                                               |
-| `--plugins` / `--no-plugins`, `--claude-plugins` / `--no-claude-plugins`, `--codex-plugins` / `--no-codex-plugins` | Permit or skip selected plugin work; enabling does not select a plugin                                     |
-| `--github` / `--no-github`, `--git-identity` / `--no-git-identity`                                                 | Permit or skip optional GitHub authentication or Git/Jujutsu identity                                      |
-| `--git-name`, `--git-email`, `--git-committer-name`, `--git-committer-email`                                       | Set explicit Git identity independently of GitHub authentication                                           |
-| `--with-t3-pair-code`                                                                                              | Create and disclose a fresh code on the normal T3 URL                                                      |
-| `show --inspect`                                                                                                   | Inspect live guest configuration; may wake the guest and take longer                                       |
-| `setup --section tools --update`                                                                                   | Explicitly update managed developer tools and restart services                                             |
+| Flags                                                                                                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--env PATH`                                                                                                       | Select a dotenv file explicitly                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `--json`, `--non-interactive`                                                                                      | Disable prompts; JSON emits one structured final result on stdout                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `--yes`                                                                                                            | On create/setup/terminate, approve already-selected actions; termination still requires an explicit target                                                                                                                                                                                                                                                                                                                                                                       |
+| `--color` / `--no-color`, `--quiet`, `--verbose`                                                                   | Color, routine-progress suppression and redacted timings                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `--local-credentials` / `--no-local-credentials`                                                                   | Skip eligible saved/discovered local credentials and saving prompted credentials                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--provider`, `--agent`, `--harness` (repeatable), `--network`                                                     | Select the drivers; the provider and agent are fixed after creation                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `--cpu`, `--mem`                                                                                                   | Minimum CPUs and minimum memory in GB (whole numbers from 1, default 2 and 2); the provider runs the smallest machine it offers that meets both and `create` refuses a minimum it cannot meet. `setup` resizes only when one is given: a Fly Machine restarts to change size, so `setup` warns, asks in an interactive run (default no), proceeds with `--yes` and otherwise fails with a usage error; a size the machine already has changes nothing, and a Sprite has one size |
+| `--release`                                                                                                        | Release channel of the ACP agent (T3 Code: `stable`, the default, follows npm `latest`; `nightly` follows npm `nightly`); `setup --section agent` or `--section all` switches it, installs that channel's current version (a downgrade back to `stable`), restarts the agent and waits for readiness                                                                                                                                                                             |
+| `--idle-minutes`, `--hold-max-minutes`                                                                             | Idle suspension (`0` never suspends) and turn-hold lifetime                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--update-check-minutes`, `--update-due-days`                                                                      | Update check minutes (`1`-`10080`, default `30`) and due days (`1`-`365`, default `7`); `setup --section tools` or `--section all` changes them                                                                                                                                                                                                                                                                                                                                  |
+| `--use-exit-node` / `--no-use-exit-node`, `--exit-node`, `--network-account`                                       | Choose exit routing and its non-secret identities separately                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `--proxy` / `--no-proxy`, `--proxy-url`                                                                            | Enable or disable direct harness proxy routing                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--section`                                                                                                        | Select `all`, `agent`, `network`, `github`, `git`, `proxy`, `env`, `plugins`, or `tools`                                                                                                                                                                                                                                                                                                                                                                                         |
+| `--plugin-harness`                                                                                                 | Restrict setup plugin actions to one harness                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `--claude-marketplace`, `--codex-marketplace`, `--claude-plugin`, `--codex-plugin`                                 | Repeatable native source and plugin selections                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--remove-claude-marketplace`, `--remove-codex-marketplace`                                                        | Repeatable source removal                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--disable-claude-plugin`, `--disable-codex-plugin`                                                                | Repeatable disablement                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `--uninstall-claude-plugin`, `--uninstall-codex-plugin`                                                            | Repeatable removal                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `--reuse-marketplaces`                                                                                             | Reuse the first harness's marketplace sources for the other selected harnesses in this operation                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--plugins` / `--no-plugins`, `--claude-plugins` / `--no-claude-plugins`, `--codex-plugins` / `--no-codex-plugins` | Permit or skip selected plugin work; enabling does not select a plugin                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `--github` / `--no-github`, `--git-identity` / `--no-git-identity`                                                 | Permit or skip optional GitHub authentication or Git/Jujutsu identity                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `--git-name`, `--git-email`, `--git-committer-name`, `--git-committer-email`                                       | Set explicit Git identity independently of GitHub authentication                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--with-pair-code` (per-agent alias such as `--with-t3-pair-code`)                                                 | Create and disclose a fresh code on the normal agent URL                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `show --inspect`                                                                                                   | Inspect live guest configuration; may wake the guest and take longer                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `setup --section tools --update`                                                                                   | Explicitly update managed developer tools in place; running services are not restarted                                                                                                                                                                                                                                                                                                                                                                                           |
 
 `--quiet` suppresses routine progress and informational status; warnings, errors, prompts and final results remain. Explicit `--verbose` diagnostics still appear on stderr with quiet.
 
@@ -256,23 +314,23 @@ Options are command-specific: configuration flags belong to create/setup, and re
 
 ### Interactive Navigation
 
-`show` offers details, pairing, inspection, section configuration, URL copying, and termination. **Copy T3 URL** writes to the clipboard without opening a browser. **Inspect workstation** shows progress and grouped service, networking, harness, plugin, and provider results; it can take tens of seconds when waking the guest or initializing harnesses.
+`show` offers details, pairing, inspection, section configuration, URL copying, and termination. **Copy {agent} URL** (for example **Copy T3 Code URL**) writes to the clipboard without opening a browser. **Inspect workstation** shows progress and grouped service, networking, harness, plugin, and provider results; it can take tens of seconds when waking the guest or initializing harnesses.
 
 Escape returns to the labelled parent menu before changes begin; Ctrl+C requests cooperative cancellation and recovery. A second interrupt forces exit 130; pending remote work may continue, so inspect any reported resource before retrying. Plugin actions survive local back steps. After setup changes the guest, stopping reports incomplete setup instead of replaying mutations.
 
 Selectors explain disabled choices and require confirmation before accepting an empty multi-selection. With an active search, type spaces normally and press Tab to toggle; when search is empty, Space also toggles. Hidden-item counts indicate scrolling. Secret entry always displays a fixed `(hidden)` mask.
 
-The **Tailscale** section separates guest networking from **Replace saved API key on this computer**, which changes a shared local credential. **Managed tools** defaults to recorded versions; **Update tools now** asks for confirmation. Git identity offers keep/edit/skip with existing values as defaults and previous-field navigation.
+The **Network** section separates guest networking from **Replace saved API key on this computer**, which changes a shared local credential. **Managed tools** defaults to recorded versions; **Update tools now** asks for confirmation. Git identity offers keep/edit/skip with existing values as defaults and previous-field navigation.
 
 ### Example: Inspect and Pair a Workstation
 
 List managed workstations, read provider details, then request live readiness or a fresh client pairing when needed:
 
 ```bash
-agent-sprite list --env .env --json
-agent-sprite show my-workstation --env .env --json
-agent-sprite doctor my-workstation --env .env --json
-agent-sprite show my-workstation --env .env --with-t3-pair-code
+open-agent list --env .env --json
+open-agent show my-workstation --env .env --json
+open-agent doctor my-workstation --env .env --json
+open-agent show my-workstation --env .env --with-pair-code
 ```
 
 `list` and ordinary `show` do not wake the guest. Add `--inspect` to show for explicit guest checks, or `--json` to the pairing command for structured output. The executable flushes both streams before exiting.
@@ -282,7 +340,7 @@ agent-sprite show my-workstation --env .env --with-t3-pair-code
 Register the same GitHub marketplace independently for both harnesses, then enable the selected native plugin identities:
 
 ```bash
-agent-sprite setup my-workstation --env .env \
+open-agent setup my-workstation --env .env \
   --claude-marketplace alvis/.agents --codex-marketplace alvis/.agents \
   --claude-plugin essential@alvis --claude-plugin coding@alvis \
   --claude-plugin specification@alvis --claude-plugin governance@alvis \
@@ -293,33 +351,33 @@ agent-sprite setup my-workstation --env .env \
 Explicit plugin actions infer `--section plugins`; a conflicting section errors. All four marketplace/plugin input flags and every removal/disable/uninstall action are repeatable. A selection for one harness does not select it for the other.
 
 ```bash
-agent-sprite setup my-workstation --env .env \
+open-agent setup my-workstation --env .env \
   --disable-claude-plugin coding@alvis \
   --uninstall-codex-plugin coding@alvis
 ```
 
-`--reuse-claude-marketplaces` reuses sources only for the requested operation. Skip flags alone select no operation. Unrelated native settings and plugins are preserved.
+`--reuse-marketplaces` replaces `--reuse-claude-marketplaces`. It takes the marketplace sources of the first harness, in catalog order, that has any and applies them once to the other selected harnesses; it reuses sources only for the requested operation. Skip flags alone select no operation. Unrelated native settings and plugins are preserved.
 
 ### Example: Recover or Update a Workstation
 
 Recover an incomplete installation or explicitly refresh managed tools:
 
 ```bash
-agent-sprite setup my-workstation --env .env --section all
-agent-sprite setup my-workstation --env .env --section tools --update
+open-agent setup my-workstation --env .env --section all
+open-agent setup my-workstation --env .env --section tools --update
 ```
 
-Full setup updates tools, restarts services, and configures all areas. For a smaller repair, select the relevant section, such as `--section github`. Failures include bounded redacted diagnostics, the failed section, and a retry command. A successful targeted retry does not establish full readiness or clear the global incomplete-setup marker.
+Full setup updates tools and configures all areas. For a smaller repair, select the relevant section, such as `--section github`. Failures include bounded redacted diagnostics, the failed section, and a retry command. A successful targeted retry does not establish full readiness or clear the global incomplete-setup marker.
 
-A failed create retains a visible resource and reports its identity. Recover it instead of creating another machine blindly. Interactive full setup preserves installed integration choices as Enter defaults; new creation defaults to disabled integrations when unresolved. Explicitly disable managed routing with `--no-proxy` or `--no-tailscale`.
+A failed create retains a visible resource and reports its identity. Recover it instead of creating another machine blindly. Interactive full setup preserves the recorded profile as Enter defaults; new creation defaults to no network and no proxy when unresolved. Explicitly disable managed routing with `--no-proxy` or `--network none`.
 
-Termination permanently deletes the selected managed Sprite. The CLI validates its exact identity before deletion and reports associated tailnet cleanup separately; cleanup requires its own management authorization.
+Termination permanently deletes the selected managed workstation. The CLI validates its exact identity before deletion and reports associated network cleanup separately; cleanup requires its own management authorization.
 
 ---
 
 ## 📚 CLI Reference
 
-The package exposes the `agent-sprite` executable. It has no importable SDK surface. Run `agent-sprite --version` without authentication, and use command-specific `--help` for accepted flags and value labels.
+The package exposes the `open-agent` executable. It has no importable SDK surface. Run `open-agent --version` without authentication, and use command-specific `--help` for accepted flags and value labels.
 
 ### Output and Exit Codes
 
@@ -331,7 +389,7 @@ The package exposes the `agent-sprite` executable. It has no importable SDK surf
 | Progress and verbose diagnostics | stderr; diagnostics redact resolved secrets                                                                     |
 | Piped `list`                     | Headerless TSV, one workstation per line; an empty list emits no text                                           |
 
-TSV column order is `name`, `id`, `state`, `createdAt`, `t3Url`, `setup`, `organization`. Missing values are empty. Backslashes, tabs, line feeds, carriage returns, ESC and CSI characters are escaped as `\\`, `\t`, `\n`, `\r`, `\u001b` and `\u009b`, so a field cannot split a record or inject ANSI control sequences. `--json` takes precedence over TSV.
+TSV column order is `name`, `id`, `state`, `createdAt`, `agentUrl`, `setup`, `organization`, `provider`. Each unavailable provider adds an `Unavailable provider NAME: REASON` line on stderr, and `--json` lists it under `unavailable` with its `provider`, error `code` and `reason`. When every provider fails with the same error code, `list` exits with that code. Missing values are empty. Backslashes, tabs, line feeds, carriage returns, ESC and CSI characters are escaped as `\\`, `\t`, `\n`, `\r`, `\u001b` and `\u009b`, so a field cannot split a record or inject ANSI control sequences. `--json` takes precedence over TSV.
 
 | Exit  | Meaning                                                                    |
 | ----- | -------------------------------------------------------------------------- |
@@ -344,20 +402,20 @@ JSON `error.code` is one of `USAGE`, `INPUT`, `AUTH`, `PREFLIGHT`, `CONFLICT`, `
 
 ### JSON Payloads
 
-Successful results use `{ "schemaVersion": 1, "command": "…", "ok": true, "data": { … } }`. Optional fields are omitted when unavailable. A workstation summary contains `id`, `name`, `organization`, `state`, `setup` and `readiness: "not inspected"`, plus optional `createdAt` and `t3Url`. Automation keeps the field name `machine` even though the terminal calls it a workstation.
+Successful results use `{ "schemaVersion": 1, "command": "…", "ok": true, "data": { … } }`. Optional fields are omitted when unavailable. A workstation summary contains `id`, `name`, `organization`, `state`, `setup` and `readiness: "not inspected"`, plus optional `createdAt`, `agentUrl`, the recorded `profile` and `machine`, the size the workstation runs on as `{ label, cpus, memoryGb }` (for example `shared-cpu-2x`, 2 CPUs, 2 GB). The minimums a workstation was created or last resized with are `manifest.profile.options.minCpus` and `minMemoryGb` in `show --inspect` and `doctor`. Automation keeps the field name `machine` even though the terminal calls it a workstation.
 
 | Command     | Fields in `data`                                                                                                                                                                                                               |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `create`    | `machine`, `preflight`, `integrations`, `readiness`, `tailscale`, `hub`, `services`, `native`, `pairing`; optional `retainedCredentials`                                                                                       |
-| `list`      | `machines`, an array of live workstation summaries                                                                                                                                                                             |
+| `create`    | `machine`, `preflight`, `integrations`, `readiness`, `network`, `hub`, `services`, `native`, `pairing`; optional `retainedCredentials`                                                                                         |
+| `list`      | `machines`, an array of live workstation summaries each with its `provider`, and `unavailable`, an array of `{ provider, code, reason }` for providers that could not be listed                                                |
 | `show`      | `machine`; optional `inspection`, `pairing`, or interactive `action: "copy"`                                                                                                                                                   |
 | `setup`     | Guest setup: `machine`, `section`, the section fields below, and optional `retainedCredentials`. Local credential replacement: `localCredential` with `status`, `scope`, optional `storage` and `fallbackReason`; no `machine` |
-| `doctor`    | `machine`, `currentReadiness` with readiness findings, `tailscale`, `hub`, `native`, `services`, and `manifest`                                                                                                                |
-| `terminate` | `machine`, `sprite` with `status: "deleted"`, `id` and `name`, and `tailnet` with cleanup `status` and optional `deviceId`/`tailnetIp`                                                                                         |
+| `doctor`    | `machine`, `currentReadiness` with readiness findings, `network`, `hub`, `native`, `services`, and `manifest`                                                                                                                  |
+| `terminate` | `machine`, `workstation` with `status: "deleted"`, `id` and `name`, and `network` with cleanup `status` and optional `deviceId`/`address`                                                                                      |
 
-Guest setup section fields are `pairing` and optional `service` for `t3`; `tailscale` for `tailscale`; `github` for `github`; `gitIdentity` for `git`; `proxy` for `proxy`; `runtimeEnvironment` with variable **names** for `env`; `plugins` with independent `claude`/`codex` outcomes for `plugins`; and `tools` for `tools`. Section `all` combines the selected section outcomes. Tool results distinguish `updated`, `unchanged`, and recorded version/time details. Services report names and states without executable arguments.
+Guest setup section fields are `pairing` and optional `service` for `agent`; `network` for `network`; `github` for `github`; `gitIdentity` for `git`; `proxy` for `proxy`; `runtimeEnvironment` with variable **names** for `env`; `plugins` with an independent outcome per harness for `plugins`; and `tools` for `tools`. Section `all` combines the selected section outcomes. Tool results distinguish `updated`, `unchanged`, and recorded version/time details. Services report names and states without executable arguments.
 
-Failures use `{ "schemaVersion": 1, "command": "…", "ok": false, "error": { "code": "…", "message": "…" } }`; `command` is `null` when parsing cannot identify it. `error` may include redacted `details`, `machine`, `machineId`, `setupIncomplete` and `outcome: "retained" | "absent" | "unknown"`. Optional failure `data` retains observed facts: create preflight/readiness/recovery, setup readiness/recovery, doctor readiness, or terminate deletion/cleanup outcomes. A failure can therefore identify a retained workstation or a Sprite already deleted before tailnet cleanup failed.
+Failures use `{ "schemaVersion": 1, "command": "…", "ok": false, "error": { "code": "…", "message": "…" } }`; `command` is `null` when parsing cannot identify it. `error` may include redacted `details`, `machine`, `machineId`, `setupIncomplete` and `outcome: "retained" | "absent" | "unknown"`. Optional failure `data` retains observed facts: create preflight/readiness/recovery, setup readiness/recovery, doctor readiness, or terminate deletion/cleanup outcomes. A failure can therefore identify a retained workstation or a workstation already deleted before network cleanup failed.
 
 Pairing disclosure is opt-in and structurally marked. Other resolved credentials remain redacted from final results, diagnostics and recovery messages. A failed command can retain a workstation; inspect the reported identity before retrying a mutation.
 
@@ -365,13 +423,15 @@ Pairing disclosure is opt-in and structurally marked. Other resolved credentials
 
 ## 🔧 Maintenance
 
-A managed Sprite runs `t3-code` and `agent-sprite-cron`, plus `tailscaled` when Tailscale is enabled. T3 is the only public HTTP service; administration uses authenticated provider interfaces.
+A managed Sprite runs `t3-code` and `open-agent-cron`, plus `tailscaled` when Tailscale is enabled. T3 is the only public HTTP service; administration uses authenticated provider interfaces.
 
-Cron checks every **30 minutes** while the Sprite runs. After **seven days** since the last successful update, it installs latest stable managed tools and immediately restarts the managed T3/Tailscale services in dependency order. Success time advances only after installation and required restarts succeed.
+A Fly Machine has no service manager of its own, so its boot script runs the guest supervisor, `/opt/open-agent/bin/open-agent-supervisor`, as root. The supervisor runs `t3-code` and `tailscaled` as their declared accounts, starting a service only once the services it needs run, restarts an exited service after a delay that doubles from one second up to a limit, and keeps the desired services on the volume, so a cold boot restores the running ones and leaves the stopped ones stopped. Registering an unchanged service keeps its process. It runs no file another account can change as root. In place of cron, its maintenance timer starts the same update gate every minute and runs the idle governor's tick at least every three minutes; no cron is installed there. The supervisor logs service starts and exits, governor decisions and timer failures to `/opt/open-agent/supervisor.log`, each service's output goes to `/opt/open-agent/supervisor/logs/<name>.log`, and `doctor` reports the timer as `open-agent-timer` under Maintenance.
+
+Cron (the supervisor's timer on a Fly Machine) checks every **30 minutes** by default while the workstation runs, and after **seven days** by default since the last successful update it installs the latest managed tools in place; the agent follows the dist-tag of its recorded release channel (`stable` unless another was selected), which the root-owned component catalog carries to every scheduled or forced update. Both are configurable with `--update-check-minutes` (a whole number from 1 to 10080) and `--update-due-days` (a whole number from 1 to 365), and `setup --section tools` or `setup --section all` changes them on a live workstation without restarting a service. A tools run that only changes an interval stores it and installs the schedule in one step and reports `tools: "scheduled"`; an interval that matches the recorded one changes nothing, so the interactive tools menu and the `--update` requirement behave as before, and a later `setup --section tools --update` redeploys the gate and the cron entry with the refreshed tools. The check interval is exact for every value, not only divisors of 60: cron starts a small shell gate every minute, the gate compares the epoch minute against the minute it last let a check through, and Node starts only when the interval has elapsed. The interval lives in one root-owned file, `/opt/open-agent/update-check-minutes`, that the host writes from the stored profile; the updater reads the due days from the stored profile and falls back to seven when it cannot. The cron entry discards all output, so the updater records any such fallback, and an unusable interval file, as `lastUpdateDiagnostic` in the manifest, which `show --inspect` and `doctor` report under Maintenance. The updater never stops, starts, restarts, registers or deletes a service, so a running agent or network daemon keeps its process; a newly installed version runs the next time the service restarts, which `setup --section agent --release CHANNEL` and `setup --section all` do when the release channel changed. `show --inspect` and `doctor` report the channel as `Agent release channel`. Success time advances only after every required install succeeds.
 
 Updates can interrupt active work. There are no compatibility, staging, or safe-point gates. Project dependencies, the guest distribution, and the Sprites runtime are outside the maintenance scope.
 
-Native work hooks and managed setup/update tasks acquire bounded activity holds. Idle cron does not. Arbitrary shells, third-party tools, and paths bypassing hooks may not keep the Sprite awake.
+**Staying awake.** One idle governor decides how long the workstation stays awake, from what the harnesses and the managed operations report. A Claude Code or Codex hook runs the root-owned `/opt/open-agent/bin/open-agent-awake` command: a prompt (`UserPromptSubmit`) opens a **turn hold**, every tool call (`PreToolUse`) is a **heartbeat** that refreshes it, and the end of the turn (`Stop`, `SessionEnd`) closes it. Managed setup, update and transaction work opens a **managed hold** of its own, refreshed while the work runs and dropped once its process has exited. The workstation stays awake until the later of the last heartbeat plus the idle timeout (`--idle-minutes`, default 5) and the latest open hold, and no hold lasts longer than `--hold-max-minutes` (default 60) after its last refresh. A turn whose end hook never fires therefore lapses at that maximum instead of holding the Sprite for ever. On Sprite the deadline is mirrored into a Sprite task (`open-agent-awake`) that expires at the deadline and is removed when nothing keeps the workstation awake; a Sprite task cannot last more than 60 minutes, so `create` refuses an idle timeout or hold maximum above 60 for Sprite. The command never fails a turn: it exits 0 within eight seconds whatever happens, and every hook allows ten. `show --inspect` and `doctor` report the governor (last heartbeat, open holds, deadline, last adapter result) and whether each harness has all four awake hooks installed. Idle cron acquires no hold. Arbitrary shells, third-party tools, and paths bypassing hooks may not keep the Sprite awake.
 
 ---
 
@@ -379,7 +439,7 @@ Native work hooks and managed setup/update tasks acquire bounded activity holds.
 
 Paid model turns, billing, soak, outage and concurrency experiments are outside the verification scope. Ordinary paid thread startup, MCP activity and native hooks during model turns remain outside the verified scope.
 
-Focused tests mock only `@fly/sprites` and use real temporary-file native configuration merges. They do not claim exhaustive integration coverage. Selected-source coverage remains below 100%; focused coverage was explicitly accepted with the configured thresholds unchanged. OS credential, interactive, network, and unreachable validated-guard paths retain documented coverage gaps.
+Focused tests replace only `@fly/sprites` and the Fly Machines HTTP API, and use real temporary-file native configuration merges. They do not claim exhaustive integration coverage. Selected-source coverage remains below 100%; focused coverage was explicitly accepted with the configured thresholds unchanged. OS credential, interactive, network, and unreachable validated-guard paths retain documented coverage gaps.
 
 ---
 
@@ -395,4 +455,11 @@ pnpm test
 pnpm test:e2e
 ```
 
-Presetter 9.1 owns generated configuration with ESM, strict, and React presets. Unit specs mirror source paths and may mock only `@fly/sprites`. The dedicated end-to-end project runs the packed, installed executable and uses `node-pty` for real terminal input. The same packed runner powers `pnpm run local`; checkout aliases are never rewritten for execution.
+The live suite runs against real providers and cleans up after itself. It reads `.env`, or the file `OPEN_AGENT_LIVE_ENV` names. The Fly Machine probe is a separate project that also needs `FLY_API_TOKEN` there and sweeps the organization's run-prefixed Fly apps:
+
+```bash
+pnpm test:live
+pnpm test:live:fly
+```
+
+Presetter 9.1 owns generated configuration with ESM, strict, and React presets. Unit specs mirror source paths and may replace only provider boundaries: `@fly/sprites`, and the Fly Machines API through `fetch`. The dedicated end-to-end project runs the packed, installed executable and uses `node-pty` for real terminal input. The same packed runner powers `pnpm run local`; checkout aliases are never rewritten for execution.

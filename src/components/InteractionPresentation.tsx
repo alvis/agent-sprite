@@ -9,6 +9,7 @@ import type { ReactElement } from 'react';
 import type {
   InteractionChoice,
   InteractionPrompt,
+  SecretInputPrompt,
   ProgressUpdate,
   StatusUpdate,
   TextInputPrompt,
@@ -79,7 +80,7 @@ export function inputPromptElement(
  * @returns masked entry without prefilled plaintext
  */
 export function secretPromptElement(
-  prompt: InteractionPrompt,
+  prompt: SecretInputPrompt,
   noColor: boolean,
   { onSubmit, onCancel }: PromptCallbacks<string>,
 ): ReactElement {
@@ -90,6 +91,7 @@ export function secretPromptElement(
       label={prompt.message}
       noColor={noColor}
       required={prompt.required}
+      validate={prompt.validate}
       onCancel={onCancel}
       onSubmit={onSubmit}
     />

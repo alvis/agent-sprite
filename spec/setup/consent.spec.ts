@@ -8,22 +8,34 @@ import { setupPlugins } from '#setup/plugins';
 import { setupTools } from '#setup/sections';
 
 import { driveInk } from '../fixtures/ink.js';
-import { createFilesystemSprite } from '../mocks/sprites.js';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+import {
+  createFilesystemSprite,
+  guestOf,
+  workstationOf,
+} from '../mocks/sprites.js';
 
 import type { Sprite } from '@fly/sprites';
 
 import type { SetupContext } from '#setup/context';
 
-const disabled = { tailscale: false, exitNode: false, cliproxyapi: false };
-
 function setupContext(
+  sprite: Sprite,
   options: SetupContext['options'],
 ): Omit<SetupContext, 'interaction'> {
   return {
+    ...workstationOf(sprite),
     options,
-    input: { integrations: disabled, runtimeEnv: {}, sources: {}, missing: [] },
-    integrations: disabled,
-    tailscaleEnrolled: false,
+    input: {
+      profile: DISABLED_NETWORK_PROFILE,
+      runtimeEnv: {},
+      sources: {},
+      missing: [],
+    },
+    profile: DISABLED_NETWORK_PROFILE,
+    persistsProfile: false,
+    isReleaseChanged: false,
+    networkEnrolled: false,
     initialInstallation: true,
     mutation: { started: false },
   };
@@ -32,16 +44,17 @@ function setupContext(
 describe('fn:setupTools consent', () => {
   it('should leave a selected update unchanged when real Ink consent is declined', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-tools-decline-'),
+      join(tmpdir(), 'open-agent-tools-decline-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
-    const context = setupContext({});
+    const context = setupContext(sprite, {});
     const observed = await driveInk(
-      async (interaction) => setupTools(sprite, { ...context, interaction }),
+      async (interaction) =>
+        setupTools(guestOf(sprite), { ...context, interaction }),
       [
         { waitFor: 'Managed tools', input: 'Update tools now' },
         { waitFor: 'Search: Update tools now', input: '\r' },
-        { waitFor: 'Install latest stable tools and restart', input: 'n' },
+        { waitFor: 'Install latest stable tools now', input: 'n' },
       ],
     );
 
@@ -53,9 +66,9 @@ describe('fn:setupTools consent', () => {
 
   it('should apply the selected guest update under --yes without host updater execution', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-tools-yes-'),
+      join(tmpdir(), 'open-agent-tools-yes-'),
     );
-    await mkdir(join(directory.path, 'opt/agent-sprite'), { recursive: true });
+    await mkdir(join(directory.path, 'opt/open-agent'), { recursive: true });
     const sprite = createFilesystemSprite({
       root: directory.path,
       execute: vi.fn<Sprite['execFile']>(async () => ({
@@ -64,9 +77,10 @@ describe('fn:setupTools consent', () => {
         exitCode: 0,
       })),
     });
-    const context = setupContext({ yes: true });
+    const context = setupContext(sprite, { yes: true });
     const observed = await driveInk(
-      async (interaction) => setupTools(sprite, { ...context, interaction }),
+      async (interaction) =>
+        setupTools(guestOf(sprite), { ...context, interaction }),
       [
         { waitFor: 'Managed tools', input: 'Update tools now' },
         { waitFor: 'Search: Update tools now', input: '\r' },
@@ -78,11 +92,13 @@ describe('fn:setupTools consent', () => {
     expect(context.mutation.started).toBe(true);
     expect(sprite.spawn).toHaveBeenCalledWith(
       '/usr/bin/sudo',
-      expect.arrayContaining(['agent-sprite-transaction', '1']),
+      expect.arrayContaining(['open-agent-transaction', '1']),
       { tty: false },
     );
     expect(
-      await sprite.filesystem().exists('/opt/agent-sprite/install-tools.js'),
+      await sprite
+        .filesystem()
+        .exists('/opt/open-agent/guest/install-tools.js'),
     ).toBe(true);
   });
 });
@@ -90,20 +106,21 @@ describe('fn:setupTools consent', () => {
 describe('fn:setupPlugins removal consent', () => {
   it('should not queue an unapproved marketplace removal', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-plugin-decline-'),
+      join(tmpdir(), 'open-agent-plugin-decline-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
-    const context = setupContext({ harness: 'claude' });
+    const context = setupContext(sprite, { pluginHarness: 'claude' });
     const observed = await driveInk(
-      async (interaction) => setupPlugins(sprite, { ...context, interaction }),
+      async (interaction) =>
+        setupPlugins(guestOf(sprite), { ...context, interaction }),
       [
-        { waitFor: 'claude plugin action', input: 'Remove marketplace' },
+        { waitFor: 'Claude plugin action', input: 'Remove marketplace' },
         { waitFor: 'Search: Remove marketplace', input: '\r' },
         { waitFor: 'Native marketplace source/ref', input: 'old-market' },
         { waitFor: 'old-market', input: '\r' },
-        { waitFor: 'Remove old-market from claude?', input: 'n' },
+        { waitFor: 'Remove old-market from Claude?', input: 'n' },
         {
-          waitFor: 'claude plugin action',
+          waitFor: 'Claude plugin action',
           input: 'Apply queued actions and finish',
         },
         { waitFor: 'Search: Apply queued actions and finish', input: '\r' },
@@ -118,9 +135,9 @@ describe('fn:setupPlugins removal consent', () => {
 
   it('should apply an explicitly selected removal under --yes', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'agent-sprite-plugin-yes-'),
+      join(tmpdir(), 'open-agent-plugin-yes-'),
     );
-    await mkdir(join(directory.path, 'opt/agent-sprite'), { recursive: true });
+    await mkdir(join(directory.path, 'opt/open-agent'), { recursive: true });
     const sprite = createFilesystemSprite({
       root: directory.path,
       execute: vi.fn<Sprite['execFile']>(async (_file, args = []) => ({
@@ -132,16 +149,20 @@ describe('fn:setupPlugins removal consent', () => {
         exitCode: 0,
       })),
     });
-    const context = setupContext({ harness: 'claude', yes: true });
+    const context = setupContext(sprite, {
+      pluginHarness: 'claude',
+      yes: true,
+    });
     const observed = await driveInk(
-      async (interaction) => setupPlugins(sprite, { ...context, interaction }),
+      async (interaction) =>
+        setupPlugins(guestOf(sprite), { ...context, interaction }),
       [
-        { waitFor: 'claude plugin action', input: 'Remove marketplace' },
+        { waitFor: 'Claude plugin action', input: 'Remove marketplace' },
         { waitFor: 'Search: Remove marketplace', input: '\r' },
         { waitFor: 'Native marketplace source/ref', input: 'old-market' },
         { waitFor: 'old-market', input: '\r' },
         {
-          waitFor: 'claude plugin action',
+          waitFor: 'Claude plugin action',
           input: 'Apply queued actions and finish',
         },
         { waitFor: 'Search: Apply queued actions and finish', input: '\r' },

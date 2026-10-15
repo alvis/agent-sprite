@@ -2,11 +2,33 @@ import { Sprite, SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
 import { prepareResult } from '#cli/output';
+import {
+  MANAGED_LABEL,
+  SETUP_INCOMPLETE_LABEL,
+} from '#drivers/providers/sprite/labels';
 import { CommandFault } from '#errors';
 import { resolveSecret } from '#input/sources';
-import { SETUP_INCOMPLETE_LABEL, MANAGED_LABEL } from '#integrations/sprites';
 import { InteractionExit } from '#navigation';
 import { setupFailure } from '#setup/failure';
+
+import { providerOf } from '../mocks/sprites.js';
+
+import type { WorkstationRecord } from '#drivers/contracts';
+
+/**
+ * binds a provider to one Sprite and returns its verified record
+ * @param sprite Sprite the provider lookup returns
+ * @returns the bound provider and the workstation record it returned
+ */
+async function bindWorkstation(sprite: Sprite): Promise<{
+  provider: ReturnType<typeof providerOf>;
+  workstation: WorkstationRecord;
+}> {
+  vi.spyOn(sprite.client, 'getSprite').mockResolvedValue(sprite);
+  const provider = providerOf(sprite.client);
+
+  return { provider, workstation: await provider.get(sprite.name) };
+}
 
 describe('fn:setupFailure', () => {
   it('should report stopped setup as incomplete after changes and preserve unrelated labels', async () => {
@@ -14,6 +36,7 @@ describe('fn:setupFailure', () => {
       new Sprite('primary', new SpritesClient('test-token')),
       {
         id: 'sprite-primary',
+        organizationName: 'test-organization',
         labels: [MANAGED_LABEL, 'unrelated'],
       },
     );
@@ -23,7 +46,7 @@ describe('fn:setupFailure', () => {
     Object.assign(sprite, { update });
 
     const result = await setupFailure({
-      sprite,
+      ...(await bindWorkstation(sprite)),
       error: new InteractionExit('back'),
       mutation: { started: true },
     });
@@ -54,6 +77,7 @@ describe('fn:setupFailure', () => {
       new Sprite('primary', new SpritesClient('test-token')),
       {
         id: 'sprite-primary',
+        organizationName: 'test-organization',
         labels: [MANAGED_LABEL],
       },
     );
@@ -67,10 +91,10 @@ describe('fn:setupFailure', () => {
     });
 
     const result = await setupFailure({
-      sprite,
+      ...(await bindWorkstation(sprite)),
       error: primary,
       mutation: { started: true },
-      section: 't3',
+      section: 'agent',
     });
 
     expect(result).toMatchObject({
@@ -87,8 +111,8 @@ describe('fn:setupFailure', () => {
           expect.stringContaining('label write refused'),
           expect.stringContaining('prior setup cause'),
           expect.stringContaining('incomplete label could not be confirmed'),
-          'Failed setup section: t3',
-          'Retry: agent-sprite setup "primary" --section t3',
+          'Failed setup section: agent',
+          'Retry: open-agent setup "primary" --section agent',
         ],
       },
     });
@@ -112,12 +136,15 @@ describe('fn:setupFailure', () => {
 
   it('should redact actual setup failures without marking untouched guests incomplete', async () => {
     const secret = await resolveSecret(undefined, 'saf08-setup-resolved-key');
-    const sprite = Object.assign(
-      new Sprite('primary', new SpritesClient('test-token')),
-      { id: 'sprite-primary' },
-    );
     const result = await setupFailure({
-      sprite,
+      provider: providerOf(new SpritesClient('test-token')),
+      workstation: {
+        id: 'sprite-primary',
+        name: 'primary',
+        organization: 'test-organization',
+        state: 'running',
+        metadata: { setup: 'not recorded' },
+      },
       error: new Error(`rejected ${secret}`),
       mutation: { started: false },
       section: 'github',
@@ -129,7 +156,7 @@ describe('fn:setupFailure', () => {
         code: 'UNEXPECTED',
         details: [
           'Failed setup section: github',
-          'Retry: agent-sprite setup "primary" --section github',
+          'Retry: open-agent setup "primary" --section github',
         ],
       },
     });

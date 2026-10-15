@@ -4,13 +4,14 @@ import { commandError } from '#errors';
 import { resolveInteractiveInputs } from '#input/prompts';
 
 import { driveInk } from '../fixtures/ink.js';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 
 import type { ResolvedInputs } from '#input';
 
 /** fresh local input state without provider or credential-store access */
 function emptyInput(): ResolvedInputs {
   return {
-    integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
+    profile: DISABLED_NETWORK_PROFILE,
     runtimeEnv: {},
     sources: {},
     missing: [],
@@ -86,10 +87,10 @@ describe('fn:resolveInteractiveInputs', () => {
         await resolveInteractiveInputs(input, {
           options: { localCredentials: false },
           interaction,
-          required: ['spritesToken'],
+          required: ['providerToken'],
         });
 
-        return input.spritesToken;
+        return input.providerToken;
       },
       [{ waitFor: 'Sprites API token', input: ['Bad_Name', '\r'] }],
     );

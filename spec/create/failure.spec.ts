@@ -4,12 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { prepareResult } from '#cli/output';
 import { serializeResult } from '#cli/serialization';
 import { creationOutcome } from '#create/failure';
-import {
-  createManagedSprite,
-  MANAGED_LABEL,
-  SCHEMA_LABEL,
-} from '#integrations/sprites';
+import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { rememberSecret } from '#utilities/redaction';
+
+import {
+  DEFAULT_AGENT_PORT,
+  DISABLED_NETWORK_PROFILE,
+} from '../fixtures/profile.js';
+import { providerOf } from '../mocks/sprites.js';
 
 describe('cmd:create failure', () => {
   it('should retain verified preflight, exact name and immutable ID after an uncertain provider create', async () => {
@@ -27,12 +29,14 @@ describe('cmd:create failure', () => {
       reminders: ['complete setup before use'],
     };
 
-    const result = await createManagedSprite(client, sprite.name).then(
-      () => {
-        throw new Error('Expected provider creation to fail');
-      },
-      (error: unknown) => creationOutcome(error, preflight),
-    );
+    const result = await providerOf(client)
+      .create(sprite.name, DISABLED_NETWORK_PROFILE, DEFAULT_AGENT_PORT)
+      .then(
+        () => {
+          throw new Error('Expected provider creation to fail');
+        },
+        (error: unknown) => creationOutcome(error, preflight),
+      );
 
     expect(result).toMatchObject({
       command: 'create',
@@ -62,13 +66,18 @@ describe('cmd:create failure', () => {
       new Error('reconciliation unavailable'),
     );
 
-    const result = await createManagedSprite(client, 'new-workstation').then(
-      () => {
-        throw new Error('Expected provider creation to fail');
-      },
-      (error: unknown) =>
-        creationOutcome(error, { checks: ['name was checked'], reminders: [] }),
-    );
+    const result = await providerOf(client)
+      .create('new-workstation', DISABLED_NETWORK_PROFILE, DEFAULT_AGENT_PORT)
+      .then(
+        () => {
+          throw new Error('Expected provider creation to fail');
+        },
+        (error: unknown) =>
+          creationOutcome(error, {
+            checks: ['name was checked'],
+            reminders: [],
+          }),
+      );
 
     expect(result).toMatchObject({
       command: 'create',
@@ -97,12 +106,14 @@ describe('cmd:create failure', () => {
       .spyOn(client, 'getSprite')
       .mockRejectedValue(new APIError('missing', { statusCode: 404 }));
     const preflight = { checks: ['name was checked'], reminders: [] };
-    const result = await createManagedSprite(client, 'absent-machine').then(
-      () => {
-        throw new Error('Expected provider creation to fail');
-      },
-      (error: unknown) => creationOutcome(error, preflight),
-    );
+    const result = await providerOf(client)
+      .create('absent-machine', DISABLED_NETWORK_PROFILE, DEFAULT_AGENT_PORT)
+      .then(
+        () => {
+          throw new Error('Expected provider creation to fail');
+        },
+        (error: unknown) => creationOutcome(error, preflight),
+      );
 
     expect(create).toHaveBeenCalledOnce();
     expect(lookup).toHaveBeenCalledOnce();
@@ -123,7 +134,7 @@ describe('cmd:create failure', () => {
     const json = prepareResult(result, { json: true });
     expect(human.channel).toBe('stderr');
     expect(human.text).toContain(
-      'Provider lookup confirmed this Sprite is absent',
+      'Provider lookup confirmed this workstation is absent',
     );
     expect(json.channel).toBe('stdout');
     expect(JSON.parse(json.text)).toMatchObject({

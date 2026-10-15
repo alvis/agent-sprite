@@ -21,7 +21,7 @@ Map `#*` to `src/*.ts` and `#components/*` to `src/components/*.tsx` in the deve
 
 Keep the package private until a separately authorised release. Expose its executable without SDK export metadata. Validate the real tarball's manifest and payload closure rather than changing checkout aliases to make compiled execution pass.
 
-Use `scripts/packed-cli.mjs` for `pnpm run local --` and installed end-to-end tests. Build, pack and install a temporary tarball, then execute its installed bin while preserving the caller's arguments, environment, working directory, signals and exit status. Do not use checkout-bin execution or `pnpm link` as a substitute.
+Use `scripts/packed-cli.ts` for `pnpm run local --` and installed end-to-end tests. Build, pack and install a temporary tarball, then execute its installed bin while preserving the caller's arguments, environment, working directory, signals and exit status. Do not use checkout-bin execution or `pnpm link` as a substitute.
 
 Use focused source-mirrored unit specs for in-process behavior; only the official Sprites SDK may be mocked there. Unmocked packaged end-to-end tests and native PTYs verify actual parsing, output and terminal lifetimes.
 

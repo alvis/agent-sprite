@@ -1,6 +1,8 @@
-import { readLocalCredential } from '#integrations/credentials';
-
-import { proxyUrlProblems } from '#integrations/native/proxy-url';
+import { networkDriver } from '#core/networks';
+import { validateProfile } from '#core/profile';
+import { proxyUrlProblems } from '#drivers/shared/cliproxyapi/endpoints';
+import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
+import { CommandFault } from '#errors';
 
 import { resolveBaseInputs } from './input/base.js';
 import {
@@ -8,28 +10,33 @@ import {
   resolveGitIdentity,
   selectGithubToken,
 } from './input/github.js';
-import {
-  integrationRequirements,
-  resolveCreateIntegrations,
-} from './input/integrations.js';
 import { resolveInteractiveInputs } from './input/prompts.js';
 import {
-  readEnvironmentSources,
-  readInputSources,
-  resolveSecret,
-} from './input/sources.js';
+  resolveCreateSelection,
+  selectionRequirements,
+  suppliedSelectionViolations,
+} from './input/selection.js';
+import { readInputSources } from './input/sources.js';
 
 import type { CommandOptions, Interaction } from '#command/contracts';
 
+import type { WorkstationProfile } from '#core/profile';
 import type { CredentialStoreLocation } from '#integrations/credentials';
 
-import type { GuestIntegrations } from '#integrations/guest/types';
-
 import type { GithubTokenCandidate } from './input/github.js';
+import type {
+  Resolved,
+  SelectionResolution,
+  SuppliedSelection,
+} from './input/selection.js';
 import type { InputSources } from './input/sources.js';
 import type { ResolvedInputs, RequiredInput } from './input/types.js';
 
-export { retainManagementCredential } from './input/prompts.js';
+export {
+  retainEnteredProviderToken,
+  retainManagementCredential,
+} from './input/prompts.js';
+export { resolveProviderCredential } from './input/provider-credential.js';
 
 export type {
   GitIdentity,
@@ -39,14 +46,14 @@ export type {
 
 const BASE_CREATE_INPUTS: readonly RequiredInput[] = [
   'name',
-  'spritesToken',
+  'providerToken',
   'gitIdentity',
 ];
 
 interface ResolveInputsOptions {
   credentialStore?: CredentialStoreLocation;
   discoverGithub?: boolean;
-  integrations?: GuestIntegrations;
+  profile?: WorkstationProfile;
   required?: readonly RequiredInput[];
   sources?: InputSources;
 }
@@ -70,10 +77,8 @@ export async function resolveInputs(
   const required = resolution.required ?? BASE_CREATE_INPUTS;
   const sources = resolution.sources ?? (await readInputSources(options));
   const { input, githubCandidate } = await resolveBaseInputs(options, sources, {
-    integrations: resolution.integrations,
-    tailscaleEnrollment:
-      required.includes('tailscaleEnrollment') ||
-      resolution.integrations?.tailscale === true,
+    profile: resolution.profile,
+    networkEnrollment: required.includes('networkEnrollment'),
     credentialStore: resolution.credentialStore,
   });
   await resolveInteractiveInputs(input, {
@@ -120,29 +125,95 @@ export async function resolveInputs(
 }
 
 /**
- * resolves optional-integration choices before any dependent create prompts
+ * resolves the driver selection in dependency order, validates it before any
+ * provider call, then resolves the inputs the selection needs
  * @param options parsed flags and explicit input sources
  * @param interaction optional inline choice prompts
- * @returns create inputs with requirements derived from the resolved choices
+ * @returns create inputs with requirements derived from the resolved selection
+ * @throws {CommandFault} when the selection violates the catalog or a driver capability
  */
 export async function resolveCreateInputs(
   options: CommandOptions,
   interaction?: Interaction,
 ): Promise<ResolvedInputs> {
-  const { sources, integrations, problems } = await resolveCreateIntegrations(
+  const sources = await readInputSources(options);
+  const resolution = await resolveCreateSelection({
     options,
+    sources,
     interaction,
-  );
-  const required = integrationRequirements(integrations, BASE_CREATE_INPUTS);
+  });
+  const profile = requireValidProfile(resolution, options);
+  const required = selectionRequirements(profile, BASE_CREATE_INPUTS);
 
-  const input = await resolveInputs(options, interaction, {
+  return resolveInputs(options, interaction, {
     required,
     discoverGithub: true,
-    integrations,
+    profile,
     sources,
   });
+}
 
-  return { ...input, missing: [...problems, ...input.missing] };
+/**
+ * validates a resolved selection against the catalog and driver capabilities
+ * @param resolution selection resolved from every source, with its unreadable values
+ * @param options parsed flags, for the pairing request
+ * @returns the profile, once every catalog and capability rule holds
+ * @throws {CommandFault} listing every violation at once
+ */
+export function requireValidProfile(
+  resolution: SelectionResolution,
+  options: CommandOptions,
+): WorkstationProfile {
+  const { candidate, problems, isIdleTimeoutRequested } = resolution;
+  const validation = validateProfile(candidate, {
+    isPairingRequested: options.withPairCode === true,
+    isIdleTimeoutRequested,
+  });
+  if (!validation.isValid || problems.length > 0) {
+    throw selectionFault([
+      ...problems,
+      ...(validation.isValid
+        ? []
+        : validation.violations.map(({ message }) => message)),
+    ]);
+  }
+
+  return validation.profile;
+}
+
+/**
+ * validates, before any provider or guest call, what a setup run's flags and
+ * environment supply on their own
+ * @param supplied values the run supplies, with its unreadable values
+ * @param options parsed flags, for the pairing request
+ * @throws {CommandFault} listing every violation at once
+ */
+export function requireValidSuppliedSelection(
+  supplied: Resolved<SuppliedSelection>,
+  options: CommandOptions,
+): void {
+  const details = [
+    ...supplied.problems,
+    ...suppliedSelectionViolations(supplied.value, {
+      isPairingRequested: options.withPairCode === true,
+    }).map(({ message }) => message),
+  ];
+  if (details.length > 0) {
+    throw selectionFault(details);
+  }
+}
+
+/**
+ * reports every selection problem in one error
+ * @param details one line per problem
+ * @returns the INPUT fault
+ */
+function selectionFault(details: readonly string[]): CommandFault {
+  return new CommandFault({
+    code: 'INPUT',
+    message: 'The workstation selection is invalid',
+    details: [...details],
+  });
 }
 
 /**
@@ -166,18 +237,35 @@ function missingProvisioningInputs(
   input: ResolvedInputs,
   required: readonly RequiredInput[],
 ): string[] {
+  const network = networkDriver(input.profile.network).inputs;
+  const networkChecks: Array<[RequiredInput, boolean, string]> = network
+    ? [
+        [
+          'networkEnrollment',
+          Boolean(input.networkKey ?? input.enrollmentKey),
+          `${network.management.environment} or ${network.enrollment.environment}`,
+        ],
+        [
+          'networkAccount',
+          Boolean(input.networkAccount),
+          network.account.environment,
+        ],
+        ['exitNode', Boolean(input.exitNode), network.exitNode.environment],
+      ]
+    : [];
   const checks: Array<[RequiredInput, boolean, string]> = [
     ['name', Boolean(input.name), 'workstation name (--name)'],
-    ['spritesToken', Boolean(input.spritesToken), 'SPRITES_TOKEN'],
+    ...networkChecks,
     [
-      'tailscaleEnrollment',
-      Boolean(input.tailscaleApiKey ?? input.tailscaleAuthKey),
-      'TAILSCALE_API_KEY or TAILSCALE_AUTH_KEY',
+      'proxyUrl',
+      Boolean(input.proxyUrl),
+      CLIPROXYAPI_INPUTS.baseUrl.environment,
     ],
-    ['tailnet', Boolean(input.tailnet), 'TAILSCALE_TAILNET'],
-    ['exitNode', Boolean(input.exitNode), 'TAILSCALE_EXIT_NODE'],
-    ['proxyUrl', Boolean(input.proxyUrl), 'CLIPROXYAPI_BASE_URL'],
-    ['proxyApiKey', Boolean(input.proxyApiKey), 'CLIPROXYAPI_API_KEY'],
+    [
+      'proxyApiKey',
+      Boolean(input.proxyApiKey),
+      CLIPROXYAPI_INPUTS.apiKey.environment,
+    ],
   ];
 
   return checks
@@ -256,33 +344,4 @@ async function completeAccountInputs(
         : []),
     ],
   };
-}
-
-/**
- * resolves only the local provider credential for read-only commands
- * @param options parsed selected provider token source
- * @param credentialStore optional explicitly selected real credential store
- * @returns the local provider token, if available
- */
-export async function resolveSpritesToken(
-  options: CommandOptions,
-  credentialStore?: CredentialStoreLocation,
-): Promise<string | undefined> {
-  if (options.spritesTokenSource) {
-    return resolveSecret(options.spritesTokenSource, undefined);
-  }
-  const sources = await readEnvironmentSources(options);
-  const direct = [
-    sources.processEnv.SPRITES_TOKEN,
-    sources.fileEnv.SPRITES_TOKEN,
-  ].find((value) => Boolean(value));
-  const token = await resolveSecret(
-    undefined,
-    direct ??
-      (options.localCredentials === false
-        ? undefined
-        : await readLocalCredential('sprites', credentialStore)),
-  );
-
-  return token;
 }

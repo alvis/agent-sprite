@@ -19,6 +19,8 @@ export interface TerminalOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   readinessMarker?: string;
+  /** maximum wait for each pending prompt; the overall timeout still applies */
+  stepTimeout?: number;
   waitForRaw?: boolean;
   timeout?: number;
 }
@@ -70,11 +72,21 @@ export async function runTerminal(
         terminal.write(step.input ?? '');
       }
     };
-    const deadline = setTimeout(() => {
+    let stall: NodeJS.Timeout | undefined;
+    const expire = (): void => {
       timedOut = true;
       terminal.kill('SIGTERM');
       forceKill = setTimeout(() => terminal.kill('SIGKILL'), 1_000);
-    }, options.timeout ?? 15_000);
+    };
+    const deadline = setTimeout(expire, options.timeout ?? 15_000);
+    const armStall = (): void => {
+      clearTimeout(stall);
+      stall =
+        options.stepTimeout && matchedSteps < steps.length
+          ? setTimeout(expire, options.stepTimeout)
+          : undefined;
+    };
+    armStall();
 
     const sendReadyInput = async (step: TerminalStep): Promise<void> => {
       if (options.waitForRaw) {
@@ -129,6 +141,7 @@ export async function runTerminal(
         if (!options.waitForRaw) {
           matchedSteps++;
           stepTimes.push(performance.now() - started);
+          armStall();
           send(step);
           continue;
         }
@@ -138,6 +151,7 @@ export async function runTerminal(
             if (!closed) {
               matchedSteps++;
               stepTimes.push(performance.now() - started);
+              armStall();
             }
             waitingForInput = false;
             advance();
@@ -158,6 +172,7 @@ export async function runTerminal(
     terminal.onExit(({ exitCode }) => {
       closed = true;
       clearTimeout(deadline);
+      clearTimeout(stall);
       clearTimeout(forceKill);
       resolveResult({
         elapsedMs: performance.now() - started,

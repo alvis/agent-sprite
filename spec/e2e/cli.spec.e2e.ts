@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
+  chmod,
   cp,
+  mkdir,
   mkdtemp,
   readFile,
   realpath,
@@ -16,9 +18,10 @@ import { pathToFileURL } from 'node:url';
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
+import { runOffline } from '../fixtures/network-block.js';
 import { runTerminal } from '../fixtures/terminal.js';
 
-const packedBin = process.env.AGENT_SPRITE_PACKED_BIN;
+const packedBin = process.env.OPEN_AGENT_PACKED_BIN;
 const pendingConnection =
   'data:text/javascript,' +
   encodeURIComponent(
@@ -37,10 +40,34 @@ const heldFlush =
     };
   `);
 
+/** create flags that leave a missing provider credential as the only prerequisite */
+const OFFLINE_CREATE_FLAGS = [
+  '--json',
+  '--verbose',
+  '--non-interactive',
+  '--no-local-credentials',
+  '--no-github',
+  '--no-plugins',
+  '--no-git-identity',
+  '--network',
+  'none',
+  '--no-proxy',
+];
+/** a non-interactive full setup of one workstation */
+const OFFLINE_SETUP_ARGUMENTS = [
+  'setup',
+  'devbox',
+  '--section',
+  'all',
+  '--json',
+  '--non-interactive',
+  '--no-local-credentials',
+];
+
 async function withIsolatedCli<T>(
   run: (cwd: string, env: NodeJS.ProcessEnv) => Promise<T>,
 ): Promise<T> {
-  const cwd = await mkdtemp(join(tmpdir(), 'agent-sprite-e2e-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'open-agent-e2e-'));
   const env = {
     PATH: process.env.PATH,
     HOME: cwd,
@@ -64,7 +91,6 @@ describe('workflow:installed CLI', () => {
       'plugins',
       'claude-plugins',
       'codex-plugins',
-      'tailscale',
       'proxy',
       'use-exit-node',
     ].flatMap((flag) => [
@@ -133,16 +159,24 @@ describe('workflow:installed CLI', () => {
     },
   );
 
-  it.each(['create', 'setup', 'show'])(
-    'should accept explicit pairing on %s before missing-token INPUT',
-    async (command) => {
+  it.each(
+    ['create', 'setup', 'show'].flatMap((command) =>
+      ['--with-pair-code', '--with-t3-pair-code'].map((flag) => ({
+        command,
+        flag,
+      })),
+    ),
+  )(
+    'should accept explicit pairing through $flag on $command before missing-token INPUT',
+    async ({ command, flag }) => {
       expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(
-          packedBin!,
-          [command, '--json', '--with-t3-pair-code', '--no-local-credentials'],
-          { cwd, env, extendEnv: false, reject: false },
-        ),
+        execa(packedBin!, [command, '--json', flag, '--no-local-credentials'], {
+          cwd,
+          env,
+          extendEnv: false,
+          reject: false,
+        }),
       );
 
       expect(result.exitCode).toBe(1);
@@ -291,7 +325,7 @@ describe('workflow:installed CLI', () => {
             'list',
             '--json',
             '--no-local-credentials',
-            '--sprites-token-source',
+            '--provider-token-source',
             reference,
           ],
           {
@@ -376,7 +410,7 @@ describe('workflow:installed CLI', () => {
       expect(version.stderr).toBe('');
     }
     expect(outputs[2].exitCode).toBe(0);
-    expect(outputs[2].stdout).toContain('agent-sprite');
+    expect(outputs[2].stdout).toContain('open-agent');
     expect(outputs[2].stderr).toBe('');
   });
 
@@ -492,7 +526,8 @@ describe('workflow:installed CLI', () => {
           '--no-github',
           '--no-plugins',
           '--no-git-identity',
-          '--no-tailscale',
+          '--network',
+          'none',
           '--no-proxy',
         ],
         { cwd, env, extendEnv: false, reject: false },
@@ -512,6 +547,993 @@ describe('workflow:installed CLI', () => {
     expect(result.stderr).not.toContain('stage=create.provider');
   });
 
+  it('should record every outbound attempt kind the network hook blocks', async () => {
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) => {
+      const script = join(cwd, 'attempts.mjs');
+      await writeFile(
+        script,
+        `
+          import http from 'node:http';
+          import https from 'node:https';
+          import net from 'node:net';
+          import tls from 'node:tls';
+          const tries = [
+            () => fetch('https://example.invalid/'),
+            () => http.get('http://example.invalid/'),
+            () => https.request('https://example.invalid/'),
+            () => net.connect(443, 'example.invalid'),
+            () => tls.connect(443, 'example.invalid'),
+          ];
+          for (const attempt of tries) {
+            try { await attempt(); } catch {}
+          }
+        `,
+      );
+
+      return runOffline(script, [], { cwd, env });
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(attempts).toEqual([
+      { kind: 'fetch', target: 'https://example.invalid/' },
+      { kind: 'http', target: 'http://example.invalid/' },
+      { kind: 'https', target: 'https://example.invalid/' },
+      { kind: 'net.connect', target: 'example.invalid:443' },
+      { kind: 'socket', target: 'example.invalid' },
+    ]);
+  });
+
+  it('should record the provider request an installed command makes under the network hook', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(packedBin!, ['list', '--json', '--no-local-credentials'], {
+        cwd,
+        env: { ...env, SPRITES_TOKEN: 'offline-placeholder' },
+      }),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(attempts).toEqual([
+      { kind: 'fetch', target: expect.stringContaining('sprites.dev') },
+    ]);
+  });
+
+  it('should aggregate a missing provider credential into one message before any provider call', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        ['create', '--name', 'missing-credential', ...OFFLINE_CREATE_FLAGS],
+        { cwd, env },
+      ),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout.trim().split('\n')).toHaveLength(1);
+    const parsed = JSON.parse(result.stdout) as {
+      error: { message: string; details: string[] };
+    };
+    expect(parsed).toMatchObject({
+      schemaVersion: 1,
+      command: 'create',
+      ok: false,
+      error: {
+        code: 'INPUT',
+        message: 'Provider prerequisites are missing or misconfigured',
+      },
+    });
+    expect(
+      parsed.error.details.filter((detail) => detail.includes('SPRITES_TOKEN')),
+    ).toEqual([
+      expect.stringMatching(
+        /Sprites API token is not set.*https:\/\/sprites\.dev\/account/u,
+      ),
+    ]);
+    expect(result.stderr).toContain('stage=create.preflight event=start');
+    expect(result.stderr).not.toContain('stage=create.provider');
+    expect(attempts).toEqual([]);
+  });
+
+  it('should refuse a wrong-scope provider token offline before any provider call', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        ['create', '--name', 'wrong-scope', ...OFFLINE_CREATE_FLAGS],
+        {
+          cwd,
+          env: { ...env, SPRITES_TOKEN: 'FlyV1 fm2_generated-macaroon' },
+        },
+      ),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'create',
+      ok: false,
+      error: {
+        code: 'INPUT',
+        message: 'Provider prerequisites are missing or misconfigured',
+        details: [expect.stringContaining('holds a Fly API token')],
+      },
+    });
+    expect(result.stdout).not.toContain('generated-macaroon');
+    expect(result.stderr).not.toContain('stage=create.provider');
+    expect(attempts).toEqual([]);
+  });
+
+  it('should pass the offline prerequisite check and call the provider with the same flags and a valid-shaped token', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        ['create', '--name', 'valid-shape', ...OFFLINE_CREATE_FLAGS],
+        {
+          cwd,
+          env: { ...env, SPRITES_TOKEN: 'control-org/1234/0123abcd/4567ef89' },
+        },
+      ),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'create',
+      ok: false,
+      error: {
+        message: 'Provider preflight checks failed; no workstation was created',
+        details: [expect.stringContaining('outbound fetch blocked')],
+      },
+    });
+    expect(attempts).toEqual(
+      expect.arrayContaining([
+        { kind: 'fetch', target: expect.stringContaining('sprites.dev') },
+      ]),
+    );
+  });
+
+  describe('fly-machine prerequisites', () => {
+    /** a deploy token decoding: an organization caveat narrowed to one app */
+    const DEPLOY_DECODING = JSON.stringify([
+      {
+        location: 'https://api.fly.io/v1',
+        caveats: [
+          { type: 'Organization', body: { id: 1, mask: 'rwcdC' } },
+          { type: 'Apps', body: { apps: { '42': 'rwcdC' } } },
+        ],
+      },
+    ]);
+
+    /** an organization token decoding */
+    const ORGANIZATION_DECODING = JSON.stringify([
+      {
+        location: 'https://api.fly.io/v1',
+        caveats: [{ type: 'Organization', body: { id: 1, mask: 'rwcdC' } }],
+      },
+    ]);
+
+    /**
+     * runs an offline create for fly-machine with a PATH holding only a
+     * flyctl stand-in, or nothing when no stand-in is given
+     * @param name workstation name
+     * @param env extra environment, such as the token
+     * @param standIn what the stand-in prints
+     * @param standIn.decoding what it prints for `fly tokens debug`
+     * @param standIn.version the version it reports
+     * @returns the run and its blocked network attempts
+     */
+    async function createOnFly(
+      name: string,
+      env: NodeJS.ProcessEnv,
+      standIn?: { decoding: string; version?: string },
+    ): Promise<Awaited<ReturnType<typeof runOffline>>> {
+      return withIsolatedCli(async (cwd, isolated) => {
+        const bin = join(cwd, 'bin');
+        await mkdir(bin);
+        if (standIn !== undefined) {
+          const version = standIn.version ?? '0.4.108';
+          await writeFile(join(cwd, 'decoding.json'), standIn.decoding);
+          await writeFile(
+            join(bin, 'fly'),
+            [
+              '#!/bin/sh',
+              'case "$1" in',
+              `  tokens) exec /bin/cat '${join(cwd, 'decoding.json')}' ;;`,
+              `  *) echo "fly v${version} darwin/arm64 Commit: test" ;;`,
+              'esac',
+              '',
+            ].join('\n'),
+          );
+          await chmod(join(bin, 'fly'), 0o755);
+        }
+
+        return runOffline(
+          packedBin!,
+          [
+            'create',
+            '--name',
+            name,
+            ...OFFLINE_CREATE_FLAGS,
+            '--provider',
+            'fly-machine',
+          ],
+          { cwd, env: { ...isolated, PATH: bin, ...env } },
+        );
+      });
+    }
+
+    /**
+     * reads the single JSON document a failed create printed
+     * @param result CLI process result
+     * @param result.stdout the printed JSON document
+     * @returns its error details
+     */
+    function prerequisiteDetails(result: { stdout: string }): string[] {
+      const parsed = JSON.parse(result.stdout) as {
+        error: { code: string; message: string; details: string[] };
+      };
+      expect(parsed.error).toMatchObject({
+        code: 'INPUT',
+        message: 'Provider prerequisites are missing or misconfigured',
+      });
+
+      return parsed.error.details;
+    }
+
+    it('should report a missing flyctl and a missing Fly token together before any provider call', async () => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await createOnFly('fly-missing', {});
+
+      expect(result.exitCode).toBe(1);
+      expect(prerequisiteDetails(result)).toEqual([
+        expect.stringMatching(
+          /fly is not on PATH.*fly\.io\/docs\/flyctl\/install/u,
+        ),
+        expect.stringMatching(
+          /Fly organization token is not set.*FLY_API_TOKEN/u,
+        ),
+      ]);
+      expect(result.stderr).not.toContain('stage=create.provider');
+      expect(attempts).toEqual([]);
+    });
+
+    it('should report a missing flyctl even when the Fly token is set, before any provider call', async () => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await createOnFly('fly-no-flyctl', {
+        FLY_API_TOKEN: 'FlyV1 fm2_org-macaroon',
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(prerequisiteDetails(result)).toEqual([
+        expect.stringMatching(
+          /fly is not on PATH.*fly\.io\/docs\/flyctl\/install/u,
+        ),
+      ]);
+      expect(result.stdout).not.toContain('org-macaroon');
+      expect(result.stderr).not.toContain('stage=create.provider');
+      expect(attempts).toEqual([]);
+    });
+
+    it('should refuse a flyctl older than 0.4.108 before decoding the token or calling the provider', async () => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await createOnFly(
+        'fly-old-flyctl',
+        { FLY_API_TOKEN: 'FlyV1 fm2_org-macaroon' },
+        { decoding: ORGANIZATION_DECODING, version: '0.4.107' },
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(prerequisiteDetails(result)).toEqual([
+        'fly 0.4.107 is older than 0.4.108. Install or upgrade flyctl: https://fly.io/docs/flyctl/install/',
+      ]);
+      expect(result.stdout).not.toContain('org-macaroon');
+      expect(result.stderr).not.toContain('stage=create.provider');
+      expect(attempts).toEqual([]);
+    });
+
+    it('should refuse a Fly token flyctl decodes as narrower than an organization before any provider call', async () => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await createOnFly(
+        'fly-deploy-token',
+        { FLY_API_TOKEN: 'FlyV1 fm2_deploy-macaroon' },
+        { decoding: DEPLOY_DECODING },
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(prerequisiteDetails(result)).toEqual([
+        expect.stringMatching(
+          /FLY_API_TOKEN.* is narrowed by its Apps caveat.*fly tokens create org/u,
+        ),
+      ]);
+      expect(result.stdout).not.toContain('deploy-macaroon');
+      expect(result.stderr).not.toContain('stage=create.provider');
+      expect(attempts).toEqual([]);
+    });
+
+    it('should refuse a Sprites token given as the Fly token without decoding it', async () => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await createOnFly(
+        'fly-sprites-token',
+        { FLY_API_TOKEN: 'control-org/1234/0123abcd/4567ef89' },
+        { decoding: 'never decoded' },
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(prerequisiteDetails(result)).toEqual([
+        expect.stringContaining('holds a Sprites API token'),
+      ]);
+      expect(result.stdout).not.toContain('0123abcd');
+      expect(attempts).toEqual([]);
+    });
+
+    it('should pass the offline check with an organization token and only then call the Machines API', async () => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await createOnFly(
+        'fly-org-token',
+        { FLY_API_TOKEN: 'FlyV1 fm2_org-macaroon' },
+        { decoding: ORGANIZATION_DECODING },
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).not.toContain('org-macaroon');
+      expect(attempts).toEqual(
+        expect.arrayContaining([
+          {
+            kind: 'fetch',
+            target: expect.stringContaining('api.machines.dev'),
+          },
+        ]),
+      );
+    });
+  });
+
+  it.each([
+    {
+      rule: 'zero harnesses',
+      env: { OPEN_AGENT_HARNESSES: ',' },
+      flags: [],
+      details: [expect.stringContaining('At least one harness')],
+    },
+    {
+      rule: 'an exit node with network none',
+      env: {},
+      flags: ['--use-exit-node'],
+      details: [expect.stringMatching(/--use-exit-node.*"none" does not/u)],
+    },
+    {
+      rule: 'a release channel the ACP agent does not declare',
+      env: { OPEN_AGENT_RELEASE: 'weekly' },
+      flags: [],
+      details: [
+        expect.stringMatching(
+          /Unknown release channel "weekly".*available: stable, nightly/u,
+        ),
+      ],
+    },
+    {
+      rule: 'a machine size the provider does not offer',
+      env: { OPEN_AGENT_CPU: '99', OPEN_AGENT_MEM: '99' },
+      flags: [],
+      details: [
+        expect.stringMatching(
+          /offers no machine with 99 CPUs and 99 GB; it offers at most 8 CPUs and 16 GB/u,
+        ),
+      ],
+    },
+    {
+      rule: 'zero harnesses and an exit node with network none together',
+      env: { OPEN_AGENT_HARNESSES: ',' },
+      flags: ['--use-exit-node'],
+      details: [
+        expect.stringContaining('At least one harness'),
+        expect.stringMatching(/--use-exit-node.*"none" does not/u),
+      ],
+    },
+  ])(
+    'should reject $rule as one aggregated input error before any provider call',
+    async ({ env: selection, flags, details }) => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+        runOffline(
+          packedBin!,
+          ['create', '--name', 'selection', ...OFFLINE_CREATE_FLAGS, ...flags],
+          {
+            cwd,
+            env: {
+              ...env,
+              ...selection,
+              SPRITES_TOKEN: 'selection-org/1234/0123abcd/4567ef89',
+            },
+          },
+        ),
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout.trim().split('\n')).toHaveLength(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        command: 'create',
+        ok: false,
+        error: {
+          code: 'INPUT',
+          message: 'The workstation selection is invalid',
+          details,
+        },
+      });
+      expect(result.stderr).not.toContain('stage=create.provider');
+      expect(attempts).toEqual([]);
+    },
+  );
+
+  it('should validate selection flags as one usage result before any provider call', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        ['create', '--json', '--network', 'bogus', '--provider', 'absent'],
+        { cwd, env },
+      ),
+    );
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stdout.trim().split('\n')).toHaveLength(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'create',
+      ok: false,
+      error: { code: 'USAGE' },
+    });
+    expect(result.stdout).toContain('bogus');
+    expect(result.stdout).toContain('absent');
+    expect(attempts).toEqual([]);
+  });
+
+  it.each([['create'], ['setup']])(
+    'should reject an unknown %s release channel flag as one usage result before any provider call',
+    async (command) => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+        runOffline(
+          packedBin!,
+          [command, '--json', '--release', 'weekly', '--provider', 'sprite'],
+          { cwd, env },
+        ),
+      );
+
+      expect(result.exitCode).toBe(2);
+      expect(result.stdout.trim().split('\n')).toHaveLength(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        command,
+        ok: false,
+        error: { code: 'USAGE' },
+      });
+      expect(result.stdout).toContain('weekly');
+      expect(attempts).toEqual([]);
+    },
+  );
+
+  it.each([['create'], ['setup']])(
+    'should list the release channel flag in %s help',
+    async (command) => {
+      expect(packedBin).toBeDefined();
+      const result = await withIsolatedCli(async (cwd, env) =>
+        execa(packedBin!, [command, '--help'], {
+          cwd,
+          env,
+          extendEnv: false,
+          reject: false,
+        }),
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('--release');
+      expect(result.stdout).toContain('stable, nightly');
+    },
+  );
+
+  it.each([
+    ['create', '--cpu'],
+    ['create', '--mem'],
+    ['setup', '--cpu'],
+    ['setup', '--mem'],
+  ])(
+    'should reject a non-whole %s %s value as one usage result before any provider call',
+    async (command, flag) => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+        runOffline(
+          packedBin!,
+          [command, '--json', flag, '1.5', '--provider', 'sprite'],
+          { cwd, env },
+        ),
+      );
+
+      expect(result.exitCode).toBe(2);
+      expect(result.stdout.trim().split('\n')).toHaveLength(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        command,
+        ok: false,
+        error: { code: 'USAGE' },
+      });
+      expect(result.stdout).toContain('1.5');
+      expect(attempts).toEqual([]);
+    },
+  );
+
+  it.each([['create'], ['setup']])(
+    'should list the machine size flags in %s help',
+    async (command) => {
+      expect(packedBin).toBeDefined();
+      const result = await withIsolatedCli(async (cwd, env) =>
+        execa(packedBin!, [command, '--help'], {
+          cwd,
+          env,
+          extendEnv: false,
+          reject: false,
+        }),
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('--cpu');
+      expect(result.stdout).toContain('--mem');
+    },
+  );
+
+  it.each([
+    {
+      flags: ['--cpu', '0'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--cpu')],
+      },
+    },
+    {
+      flags: ['--mem', '17'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [
+          expect.stringMatching(
+            /offers no machine with 2 CPUs and 17 GB; it offers at most 8 CPUs and 16 GB/u,
+          ),
+        ],
+      },
+    },
+    {
+      flags: ['--idle-minutes', '-1'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--idle-minutes')],
+      },
+    },
+    {
+      flags: ['--hold-max-minutes', '0'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--hold-max-minutes')],
+      },
+    },
+    {
+      flags: ['--idle-minutes', '61'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [
+          expect.stringMatching(
+            /--idle-minutes.*61 minutes.*"sprite".*at most 60 minutes/,
+          ),
+        ],
+      },
+    },
+    {
+      flags: ['--hold-max-minutes', '61'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [
+          expect.stringMatching(
+            /--hold-max-minutes.*61 minutes.*"sprite".*at most 60 minutes/,
+          ),
+        ],
+      },
+    },
+    {
+      flags: ['--idle-minutes', '60'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'Provider prerequisites are missing or misconfigured',
+      },
+    },
+    {
+      flags: ['--hold-max-minutes', '60'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'Provider prerequisites are missing or misconfigured',
+      },
+    },
+    {
+      flags: ['--update-check-minutes', '0'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--update-check-minutes')],
+      },
+    },
+    {
+      flags: ['--update-check-minutes', '10081'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--update-check-minutes')],
+      },
+    },
+    {
+      flags: ['--update-due-days', '366'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--update-due-days')],
+      },
+    },
+    {
+      flags: ['--update-check-minutes', '1.5'],
+      exitCode: 2,
+      error: {
+        code: 'USAGE',
+        message: expect.stringContaining('update-check-minutes'),
+      },
+    },
+    {
+      flags: ['--update-due-days', '0'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--update-due-days')],
+      },
+    },
+    {
+      flags: ['--update-due-days', 'soon'],
+      exitCode: 2,
+      error: {
+        code: 'USAGE',
+        message: expect.stringContaining('update-due-days'),
+      },
+    },
+    {
+      flags: ['--network', 'unknown'],
+      exitCode: 2,
+      error: { code: 'USAGE', message: expect.stringContaining('unknown') },
+    },
+    {
+      flags: ['--harness', 'unknown'],
+      exitCode: 2,
+      error: { code: 'USAGE', message: expect.stringContaining('unknown') },
+    },
+    {
+      flags: ['--idle-minutes', '0'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'Provider prerequisites are missing or misconfigured',
+      },
+    },
+  ])(
+    'should settle create $flags before any provider call',
+    async ({ flags, exitCode, error }) => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+        runOffline(
+          packedBin!,
+          // the selection flags come last so they override the offline network
+          ['create', '--name', 'selection', ...OFFLINE_CREATE_FLAGS, ...flags],
+          { cwd, env },
+        ),
+      );
+
+      expect(result.exitCode).toBe(exitCode);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        command: 'create',
+        ok: false,
+        error,
+      });
+      expect(attempts).toEqual([]);
+    },
+  );
+
+  it.each([
+    {
+      flags: ['--idle-minutes', '-1'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--idle-minutes')],
+      },
+    },
+    {
+      flags: ['--hold-max-minutes', '0'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--hold-max-minutes')],
+      },
+    },
+    {
+      flags: ['--update-check-minutes', '0'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--update-check-minutes')],
+      },
+    },
+    {
+      flags: ['--update-check-minutes', '10081'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--update-check-minutes')],
+      },
+    },
+    {
+      flags: ['--update-due-days', '366'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--update-due-days')],
+      },
+    },
+    {
+      flags: ['--update-check-minutes', '1.5'],
+      exitCode: 2,
+      error: {
+        code: 'USAGE',
+        message: expect.stringContaining('update-check-minutes'),
+      },
+    },
+    {
+      flags: ['--update-due-days', '0'],
+      exitCode: 1,
+      error: {
+        code: 'INPUT',
+        message: 'The workstation selection is invalid',
+        details: [expect.stringContaining('--update-due-days')],
+      },
+    },
+    {
+      flags: ['--update-due-days', 'soon'],
+      exitCode: 2,
+      error: {
+        code: 'USAGE',
+        message: expect.stringContaining('update-due-days'),
+      },
+    },
+    {
+      flags: ['--network', 'unknown'],
+      exitCode: 2,
+      error: { code: 'USAGE', message: expect.stringContaining('unknown') },
+    },
+    {
+      flags: ['--harness', 'unknown'],
+      exitCode: 2,
+      error: { code: 'USAGE', message: expect.stringContaining('unknown') },
+    },
+  ])(
+    'should refuse setup $flags before any provider call',
+    async ({ flags, exitCode, error }) => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+        runOffline(packedBin!, [...OFFLINE_SETUP_ARGUMENTS, ...flags], {
+          cwd,
+          env: { ...env, SPRITES_TOKEN: 'offline-placeholder' },
+        }),
+      );
+
+      expect(result.exitCode).toBe(exitCode);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        command: 'setup',
+        ok: false,
+        error,
+      });
+      expect(attempts).toEqual([]);
+    },
+  );
+
+  it('should accept a zero setup idle timeout and reach the provider lookup', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        [...OFFLINE_SETUP_ARGUMENTS, '--idle-minutes', '0'],
+        { cwd, env: { ...env, SPRITES_TOKEN: 'offline-placeholder' } },
+      ),
+    );
+    const parsed = JSON.parse(result.stdout) as {
+      error: { message: string };
+    };
+
+    expect(result.exitCode).toBe(1);
+    expect(parsed.error.message).not.toBe(
+      'The workstation selection is invalid',
+    );
+    expect(attempts).toEqual([
+      { kind: 'fetch', target: expect.stringContaining('/sprites/devbox') },
+    ]);
+  });
+
+  it('should accept an update interval in the tools section and reach the provider lookup', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        [
+          'setup',
+          'devbox',
+          '--section',
+          'tools',
+          '--update-check-minutes',
+          '45',
+          '--update-due-days',
+          '3',
+          '--json',
+          '--non-interactive',
+          '--no-local-credentials',
+        ],
+        { cwd, env: { ...env, SPRITES_TOKEN: 'offline-placeholder' } },
+      ),
+    );
+    const parsed = JSON.parse(result.stdout) as {
+      error: { message: string };
+    };
+
+    expect(result.exitCode).toBe(1);
+    expect(parsed.error.message).not.toBe(
+      'The workstation selection is invalid',
+    );
+    expect(attempts).toEqual([
+      { kind: 'fetch', target: expect.stringContaining('/sprites/devbox') },
+    ]);
+  });
+
+  it('should refuse an update interval in a section that does not own it before any provider call', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        [
+          'setup',
+          'devbox',
+          '--section',
+          'network',
+          '--update-check-minutes',
+          '45',
+          '--json',
+          '--non-interactive',
+          '--no-local-credentials',
+        ],
+        { cwd, env: { ...env, SPRITES_TOKEN: 'offline-placeholder' } },
+      ),
+    );
+
+    expect(result.exitCode).toBe(2);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'setup',
+      ok: false,
+      error: { code: 'USAGE' },
+    });
+    expect(attempts).toEqual([]);
+  });
+
+  it('should accept a release channel in the agent section and reach the provider lookup', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        [
+          'setup',
+          'devbox',
+          '--section',
+          'agent',
+          '--release',
+          'nightly',
+          '--json',
+          '--non-interactive',
+          '--no-local-credentials',
+        ],
+        { cwd, env: { ...env, SPRITES_TOKEN: 'offline-placeholder' } },
+      ),
+    );
+    const parsed = JSON.parse(result.stdout) as {
+      error: { message: string };
+    };
+
+    expect(result.exitCode).toBe(1);
+    expect(parsed.error.message).not.toBe(
+      'The workstation selection is invalid',
+    );
+    expect(attempts).toEqual([
+      { kind: 'fetch', target: expect.stringContaining('/sprites/devbox') },
+    ]);
+  });
+
+  it('should accept a machine size on setup and reach the provider lookup', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        [
+          'setup',
+          'devbox',
+          '--section',
+          'tools',
+          '--cpu',
+          '4',
+          '--mem',
+          '8',
+          '--json',
+          '--non-interactive',
+          '--no-local-credentials',
+        ],
+        { cwd, env: { ...env, SPRITES_TOKEN: 'offline-placeholder' } },
+      ),
+    );
+    const parsed = JSON.parse(result.stdout) as {
+      error: { message: string };
+    };
+
+    expect(result.exitCode).toBe(1);
+    expect(parsed.error.message).not.toBe(
+      'The workstation selection is invalid',
+    );
+    expect(attempts).toEqual([
+      { kind: 'fetch', target: expect.stringContaining('/sprites/devbox') },
+    ]);
+  });
+
+  it('should refuse a release channel in a section that does not own it before any provider call', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        [
+          'setup',
+          'devbox',
+          '--section',
+          'network',
+          '--release',
+          'nightly',
+          '--json',
+          '--non-interactive',
+          '--no-local-credentials',
+        ],
+        { cwd, env: { ...env, SPRITES_TOKEN: 'offline-placeholder' } },
+      ),
+    );
+
+    expect(result.exitCode).toBe(2);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'setup',
+      ok: false,
+      error: { code: 'USAGE' },
+    });
+    expect(attempts).toEqual([]);
+  });
+
   it('should print verbose facts during a real Ink token prompt and cancellation', async () => {
     expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
@@ -521,7 +1543,7 @@ describe('workflow:installed CLI', () => {
         {
           args: [
             'show',
-            'agent-sprite-review-check',
+            'open-agent-review-check',
             '--verbose',
             '--no-local-credentials',
           ],
@@ -547,7 +1569,7 @@ describe('workflow:installed CLI', () => {
 
     expect(result.timedOut).toBe(false);
     expect(result.exitCode).toBe(0);
-    expect(result.output).toContain('agent-sprite');
+    expect(result.output).toContain('open-agent');
     expect(result.output).toContain('terminate');
   });
 
@@ -565,7 +1587,7 @@ describe('workflow:installed CLI', () => {
 
     expect(result.timedOut).toBe(false);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('agent-sprite');
+    expect(result.stdout).toContain('open-agent');
     expect(result.stderr).toBe('');
   });
 
@@ -715,7 +1737,7 @@ describe('workflow:installed CLI', () => {
         machine: 'deleted-machine',
         machineId: 'sprite-deleted',
         outcome: 'unknown',
-        details: [expect.stringContaining('Sprite deletion completed')],
+        details: [expect.stringContaining('Workstation deleted')],
       },
     });
     expect(result.stdout).not.toContain('resource was retained');
@@ -1005,6 +2027,25 @@ describe('workflow:installed CLI', () => {
     expect(result.stdout).toContain('--no-local-credentials');
   });
 
+  it.each([['create'], ['setup']])(
+    'should list both update interval flags in %s help',
+    async (command) => {
+      expect(packedBin).toBeDefined();
+      const result = await withIsolatedCli(async (cwd, env) =>
+        execa(packedBin!, [command, '--help'], {
+          cwd,
+          env,
+          extendEnv: false,
+          reject: false,
+        }),
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('--update-check-minutes');
+      expect(result.stdout).toContain('--update-due-days');
+    },
+  );
+
   it('should show an optional workstation and a parsed value in setup usage', async () => {
     expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
@@ -1135,7 +2176,7 @@ describe('workflow:installed CLI', () => {
         packedBin!,
         [{ waitFor: 'Sprites API token', input: '\x03' }],
         {
-          args: ['show', 'agent-sprite-review-check', '--no-local-credentials'],
+          args: ['show', 'open-agent-review-check', '--no-local-credentials'],
           cwd,
           env,
         },
@@ -1158,7 +2199,7 @@ describe('workflow:installed CLI', () => {
       expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
         runTerminal(packedBin!, [{ waitFor: 'Sprites API token', signal }], {
-          args: ['show', 'agent-sprite-review-check', '--no-local-credentials'],
+          args: ['show', 'open-agent-review-check', '--no-local-credentials'],
           cwd,
           env,
         }),
@@ -1168,7 +2209,7 @@ describe('workflow:installed CLI', () => {
       expect(result.matchedSteps, result.output).toBe(1);
       expect(result.exitCode).toBe(130);
       expect(result.output).toContain('Cancelled by user.');
-      expect(result.output).toContain('agent-sprite-review-check');
+      expect(result.output).toContain('open-agent-review-check');
       expect(result.output).not.toContain('^C');
       expect(result.output.match(/Cancelled by user\./gu)).toHaveLength(1);
     },
@@ -1189,7 +2230,7 @@ describe('workflow:installed CLI', () => {
             heldFlush,
             packedBin!,
             'show',
-            'agent-sprite-review-check',
+            'open-agent-review-check',
             '--no-local-credentials',
           ],
           cwd,
@@ -1204,7 +2245,7 @@ describe('workflow:installed CLI', () => {
     expect(result.elapsedMs - result.stepTimes[1]!).toBeLessThan(500);
     expect(result.output).toContain('[SAF05:FLUSH_WAIT]');
     expect(result.output.match(/Cancelled by user\./gu)).toHaveLength(1);
-    expect(result.output).toContain('agent-sprite-review-check');
+    expect(result.output).toContain('open-agent-review-check');
     expect(result.output).not.toContain('^C');
   });
 });

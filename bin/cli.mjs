@@ -33,7 +33,7 @@ try {
   await cli(arguments_);
   await flushOutput();
 } catch {
-  process.stderr.write('agent-sprite failed unexpectedly.\n');
+  process.stderr.write('open-agent failed unexpectedly.\n');
   process.exitCode = 1;
 }
 

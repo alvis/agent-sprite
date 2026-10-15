@@ -4,6 +4,19 @@ import { commandError } from '#errors';
 import { resolveBaseInputs } from '#input/base';
 import { redactResolved } from '#utilities/redaction';
 
+import { profileWith } from '../fixtures/profile.js';
+
+const networkOnly = profileWith({
+  network: true,
+  exitNode: false,
+  cliproxyapi: false,
+});
+const everything = profileWith({
+  network: true,
+  exitNode: true,
+  cliproxyapi: true,
+});
+
 describe('fn:resolveBaseInputs', () => {
   it('should retain a completed sibling secret when another Promise.all source rejects', async () => {
     const secret = 'saf08-partial-sibling-secret';
@@ -18,9 +31,10 @@ describe('fn:resolveBaseInputs', () => {
         {
           localCredentials: false,
           github: false,
-          tailscaleApiKeySource: 'file:/nonexistent/saf08-secret-source',
+          networkKeySource: 'file:/nonexistent/saf08-secret-source',
         },
         sources,
+        { profile: networkOnly },
       ),
     ).rejects.toMatchObject({ code: 'INPUT' });
     expect(redactResolved(`provider rejected ${secret}`)).toBe(
@@ -37,7 +51,7 @@ describe('fn:resolveBaseInputs', () => {
     const resolved = await resolveBaseInputs(
       {
         name: 'chosen',
-        tailnet: 'flag-tailnet',
+        networkAccount: 'flag-tailnet',
         localCredentials: false,
         env: 'selected.env',
       },
@@ -60,22 +74,23 @@ describe('fn:resolveBaseInputs', () => {
           CLIPROXYAPI_BASE_URL: 'https://profile.example.test',
         },
       },
+      { profile: networkOnly },
     );
 
     expect(resolved).toEqual({
       input: {
         name: 'chosen',
-        spritesToken: 'process-management-token',
-        tailscaleApiKey: 'process-tailnet-token',
-        tailscaleAuthKey: undefined,
-        tailnet: 'flag-tailnet',
+        providerToken: 'process-management-token',
+        networkKey: 'process-tailnet-token',
+        enrollmentKey: undefined,
+        networkAccount: 'flag-tailnet',
         exitNode: 'file-exit',
         proxyUrl: 'https://process.example.test',
         proxyApiKey: undefined,
-        integrations: { tailscale: false, exitNode: false, cliproxyapi: false },
+        profile: networkOnly,
         runtimeEnv: { APP_TOKEN: 'runtime-secret-value' },
         sources: {
-          SPRITES_TOKEN: 'process environment',
+          SPRITES_TOKEN: 'SPRITES_TOKEN in the process environment',
           TAILSCALE_API_KEY: 'process environment',
           GH_TOKEN: 'process environment',
           TAILSCALE_TAILNET: 'flag',
@@ -94,18 +109,18 @@ describe('fn:resolveBaseInputs', () => {
   });
 
   it('should select explicit secret references and record source descriptions without values', async () => {
-    vi.stubEnv('AGENT_SPRITE_BASE_SPRITES', 'explicit-sprites-secret');
-    vi.stubEnv('AGENT_SPRITE_BASE_TAILSCALE', 'explicit-tailscale-secret');
-    vi.stubEnv('AGENT_SPRITE_BASE_PROXY', 'explicit-proxy-secret');
-    vi.stubEnv('AGENT_SPRITE_BASE_GITHUB', 'explicit-github-secret');
+    vi.stubEnv('OPEN_AGENT_BASE_SPRITES', 'explicit-sprites-secret');
+    vi.stubEnv('OPEN_AGENT_BASE_TAILSCALE', 'explicit-tailscale-secret');
+    vi.stubEnv('OPEN_AGENT_BASE_PROXY', 'explicit-proxy-secret');
+    vi.stubEnv('OPEN_AGENT_BASE_GITHUB', 'explicit-github-secret');
 
     const resolved = await resolveBaseInputs(
       {
         localCredentials: false,
-        spritesTokenSource: 'env:AGENT_SPRITE_BASE_SPRITES',
-        tailscaleApiKeySource: 'env:AGENT_SPRITE_BASE_TAILSCALE',
-        proxyApiKeySource: 'env:AGENT_SPRITE_BASE_PROXY',
-        githubTokenSource: 'env:AGENT_SPRITE_BASE_GITHUB',
+        providerTokenSource: 'env:OPEN_AGENT_BASE_SPRITES',
+        networkKeySource: 'env:OPEN_AGENT_BASE_TAILSCALE',
+        proxyApiKeySource: 'env:OPEN_AGENT_BASE_PROXY',
+        githubTokenSource: 'env:OPEN_AGENT_BASE_GITHUB',
       },
       {
         processEnv: {},
@@ -118,24 +133,24 @@ describe('fn:resolveBaseInputs', () => {
           CLIPROXYAPI_BASE_URL: 'https://profile.example.test',
         },
       },
-      { tailscale: true, exitNode: true, cliproxyapi: true },
+      { profile: everything },
     );
 
     expect(resolved).toEqual(
       expect.objectContaining({
         githubCandidate: 'explicit-github-secret',
         input: expect.objectContaining({
-          spritesToken: 'explicit-sprites-secret',
-          tailscaleApiKey: 'explicit-tailscale-secret',
+          providerToken: 'explicit-sprites-secret',
+          networkKey: 'explicit-tailscale-secret',
           proxyApiKey: 'explicit-proxy-secret',
-          tailscaleAuthKey: 'file-enrollment-secret',
-          tailnet: 'file-tailnet',
+          enrollmentKey: 'file-enrollment-secret',
+          networkAccount: 'file-tailnet',
           exitNode: 'profile-exit',
           proxyUrl: 'https://profile.example.test',
-          integrations: { tailscale: true, exitNode: true, cliproxyapi: true },
           runtimeEnv: {},
           sources: {
-            SPRITES_TOKEN: 'explicit secret reference',
+            SPRITES_TOKEN:
+              '--provider-token-source env:OPEN_AGENT_BASE_SPRITES',
             TAILSCALE_API_KEY: 'explicit secret reference',
             CLIPROXYAPI_API_KEY: 'explicit secret reference',
             GH_TOKEN: 'explicit secret reference',

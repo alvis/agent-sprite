@@ -13,11 +13,11 @@ A workstation owner needs to inspect a resource, repair an incomplete setup or d
 
 ## 🧭 Context
 
-agent-sprite is a TypeScript CLI using Stricli for parsing and Ink for terminal input. Its workflows manage persistent provider resources and intentionally persist selected native guest credentials. The package is private and unpublished; an eventual public release is a separate decision.
+open-agent is a TypeScript CLI using Stricli for parsing and Ink for terminal input. Its workflows manage persistent provider resources and intentionally persist selected native guest credentials. The package is private and unpublished; an eventual public release is a separate decision.
 
 ## ✅ Decision
 
-Expose only the `agent-sprite` executable. Do not publish SDK exports, a library entry point or a package-level types entry. Internal typed workflow contracts remain available to implementation and focused unit specs.
+Expose only the `open-agent` executable. Do not publish SDK exports, a library entry point or a package-level types entry. Internal typed workflow contracts remain available to implementation and focused unit specs.
 
 Resolve interaction before side effects. Keep one persistent Ink root and a prompt queue for a command, with one command-owned interrupt authority. Components collect input and render observations; workflows own cloud mutations. Clear inherited consent when an interactive action creates another request, and validate the exact target for permanent deletion.
 

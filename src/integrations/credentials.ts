@@ -11,8 +11,8 @@ import { readInputFile } from '#utilities/input-file';
 import { runLocal, sendLocalInput } from '#utilities/process';
 import { rememberSecret } from '#utilities/redaction';
 
-/** local management credential identities; guest credentials are separate */
-export type ManagementCredentialName = 'sprites' | 'tailscale';
+/** local store entry of a management credential, as a provider or network declares it; guest credentials are separate */
+export type ManagementCredentialName = string;
 
 /** explicit persistence choice for a local management credential */
 export interface CredentialSaveOptions {
@@ -61,7 +61,7 @@ export async function readLocalCredential(
         arguments: [
           'find-generic-password',
           '-s',
-          'agent-sprite',
+          'open-agent',
           '-a',
           name,
           '-w',
@@ -190,7 +190,7 @@ async function writeAndVerifyKeychain(
     arguments: [
       'find-generic-password',
       '-s',
-      'agent-sprite',
+      'open-agent',
       '-a',
       name,
       '-w',
@@ -225,7 +225,7 @@ function securityAddCommand(
     return `"${part.replace(/\\/gu, '\\\\').replace(/"/gu, '\\"')}"`;
   };
   const selectedStore = keychainPath ? ` ${quote(keychainPath)}` : '';
-  const command = `add-generic-password -U -s ${quote('agent-sprite')} -a ${quote(name)} -w ${quote(value)}${selectedStore}\n`;
+  const command = `add-generic-password -U -s ${quote('open-agent')} -a ${quote(name)} -w ${quote(value)}${selectedStore}\n`;
   if (Buffer.byteLength(command) > securityLineLimit) {
     throw new CommandFault({
       code: 'INPUT',
@@ -255,7 +255,7 @@ function getCredentialPath(
 
   return join(
     process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'),
-    'agent-sprite',
+    'open-agent',
     'credentials.json',
   );
 }

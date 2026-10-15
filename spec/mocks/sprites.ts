@@ -10,34 +10,37 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { PassThrough } from 'node:stream';
 
 import { Sprite, SpriteFilesystem, SpritesClient } from '@fly/sprites';
 import { vi } from 'vitest';
 
+import { catalog } from '#core/catalog';
+import { SpriteGuestChannel } from '#drivers/providers/sprite/channel';
+import { SpriteProvider } from '#drivers/providers/sprite/provider';
+import { toRecord } from '#drivers/providers/sprite/records';
+import { HOMEBREW } from '#guest/homebrew';
 import {
   ensureNativeDirectory,
   removeNativeFile,
   writeNativeFile,
-} from '#scripts/native-files';
+} from '#guest/native-files';
 
 import type { ChownOptions, ExecResult, SpriteCommand } from '@fly/sprites';
 
+import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 import type { TransactionRequest } from '#integrations/guest/transaction/protocol';
+
+// the agent services core lets a provider stop and restore, as core binds them
+const restorableServices = Object.values(catalog.agents).map(
+  ({ service }) => service.name,
+);
 
 /** inputs for a Sprite SDK boundary backed by an isolated local filesystem */
 export interface FilesystemSpriteParams {
   root: string;
   execute?: Sprite['execFile'];
-  chownRecords?: FilesystemChownRecord[];
-}
-
-/** observed ownership mutation at the SDK filesystem boundary */
-export interface FilesystemChownRecord {
-  path: string;
-  uid: ChownOptions['uid'];
-  gid: ChownOptions['gid'];
 }
 
 /** one observed SDK native command response in execution order */
@@ -46,13 +49,90 @@ export interface NativeCommandResponse {
   result: ExecResult;
 }
 
+const channels = new WeakMap<Sprite, SpriteGuestChannel>();
+
+/**
+ * presents an SDK mock through the Sprite driver's guest channel, reusing one
+ * channel per Sprite so guest transactions stay keyed to the same target
+ * @param sprite SDK mock
+ * @returns the driver channel bound to the mock
+ */
+export function guestOf(sprite: Sprite): SpriteGuestChannel {
+  const existing = channels.get(sprite);
+  if (existing) {
+    return existing;
+  }
+  const channel = new SpriteGuestChannel({ sprite, restorableServices });
+  channels.set(sprite, channel);
+
+  return channel;
+}
+
+/**
+ * answers the Sprite service-registry endpoint from the SDK mock's
+ * listServices, so one mock drives both the registry read and the SDK
+ * mutations; any other request fails instead of reaching the network
+ * @param sprite SDK mock whose listServices supplies the registry
+ */
+export function serveServiceRegistry(sprite: Sprite): void {
+  const registry = `${sprite.client.baseURL}/v1/sprites/${encodeURIComponent(sprite.name)}/services`;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn<typeof fetch>(async (input) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      if (url !== registry) {
+        throw new Error(`Unexpected network request: ${url}`);
+      }
+
+      return Response.json(await sprite.listServices());
+    }),
+  );
+}
+
+/**
+ * presents an SDK client mock through the Sprite provider driver
+ * @param client SDK client mock
+ * @returns the driver bound to the mock client
+ */
+export function providerOf(client: SpritesClient): ProviderDriver {
+  return new SpriteProvider({
+    client,
+    sprites: new WeakMap(),
+    channels: new Map(),
+    restorableServices,
+  });
+}
+
+/**
+ * binds a provider to one SDK mock and returns the record it would have listed,
+ * so provider calls on the record reach the mock without another lookup
+ * @param sprite SDK mock
+ * @returns the bound provider and the workstation record for the mock
+ */
+export function workstationOf(sprite: Sprite): {
+  provider: ProviderDriver;
+  workstation: WorkstationRecord;
+} {
+  const workstation = toRecord(sprite);
+
+  return {
+    provider: new SpriteProvider({
+      client: sprite.client,
+      sprites: new WeakMap([[workstation, sprite]]),
+      channels: new Map([[workstation.id, guestOf(sprite)]]),
+      restorableServices,
+    }),
+    workstation,
+  };
+}
+
 /**
  * creates an SDK filesystem boundary that performs real temporary-file operations
  * @param params temporary root and optional native command response boundary
  * @returns Sprite whose filesystem paths are rooted in the temporary directory
  */
 export function createFilesystemSprite(params: FilesystemSpriteParams): Sprite {
-  const { root, execute = executeNativeConfiguration, chownRecords } = params;
+  const { root, execute = executeNativeConfiguration } = params;
   function readRootFile(path: string, encoding?: 'utf8'): Promise<string>;
   function readRootFile(path: string, encoding?: null): Promise<Buffer>;
   async function readRootFile(
@@ -85,8 +165,14 @@ export function createFilesystemSprite(params: FilesystemSpriteParams): Sprite {
         contents: string | Buffer,
         options?: { mode?: number },
       ): Promise<void> => {
-        if (path.startsWith('/opt/agent-sprite/native-files.js')) {
-          await mkdir(join(root, '/opt/agent-sprite'), { recursive: true });
+        // a provisioned guest always has its guest root and the cron
+        // directory, and every transaction stages the directories of the
+        // modules it mirrors there
+        if (
+          path.startsWith('/opt/open-agent/') ||
+          path.startsWith('/etc/cron.d/')
+        ) {
+          await mkdir(join(root, dirname(path)), { recursive: true });
         }
         await writeFile(join(root, path), contents, options);
       },
@@ -113,10 +199,11 @@ export function createFilesystemSprite(params: FilesystemSpriteParams): Sprite {
     chmod: vi.fn(async (path: string, mode: number): Promise<void> => {
       await chmod(join(root, path), mode);
     }),
-    chown: vi.fn(async (path: string, options: ChownOptions): Promise<void> => {
-      await stat(join(root, path));
-      chownRecords?.push({ path, uid: options.uid, gid: options.gid });
-    }),
+    chown: vi.fn(
+      async (path: string, _options: ChownOptions): Promise<void> => {
+        await stat(join(root, path));
+      },
+    ),
   } satisfies Partial<SpriteFilesystem>);
 
   const sprite = Object.assign(new Sprite('temporary', client), {
@@ -315,14 +402,6 @@ async function dispatchSdkTransaction(params: {
       });
 
       return {};
-    case 'chown':
-      await filesystem.chown(request.path, {
-        uid: request.uid,
-        gid: request.gid,
-        asRoot: true,
-      });
-
-      return {};
     case 'remove':
       await filesystem.rm(request.path, { force: true, asRoot: true });
 
@@ -371,8 +450,8 @@ async function executeNativeFileCommand(params: {
     userFlag !== '-u' ||
     !['agent', 'sprite'].includes(user ?? '') ||
     userEnd !== '--' ||
-    node !== '/opt/agent-sprite/node/bin/node' ||
-    script !== '/opt/agent-sprite/native-files.js'
+    node !== '/opt/open-agent/node/bin/node' ||
+    script !== '/opt/open-agent/guest/native-files.js'
   ) {
     return undefined;
   }
@@ -419,9 +498,7 @@ export function createNativeCommandExecutor(
 
   return vi.fn<Sprite['execFile']>(async (file, args = []) => {
     const harnessIndex = args.findIndex((argument) =>
-      ['claude', 'codex', 'git', 'jj', '/opt/agent-sprite/tools/gh'].includes(
-        argument,
-      ),
+      ['claude', 'codex', 'git', 'jj', HOMEBREW.gh].includes(argument),
     );
     if (file === '/usr/bin/sudo' && harnessIndex >= 0) {
       const expected = pending.shift();
@@ -462,7 +539,9 @@ export async function executeNativeConfiguration(
   }
   if (
     file === '/usr/bin/sudo' &&
-    args.includes('/opt/agent-sprite/codex-hooks-trust.js')
+    args.includes(
+      '/opt/open-agent/drivers/harnesses/codex/guest/codex-hooks-trust.js',
+    )
   ) {
     return { stdout: '', stderr: '', exitCode: 0 };
   }

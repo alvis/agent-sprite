@@ -1,17 +1,18 @@
 import { APIError } from '@fly/sprites';
 import { describe, expect, it } from 'vitest';
 
+import { toProviderFailure } from '#drivers/providers/sprite/failures';
 import { commandError, resultExitCode } from '#errors';
 
 describe('D10 failure boundaries', () => {
   it.each([401, 403])(
-    'should map SDK HTTP %i credential rejection to AUTH and status one',
+    'should map SDK HTTP %i credential rejection translated by the driver to AUTH and status one',
     (statusCode) => {
       const failure = new APIError(
         'Supplied provider credential was rejected',
         { statusCode },
       );
-      const error = commandError(failure);
+      const error = commandError(toProviderFailure(failure));
 
       expect(error).toMatchObject({
         code: 'AUTH',

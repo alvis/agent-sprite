@@ -33,7 +33,9 @@ export function withBackNavigation(
   interaction: Interaction,
   backLabel: string,
 ): Interaction {
-  const promptWithBack = (prompt: InteractionPrompt): InteractionPrompt => ({
+  const promptWithBack = <Prompt extends Pick<InteractionPrompt, 'backLabel'>>(
+    prompt: Prompt,
+  ): Prompt => ({
     ...prompt,
     backLabel: prompt.backLabel ?? backLabel,
   });

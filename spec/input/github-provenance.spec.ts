@@ -23,7 +23,7 @@ const emptySources = { processEnv: {}, fileEnv: {}, profile: {} };
 /** Builds a disposable trusted HTTPS GitHub Enterprise endpoint. */
 async function githubServer() {
   const directory = await mkdtempDisposable(
-    join(tmpdir(), 'agent-sprite-github-https-'),
+    join(tmpdir(), 'open-agent-github-https-'),
   );
   const key = join(directory.path, 'key.pem');
   const certificate = join(directory.path, 'certificate.pem');
@@ -177,7 +177,7 @@ describe('fn:GitHub credential provenance', () => {
         {
           options: {
             ...options,
-            githubTokenSource: 'env:AGENT_SPRITE_GITHUB_SOURCE',
+            githubTokenSource: 'env:OPEN_AGENT_GITHUB_SOURCE',
           },
           resolution: resolution(emptySources),
         },
@@ -208,7 +208,7 @@ describe('fn:GitHub credential provenance', () => {
           }),
         },
       ],
-      { AGENT_SPRITE_GITHUB_SOURCE: rejectedToken, GH_TOKEN: undefined },
+      { OPEN_AGENT_GITHUB_SOURCE: rejectedToken, GH_TOKEN: undefined },
     );
 
     expect(observed.results).toHaveLength(6);
