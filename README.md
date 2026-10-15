@@ -9,18 +9,18 @@
 [![dependencies](https://img.shields.io/librariesio/release/npm/open-agent?style=flat-square)](https://libraries.io/npm/open-agent)
 [![license](https://img.shields.io/github/license/alvis/open-agent.svg?style=flat-square)](https://github.com/alvis/open-agent/blob/main/LICENSE)
 
-**Your coding workstation, ready when you are.**
+**Your coding agent, on its own machine, always within reach.**
 
-_Create persistent coding workstations on Fly Sprites or Fly Machines with T3 Code, Claude Code, Codex, and your native tools. Configure once, return to the same workstation._
+_Run a persistent ACP coding agent on a Fly Sprite or Fly Machine, pair your client with it from anywhere, and let it reach your other machines privately over Tailscale. Today the agent is T3 Code, driving Claude Code and Codex._
 
 </div>
 
-> 🧩 **Built on [Fly Sprites](https://sprites.dev/), [Fly Machines](https://fly.io/docs/machines/) and [T3 Code](https://github.com/pingdotgg/t3code).** `open-agent` manages each workstation through the official Sprites SDK or the Fly Machines API and flyctl, while Claude and Codex keep their own native configuration and plugins.
+> 🧩 **Built on [T3 Code](https://github.com/pingdotgg/t3code), [Fly Sprites](https://sprites.dev/), [Fly Machines](https://fly.io/docs/machines/) and [Tailscale](https://tailscale.com/).** `open-agent` provisions the machine through the official Sprites SDK or the Fly Machines API and flyctl, installs and serves the agent, configures the Claude Code and Codex harnesses in their own native formats, and keeps the machine maintained, asleep when idle and awake while the agent works.
 
 <br/>
 <div align="center">
 
-•&emsp;🔑 [Environment](#-environment-variables)&emsp;•&emsp;🔐 [Authentication](#-authentication)&emsp;•&emsp;📖 [Usage](#-usage)&emsp;•&emsp;📚 [CLI Reference](#-cli-reference)&emsp;•&emsp;📐 [Architecture](#-architecture)&emsp;•
+•&emsp;⚡ [Quick Start](#-quick-start)&emsp;•&emsp;🌐 [Private Networking](#-private-networking)&emsp;•&emsp;🔐 [Authentication](#-authentication)&emsp;•&emsp;📖 [Usage](#-usage)&emsp;•&emsp;📚 [CLI Reference](#-cli-reference)&emsp;•&emsp;📐 [Architecture](#-architecture)&emsp;•
 
 </div>
 <br/>
@@ -29,23 +29,24 @@ _Create persistent coding workstations on Fly Sprites or Fly Machines with T3 Co
 
 ## ⚡ Quick Start
 
-Use **Node.js 24 or newer** and **pnpm 12** (the exact version is pinned in `package.json`). This package is private and unpublished. Its local runner builds, packs and installs the CLI into a temporary directory before running it:
+Use **Node.js 24 or newer**. Install the CLI from npm, or run it once with `npx`:
 
 ```bash
-pnpm install
-cp .env.example .env
-chmod 600 .env
+npm install -g open-agent
 ```
 
-Meet the selected provider's [prerequisites](#-prerequisites); for the default Fly Sprite provider, put a Sprites organization token in `SPRITES_TOKEN` in the protected `.env` file. Add credentials for any selected network or proxy, then create a workstation:
+Get a Sprites organization token for the default Fly Sprite provider (see [Prerequisites](#-prerequisites)), then put an agent on a machine and pair your client with it:
 
 ```bash
-pnpm run local -- create --env-file .env --name my-workstation --with-pair-code
+export SPRITES_TOKEN=…   # or let the interactive run prompt for it and save it on this computer
+open-agent create --name my-agent --with-pair-code
 ```
 
-Interactive creation asks, in order, for the provider, the minimum CPUs and the minimum memory in GB (both default to 2; asked again with the reason when the provider offers no machine that large), ACP agent, the agent's release channel (only when the agent declares more than one; T3 Code offers `stable` and `nightly`), harnesses (only those the agent supports), network, then the options those drivers support: an exit node only when the network supports one, CLIProxyAPI only when a selected harness supports it, and idle minutes only when the provider keeps workstations awake. A step with a single choice is skipped. GitHub authentication and Git/Jujutsu identity are separate choices. Copy the returned agent URL into your client; its native pairing code is valid for five minutes.
+`create` provisions a private machine, installs T3 Code with the Claude Code and Codex harnesses, verifies readiness and only then exposes the agent. It returns the agent URL with a native pairing code that is valid for five minutes: open it in your T3 Code client to connect. Later, `open-agent show my-agent --with-pair-code` pairs another client with the same agent.
 
-Dotenv files are loaded only when explicitly selected with `--env-file FILE`. See [.env.example](.env.example) for every supported environment input and its meaning.
+Interactive creation asks, in order, for the provider, the minimum CPUs and the minimum memory in GB (both default to 2; asked again with the reason when the provider offers no machine that large), ACP agent, the agent's release channel (only when the agent declares more than one; T3 Code offers `stable` and `nightly`), harnesses (only those the agent supports), network, then the options those drivers support: an exit node only when the network supports one, CLIProxyAPI only when a selected harness supports it, and idle minutes only when the provider keeps workstations awake. A step with a single choice is skipped. GitHub authentication and Git/Jujutsu identity are separate choices.
+
+To keep credentials for automation in one place, write them to a protected dotenv file (`chmod 600 .env`) and pass it with `--env-file .env`; dotenv files are never loaded otherwise. [.env.example](.env.example) lists every supported environment input and its meaning.
 
 ---
 
@@ -53,38 +54,41 @@ Dotenv files are loaded only when explicitly selected with `--env-file FILE`. Se
 
 ### 😩 The Problem
 
-A remote coding workstation involves more than installing an editor:
+A coding agent on your laptop stops when the lid closes, and putting one on a remote machine takes more than starting a process:
 
-- **Setup repeats**: tools, credentials, Git identity, plugins, networking, and services need configuring on each machine
-- **Harnesses differ**: Claude and Codex have separate native settings and plugin identities
-- **Private access needs routing**: a proxy hub may live inside your tailnet, and outbound traffic may need a home exit node
-- **Recorded setup can mislead**: an installation record does not prove services and integrations are healthy now
+- **The agent needs a home**: it should keep running, keep its sessions and stay reachable from whichever device you pick up, without paying for a machine that idles all night
+- **Harnesses differ**: Claude Code and Codex have separate native settings, hooks and plugin identities
+- **Your other machines are private**: the agent often needs your home server, a database or a model proxy that only lives inside your tailnet, and some traffic should leave through your own exit node
+- **The machine drifts**: an agent's tools go stale, and an installation record does not prove the agent and its integrations are healthy now
 
 ### 💡 The Solution
 
-`open-agent` brings these operations into one terminal workflow:
+`open-agent` turns that into one terminal workflow:
 
-- **Create persistent workstations**: install tools, configure selected integrations, check readiness, and expose T3 last
-- **Change one section**: configure GitHub, Git identity, networking, proxy routing, environment variables, or native plugins independently
-- **Check current state**: query the live provider for machines and explicitly inspect the guest when needed
-- **Keep native configuration**: merge supported settings and preserve unrelated user configuration
-- **Automate with the same workflows**: use versioned JSON output without terminal prompts
+- **Put an agent on a machine**: provision a persistent machine, install and serve the ACP agent with its harnesses, verify readiness, and expose the agent last
+- **Pair any client**: mint a short-lived native pairing code on demand and connect another client to the same agent
+- **Join your tailnet**: enroll the machine in Tailscale so the agent reaches your other machines privately, optionally through your exit node and your private CLIProxyAPI hub
+- **Sleep when idle, wake on demand**: an idle governor keeps the machine awake while a harness turn runs and lets it sleep afterwards; a request to the agent URL wakes it
+- **Keep it maintained**: scheduled in-place updates of the agent, harnesses and tools, and live readiness checks with `doctor`
+- **Change one section at a time**: configure the agent, network, GitHub, Git identity, proxy routing, environment variables or native plugins independently, interactively or with versioned JSON output for automation
 
 ---
 
 ## 🚀 Key Features
 
-| Feature                           | What it gives you                                                                                                                                                           |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Six workstation commands**      | Create, configure, list, show, diagnose, and permanently terminate managed workstations                                                                                     |
-| **Two providers**                 | Fly Sprites, or Fly Machines with a persistent volume; you set minimum CPUs and memory and the provider runs the smallest machine that fits                                 |
-| **Persistent T3 workstation**     | T3 Code on its `stable` or `nightly` channel, with Claude Code, Codex, a Node, Python and Rust toolchain, Git, Jujutsu, GitHub CLI, and network diagnostics                 |
-| **Optional networking and proxy** | Join a tailnet, select exit-node routing, or route both harnesses to an existing CLIProxyAPI hub                                                                            |
-| **Independent native plugins**    | Repeatable marketplace and plugin actions for Claude and Codex, without converting one harness’s plugins into the other’s                                                   |
-| **Idle governor**                 | The workstation sleeps after a configurable idle time and stays awake while a harness turn or managed operation runs                                                        |
-| **Readable terminal interaction** | Searchable selectors, labelled back navigation, masked credential prompts, and grouped inspection results                                                                   |
-| **Live provider discovery**       | Paginated provider queries and exact managed-target checks, without a local machine registry                                                                                |
-| **Scheduled tool maintenance**    | Latest stable managed-tool updates once due (default seven days), checked on a configurable interval (default 30 minutes), skipping current tools and restarting no service |
+| Feature                           | What it gives you                                                                                                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A persistent ACP agent**        | T3 Code on its `stable` or `nightly` channel, served as the machine's only public HTTP service and kept running across sleep, wake and restarts                                        |
+| **Claude Code and Codex**         | Both harnesses installed for the agent, each with its own native settings, hooks, plugins and optional proxy routing                                                                   |
+| **Client pairing**                | Opt-in, five-minute native pairing codes on the agent URL, minted at creation or later for each new client                                                                             |
+| **Private networking**            | Join your tailnet with Tailscale to reach your other machines privately, route outbound traffic through an approved exit node, and reach a private CLIProxyAPI hub                     |
+| **Two providers**                 | Fly Sprites, or Fly Machines with a persistent volume; you set minimum CPUs and memory and the provider runs the smallest machine that fits                                            |
+| **Idle governor**                 | The machine sleeps after a configurable idle time and stays awake while a harness turn or managed operation runs                                                                       |
+| **Scheduled maintenance**         | Latest stable agent, harness and tool updates once due (default seven days), checked on a configurable interval (default 30 minutes), skipping current tools and restarting no service |
+| **Independent native plugins**    | Repeatable marketplace and plugin actions for Claude and Codex, without converting one harness’s plugins into the other’s                                                              |
+| **Six commands**                  | Create, configure, list, show, diagnose, and permanently terminate managed workstations                                                                                                |
+| **Live provider discovery**       | Paginated provider queries and exact managed-target checks, without a local machine registry                                                                                           |
+| **Readable terminal interaction** | Searchable selectors, labelled back navigation, masked credential prompts, and grouped inspection results                                                                              |
 
 ---
 
@@ -93,56 +97,73 @@ A remote coding workstation involves more than installing an editor:
 | ✅ Supported | ⚠️ Partial (see note) | ❌ Unsupported | 🔜 Planned |
 | ------------ | --------------------- | -------------- | ---------- |
 
-| Capability                            | Support | Notes                                                                                             |
-| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
-| Fly Sprites (`sprite`)                | ✅      | Official SDK; authenticated provider operations and live machine discovery; one 8 CPU, 16 GB size |
-| Fly Machines (`fly-machine`)          | ✅      | Machines API and `fly ssh console`; one app, machine and volume per workstation; resizable        |
-| T3 Code service and pairing           | ✅      | T3 is the sole public HTTP service; a requested code is attached to its normal URL                |
-| Claude and Codex native configuration | ✅      | Separate settings and plugin selections; optional direct CLIProxyAPI routing                      |
-| GitHub authentication                 | ✅      | Separate protected native credentials for T3’s `agent` account and a Sprite’s `sprite` account    |
-| No private network (`none`)           | ✅      | Default without network input; installs no network tool and registers no network service          |
-| Tailscale and exit-node routing       | ✅      | Optional; exit routing requires an existing approved exit node and permitted access               |
-| Existing CLIProxyAPI hub              | ✅      | Optional client configuration; the manager does not host a new hub                                |
-| Idle governor                         | ⚠️      | Native work hooks and managed setup/update holds; arbitrary shells and tools can bypass hooks     |
+| Capability                       | Support | Notes                                                                                                                            |
+| -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| T3 Code agent and pairing (`t3`) | ✅      | The sole public HTTP service; `stable` or `nightly` channel; a requested code is attached to its URL                             |
+| Claude Code harness (`claude`)   | ✅      | Native settings, hooks and plugins; optional direct CLIProxyAPI routing                                                          |
+| Codex harness (`codex`)          | ✅      | Native settings, hooks and plugins, kept separate from Claude's; optional direct CLIProxyAPI routing                             |
+| Other ACP agents and clients     | 🔜      | Planned; agents are pluggable drivers, so more ACP agents, and the ACP clients that connect to them, can be added beside T3 Code |
+| Tailscale private network        | ✅      | Joins your tailnet to reach your other machines privately; device cleanup on terminate                                           |
+| Exit-node routing                | ✅      | Optional; requires an existing approved exit node and permitted access                                                           |
+| Existing CLIProxyAPI hub         | ✅      | Optional client configuration, reachable inside your tailnet; open-agent does not host a new hub                                 |
+| No private network (`none`)      | ✅      | Default without network input; installs no network tool and registers no network service                                         |
+| Fly Sprites (`sprite`)           | ✅      | Official SDK; authenticated provider operations and live machine discovery; one 8 CPU, 16 GB size                                |
+| Fly Machines (`fly-machine`)     | ✅      | Machines API and `fly ssh console`; one app, machine and volume per workstation; resizable                                       |
+| GitHub authentication            | ✅      | Separate protected native credentials for T3’s `agent` account and a Sprite’s `sprite` account                                   |
+| Idle governor                    | ⚠️      | Native work hooks and managed setup/update holds; arbitrary shells and tools can bypass hooks                                    |
 
-Local execution requires Node.js 24+. Packaged terminal regression checks use `node-pty`; Windows terminals and screen-reader behavior remain outside the verified platform scope.
+The CLI runs on your computer and requires Node.js 24+. Packaged terminal regression checks use `node-pty`; Windows terminals and screen-reader behavior remain outside the verified platform scope.
 
 ---
 
 ## 💡 Core Concept
 
-A **managed workstation** is a persistent machine with provider-owned identity and native guest configuration. Its profile selects one provider, one ACP agent, the harnesses that agent drives, a network and options. The CLI discovers machines from the provider rather than keeping a local registry.
+`open-agent` puts a coding **agent on a machine**. Each managed **workstation** is one persistent cloud machine whose job is to run one ACP agent, the harnesses that agent drives, and the private network it reaches your other machines through. You connect your client to the agent's URL; the agent does the coding on the machine.
+
+```mermaid
+flowchart LR
+  Client[Your client] -- agent URL + pairing code --> Agent
+  subgraph Machine[Workstation on Fly Sprite or Fly Machine]
+    Agent[ACP agent: T3 Code] --> Claude[Claude Code]
+    Agent --> Codex[Codex]
+  end
+  Machine -- Tailscale --> Tailnet[Your other machines]
+  Machine -. optional .-> Exit[Home exit node]
+  Machine -. optional .-> Hub[Private CLIProxyAPI hub]
+```
+
+A workstation's profile selects one provider, one ACP agent, the harnesses that agent drives, a network and options. The provider owns its identity, so the CLI discovers workstations from the provider rather than keeping a local registry.
 
 Creation runs in this order:
 
 1. **Resolve inputs and preflight**: validate credentials, configuration, provider identity, and determinable tailnet issues before provisioning
-2. **Provision privately**: install managed tools and configure the selected integrations; every developer tool comes from a Homebrew prebuilt bottle and nothing is built from source
+2. **Provision privately**: install the agent, its harnesses and the managed tools, and configure the selected integrations; every developer tool comes from a Homebrew prebuilt bottle and nothing is built from source
 3. **Join the network first**: establish the selected private network before reaching a private proxy hub
-4. **Verify readiness**: check services, routing, proxy access, native configuration, and the agent's environment endpoint
+4. **Verify readiness, then expose the agent**: check services, routing, proxy access, native configuration, and the agent's environment endpoint before the agent URL is routed publicly
 
-### Installed tools
-
-Every workstation gets these tools for the `agent` account, linked in `/usr/local/bin`:
-
-| Tool                 | Commands                                                        | Source                                     |
-| -------------------- | --------------------------------------------------------------- | ------------------------------------------ |
-| Git, Jujutsu, GitHub | `git`, `jj`, `gh`                                               | Homebrew bottles                           |
-| Node.js              | `node`, `npm`, `npx`                                            | Homebrew `node`, its Current release line  |
-| pnpm                 | `pnpm`, `pnpx`                                                  | Homebrew bottle                            |
-| Python               | `python3`, `pip3`, `python`, `pip`                              | Homebrew `python3`, the current release    |
-| uv                   | `uv`, `uvx`                                                     | Homebrew bottle                            |
-| Rust                 | `rustup`, `cargo`, `rustc`, `rustfmt`, and more                 | Homebrew `rustup`, with a stable toolchain |
-| HTTPie               | `http`, `https`, `httpie`                                       | Homebrew bottle                            |
-| agent-browser        | `agent-browser`                                                 | Homebrew bottle                            |
-| Google Chrome        | `google-chrome`                                                 | Google's stable `.deb`, unpacked unchanged |
-| C compiler           | `gcc`, `libc6-dev`                                              | Debian packages, so cargo and pip can link |
-| Network diagnostics  | `ping`, `telnet`, `dig`, `nc`, `traceroute`, `ip`, `ss`, `wget` | Debian packages                            |
-
-The Node.js on the agent's `PATH` is Homebrew's Current line. open-agent's own guest code runs on a separate, private Node under `/opt/open-agent/node`, which is never on the agent's `PATH`, so updating either one leaves the other alone. The Rust toolchain is the `stable` channel with the minimal profile plus `clippy` and `rustfmt`, installed in the agent's home by `rustup`. Google Chrome is Google's own stable build for the workstation's architecture (amd64 or arm64), unpacked under `/opt/open-agent/tools/google-chrome` with its libraries from Debian; agent-browser finds it as `google-chrome` on the `PATH`, so it never downloads a browser of its own. `show` and `doctor` report each tool's version.
+After creation the workstation looks after itself: it sleeps when idle, wakes on a request to the agent URL, stays awake while a harness turn runs, and updates the agent, harnesses and tools in place on a schedule (see [Maintenance](#-maintenance)).
 
 `list` and ordinary `show` read the control plane. `show --inspect` and `doctor` explicitly check the guest and may wake it. A stored setup label is not a current health result. `list` queries every provider whose credential is available and notes the others as skipped, so one missing credential never fails the list. Every other command looks for the named workstation on each provider whose credential is ready, so you rarely need to name the provider of an existing workstation; when the same name exists on several providers, the command stops with an `INPUT` error that names them. `--provider PROVIDER` on `show`, `doctor`, `terminate` and `setup` names the provider instead and skips that search, so the error never occurs. It is also the provider a `--provider-token-source` belongs to, on `list` too; with a token source and no `--provider`, the source belongs to the default `sprite`.
 
 For how the CLI, the drivers and the guest fit together, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## 🌐 Private Networking
+
+With `--network tailscale`, the workstation joins your tailnet as its own device, named after the workstation. The agent can then reach your other machines (a home server, a database, a build box) over Tailscale without exposing them to the internet, and the only public service on the workstation stays the agent itself.
+
+- **Tailnet access**: supply the tailnet (`TAILSCALE_TAILNET` or `--network-account`) and either a management API key (`TAILSCALE_API_KEY`) or an enrollment key (`TAILSCALE_AUTH_KEY`). The API key stays on your computer; an enrollment key reaches the guest only for enrollment and is then discarded
+- **Exit node**: add `--use-exit-node --exit-node NAME` to send the workstation's outbound traffic through an approved exit node, such as one at home, so services see your own address
+- **Private model proxy**: add `--proxy` with `CLIPROXYAPI_BASE_URL` and `CLIPROXYAPI_API_KEY` to route both harnesses to an existing CLIProxyAPI hub; a hub inside your tailnet is checked only after the workstation has joined
+- **Persistent enrollment**: Tailscale's node state survives sleep and, on a Fly Machine, cold boots; `setup --section network` re-enrolls a daemon that has logged out, and `terminate` removes the device when the API key authorizes it
+
+```bash
+open-agent create --name my-agent --env-file .env \
+  --network tailscale --use-exit-node --exit-node home-server --proxy
+```
+
+Here `.env` holds `SPRITES_TOKEN`, `TAILSCALE_TAILNET`, `TAILSCALE_API_KEY`, `CLIPROXYAPI_BASE_URL` and `CLIPROXYAPI_API_KEY`. Switch an existing workstation onto or off the tailnet with `setup --section all --network tailscale` or `--network none`. [Optional Integrations and Preflight](#optional-integrations-and-preflight) covers tailnet names, exit-node matching and preflight in detail.
 
 ---
 
@@ -263,7 +284,7 @@ Create, setup and show mint no code by default. `--with-pair-code` is the canoni
 
 ## 📖 Usage
 
-Use the interactive CLI to select workstations and configure sections, or pass names and flags for automation. In the examples below, replace `open-agent` with `pnpm run local --` when working from this unpublished checkout. The temporary runner preserves arguments, environment, working directory, signals and exit status; it does not install a global command.
+Use the interactive CLI to select workstations and configure sections, or pass names and flags for automation. Every command is also available without a global install as `npx open-agent COMMAND`.
 
 ### CLI Command Surface
 
@@ -276,7 +297,7 @@ Use the interactive CLI to select workstations and configure sections, or pass n
 | `doctor [NAME]`      | Report current service, native harness, and selected-driver readiness                                         |
 | `terminate [NAME]`   | Permanently delete the exact managed workstation and report network cleanup separately                        |
 
-Run `open-agent COMMAND --help` for the complete command-specific flag list, or `pnpm run local -- COMMAND --help` from this checkout.
+Run `open-agent COMMAND --help` for the complete command-specific flag list.
 
 ### Common Options
 
@@ -323,15 +344,15 @@ Selectors explain disabled choices and require confirmation before accepting an 
 
 The **Network** section separates guest networking from **Replace saved API key on this computer**, which changes a shared local credential. **Managed tools** defaults to recorded versions; **Update tools now** asks for confirmation. Git identity offers keep/edit/skip with existing values as defaults and previous-field navigation.
 
-### Example: Inspect and Pair a Workstation
+### Example: Inspect and Pair Another Client
 
-List managed workstations, read provider details, then request live readiness or a fresh client pairing when needed:
+List managed workstations, read provider details, then request live readiness or pair a new client with the agent:
 
 ```bash
 open-agent list --env-file .env --json
-open-agent show my-workstation --env-file .env --json
-open-agent doctor my-workstation --env-file .env --json
-open-agent show my-workstation --env-file .env --with-pair-code
+open-agent show my-agent --env-file .env --json
+open-agent doctor my-agent --env-file .env --json
+open-agent show my-agent --env-file .env --with-pair-code
 ```
 
 `list` and ordinary `show` do not wake the guest. Add `--inspect` to show for explicit guest checks, or `--json` to the pairing command for structured output. The executable flushes both streams before exiting.
@@ -341,7 +362,7 @@ open-agent show my-workstation --env-file .env --with-pair-code
 Register the same GitHub marketplace independently for both harnesses, then enable the selected native plugin identities:
 
 ```bash
-open-agent setup my-workstation --env-file .env \
+open-agent setup my-agent --env-file .env \
   --claude-marketplace alvis/.agents --codex-marketplace alvis/.agents \
   --claude-plugin essential@alvis --claude-plugin coding@alvis \
   --claude-plugin specification@alvis --claude-plugin governance@alvis \
@@ -352,20 +373,20 @@ open-agent setup my-workstation --env-file .env \
 Explicit plugin actions infer `--section plugins`; a conflicting section errors. All four marketplace/plugin input flags and every removal/disable/uninstall action are repeatable. A selection for one harness does not select it for the other.
 
 ```bash
-open-agent setup my-workstation --env-file .env \
+open-agent setup my-agent --env-file .env \
   --disable-claude-plugin coding@alvis \
   --uninstall-codex-plugin coding@alvis
 ```
 
 `--reuse-marketplaces` takes the marketplace sources of the first harness, in catalog order, that has any and applies them once to the other selected harnesses; it reuses sources only for the requested operation. Skip flags alone select no operation. Unrelated native settings and plugins are preserved.
 
-### Example: Recover or Update a Workstation
+### Example: Recover or Update the Machine
 
 Recover an incomplete installation or explicitly refresh managed tools:
 
 ```bash
-open-agent setup my-workstation --env-file .env --section all
-open-agent setup my-workstation --env-file .env --section tools --update
+open-agent setup my-agent --env-file .env --section all
+open-agent setup my-agent --env-file .env --section tools --update
 ```
 
 Full setup updates tools and configures all areas. For a smaller repair, select the relevant section, such as `--section github`. Failures include bounded redacted diagnostics, the failed section, and a retry command. A successful targeted retry does not establish full readiness or clear the global incomplete-setup marker.
@@ -422,11 +443,37 @@ Pairing disclosure is opt-in and structurally marked. Other resolved credentials
 
 ---
 
+## 🛠️ Machine Reference
+
+The agent works with these tools on the machine. They are supporting equipment for the agent and its harnesses, installed and updated with them.
+
+### Installed tools
+
+Every workstation gets these tools for the `agent` account, linked in `/usr/local/bin`:
+
+| Tool                 | Commands                                                        | Source                                     |
+| -------------------- | --------------------------------------------------------------- | ------------------------------------------ |
+| Git, Jujutsu, GitHub | `git`, `jj`, `gh`                                               | Homebrew bottles                           |
+| Node.js              | `node`, `npm`, `npx`                                            | Homebrew `node`, its Current release line  |
+| pnpm                 | `pnpm`, `pnpx`                                                  | Homebrew bottle                            |
+| Python               | `python3`, `pip3`, `python`, `pip`                              | Homebrew `python3`, the current release    |
+| uv                   | `uv`, `uvx`                                                     | Homebrew bottle                            |
+| Rust                 | `rustup`, `cargo`, `rustc`, `rustfmt`, and more                 | Homebrew `rustup`, with a stable toolchain |
+| HTTPie               | `http`, `https`, `httpie`                                       | Homebrew bottle                            |
+| agent-browser        | `agent-browser`                                                 | Homebrew bottle                            |
+| Google Chrome        | `google-chrome`                                                 | Google's stable `.deb`, unpacked unchanged |
+| C compiler           | `gcc`, `libc6-dev`                                              | Debian packages, so cargo and pip can link |
+| Network diagnostics  | `ping`, `telnet`, `dig`, `nc`, `traceroute`, `ip`, `ss`, `wget` | Debian packages                            |
+
+The Node.js on the agent's `PATH` is Homebrew's Current line. open-agent's own guest code runs on a separate, private Node under `/opt/open-agent/node`, which is never on the agent's `PATH`, so updating either one leaves the other alone. The Rust toolchain is the `stable` channel with the minimal profile plus `clippy` and `rustfmt`, installed in the agent's home by `rustup`. Google Chrome is Google's own stable build for the workstation's architecture (amd64 or arm64), unpacked under `/opt/open-agent/tools/google-chrome` with its libraries from Debian; agent-browser finds it as `google-chrome` on the `PATH`, so it never downloads a browser of its own. `show` and `doctor` report each tool's version.
+
+---
+
 ## 🔧 Maintenance
 
 A Sprite runs `t3-code` and `open-agent-cron` as Sprite services, plus `tailscaled` when Tailscale is selected. A Fly Machine has no service manager, so its boot script starts the guest supervisor, `/opt/open-agent/bin/open-agent-supervisor`, which runs `t3-code` and `tailscaled`, restarts an exited service with a doubling delay, restores the running services after a cold boot, and runs a maintenance timer in place of cron. It logs to `/opt/open-agent/supervisor.log`, each service's output goes to `/opt/open-agent/supervisor/logs/<name>.log`, and `doctor` reports the timer as `open-agent-timer` under Maintenance. T3 is the only public HTTP service; administration uses authenticated provider interfaces.
 
-**Updates.** While the workstation runs, cron (the supervisor's timer on a Fly Machine) checks every **30 minutes** by default, and once **seven days** have passed since the last successful update it installs the latest managed tools in place. A tool whose installed version is already the latest, with no outdated dependency, is skipped. The agent follows the npm dist-tag of its recorded release channel (`stable` unless another was selected). Change the intervals with `--update-check-minutes` (1 to 10080) and `--update-due-days` (1 to 365); `setup --section tools` or `setup --section all` changes them on a live workstation without restarting a service, and a run that only changes an interval reports `tools: "scheduled"`. The success time advances only after every required install succeeds. A fallback the updater had to take, or an unusable interval file, is recorded as `lastUpdateDiagnostic` in the manifest, which `show --inspect` and `doctor` report under Maintenance alongside the `Agent release channel`.
+**Updates.** While the workstation runs, cron (the supervisor's timer on a Fly Machine) checks every **30 minutes** by default, and once **seven days** have passed since the last successful update it installs the latest agent, harnesses and managed tools in place. A tool whose installed version is already the latest, with no outdated dependency, is skipped. The agent follows the npm dist-tag of its recorded release channel (`stable` unless another was selected). Change the intervals with `--update-check-minutes` (1 to 10080) and `--update-due-days` (1 to 365); `setup --section tools` or `setup --section all` changes them on a live workstation without restarting a service, and a run that only changes an interval reports `tools: "scheduled"`. The success time advances only after every required install succeeds. A fallback the updater had to take, or an unusable interval file, is recorded as `lastUpdateDiagnostic` in the manifest, which `show --inspect` and `doctor` report under Maintenance alongside the `Agent release channel`.
 
 **No service restarts.** The updater never stops, starts, restarts, registers or deletes a service, so a running agent or network daemon keeps its process; a newly installed version runs the next time the service restarts, which `setup --section agent --release CHANNEL` and `setup --section all` do when the release channel changed. Updates can still interrupt active work: there are no compatibility, staging, or safe-point gates. Project dependencies, the guest distribution, and the provider runtime are outside the maintenance scope.
 
@@ -449,7 +496,14 @@ Focused tests replace only `@fly/sprites` and the Fly Machines HTTP API, and use
 
 ## 💻 Development
 
-Install dependencies, then run the source and installed-package checks:
+Contributions are welcome. Working on open-agent itself needs Node.js 24+ and pnpm (the exact version is pinned in `package.json`). `pnpm run local` builds, packs and installs the CLI into a temporary directory and runs it with your arguments, environment, working directory, signals and exit status preserved:
+
+```bash
+pnpm install
+pnpm run local -- create --env-file .env --name my-agent --with-pair-code
+```
+
+Run the source and installed-package checks before opening a pull request:
 
 ```bash
 pnpm typecheck
