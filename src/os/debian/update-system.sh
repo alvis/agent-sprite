@@ -2,7 +2,10 @@
 # family library: it refreshes apt's lists and upgrades the packages of every
 # system tool environment.json records, never installing a missing one.
 # environment.json lists its tools under `tools`, each with the source setup
-# resolved for it; a system source names its packages under `packages`
+# resolved for it; a system source names its packages under `packages`. No
+# package it upgrades starts, stops or restarts a daemon: open-agent's
+# policy-rc.d refuses every one while OA_POLICY_HOLD is set, and needrestart
+# stays suspended
 
 # upgrades the system tools environment.json records
 # arguments: path of environment.json
@@ -22,6 +25,11 @@ oa_update_system() {
 $oa_update_packages
 EOF
   test "$#" -gt 0 || return 0
-  oa_lists_update || return 1
-  oa_pkg_upgrade "$@"
+  oa_policy_rc_install || return 1
+  (
+    OA_POLICY_HOLD=1
+    NEEDRESTART_SUSPEND=1
+    export OA_POLICY_HOLD NEEDRESTART_SUSPEND
+    oa_lists_update && oa_pkg_upgrade "$@"
+  )
 }

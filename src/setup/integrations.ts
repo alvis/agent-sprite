@@ -5,7 +5,6 @@ import { writeComponentCatalog } from '#integrations/guest/component-catalog';
 import { assertGuestProfile } from '#integrations/guest/manifest';
 import { disableNetwork } from '#integrations/guest/network';
 import { writeGuestProfile } from '#integrations/guest/runtime';
-import { installUpdateSchedule } from '#integrations/guest/services';
 import { withGuestTransaction } from '#integrations/guest/transaction';
 
 import type { SetupSection } from '#command/contracts';
@@ -18,8 +17,8 @@ import type { SetupContext } from './context.js';
 /**
  * persists a validated selection and stops every daemon the selection no
  * longer runs, including a stray daemon left on a workstation without a network;
- * the tools section stores its intervals and installs the schedule they name in
- * the same transaction, so the profile and the schedule cannot drift apart
+ * the updater reads the tools section's due interval from the stored profile,
+ * so storing it is the whole change
  * @param guest selected managed guest
  * @param profile validated selection this run applies
  * @param context recorded selection, targeted section and mutation tracking
@@ -51,19 +50,13 @@ export async function persistSetupProfile(
     if (isReleaseChanged(profile, expected)) {
       await writeComponentCatalog(guest, profile);
     }
-    if (section === 'tools') {
-      await installUpdateSchedule(
-        guest,
-        profile.options.updateCheckIntervalMinutes,
-      );
-    }
   });
 }
 
 /**
  * detects whether this setup invocation changes the persisted selection; the
- * tools section owns only the update intervals, so it changes the selection
- * only when a resolved interval differs from the recorded one, and the agent
+ * tools section owns only the update due interval, so it changes the selection
+ * only when the resolved interval differs from the recorded one, and the agent
  * section owns only the release channel, so it changes the selection only when
  * the resolved channel differs from the recorded one, whether a flag, the
  * environment or a prompt supplied it; a changed machine requirement is
@@ -86,10 +79,8 @@ export function profileUpdateSelected(
   }
 
   return section === 'tools'
-    ? profile.options.updateCheckIntervalMinutes !==
-        recorded.options.updateCheckIntervalMinutes ||
-        profile.options.updateDueIntervalDays !==
-          recorded.options.updateDueIntervalDays
+    ? profile.options.updateDueIntervalDays !==
+        recorded.options.updateDueIntervalDays
     : sectionFields(section).length > 0;
 }
 

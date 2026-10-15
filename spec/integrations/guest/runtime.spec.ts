@@ -10,11 +10,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  UPDATE_CHECK_FILE,
-  UPDATE_GATE_SCRIPT,
-  updateEntryCommand,
-} from '#guest/update-schedule';
+import { updateEntryCommand } from '#guest/update-schedule';
 import { inspectGuest, installGuestTools } from '#integrations/guest/runtime';
 import { assessReadiness } from '#readiness';
 
@@ -360,28 +356,17 @@ describe('fn:installGuestTools', () => {
         ...stored,
         options: {
           ...stored.options,
-          updateCheckIntervalMinutes: 45,
           updateDueIntervalDays: 3,
         },
       },
     });
-    await sprite.filesystem().writeFile(UPDATE_GATE_SCRIPT, '# stale gate\n');
-    await sprite.filesystem().writeFile(UPDATE_CHECK_FILE, '5\n');
 
     // the profile a caller passes is only for a first installation
     await installGuestTools(guestOf(sprite), stored);
 
-    const files = sprite.filesystem();
-    expect({
-      interval: await files.readFile(UPDATE_CHECK_FILE, 'utf8'),
-      isGateCurrent:
-        (await files.readFile(UPDATE_GATE_SCRIPT, 'utf8')) !== '# stale gate\n',
-      cron: await files.readFile('/etc/cron.d/open-agent', 'utf8'),
-    }).toEqual({
-      interval: '45\n',
-      isGateCurrent: true,
-      cron: expect.stringContaining(updateEntryCommand()),
-    });
+    expect(
+      await sprite.filesystem().readFile('/etc/cron.d/open-agent', 'utf8'),
+    ).toEqual(expect.stringContaining(updateEntryCommand()));
   });
 
   it('should leave the first installation without a schedule until the services are installed', async () => {
@@ -403,7 +388,9 @@ describe('fn:installGuestTools', () => {
       profileWith({ network: false, exitNode: false, cliproxyapi: false }),
     );
 
-    expect(await sprite.filesystem().exists(UPDATE_CHECK_FILE)).toBe(false);
+    expect(await sprite.filesystem().exists('/etc/cron.d/open-agent')).toBe(
+      false,
+    );
   });
 });
 

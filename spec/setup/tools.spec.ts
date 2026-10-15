@@ -38,22 +38,16 @@ import type { WorkstationProfile } from '#core/profile';
 import type { SetupContext } from '#setup/context';
 
 /**
- * builds the disabled-network profile with chosen update intervals
- * @param intervals minutes between checks and days until an update is due
- * @param intervals.minutes minutes between update checks
- * @param intervals.days days after a success before an update is due
+ * builds the disabled-network profile with a chosen due interval
+ * @param days days after a success before an update is due
  * @returns the profile
  */
-function withIntervals(intervals: {
-  minutes: number;
-  days: number;
-}): WorkstationProfile {
+function withDueDays(days: number): WorkstationProfile {
   return {
     ...DISABLED_NETWORK_PROFILE,
     options: {
       ...DISABLED_NETWORK_PROFILE.options,
-      updateCheckIntervalMinutes: intervals.minutes,
-      updateDueIntervalDays: intervals.days,
+      updateDueIntervalDays: days,
     },
   };
 }
@@ -146,15 +140,16 @@ function toolsRequest(): Parameters<typeof setupWorkstation>[0] {
 }
 
 /**
- * reads the interval file of the guest
+ * reads the due interval the guest's manifest stores
  * @param root directory standing for the guest filesystem
- * @returns the file's text, or undefined when the guest has no schedule
+ * @returns the stored days
  */
-async function readInterval(root: string): Promise<string | undefined> {
-  return readFile(
-    join(root, 'opt/open-agent/update-check-minutes'),
-    'utf8',
-  ).catch(() => undefined);
+async function readDueDays(root: string): Promise<number> {
+  const manifest = JSON.parse(
+    await readFile(join(root, 'opt/open-agent/manifest.json'), 'utf8'),
+  ) as { profile: WorkstationProfile };
+
+  return manifest.profile.options.updateDueIntervalDays;
 }
 
 describe('fn:setupTools --update', () => {
@@ -236,7 +231,7 @@ describe('fn:setupTools schedule', () => {
 });
 
 describe('fn:persistSetupProfile tools section', () => {
-  it('should store the profile and install the schedule it names in one run, touching no service', async () => {
+  it('should store the profile it names in one run, touching no service', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-tools-persist-'),
     );
@@ -244,65 +239,22 @@ describe('fn:persistSetupProfile tools section', () => {
     const listServices = vi.spyOn(sprite, 'listServices');
     const createService = vi.spyOn(sprite, 'createService');
     await writeManifest(directory.path);
-    const profile = withIntervals({ minutes: 45, days: 3 });
     const mutation = { started: false };
 
-    await persistSetupProfile(guestOf(sprite), profile, {
+    await persistSetupProfile(guestOf(sprite), withDueDays(3), {
       mutation,
       expected: DISABLED_NETWORK_PROFILE,
       section: 'tools',
     });
 
     expect({
-      interval: await readFile(
-        join(directory.path, 'opt/open-agent/update-check-minutes'),
-        'utf8',
-      ),
-      stored: JSON.parse(
-        await readFile(
-          join(directory.path, 'opt/open-agent/manifest.json'),
-          'utf8',
-        ),
-      ).profile.options,
+      stored: await readDueDays(directory.path),
       services: [
         listServices.mock.calls.length,
         createService.mock.calls.length,
       ],
       mutated: mutation.started,
-    }).toEqual({
-      interval: '45\n',
-      stored: expect.objectContaining({
-        updateCheckIntervalMinutes: 45,
-        updateDueIntervalDays: 3,
-      }),
-      services: [0, 0],
-      mutated: true,
-    });
-  });
-
-  it('should leave the schedule to the services when another section stores the profile', async () => {
-    await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'open-agent-agent-persist-'),
-    );
-    const sprite = createFilesystemSprite({ root: directory.path });
-    await writeManifest(directory.path);
-
-    await persistSetupProfile(
-      guestOf(sprite),
-      withIntervals({ minutes: 45, days: 3 }),
-      {
-        mutation: { started: false },
-        expected: DISABLED_NETWORK_PROFILE,
-        section: 'agent',
-      },
-    );
-
-    await expect(
-      readFile(
-        join(directory.path, 'opt/open-agent/update-check-minutes'),
-        'utf8',
-      ),
-    ).rejects.toMatchObject({ code: 'ENOENT' });
+    }).toEqual({ stored: 3, services: [0, 0], mutated: true });
   });
 });
 
@@ -310,15 +262,14 @@ describe('fn:profileUpdateSelected', () => {
   const recorded = DISABLED_NETWORK_PROFILE;
 
   it.each([
-    ['the check interval', { minutes: 45, days: 7 }, true],
-    ['the due interval', { minutes: 30, days: 3 }, true],
-    ['neither interval', { minutes: 30, days: 7 }, false],
+    ['changes the due interval', 3, true],
+    ['keeps the due interval', 1, false],
   ])(
-    'should report the tools section as changing the profile only when it changes %s',
-    (_, intervals, isChanged) => {
-      expect(
-        profileUpdateSelected('tools', withIntervals(intervals), recorded),
-      ).toBe(isChanged);
+    'should report the tools section as changing the profile only when it %s',
+    (_, days, isChanged) => {
+      expect(profileUpdateSelected('tools', withDueDays(days), recorded)).toBe(
+        isChanged,
+      );
     },
   );
 
@@ -337,14 +288,13 @@ describe('fn:profileUpdateSelected', () => {
   );
 });
 
-describe('workflow:tools section with intervals from the environment', () => {
-  it('should keep the usage error when the environment repeats the recorded intervals', async () => {
+describe('workflow:tools section with a due interval from the environment', () => {
+  it('should keep the usage error when the environment repeats the recorded interval', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-tools-env-same-'),
     );
     const { sprite, client } = await toolsWorkstation(directory.path);
-    vi.stubEnv('OPEN_AGENT_UPDATE_CHECK_MINUTES', '30');
-    vi.stubEnv('OPEN_AGENT_UPDATE_DUE_DAYS', '7');
+    vi.stubEnv('OPEN_AGENT_UPDATE_DUE_DAYS', '1');
 
     const result = await setupWorkstation(toolsRequest(), providerOf(client));
 
@@ -352,12 +302,12 @@ describe('workflow:tools section with intervals from the environment', () => {
     expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
   });
 
-  it('should reschedule once and report it when the environment changes an interval', async () => {
+  it('should store the interval once and report it when the environment changes it', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-tools-env-changed-'),
     );
     const { sprite, client, metadata } = await toolsWorkstation(directory.path);
-    vi.stubEnv('OPEN_AGENT_UPDATE_CHECK_MINUTES', '45');
+    vi.stubEnv('OPEN_AGENT_UPDATE_DUE_DAYS', '3');
 
     const result = await setupWorkstation(toolsRequest(), providerOf(client));
 
@@ -365,23 +315,23 @@ describe('workflow:tools section with intervals from the environment', () => {
       ok: true,
       data: { section: 'tools', tools: 'scheduled' },
     });
-    expect(await readInterval(directory.path)).toBe('45\n');
+    expect(await readDueDays(directory.path)).toBe(3);
     // the metadata summary names no interval, so there is nothing to record
     expect(metadata).not.toHaveBeenCalled();
     expect(sprite.filesystem().writeFile).toHaveBeenCalled();
   });
 
   it.each([
-    ['repeats the recorded interval', '30', undefined],
-    ['changes the interval', '45', '45\n'],
+    ['repeats the recorded interval', '1', 1],
+    ['changes the interval', '3', 3],
   ])(
     'should still open the tools menu when the environment %s',
-    async (_, minutes, interval) => {
+    async (_, days, stored) => {
       await using directory = await mkdtempDisposable(
         join(tmpdir(), 'open-agent-tools-env-menu-'),
       );
       const { client } = await toolsWorkstation(directory.path);
-      vi.stubEnv('OPEN_AGENT_UPDATE_CHECK_MINUTES', minutes);
+      vi.stubEnv('OPEN_AGENT_UPDATE_DUE_DAYS', days);
 
       const observed = await driveInk(
         async (interaction) =>
@@ -394,7 +344,7 @@ describe('workflow:tools section with intervals from the environment', () => {
         ok: true,
         data: { tools: { status: 'recorded versions' } },
       });
-      expect(await readInterval(directory.path)).toBe(interval);
+      expect(await readDueDays(directory.path)).toBe(stored);
     },
     15_000,
   );

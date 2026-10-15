@@ -1,30 +1,11 @@
 import { GUEST_KERNEL, GUEST_NODE, GUEST_ROOT } from './guest-root.js';
 import { isRecord } from './records.js';
 
-/** minutes between update checks when the stored profile names none */
-export const DEFAULT_UPDATE_CHECK_MINUTES = 30;
-
-/** longest check interval: one week */
-export const MAX_UPDATE_CHECK_MINUTES = 10_080;
-
 /** days after the last successful update before another is due when the stored profile names none */
-export const DEFAULT_UPDATE_DUE_DAYS = 7;
+export const DEFAULT_UPDATE_DUE_DAYS = 1;
 
 /** longest due interval: one year */
 export const MAX_UPDATE_DUE_DAYS = 365;
-
-/**
- * the one place the guest reads the check interval from: a root-owned file of
- * whole minutes that the host writes from the stored profile, read by the
- * cron gate and by any other timer that runs the updater
- */
-export const UPDATE_CHECK_FILE = `${GUEST_ROOT}/update-check-minutes`;
-
-/** root-owned file of the epoch minute the gate last let a check through */
-export const UPDATE_CHECK_STAMP_FILE = `${GUEST_ROOT}/update-checked-minute`;
-
-/** gate that lets one check through per interval, deployed beside the kernel */
-export const UPDATE_GATE_SCRIPT = `${GUEST_ROOT}/guest/update-gate.sh`;
 
 /**
  * directory of the update lock: under the guest root, which only root writes,
@@ -74,24 +55,14 @@ export function lockDirectoryCommand(
 
 /**
  * builds the shell command of one scheduled update check: it checks the
- * root-only lock directory, takes the update lock without waiting, asks the
- * gate whether a check is due, and only then replaces the shell with the
- * updater. Every timer runs it as `/bin/sh -c`; the cron entry is one
- * consumer, and it holds no single quote, so it nests in one quoted shell
- * argument.
+ * root-only lock directory, takes the update lock without waiting, and then
+ * replaces the shell with the updater, which ends at once when no update is
+ * due. Every timer runs it as `/bin/sh -c`; the cron entry is one consumer,
+ * and it holds no single quote, so it nests in one quoted shell argument.
  * @returns the shell command line
  */
 export function updateEntryCommand(): string {
-  const gate = [
-    '/bin/sh',
-    UPDATE_GATE_SCRIPT,
-    UPDATE_CHECK_FILE,
-    UPDATE_CHECK_STAMP_FILE,
-    String(DEFAULT_UPDATE_CHECK_MINUTES),
-    String(MAX_UPDATE_CHECK_MINUTES),
-  ].join(' ');
-
-  return `${lockDirectoryCommand()} || exit 0; exec 9>>${UPDATE_LOCK_PATH}; /usr/bin/flock -n 9 || exit 0; ${gate} || exit 0; exec ${GUEST_NODE} ${GUEST_KERNEL}/updater.js`;
+  return `${lockDirectoryCommand()} || exit 0; exec 9>>${UPDATE_LOCK_PATH}; /usr/bin/flock -n 9 || exit 0; exec ${GUEST_NODE} ${GUEST_KERNEL}/updater.js`;
 }
 
 /**
@@ -119,27 +90,6 @@ export function storedDueDays(profile: unknown): UpdateDueDays {
     days: DEFAULT_UPDATE_DUE_DAYS,
     diagnostic: `The stored profile has no valid update due interval (1 to ${String(MAX_UPDATE_DUE_DAYS)} days); using ${String(DEFAULT_UPDATE_DUE_DAYS)} days`,
   };
-}
-
-/**
- * explains an interval file the gate cannot use, as the gate reads it
- * @param contents text of the interval file, or undefined when it cannot be read
- * @returns the reason the gate falls back, or undefined when the file is valid
- */
-export function checkIntervalDiagnostic(
-  contents: string | undefined,
-): string | undefined {
-  // the gate reads the file with its trailing newlines removed
-  const [value = '', ...trailing] = (contents ?? '').split('\n');
-  if (
-    trailing.every((line) => line === '') &&
-    /^[1-9]\d*$/u.test(value) &&
-    Number(value) <= MAX_UPDATE_CHECK_MINUTES
-  ) {
-    return undefined;
-  }
-
-  return `The update check interval file holds no whole number from 1 to ${String(MAX_UPDATE_CHECK_MINUTES)} minutes; the gate uses ${String(DEFAULT_UPDATE_CHECK_MINUTES)} minutes`;
 }
 
 /**

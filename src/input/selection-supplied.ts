@@ -41,7 +41,6 @@ const SELECTABLE_OPTIONS: readonly SelectableOption[] = [
   'isProxyEnabled',
   'idleTimeoutMinutes',
   'holdMaxMinutes',
-  'updateCheckIntervalMinutes',
   'updateDueIntervalDays',
 ];
 
@@ -158,7 +157,6 @@ const NUMBER_OPTIONS = [
   'minMemoryGb',
   'idleTimeoutMinutes',
   'holdMaxMinutes',
-  'updateCheckIntervalMinutes',
   'updateDueIntervalDays',
 ] as const satisfies readonly SelectableOption[];
 
@@ -181,7 +179,6 @@ function readNumberOptions(
     minMemoryGb: options.mem,
     idleTimeoutMinutes: options.idleMinutes,
     holdMaxMinutes: options.holdMaxMinutes,
-    updateCheckIntervalMinutes: options.updateCheckMinutes,
     updateDueIntervalDays: options.updateDueDays,
   };
   const resolved = NUMBER_OPTIONS.map((field) => {

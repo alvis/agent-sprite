@@ -9,18 +9,13 @@ import {
 import { kernelModule } from '#guest/guest-root';
 import { supervisorEntryScript } from '#guest/supervisor/entry';
 import { SUPERVISOR_COMMAND } from '#guest/supervisor/protocol';
-import {
-  UPDATE_CHECK_FILE,
-  UPDATE_GATE_SCRIPT,
-  updateEntryCommand,
-} from '#guest/update-schedule';
+import { updateEntryCommand } from '#guest/update-schedule';
 
 import { writeGuestFile } from '../guest.js';
 
 import { writeComponentCatalog } from './component-catalog.js';
 import { writeHarnessCatalog } from './harness-catalog.js';
 import { readGuestManifest } from './manifest.js';
-import { readGuestPayload } from './payloads/assets.js';
 import { deployGuestPayload } from './payloads.js';
 import { withGuestTransaction } from './transaction.js';
 
@@ -29,7 +24,6 @@ import type { GuestChannel } from '#drivers/guest-channel';
 
 const CRON_UPDATE_PATH = '/etc/cron.d/open-agent';
 const SHARED_FILE_MODE = 0o644;
-const ROOT_FILE_MODE = 0o600;
 const ROOT_SCRIPT_MODE = 0o700;
 
 /**
@@ -77,10 +71,7 @@ export async function installManagedServices(
       await stopAgentService(guest, agentService(profile).name);
     }
     await guest.services.ensure(agentService(profile));
-    await installUpdateSchedule(
-      guest,
-      profile.options.updateCheckIntervalMinutes,
-    );
+    await installUpdateSchedule(guest);
     // the guest supervisor's own timer runs the schedule where it supervises
     if (isSupervisedProvider(profile.provider)) {
       return;
@@ -119,42 +110,27 @@ async function stopAgentService(
 }
 
 /**
- * installs the update schedule for a check interval: the root-owned interval
- * file every timer reads, the gate, and, where the provider runs the
- * services, a cron entry that runs the shared update entry every minute,
- * which starts the updater only when the gate lets a check through; the guest
+ * installs the update schedule: where the provider runs the services, a cron
+ * entry that runs the shared update entry every hour, which starts the
+ * updater and lets it end at once when no update is due; the guest
  * supervisor's timer runs the same entry where it supervises them, so no cron
- * entry is written there. The entry never changes with the interval, so
- * changing the interval rewrites one file and touches no service. Rewriting
- * them is idempotent, so a kernel refresh redeploys the gate and the entry.
+ * entry is written there. Rewriting it is idempotent, so a kernel refresh
+ * redeploys the entry
  * @param guest target guest
- * @param minutes whole minutes between update checks
  */
 export async function installUpdateSchedule(
   guest: GuestChannel,
-  minutes: number,
 ): Promise<void> {
   await withGuestTransaction(guest, async () => {
     const { profile } = await readGuestManifest(guest);
-    // a root-only shell script beside the kernel, not a staged module
-    await writeGuestFile(guest, {
-      path: UPDATE_GATE_SCRIPT,
-      contents: await readGuestPayload(kernelModule('update-gate.sh')),
-      mode: ROOT_SCRIPT_MODE,
-    });
-    await writeGuestFile(guest, {
-      path: UPDATE_CHECK_FILE,
-      contents: `${String(minutes)}\n`,
-      mode: ROOT_FILE_MODE,
-    });
     // the one seam to the provider's timer: cron runs the shared update entry
-    // every minute, and the guest supervisor's timer runs the same entry
+    // every hour, and the guest supervisor's timer runs the same entry
     if (isSupervisedProvider(profile.provider)) {
       return;
     }
     await writeGuestFile(guest, {
       path: CRON_UPDATE_PATH,
-      contents: `* * * * * root /bin/sh -c '${updateEntryCommand()}' >/dev/null 2>&1\n`,
+      contents: `0 * * * * root /bin/sh -c '${updateEntryCommand()}' >/dev/null 2>&1\n`,
       mode: SHARED_FILE_MODE,
     });
   });

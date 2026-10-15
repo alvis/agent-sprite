@@ -6,10 +6,7 @@ import {
   parseProfile,
   validateProfile,
 } from '#core/profile';
-import {
-  MAX_UPDATE_CHECK_MINUTES,
-  MAX_UPDATE_DUE_DAYS,
-} from '#guest/update-schedule';
+import { MAX_UPDATE_DUE_DAYS } from '#guest/update-schedule';
 
 import type { ProfileCandidate } from '#core/profile';
 import type {
@@ -176,8 +173,7 @@ describe('fn:defaultProfile', () => {
         minMemoryGb: 2,
         idleTimeoutMinutes: 5,
         holdMaxMinutes: 60,
-        updateCheckIntervalMinutes: 30,
-        updateDueIntervalDays: 7,
+        updateDueIntervalDays: 1,
       },
     });
     expect(defaultProfile('none').network).toBe('none');
@@ -220,33 +216,8 @@ describe('fn:validateProfile', () => {
       ['invalid-option'],
     ],
     [
-      'a check interval of 0 minutes',
-      { options: { ...valid.options, updateCheckIntervalMinutes: 0 } },
-      ['invalid-option'],
-    ],
-    [
-      'a fractional check interval',
-      { options: { ...valid.options, updateCheckIntervalMinutes: 1.5 } },
-      ['invalid-option'],
-    ],
-    [
-      'a check interval beyond a week',
-      {
-        options: {
-          ...valid.options,
-          updateCheckIntervalMinutes: MAX_UPDATE_CHECK_MINUTES + 1,
-        },
-      },
-      ['invalid-option'],
-    ],
-    [
-      'a check interval that is not a safe integer',
-      {
-        options: {
-          ...valid.options,
-          updateCheckIntervalMinutes: Number.MAX_SAFE_INTEGER + 1,
-        },
-      },
+      'a fractional due interval',
+      { options: { ...valid.options, updateDueIntervalDays: 1.5 } },
       ['invalid-option'],
     ],
     [

@@ -215,14 +215,10 @@ export function validateSetupIntegrationOptions(
   if (!section || section === 'all') {
     return;
   }
-  if (
-    section !== 'tools' &&
-    (options.updateCheckMinutes !== undefined ||
-      options.updateDueDays !== undefined)
-  ) {
+  if (section !== 'tools' && options.updateDueDays !== undefined) {
     throw new CommandValidationError({
       message:
-        'Update interval switches require --section tools or --section all',
+        'The update interval switch requires --section tools or --section all',
     });
   }
   if (

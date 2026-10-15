@@ -33,10 +33,6 @@ export const SELECTION_INPUTS = {
     flag: '--hold-max-minutes',
     environment: 'OPEN_AGENT_HOLD_MAX_MINUTES',
   },
-  updateCheckIntervalMinutes: {
-    flag: '--update-check-minutes',
-    environment: 'OPEN_AGENT_UPDATE_CHECK_MINUTES',
-  },
   updateDueIntervalDays: {
     flag: '--update-due-days',
     environment: 'OPEN_AGENT_UPDATE_DUE_DAYS',

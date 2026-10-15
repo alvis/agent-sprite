@@ -10,7 +10,6 @@ export interface StoredProfileOptions {
   isProxyEnabled: boolean;
   idleTimeoutMinutes: number;
   holdMaxMinutes: number;
-  updateCheckIntervalMinutes: number;
   updateDueIntervalDays: number;
   /** fewest CPUs the machine must provide */
   minCpus: number;
@@ -32,7 +31,6 @@ export interface StoredProfile {
 const numericOptions = [
   'idleTimeoutMinutes',
   'holdMaxMinutes',
-  'updateCheckIntervalMinutes',
   'updateDueIntervalDays',
   'minCpus',
   'minMemoryGb',

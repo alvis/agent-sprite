@@ -1280,24 +1280,6 @@ describe('workflow:installed CLI', () => {
       },
     },
     {
-      flags: ['--update-check-minutes', '0'],
-      exitCode: 1,
-      error: {
-        code: 'INPUT',
-        message: 'The workstation selection is invalid',
-        details: [expect.stringContaining('--update-check-minutes')],
-      },
-    },
-    {
-      flags: ['--update-check-minutes', '10081'],
-      exitCode: 1,
-      error: {
-        code: 'INPUT',
-        message: 'The workstation selection is invalid',
-        details: [expect.stringContaining('--update-check-minutes')],
-      },
-    },
-    {
       flags: ['--update-due-days', '366'],
       exitCode: 1,
       error: {
@@ -1307,11 +1289,11 @@ describe('workflow:installed CLI', () => {
       },
     },
     {
-      flags: ['--update-check-minutes', '1.5'],
+      flags: ['--update-due-days', '1.5'],
       exitCode: 2,
       error: {
         code: 'USAGE',
-        message: expect.stringContaining('update-check-minutes'),
+        message: expect.stringContaining('update-due-days'),
       },
     },
     {
@@ -1392,24 +1374,6 @@ describe('workflow:installed CLI', () => {
       },
     },
     {
-      flags: ['--update-check-minutes', '0'],
-      exitCode: 1,
-      error: {
-        code: 'INPUT',
-        message: 'The workstation selection is invalid',
-        details: [expect.stringContaining('--update-check-minutes')],
-      },
-    },
-    {
-      flags: ['--update-check-minutes', '10081'],
-      exitCode: 1,
-      error: {
-        code: 'INPUT',
-        message: 'The workstation selection is invalid',
-        details: [expect.stringContaining('--update-check-minutes')],
-      },
-    },
-    {
       flags: ['--update-due-days', '366'],
       exitCode: 1,
       error: {
@@ -1419,11 +1383,11 @@ describe('workflow:installed CLI', () => {
       },
     },
     {
-      flags: ['--update-check-minutes', '1.5'],
+      flags: ['--update-due-days', '1.5'],
       exitCode: 2,
       error: {
         code: 'USAGE',
-        message: expect.stringContaining('update-check-minutes'),
+        message: expect.stringContaining('update-due-days'),
       },
     },
     {
@@ -1506,8 +1470,6 @@ describe('workflow:installed CLI', () => {
           'devbox',
           '--section',
           'tools',
-          '--update-check-minutes',
-          '45',
           '--update-due-days',
           '3',
           '--json',
@@ -1540,8 +1502,8 @@ describe('workflow:installed CLI', () => {
           'devbox',
           '--section',
           'network',
-          '--update-check-minutes',
-          '45',
+          '--update-due-days',
+          '3',
           '--json',
           '--non-interactive',
           '--no-local-credentials',
@@ -2164,7 +2126,7 @@ describe('workflow:installed CLI', () => {
   });
 
   it.each([['create'], ['setup']])(
-    'should list both update interval flags in %s help',
+    'should list the update due interval and no check interval in %s help',
     async (command) => {
       expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
@@ -2177,7 +2139,7 @@ describe('workflow:installed CLI', () => {
       );
 
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('--update-check-minutes');
+      expect(result.stdout).not.toContain('--update-check-minutes');
       expect(result.stdout).toContain('--update-due-days');
     },
   );

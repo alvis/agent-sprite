@@ -38,7 +38,7 @@ export interface OptionContext {
  * resolves the capability-driven options the run owns: exit node only when
  * the network supports one, CLIProxyAPI only when a selected harness supports
  * it, idle minutes only when the provider keeps workstations awake; hold-max
- * and the update intervals are never asked
+ * and the update due interval are never asked
  * @param context selected drivers, supplied values, prompts and base options
  * @returns the profile options
  */
@@ -66,8 +66,6 @@ export async function resolveOptions(
     minCpus: supplied.minCpus ?? base.minCpus,
     minMemoryGb: supplied.minMemoryGb ?? base.minMemoryGb,
     holdMaxMinutes: supplied.holdMaxMinutes ?? base.holdMaxMinutes,
-    updateCheckIntervalMinutes:
-      supplied.updateCheckIntervalMinutes ?? base.updateCheckIntervalMinutes,
     updateDueIntervalDays:
       supplied.updateDueIntervalDays ?? base.updateDueIntervalDays,
   };

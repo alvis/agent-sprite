@@ -13,16 +13,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { GUEST_ROOT } from '#guest/guest-root';
 import {
-  checkIntervalDiagnostic,
   isUpdateDue,
   lockDirectoryCommand,
-  MAX_UPDATE_CHECK_MINUTES,
   MAX_UPDATE_DUE_DAYS,
   storedDueDays,
-  UPDATE_CHECK_FILE,
-  UPDATE_CHECK_STAMP_FILE,
   UPDATE_ENTRY_TOOLS,
-  UPDATE_GATE_SCRIPT,
   UPDATE_LOCK_DIRECTORY,
   UPDATE_LOCK_PATH,
   updateEntryCommand,
@@ -120,15 +115,12 @@ describe('fn:storedDueDays', () => {
         options: { ...TAILSCALE_PROFILE.options, updateDueIntervalDays: 0 },
       },
     ],
-  ])(
-    'should fall back to seven days with a diagnostic for %s',
-    (_, profile) => {
-      expect(storedDueDays(profile)).toEqual({
-        days: 7,
-        diagnostic: expect.any(String),
-      });
-    },
-  );
+  ])('should fall back to one day with a diagnostic for %s', (_, profile) => {
+    expect(storedDueDays(profile)).toEqual({
+      days: 1,
+      diagnostic: expect.any(String),
+    });
+  });
 
   it('should accept the longest due interval and read it from a profile that holds nothing else', () => {
     expect(
@@ -139,47 +131,14 @@ describe('fn:storedDueDays', () => {
   });
 });
 
-describe('fn:checkIntervalDiagnostic', () => {
-  it.each(['1\n', '45\n', '45', `${String(MAX_UPDATE_CHECK_MINUTES)}\n`])(
-    'should find nothing to report in an interval file holding %j',
-    (contents) => {
-      expect(checkIntervalDiagnostic(contents)).toBeUndefined();
-    },
-  );
-
-  it.each([
-    undefined,
-    '',
-    '\n',
-    '0\n',
-    '045\n',
-    '1.5\n',
-    '-5\n',
-    'often\n',
-    '45\nmore\n',
-    `${String(MAX_UPDATE_CHECK_MINUTES + 1)}\n`,
-  ])(
-    'should explain the fallback for an interval file holding %j',
-    (contents) => {
-      expect(checkIntervalDiagnostic(contents)).toEqual(expect.any(String));
-    },
-  );
-});
-
 describe('fn:updateEntryCommand', () => {
-  it('should take the lock, ask the gate, and only then replace the shell with the updater', () => {
-    const steps = updateEntryCommand().split('; ');
-
-    expect(steps).toEqual([
+  it('should take the lock and only then replace the shell with the updater', () => {
+    expect(updateEntryCommand().split('; ')).toEqual([
       `${lockDirectoryCommand()} || exit 0`,
       `exec 9>>${UPDATE_LOCK_PATH}`,
       '/usr/bin/flock -n 9 || exit 0',
-      expect.stringContaining(
-        `${UPDATE_GATE_SCRIPT} ${UPDATE_CHECK_FILE} ${UPDATE_CHECK_STAMP_FILE}`,
-      ),
       expect.stringMatching(/^exec \S+ \S+\/updater\.js$/u),
     ]);
-    expect(steps[3]).toMatch(/ \|\| exit 0$/u);
   });
 
   it('should nest in one single-quoted cron argument', () => {

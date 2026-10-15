@@ -23,7 +23,6 @@ import {
   probeStaleComponent,
   readAwakeTaskExpiry,
   readInstallLog,
-  readCheckIntervalFile,
   readHarnessSession,
   readHomebrewGit,
   readLoginVersion,
@@ -87,10 +86,8 @@ const TASK_EXPIRY_TOLERANCE_MS = 3000;
 const MINUTE_MS = 60_000;
 // longer than the 30 second refresh of a 1 minute hold maximum
 const REFRESH_PROBE_MS = 45_000;
-// intervals no default and no divisor of 60 can produce
-const UPDATE_CHECK_MINUTES = 45;
+// due intervals the default cannot produce
 const UPDATE_DUE_DAYS = 3;
-const RESCHEDULED_CHECK_MINUTES = 90;
 const RESCHEDULED_DUE_DAYS = 5;
 const GIT_NAME = 'Open Agent Live';
 const GIT_EMAIL = 'live@example.invalid';
@@ -131,15 +128,14 @@ const OBSERVED_SLEEP_MS = 15_000;
 const HOLD_REFRESH_SKEW_MS = 5 * SECOND_MS;
 
 /**
- * checks that a scheduled entry ran end to end: it exited cleanly, the gate
- * recorded a fresh check minute, and the updater process started once and
- * exited cleanly, so a check that was skipped was still decided by the updater
+ * checks that a scheduled entry ran end to end: it exited cleanly and the
+ * updater process started once and exited cleanly, so an update that was not
+ * due was still decided by the updater
  * @param expect the test's own assertion function
  * @param run what the entry did
  */
 function expectCompletedRun(expect: ExpectStatic, run: ScheduledRun): void {
   expect(run.exitStatus).toBe(0);
-  expect(run.stamp).toBeGreaterThanOrEqual(run.startedMinute);
   expect(run.updaterRuns).toEqual([
     { script: `${GUEST_KERNEL}/updater.js`, exitCode: 0 },
   ]);
@@ -229,8 +225,6 @@ describe('live workstation lifecycle', () => {
               '--name',
               name,
               '--no-git-identity',
-              '--update-check-minutes',
-              String(UPDATE_CHECK_MINUTES),
               '--update-due-days',
               String(UPDATE_DUE_DAYS),
               // the shortest hold maximum, so a managed hold is refreshed
@@ -753,20 +747,15 @@ describe('live workstation lifecycle', () => {
         // the sweep now covers the link, every tree, the tools and the outcomes
         expect(exposedEntries(await guestEntries(provider, name))).toEqual([]);
 
-        // the update intervals the create recorded drive the guest: the stored
-        // profile and the schedule file hold them, and the scheduled entry,
-        // run without --force, updates only once the due days have passed
+        // the due interval the create recorded drives the guest: the stored
+        // profile holds it, and the scheduled entry, run without --force,
+        // updates only once the due days have passed
         expect(create.profile.options).toMatchObject({
-          updateCheckIntervalMinutes: UPDATE_CHECK_MINUTES,
           updateDueIntervalDays: UPDATE_DUE_DAYS,
         });
         expect(await readStoredIntervals(provider, name)).toEqual({
-          updateCheckIntervalMinutes: UPDATE_CHECK_MINUTES,
           updateDueIntervalDays: UPDATE_DUE_DAYS,
         });
-        expect((await readCheckIntervalFile(provider, name)).trim()).toBe(
-          String(UPDATE_CHECK_MINUTES),
-        );
 
         const scheduledStartedAt = Date.now();
         const recent = new Date(scheduledStartedAt - 2 * DAY_MS);
@@ -776,8 +765,8 @@ describe('live workstation lifecycle', () => {
         const skippedRun = await runScheduledEntry(provider, name);
         const manifestSkipped = await readManifestState(provider, name);
 
-        // the gate let the check through and the updater ran and found it not
-        // due: it ended cleanly and attempted nothing
+        // the updater ran and found the update not due: it ended cleanly and
+        // attempted nothing
         expectCompletedRun(expect, skippedRun);
         expect(manifestSkipped.lastSuccessfulUpdate).toBe(recent.toISOString());
         expect(manifestSkipped.lastAttemptedUpdate).toBe(attemptBeforeSkip);
@@ -805,8 +794,8 @@ describe('live workstation lifecycle', () => {
         expect(manifestDue.lastAttemptedUpdate).not.toBe(attemptBeforeSkip);
         expect(await provider.snapshotServices(name)).toEqual(before);
 
-        // a later setup changes both intervals and the schedule, and starts,
-        // stops and restarts nothing
+        // a later setup changes the due interval, and starts, stops and
+        // restarts nothing
         const rescheduled = successData(
           await cli.json(
             [
@@ -814,8 +803,6 @@ describe('live workstation lifecycle', () => {
               name,
               '--section',
               'tools',
-              '--update-check-minutes',
-              String(RESCHEDULED_CHECK_MINUTES),
               '--update-due-days',
               String(RESCHEDULED_DUE_DAYS),
             ],
@@ -831,12 +818,8 @@ describe('live workstation lifecycle', () => {
           machine: { name, id },
         });
         expect(await readStoredIntervals(provider, name)).toEqual({
-          updateCheckIntervalMinutes: RESCHEDULED_CHECK_MINUTES,
           updateDueIntervalDays: RESCHEDULED_DUE_DAYS,
         });
-        expect((await readCheckIntervalFile(provider, name)).trim()).toBe(
-          String(RESCHEDULED_CHECK_MINUTES),
-        );
         expect(await provider.snapshotServices(name)).toEqual(before);
 
         // four days is now below the due interval, so the same entry skips
@@ -851,7 +834,7 @@ describe('live workstation lifecycle', () => {
         expect(manifestStale.lastSuccessfulUpdate).toBe(stale.toISOString());
         expect(manifestStale.lastAttemptedUpdate).toBe(attemptBeforeStale);
         expect(manifestStale.lastUpdateDiagnostic).toBeUndefined();
-        // the schedule files and the cron entry the runs used are root-only
+        // the cron entry and the lock the runs used are root-only
         expect(exposedEntries(await guestEntries(provider, name))).toEqual([]);
         expect(await provider.snapshotServices(name)).toEqual(before);
 

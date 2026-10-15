@@ -15,11 +15,7 @@ import {
   GOVERNOR_STATE_FILE,
   MANAGED_AWAKE_DIRECTORY,
 } from '#guest/idle/state';
-import {
-  UPDATE_CHECK_FILE,
-  UPDATE_CHECK_STAMP_FILE,
-  UPDATE_LOCK_PATH,
-} from '#guest/update-schedule';
+import { UPDATE_LOCK_PATH } from '#guest/update-schedule';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 
 import type { WorkstationProfile } from '#core/profile';
@@ -58,10 +54,6 @@ export interface UpdaterRun {
 export interface ScheduledRun {
   /** exit status of the entry, the line cron runs */
   exitStatus: number;
-  /** the gate's recorded minute after the run */
-  stamp: number;
-  /** the guest's minute when the run started */
-  startedMinute: number;
   /** every updater process the entry started, which a skipped check leaves none of */
   updaterRuns: UpdaterRun[];
 }
@@ -161,8 +153,6 @@ export async function readManifestState(
 
 /** the update intervals the stored profile records */
 export interface StoredIntervals {
-  /** minutes between scheduled update checks */
-  updateCheckIntervalMinutes: number;
   /** days after the last successful update before another is due */
   updateDueIntervalDays: number;
 }
@@ -176,8 +166,6 @@ const ENTRY_RUNNER = '/run/open-agent-live-runner.sh';
 const ENTRY_PROBE = '/run/open-agent-live-probe.js';
 const ENTRY_UPDATER_LOG = '/run/open-agent-live-updater.log';
 const ENTRY_DONE = '/run/open-agent-live-entry.done';
-/** how long the live proof waits for cron's own gate run to leave its stamp */
-const STAMP_TIMEOUT_MS = 3 * 60_000;
 const REFRESH_PROBE_GRACE_MS = 60_000;
 const REFRESH_PROBE_POLL_MS = 2_000;
 /** tries before the proof reports a run cron's own tick kept from the updater */
@@ -246,23 +234,9 @@ export async function readStoredIntervals(
   const manifest = JSON.parse(
     await provider.execute(name, `cat ${MANIFEST_PATH}`),
   ) as { profile: { options: StoredIntervals } };
-  const { updateCheckIntervalMinutes, updateDueIntervalDays } =
-    manifest.profile.options;
+  const { updateDueIntervalDays } = manifest.profile.options;
 
-  return { updateCheckIntervalMinutes, updateDueIntervalDays };
-}
-
-/**
- * reads the file every update timer takes its check interval from
- * @param provider selected provider
- * @param name exact workstation name
- * @returns the file's contents
- */
-export async function readCheckIntervalFile(
-  provider: LiveProvider,
-  name: string,
-): Promise<string> {
-  return provider.execute(name, `cat ${UPDATE_CHECK_FILE}`);
+  return { updateDueIntervalDays };
 }
 
 /**
@@ -304,48 +278,18 @@ export async function asRoot(
 }
 
 /**
- * waits for the gate's recorded minute that cron's own tick leaves, which
- * proves the schedule already ran on its own before the proof takes over
- * @param provider selected provider
- * @param name exact workstation name
- */
-async function waitForCronStamp(
-  provider: LiveProvider,
-  name: string,
-): Promise<void> {
-  const deadline = Date.now() + STAMP_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const stamp = await asRoot(
-      provider,
-      name,
-      `cat ${UPDATE_CHECK_STAMP_FILE} 2>/dev/null || true`,
-    );
-    if (/^\d+$/.test(stamp.trim())) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, ENTRY_POLL_MS));
-  }
-  throw new Error(
-    'Cron never ran the update gate: no recorded minute in the guest',
-  );
-}
-
-/**
  * runs the entry cron holds, without --force, and waits for it to end: it
- * first proves cron's own gate run left a stamp, waits for cron's lock to be
- * free, clears the stamp so the run does not depend on when the last check
- * was, then runs the very line cron runs with a probe that records every
- * updater process it starts, so a skipped check is told apart from an entry
- * that never reached the updater
+ * waits for cron's lock to be free, then runs the very line cron runs with a
+ * probe that records every updater process it starts, so an update that was
+ * not due is told apart from an entry that never reached the updater
  * @param provider selected provider
  * @param name exact workstation name
- * @returns the entry's exit status, the gate's new stamp and the updater runs
+ * @returns the entry's exit status and the updater runs
  */
 export async function runScheduledEntry(
   provider: LiveProvider,
   name: string,
 ): Promise<ScheduledRun> {
-  await waitForCronStamp(provider, name);
   const encode = (text: string): string =>
     Buffer.from(text, 'utf8').toString('base64');
   await asRoot(
@@ -353,7 +297,7 @@ export async function runScheduledEntry(
     name,
     [
       'set -e',
-      `entry=$(sed -n 's/^\\* \\* \\* \\* \\* root //p' ${CRON_ENTRY_PATH})`,
+      `entry=$(sed -n 's/^0 \\* \\* \\* \\* root //p' ${CRON_ENTRY_PATH})`,
       'test -n "$entry"',
       `printf '%s\\n' "$entry" > ${ENTRY_SCRIPT}`,
       `echo ${encode(PROBE)} | base64 -d > ${ENTRY_PROBE}`,
@@ -384,7 +328,7 @@ async function attemptScheduledEntry(
   provider: LiveProvider,
   name: string,
 ): Promise<ScheduledRun> {
-  const started = await asRoot(
+  await asRoot(
     provider,
     name,
     [
@@ -392,13 +336,11 @@ async function attemptScheduledEntry(
       // cron holds the same lock while its own tick runs the entry
       'waited=0',
       `until /usr/bin/flock -n ${UPDATE_LOCK_PATH} true; do waited=$((waited + 1)); test "$waited" -lt ${String(LOCK_WAIT_SECONDS)}; sleep 1; done`,
-      `rm -f ${ENTRY_DONE} ${ENTRY_UPDATER_LOG} ${UPDATE_CHECK_STAMP_FILE}`,
-      'date +%s',
+      `rm -f ${ENTRY_DONE} ${ENTRY_UPDATER_LOG}`,
       // the entry may outlast one provider request, so it runs on its own
       `setsid nohup /bin/sh ${ENTRY_RUNNER} </dev/null >/dev/null 2>&1 &`,
     ].join('\n'),
   );
-  const startedMinute = Math.floor(Number(started.trim()) / 60);
   const deadline = Date.now() + ENTRY_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const status = (
@@ -407,12 +349,6 @@ async function attemptScheduledEntry(
     if (status !== '') {
       return {
         exitStatus: Number(status),
-        startedMinute,
-        stamp: Number(
-          (
-            await asRoot(provider, name, `cat ${UPDATE_CHECK_STAMP_FILE}`)
-          ).trim(),
-        ),
         updaterRuns: (
           await asRoot(
             provider,
@@ -485,10 +421,10 @@ export async function guestEntries(
     name,
     `find ${GUEST_ROOT} -maxdepth 0 -printf '%U %y %m %p\\n'; ` +
       `find ${GUEST_ROOT}/guest ${GUEST_ROOT}/drivers ${GUEST_ROOT}/components.json ${GUEST_ROOT}/harnesses.json ${GUEST_ROOT}/install-outcomes.json -printf '%U %y %m %p\\n'; ` +
-      // the schedule: the interval file and the cron entry always exist; the
-      // gate's stamp and the lock only once cron has run
-      `find ${UPDATE_CHECK_FILE} ${CRON_ENTRY_PATH} -printf '%U %y %m %p\\n'; ` +
-      `find ${UPDATE_CHECK_STAMP_FILE} ${UPDATE_LOCK_PATH} -printf '%U %y %m %p\\n' 2>/dev/null; ` +
+      // the schedule: the cron entry always exists; the lock only once cron
+      // has run
+      `find ${CRON_ENTRY_PATH} -printf '%U %y %m %p\\n'; ` +
+      `find ${UPDATE_LOCK_PATH} -printf '%U %y %m %p\\n' 2>/dev/null; ` +
       `find ${GUEST_ROOT}/node ${GUEST_ROOT}/node-v* ${TOOLS} -maxdepth 2 -printf '%U %y %m %p\\n'`,
   );
 

@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { defaultProfile } from '#core/profile';
-import {
-  MAX_UPDATE_CHECK_MINUTES,
-  MAX_UPDATE_DUE_DAYS,
-} from '#guest/update-schedule';
+import { MAX_UPDATE_DUE_DAYS } from '#guest/update-schedule';
 import {
   readSetupSelection,
   resolveCreateSelection,
@@ -194,14 +191,11 @@ describe('fn:resolveCreateSelection', () => {
     ]);
   });
 
-  it('should take the update intervals from the flag, then the process environment, then the env file, then the default, without prompting', async () => {
+  it('should take the update due interval from the flag, then the process environment, then the env file, then the default, without prompting', async () => {
     const { interaction, asked } = recordingInteraction();
     const sources: InputSources = {
-      processEnv: { OPEN_AGENT_UPDATE_CHECK_MINUTES: '45' },
-      fileEnv: {
-        OPEN_AGENT_UPDATE_CHECK_MINUTES: '90',
-        OPEN_AGENT_UPDATE_DUE_DAYS: '3',
-      },
+      processEnv: { OPEN_AGENT_UPDATE_DUE_DAYS: '3' },
+      fileEnv: { OPEN_AGENT_UPDATE_DUE_DAYS: '9' },
       profile: {},
     };
 
@@ -211,7 +205,7 @@ describe('fn:resolveCreateSelection', () => {
       interaction,
     });
     const fromFlags = await resolveCreateSelection({
-      options: { nonInteractive: true, updateCheckMinutes: 1 },
+      options: { nonInteractive: true, updateDueDays: 2 },
       sources,
     });
     const fromDefaults = await resolveCreateSelection({
@@ -222,33 +216,22 @@ describe('fn:resolveCreateSelection', () => {
     expect(asked.filter((message) => /update/iu.test(message))).toEqual([]);
     expect(
       [fromSources, fromFlags, fromDefaults].map(
-        ({ candidate: { options } }) => [
-          options.updateCheckIntervalMinutes,
-          options.updateDueIntervalDays,
-        ],
+        ({ candidate: { options } }) => options.updateDueIntervalDays,
       ),
-    ).toEqual([
-      [45, 3],
-      [1, 3],
-      [30, 7],
-    ]);
+    ).toEqual([3, 2, 1]);
   });
 
   it('should report an unreadable update interval instead of guessing', async () => {
     const { problems } = await resolveCreateSelection({
       options: { nonInteractive: true },
       sources: {
-        processEnv: {
-          OPEN_AGENT_UPDATE_CHECK_MINUTES: 'often',
-          OPEN_AGENT_UPDATE_DUE_DAYS: '1.5',
-        },
+        processEnv: { OPEN_AGENT_UPDATE_DUE_DAYS: '1.5' },
         fileEnv: {},
         profile: {},
       },
     });
 
     expect(problems).toEqual([
-      'OPEN_AGENT_UPDATE_CHECK_MINUTES must be a whole number',
       'OPEN_AGENT_UPDATE_DUE_DAYS must be a whole number',
     ]);
   });
@@ -404,18 +387,13 @@ describe('fn:resolveSetupSelection update intervals', () => {
 
     const { candidate } = await resolveSetup({
       options: { nonInteractive: true, updateDueDays: 3 },
-      sources: {
-        processEnv: { OPEN_AGENT_UPDATE_CHECK_MINUTES: '45' },
-        fileEnv: {},
-        profile: {},
-      },
+      sources: empty,
       recorded,
       section: 'tools',
     });
 
     expect(candidate.options).toEqual({
       ...recorded.options,
-      updateCheckIntervalMinutes: 45,
       updateDueIntervalDays: 3,
     });
   });
@@ -424,7 +402,7 @@ describe('fn:resolveSetupSelection update intervals', () => {
     const { value, problems } = readSetupSelection({
       options: {},
       sources: {
-        processEnv: { OPEN_AGENT_UPDATE_CHECK_MINUTES: 'often' },
+        processEnv: { OPEN_AGENT_UPDATE_DUE_DAYS: 'often' },
         fileEnv: {},
         profile: {},
       },
@@ -438,7 +416,6 @@ describe('fn:resolveSetupSelection update intervals', () => {
         isProxyEnabled: undefined,
         idleTimeoutMinutes: undefined,
         holdMaxMinutes: undefined,
-        updateCheckIntervalMinutes: undefined,
         updateDueIntervalDays: undefined,
       },
     });
@@ -465,13 +442,13 @@ describe('fn:suppliedSelectionViolations', () => {
     const violations = suppliedSelectionViolations(
       {
         network: 'none',
-        options: { updateCheckIntervalMinutes: 0, updateDueIntervalDays: -2 },
+        options: { holdMaxMinutes: 0, updateDueIntervalDays: -2 },
       },
       { isPairingRequested: false },
     );
 
     expect(violations.map(({ message }) => message)).toEqual([
-      expect.stringContaining('--update-check-minutes'),
+      expect.stringContaining('--hold-max-minutes'),
       expect.stringContaining('--update-due-days'),
     ]);
   });
@@ -480,16 +457,12 @@ describe('fn:suppliedSelectionViolations', () => {
     const violations = suppliedSelectionViolations(
       {
         network: 'none',
-        options: {
-          updateCheckIntervalMinutes: MAX_UPDATE_CHECK_MINUTES + 1,
-          updateDueIntervalDays: MAX_UPDATE_DUE_DAYS + 1,
-        },
+        options: { updateDueIntervalDays: MAX_UPDATE_DUE_DAYS + 1 },
       },
       { isPairingRequested: false },
     );
 
     expect(violations.map(({ message }) => message)).toEqual([
-      `--update-check-minutes (OPEN_AGENT_UPDATE_CHECK_MINUTES) must be a whole number of minutes from 1 to ${String(MAX_UPDATE_CHECK_MINUTES)}`,
       `--update-due-days (OPEN_AGENT_UPDATE_DUE_DAYS) must be a whole number of days from 1 to ${String(MAX_UPDATE_DUE_DAYS)}`,
     ]);
   });

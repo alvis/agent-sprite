@@ -2,12 +2,7 @@ import { GUEST_KERNEL, GUEST_NODE, GUEST_ROOT } from '../guest-root.js';
 import { productionContext } from '../idle/context.js';
 import { tick } from '../idle/governor.js';
 import { resolveTrustedFile } from '../native-files.js';
-import {
-  UPDATE_CHECK_FILE,
-  UPDATE_ENTRY_TOOLS,
-  UPDATE_GATE_SCRIPT,
-  updateEntryCommand,
-} from '../update-schedule.js';
+import { UPDATE_ENTRY_TOOLS, updateEntryCommand } from '../update-schedule.js';
 
 import { runDaemon } from './daemon.js';
 import { GUEST_ACCOUNTS, ROOT_ENVIRONMENT } from './entries.js';
@@ -34,11 +29,10 @@ try {
     accounts: GUEST_ACCOUNTS,
     timerIntervalMs: TIMER_INTERVAL_MS,
     update: {
-      checkFile: UPDATE_CHECK_FILE,
+      readyFile: `${GUEST_ROOT}/manifest.json`,
       command: updateEntryCommand(),
       trusted: [
         ...UPDATE_ENTRY_TOOLS,
-        UPDATE_GATE_SCRIPT,
         GUEST_NODE,
         `${GUEST_KERNEL}/updater.js`,
       ],

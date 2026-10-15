@@ -496,12 +496,7 @@ oa_mask_service() {
       printf '%s\n' "${oa_mask_unit%.service}" >>"$OA_MASKED_SERVICES" || return 1
     fi
   done
-  if ! test -e "$OA_POLICY_RC" || test "$(sed -n 2p "$OA_POLICY_RC")" = "$OA_POLICY_MARK"; then
-    oa_policy_rc >"$OA_POLICY_RC.new" && chmod 0755 "$OA_POLICY_RC.new" &&
-      mv -f "$OA_POLICY_RC.new" "$OA_POLICY_RC" || return 1
-  else
-    echo "Keeping the policy-rc.d another tool wrote" >&2
-  fi
+  oa_policy_rc_install || return 1
   if test -d /run/systemd/system; then
     systemctl daemon-reload || return 1
     for oa_mask_unit; do
@@ -510,14 +505,30 @@ oa_mask_service() {
   fi
 }
 
-# prints the policy-rc.d that refuses the masked services and allows the rest
+# prints the policy-rc.d that refuses the masked services and allows the
+# rest, and refuses every one while the updater holds them, which it tells
+# through OA_POLICY_HOLD in the environment apt passes on
 oa_policy_rc() {
   cat <<EOF
 #!/bin/sh
 $OA_POLICY_MARK
+if test "\${OA_POLICY_HOLD-}" = 1; then
+  exit 101
+fi
 if grep -qxF -- "\$1" $OA_MASKED_SERVICES 2>/dev/null; then
   exit 101
 fi
 exit 0
 EOF
+}
+
+# writes open-agent's policy-rc.d, or rewrites it; a policy-rc.d another tool
+# wrote is left as it is
+oa_policy_rc_install() {
+  if ! test -e "$OA_POLICY_RC" || test "$(sed -n 2p "$OA_POLICY_RC")" = "$OA_POLICY_MARK"; then
+    oa_policy_rc >"$OA_POLICY_RC.new" && chmod 0755 "$OA_POLICY_RC.new" &&
+      mv -f "$OA_POLICY_RC.new" "$OA_POLICY_RC" || return 1
+  else
+    echo "Keeping the policy-rc.d another tool wrote" >&2
+  fi
 }

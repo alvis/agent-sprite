@@ -114,7 +114,6 @@ vi.mock('#guest/run-child', async () => {
 
 const manifestPath = join(root, 'manifest.json');
 const outcomesPath = join(root, 'install-outcomes.json');
-const intervalPath = join(root, 'update-check-minutes');
 const OUTCOMES = {
   node: { status: 'skipped', version: '24.1.0' },
   jj: { status: 'installed', version: '0.30.0' },
@@ -201,7 +200,6 @@ beforeEach(async () => {
   behaviour.outcomes = undefined;
   await mkdir(root, { recursive: true });
   await rm(outcomesPath, { force: true });
-  await writeFile(intervalPath, '30\n');
   await writeFile(
     manifestPath,
     JSON.stringify({
@@ -416,27 +414,29 @@ describe('script:updater', () => {
     ['a profile of the wrong shape', { provider: 'sprite' }],
     ['a due interval of zero', withDueDays(0)],
   ])(
-    'should fall back to seven days with a diagnostic and still update when the manifest holds %s',
+    'should fall back to one day with a diagnostic and still update when the manifest holds %s',
     async (_, profile) => {
       const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
       await writeManifest({
-        lastSuccessfulUpdate: new Date(Date.now() - 8 * DAY_MS).toISOString(),
+        lastSuccessfulUpdate: new Date(Date.now() - 2 * DAY_MS).toISOString(),
         profile,
       });
 
       await runUpdater([]);
 
-      expect(stderr).toHaveBeenCalledWith(expect.stringContaining('7 days'));
+      expect(stderr).toHaveBeenCalledWith(
+        expect.stringContaining('using 1 days'),
+      );
       expect(
         spawned.some(({ args }) => args[0]?.endsWith('install-tools.js')),
       ).toBe(true);
     },
   );
 
-  it('should skip a run inside the default seven days when the manifest holds no usable profile', async () => {
+  it('should skip a run inside the default one day when the manifest holds no usable profile', async () => {
     vi.spyOn(process.stderr, 'write').mockReturnValue(true);
     await writeManifest({
-      lastSuccessfulUpdate: new Date(Date.now() - 6 * DAY_MS).toISOString(),
+      lastSuccessfulUpdate: new Date(Date.now() - DAY_MS / 2).toISOString(),
       profile: undefined,
     });
 
@@ -448,7 +448,7 @@ describe('script:updater', () => {
   it('should record why the due interval fell back even when the run finds nothing due', async () => {
     vi.spyOn(process.stderr, 'write').mockReturnValue(true);
     await writeManifest({
-      lastSuccessfulUpdate: new Date(Date.now() - DAY_MS).toISOString(),
+      lastSuccessfulUpdate: new Date(Date.now() - DAY_MS / 2).toISOString(),
       profile: undefined,
     });
 
@@ -460,30 +460,7 @@ describe('script:updater', () => {
     });
   });
 
-  it.each([
-    ['is missing', undefined],
-    ['is not a number', 'often\n'],
-    ['is beyond a week', '10081\n'],
-    ['has a leading zero', '045\n'],
-  ])(
-    'should record why the gate fell back when the interval file %s',
-    async (_, contents) => {
-      vi.spyOn(process.stderr, 'write').mockReturnValue(true);
-      await rm(intervalPath, { force: true });
-      if (contents !== undefined) {
-        await writeFile(intervalPath, contents);
-      }
-
-      await runUpdater(['--force']);
-
-      expect(await readManifest()).toMatchObject({
-        lastUpdateDiagnostic: expect.stringContaining('interval file'),
-        lastUpdateStatus: 'succeeded',
-      });
-    },
-  );
-
-  it('should clear an earlier diagnostic once the profile and the interval file are valid', async () => {
+  it('should clear an earlier diagnostic once the profile is valid', async () => {
     await writeFile(
       manifestPath,
       JSON.stringify({

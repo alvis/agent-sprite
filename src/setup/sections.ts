@@ -245,8 +245,7 @@ export async function setupEnvironment(
 
 /**
  * refreshes managed developer tools on the guest; an update also redeploys the
- * update gate and entry and rewrites the interval file from the stored profile,
- * while viewing recorded versions changes nothing
+ * update entry, while viewing recorded versions changes nothing
  * @param guest guest channel of the managed workstation
  * @param context parsed update flag, prompts, and mutation state
  * @returns tool update outcome
@@ -256,7 +255,7 @@ export async function setupTools(
   context: SetupContext,
 ): Promise<ToolsSetupData> {
   const { options, interaction, profile, mutation } = context;
-  // a changed interval was stored with its schedule before this section ran;
+  // a changed due interval was stored before this section ran;
   // with nothing else asked for and nobody to ask, that is the whole outcome
   if (context.persistsProfile && !options.update && !interaction) {
     return { tools: 'scheduled' };

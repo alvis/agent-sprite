@@ -60,8 +60,6 @@ export interface CommandOptions {
   idleMinutes?: number;
   /** minutes a turn hold lasts after its last refresh */
   holdMaxMinutes?: number;
-  /** minutes between scheduled update checks */
-  updateCheckMinutes?: number;
   /** days after the last successful update before another is due */
   updateDueDays?: number;
   /** disables every prompt */

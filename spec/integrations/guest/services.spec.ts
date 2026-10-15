@@ -1,16 +1,11 @@
-import { mkdtempDisposable, readFile, stat } from 'node:fs/promises';
+import { mkdtempDisposable } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { ServiceLogStream } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  UPDATE_CHECK_FILE,
-  UPDATE_GATE_SCRIPT,
-  updateEntryCommand,
-} from '#guest/update-schedule';
+import { updateEntryCommand } from '#guest/update-schedule';
 import {
   installManagedServices,
   installUpdateSchedule,
@@ -193,64 +188,29 @@ async function writeManifest(
 }
 
 describe('fn:installUpdateSchedule', () => {
-  it.each([1, 30, 45, 90])(
-    'should record a %i minute interval in the interval file and leave the shared cron entry unchanged',
-    async (minutes) => {
-      await using directory = await mkdtempDisposable(
-        join(tmpdir(), 'open-agent-update-schedule-'),
-      );
-      const sprite = createFilesystemSprite({ root: directory.path });
-      await writeManifest(sprite);
-      const listServices = vi.spyOn(sprite, 'listServices');
-      const createService = vi.spyOn(sprite, 'createService');
-
-      await installUpdateSchedule(guestOf(sprite), minutes);
-
-      const files = sprite.filesystem();
-      const [interval, cron] = await Promise.all([
-        files.readFile(UPDATE_CHECK_FILE, 'utf8'),
-        files.readFile('/etc/cron.d/open-agent', 'utf8'),
-      ]);
-      expect({
-        interval,
-        cron,
-        services: [
-          listServices.mock.calls.length,
-          createService.mock.calls.length,
-        ],
-      }).toEqual({
-        interval: `${String(minutes)}\n`,
-        cron: `* * * * * root /bin/sh -c '${updateEntryCommand()}' >/dev/null 2>&1\n`,
-        services: [0, 0],
-      });
-    },
-  );
-
-  it('should deploy the gate the repository ships and give each file its mode', async () => {
+  it('should write the hourly cron entry of the update and touch no service', async () => {
     await using directory = await mkdtempDisposable(
-      join(tmpdir(), 'open-agent-update-modes-'),
+      join(tmpdir(), 'open-agent-update-schedule-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
-    const shipped = await readFile(
-      fileURLToPath(
-        new URL('../../../src/guest/update-gate.sh', import.meta.url),
-      ),
-      'utf8',
-    );
     await writeManifest(sprite);
+    const listServices = vi.spyOn(sprite, 'listServices');
+    const createService = vi.spyOn(sprite, 'createService');
 
-    await installUpdateSchedule(guestOf(sprite), 45);
+    await installUpdateSchedule(guestOf(sprite));
 
-    const modeOf = async (path: string): Promise<number> =>
-      (await stat(join(directory.path, path))).mode & 0o777;
     expect({
-      gate: await sprite.filesystem().readFile(UPDATE_GATE_SCRIPT, 'utf8'),
-      modes: [
-        await modeOf(UPDATE_GATE_SCRIPT),
-        await modeOf(UPDATE_CHECK_FILE),
-        await modeOf('/etc/cron.d/open-agent'),
+      cron: await sprite
+        .filesystem()
+        .readFile('/etc/cron.d/open-agent', 'utf8'),
+      services: [
+        listServices.mock.calls.length,
+        createService.mock.calls.length,
       ],
-    }).toEqual({ gate: shipped, modes: [0o700, 0o600, 0o644] });
+    }).toEqual({
+      cron: `0 * * * * root /bin/sh -c '${updateEntryCommand()}' >/dev/null 2>&1\n`,
+      services: [0, 0],
+    });
   });
 
   it('should write no cron entry for a provider whose services the guest supervisor runs', async () => {
@@ -260,16 +220,10 @@ describe('fn:installUpdateSchedule', () => {
     const sprite = createFilesystemSprite({ root: directory.path });
     await writeManifest(sprite, 'fly-machine');
 
-    await installUpdateSchedule(guestOf(sprite), 45);
+    await installUpdateSchedule(guestOf(sprite));
 
-    const files = sprite.filesystem();
-    expect({
-      interval: await files.readFile(UPDATE_CHECK_FILE, 'utf8'),
-      gate: (await stat(join(directory.path, UPDATE_GATE_SCRIPT))).mode & 0o777,
-      cron: await files.readFile('/etc/cron.d/open-agent', 'utf8').then(
-        () => 'present',
-        () => 'absent',
-      ),
-    }).toEqual({ interval: '45\n', gate: 0o700, cron: 'absent' });
+    expect(await sprite.filesystem().exists('/etc/cron.d/open-agent')).toBe(
+      false,
+    );
   });
 });

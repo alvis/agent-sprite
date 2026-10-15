@@ -128,6 +128,7 @@ const FIELDS: Readonly<Record<string, Check>> = {
     state: oneOf('ready', 'incomplete'),
     skipped: listOf(shape({ name, reason: text })),
   }),
+  os: shape({ family: oneOf('debian') }),
   profile: (value) => parseProfile(value).isValid,
   tools: listOf(
     shape({

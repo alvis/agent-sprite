@@ -4,7 +4,7 @@ import { ENVIRONMENT_SCHEMA } from './environment.js';
 import type { WorkstationProfile } from '#core/profile';
 import type { AcpAdapterSpec, ProviderDeclaration } from '#drivers/contracts';
 import type { ServiceDefinition } from '#drivers/guest-channel';
-import type { PeriodicJob } from '#os/contracts';
+import type { OsFamilyId, PeriodicJob } from '#os/contracts';
 import type {
   Resolution,
   ToolOwner,
@@ -31,6 +31,8 @@ export interface EnvironmentParams {
   setupAt: string;
   /** how setup ended */
   state: EnvironmentSetupState;
+  /** the guest's OS family */
+  family: OsFamilyId;
   /** the workstation's profile */
   profile: WorkstationProfile;
   /** the selected provider */
@@ -88,6 +90,7 @@ export function buildEnvironment(params: EnvironmentParams): GuestEnvironment {
     schema: ENVIRONMENT_SCHEMA,
     openAgent: { version: params.version, setupAt: params.setupAt },
     setup: { state: params.state, skipped },
+    os: { family: params.family },
     profile,
     tools,
     schedule: { dueDays: profile.options.updateDueIntervalDays },

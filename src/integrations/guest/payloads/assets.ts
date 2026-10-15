@@ -268,12 +268,9 @@ export function payloadMode(name: string): number {
  * @returns URL of the compiled package asset
  */
 export function payloadUrl(filename: string): URL {
-  // the node bootstrap and the update gate are shell scripts, deployed beside
-  // the kernel they belong to, so they are not staged modules
-  if (
-    filename === kernelModule('bootstrap-node.sh') ||
-    filename === kernelModule('update-gate.sh')
-  ) {
+  // the node bootstrap is a shell script, deployed beside the kernel it
+  // belongs to, so it is not a staged module
+  if (filename === kernelModule('bootstrap-node.sh')) {
     return compiledUrl(filename);
   }
   const module = guestModules().find(({ name }) => name === filename);
