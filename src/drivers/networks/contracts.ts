@@ -1,3 +1,4 @@
+import type { GuestAsset } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
 import type {
@@ -10,6 +11,18 @@ import type {
   GuestServiceState,
   ServiceDefinition,
 } from '../guest-channel.js';
+
+/** the program that prepares the guest for the network daemon and runs it, and where the daemon keeps its state */
+export interface NetworkLauncher {
+  /** the launcher, run as root */
+  asset: GuestAsset;
+  /** root-only directory on the persistent guest root holding the node identity and the managed resolver */
+  stateDirectory: string;
+  /** the daemon's control socket */
+  socket: string;
+  /** the tunnel interface */
+  tun: string;
+}
 
 /** retained non-secret identity of an enrolled network device */
 export interface NetworkIdentity {
@@ -198,6 +211,8 @@ export interface NetworkDriver<
   guest: readonly GuestPayload[];
   /** daemon service; the agent service depends on it when the network is selected; absent when the network runs no daemon */
   daemon?: ServiceDefinition;
+  /** the launcher the daemon service runs; present exactly when `daemon` is */
+  launcher?: NetworkLauncher;
   /**
    * validates caller inputs and the device name before provisioning, running
    * every check even when one fails

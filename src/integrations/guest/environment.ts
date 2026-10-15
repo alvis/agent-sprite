@@ -15,6 +15,7 @@ import type {
   GuestCommand,
   ServiceDefinition,
 } from '#drivers/guest-channel';
+import type { NetworkLauncher } from '#drivers/networks/contracts';
 import type { PeriodicJob, ServiceBackendId } from '#os/contracts';
 import type { ToolOwner, ToolSource } from '#tools/contracts';
 
@@ -113,24 +114,14 @@ export interface EnvironmentAgent {
   harnesses: readonly EnvironmentHarness[];
 }
 
-/** where the network daemon keeps its state, socket and tunnel */
-export interface NetworkLauncher {
-  /** root-only directory on the persistent guest root holding the node identity and the managed resolver */
-  stateDirectory: string;
-  /** the daemon's control socket */
-  socket: string;
-  /** the tunnel interface */
-  tun: string;
-}
-
 /** the selected private network, as its launcher runs it */
 export interface EnvironmentNetwork {
   /** network identifier */
   id: string;
   /** name of the network's daemon in `services` */
   daemon: string;
-  /** what the daemon's launcher needs */
-  launcher: NetworkLauncher;
+  /** where the daemon keeps its state, socket and tunnel, as its launcher reads them */
+  launcher: Omit<NetworkLauncher, 'asset'>;
 }
 
 /** the record setup leaves at {@link ENVIRONMENT_PATH} */

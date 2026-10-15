@@ -111,11 +111,12 @@ export const BASE_TOOLS: readonly ToolSpec[] = [
     sources: [apt('procps')],
   },
   {
+    // the service backend runs cron as open-agent's own service
     name: 'cron',
     required: true,
     executables: [],
     version: packageProbe('cron'),
-    sources: [apt('cron')],
+    sources: [{ ...apt('cron'), vendorServices: ['cron.service'] }],
   },
   {
     // Homebrew's installer clones its own repository with the system git;
@@ -147,19 +148,6 @@ export const BASE_TOOLS: readonly ToolSpec[] = [
     executables: ['gcc'],
     version: probe('gcc', '--version'),
     sources: [apt('gcc', 'libc6-dev')],
-  },
-  {
-    // the service backend of a provider whose guest supervises nothing itself
-    name: 'runit',
-    required: true,
-    executables: ['chpst', 'runsv', 'runsvdir', 'sv', 'svlogd'],
-    // runit reports no version, so the probe checks every command it ships
-    version: probe(
-      'sh',
-      '-c',
-      'for oa_command in chpst runsv runsvdir sv svlogd; do command -v "$oa_command" || exit 1; done',
-    ),
-    sources: [brew('runit'), apt('runit')],
   },
   {
     name: 'jq',

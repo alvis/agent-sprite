@@ -1,5 +1,10 @@
-import type { ServiceDefinition } from '#drivers/guest-channel';
-import type { ToolOwner } from '#tools/contracts';
+import type {
+  GuestServiceControl,
+  ServiceDefinition,
+} from '#drivers/guest-channel';
+import type { SetupStep } from '#integrations/guest/plan/contracts';
+import type { GuestSession } from '#integrations/guest/session/contracts';
+import type { ToolOwner, ToolSpec } from '#tools/contracts';
 
 /** an OS family every provider running it shares, named after its root distribution */
 export type OsFamilyId = 'debian';
@@ -134,4 +139,35 @@ export interface PeriodicJob {
   everyMinutes: number;
   /** program, arguments and account each run executes */
   run: Pick<ServiceDefinition, 'command' | 'arguments' | 'account'>;
+}
+
+/** what a backend's setup steps are built with */
+export interface ServiceStepContext {
+  /** the guest's OS family, whose shell every step runs */
+  family: Pick<OsFamily, 'shell'>;
+  /** ids of the steps that must succeed first, such as the one writing environment.json */
+  needs: readonly string[];
+}
+
+/** a backend setup installs to run the guest services, for a provider that runs none itself */
+export interface ServiceBackend {
+  /** backend identifier */
+  id: Exclude<ServiceBackendId, 'provider'>;
+  /** the tools the backend runs on, installed only on a provider it serves */
+  tools: readonly ToolSpec[];
+  /** the backend's helper library, sourced by setup and the boot hook */
+  library: GuestAsset;
+  /**
+   * builds the steps that install every service environment.json records,
+   * remove the backend's services it no longer records, and start the rest
+   * @param context the family and the steps that must succeed first
+   * @returns the steps
+   */
+  steps(context: ServiceStepContext): SetupStep[];
+  /**
+   * binds service control to a root session on the guest
+   * @param session a root session open on the guest
+   * @returns control of the backend's services
+   */
+  control(session: GuestSession): GuestServiceControl;
 }

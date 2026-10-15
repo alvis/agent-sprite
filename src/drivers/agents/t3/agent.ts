@@ -3,6 +3,7 @@ import { t3GuestLeaf } from './guest-leaf.js';
 import { T3_HARNESSES } from './harness-names.js';
 import { pairT3 } from './pairing.js';
 import { t3Readiness } from './readiness.js';
+import { T3_LAUNCHER } from './service.js';
 import { verifyT3Startup } from './startup.js';
 
 import type { HarnessId } from '#core/catalog';
@@ -23,6 +24,7 @@ export const t3: AgentDriver<'t3', HarnessId, T3Environment> = {
   guestPackages: t3GuestLeaf.guestPackages,
   guest: t3GuestLeaf.guest,
   service: t3GuestLeaf.service,
+  launcher: T3_LAUNCHER,
   inspectEnvironment: inspectT3Environment,
   pair: pairT3,
   verifyStartup: verifyT3Startup,
