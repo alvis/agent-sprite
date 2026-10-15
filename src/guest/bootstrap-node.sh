@@ -8,8 +8,8 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 root="${1:?guest root required}"
 
 umask 022
-install -m 0600 /dev/null $root/install-tools.log
-exec > $root/install-tools.log 2>&1
+install -m 0600 /dev/null "$root/install-tools.log"
+exec > "$root/install-tools.log" 2>&1
 
 # an outcomes file from an earlier run must never be read as this run's
 outcomes="$root/install-outcomes.json"
@@ -89,8 +89,9 @@ export DEBIAN_FRONTEND=noninteractive
 if ! test -f /etc/os-release; then
   exit 31
 fi
-. /etc/os-release
-case "${ID:-}" in
+# read only the distribution identifier rather than sourcing the file as code
+os_id="$(sed -n 's/^ID=//p' /etc/os-release | tr -d "\"'")"
+case "$os_id" in
   debian|ubuntu) ;;
   *) exit 32 ;;
 esac
