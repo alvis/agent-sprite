@@ -1,41 +1,14 @@
 #!/usr/bin/env -S node --
 // "--" ends Node's own options, so Node never claims the CLI's --env-file flag
+import { run } from '../lib/cli/index.js';
 
-const arguments_ = process.argv.slice(2);
-const loaded = await Promise.all([
-  import('../lib/cli/application.js'),
-  import('../lib/cli/streams.js'),
-]).catch(() => undefined);
-
-if (!loaded) {
-  const command = [
-    'create',
-    'setup',
-    'list',
-    'show',
-    'terminate',
-    'doctor',
-  ].includes(arguments_[0])
-    ? arguments_[0]
-    : null;
-  const json = arguments_.includes('--json');
-  const message = 'The command could not start.';
-  const stream = json ? process.stdout : process.stderr;
-  const output = json
-    ? `${JSON.stringify({ schemaVersion: 1, command, ok: false, error: { code: 'UNEXPECTED', message } })}\n`
-    : `${message}\n`;
-  process.exitCode = 1;
-  await new Promise((resolve) => stream.write(output, resolve));
-  process.exit();
-}
-
-const [{ cli }, { flushOutput }] = loaded;
 try {
-  await cli(arguments_);
-  await flushOutput();
+  await run(process.argv.slice(2));
 } catch {
+  // the error may carry user input or secrets, so only a generic message is shown
   process.stderr.write('open-agent failed unexpectedly.\n');
   process.exitCode = 1;
 }
 
+// exit once output is flushed, so a lingering handle never holds the process open
 process.exit();

@@ -8,7 +8,7 @@ The tree includes every root source module and the principal nested boundaries; 
 
 ```text
 bin
-  cli.mjs                     # Installed executable and last-resort output boundary
+  cli.mjs                     # Installed executable; imports the compiled CLI entry
 scripts
   packed-cli.ts               # Shared build, pack, install and execution runner
   process-group.ts            # Child process-group signalling and drain
@@ -87,7 +87,7 @@ spec
 
 ## Main components
 
-- **CLI entry point** (`bin/cli.mjs`, `src/cli/application.ts`): loads the installed compiled Stricli application. The package exposes only its executable; internal workflow functions are not a public SDK.
+- **CLI entry point** (`bin/cli.mjs`, `src/cli/index.ts`, `src/cli/application.ts`): the bin statically imports the compiled entry, which runs the Stricli application and flushes output; the bin reports an unhandled failure generically, then sets the exit status and exits. The package exposes only its executable; internal workflow functions are not a public SDK.
 - **Execution boundary** (`src/cli/execute.ts`, `src/operation.ts`): resolves interaction before effects, owns cancellation and retains observed resource identity for recovery. One invocation-scoped context prevents work from starting after its owner closes.
 - **Interactive session** (`src/cli/interaction.ts`, `src/components/InteractionRoot.tsx`): keeps one Ink root mounted across a prompt queue. Rendered components collect input and display state; workflows own cloud mutations.
 - **Inputs and validation** (`src/input.ts`, `src/validation.ts`): apply explicit-source precedence, resolve eligible fallback credentials lazily and aggregate determinable preflight issues before provisioning.

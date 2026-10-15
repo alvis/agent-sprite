@@ -57,7 +57,7 @@ A provider differs from another only by the data in its `ProviderCapabilities` (
 
 | Path                             | What lives there                                                                                                                                                                                     |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bin/cli.mjs`                    | The installed executable; loads the compiled CLI from `lib/` and is the last-resort output boundary                                                                                                  |
+| `bin/cli.mjs`                    | The installed executable; runs the compiled entry `lib/cli/index.js`, reports an unhandled failure generically, then sets the exit status and exits                                                  |
 | `src/cli/`                       | Stricli commands (`commands.ts`), flags (`flags.ts`), argument rewriting (`parser.ts`), execution and cancellation (`execute.ts`), output, JSON serialization and the Ink interaction bridge         |
 | `src/components/`                | Every React/Ink view and prompt; components render and collect input but never call a provider                                                                                                       |
 | `src/core/`                      | The driver catalog, ids, the profile and its rules, selection inputs (`selection-inputs.ts`), guest-leaf registry, provider binding and lookup, preflight and derived service names                  |
