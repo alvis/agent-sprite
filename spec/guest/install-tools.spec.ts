@@ -276,7 +276,7 @@ describe('script:install-tools', () => {
       wakeMode: 'url-traffic',
       supportsCliWakeSleep: false,
       maxAwakeDeadlineMinutes: null,
-      servicesMode: 'supervised',
+      serviceBackend: 'runit',
       transportNetworks: [],
     };
 

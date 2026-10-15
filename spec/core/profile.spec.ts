@@ -27,7 +27,6 @@ vi.mock('#core/catalog', () => {
     displayName: 'Sprite',
     capabilities: {
       guestChannel: 'provider-exec',
-      servicesMode: 'native',
       transportNetworks: [],
       keepAwakeMode: 'native-deadline',
       idleForms: ['provider-managed'],
@@ -63,6 +62,8 @@ vi.mock('#core/catalog', () => {
       documentation: [],
     },
     shellAccounts: [],
+    images: [{ id: 'fixture', family: 'debian', arch: ['x86_64'] }],
+    serviceBackend: 'provider',
   };
   const claude: HarnessDeclaration = {
     id: 'claude',

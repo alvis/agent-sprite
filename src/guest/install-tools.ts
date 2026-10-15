@@ -107,7 +107,7 @@ try {
 /** installs system tools before configuring account-owned native harnesses */
 async function installTools(): Promise<void> {
   const components = await readComponentCatalog();
-  const isSupervised = components.provider?.servicesMode === 'supervised';
+  const isSupervised = components.provider?.serviceBackend === 'runit';
   await run('/usr/bin/apt-get', ['update', '-qq']);
   await run('/usr/bin/apt-get', [
     'install',

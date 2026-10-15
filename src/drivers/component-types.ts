@@ -55,8 +55,8 @@ export interface ProviderComponent {
   supportsCliWakeSleep: boolean;
   /** furthest ahead, in minutes, one deadline can keep the workstation awake; null when unlimited */
   maxAwakeDeadlineMinutes: number | null;
-  /** whether the provider runs the services natively or the guest supervisor does, timer included */
-  servicesMode: 'native' | 'supervised';
+  /** whether the provider runs the services itself or a backend setup installs does, timer included */
+  serviceBackend: 'provider' | 'runit';
   /** guest networks, as CIDR prefixes, a network tunnel must never route; empty when the provider needs none */
   transportNetworks: string[];
   /** the provider's `-awake` guest module, named by its path under the guest root; absent while the provider has none */

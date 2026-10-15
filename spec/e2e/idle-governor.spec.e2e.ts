@@ -452,7 +452,7 @@ describe('packed idle governor adapters', () => {
       wakeMode: 'url-traffic',
       supportsCliWakeSleep: false,
       maxAwakeDeadlineMinutes: null,
-      servicesMode: 'native',
+      serviceBackend: 'provider',
       transportNetworks: [],
       awakeAdapter: 'drivers/providers/sprite/guest/sprite-awake.js',
     } satisfies ProviderComponent;
@@ -487,7 +487,7 @@ describe('packed idle governor adapters', () => {
       wakeMode: 'url-traffic',
       supportsCliWakeSleep: false,
       maxAwakeDeadlineMinutes: null,
-      servicesMode: 'native',
+      serviceBackend: 'provider',
       transportNetworks: [],
       awakeAdapter: 'drivers/providers/fly/guest/sprite-awake.js',
     } satisfies ProviderComponent;

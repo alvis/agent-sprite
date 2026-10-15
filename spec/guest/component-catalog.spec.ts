@@ -119,7 +119,7 @@ describe('fn:isProviderComponent', () => {
     wakeMode: 'cli-restore',
     supportsCliWakeSleep: true,
     maxAwakeDeadlineMinutes: null,
-    servicesMode: 'supervised',
+    serviceBackend: 'runit',
     transportNetworks: [],
     awakeAdapter: 'drivers/providers/fixture/guest/fixture-awake.js',
   };
@@ -139,8 +139,8 @@ describe('fn:isProviderComponent', () => {
     ['a zero awake limit', { ...provider, maxAwakeDeadlineMinutes: 0 }],
     ['a fractional awake limit', { ...provider, maxAwakeDeadlineMinutes: 1.5 }],
     ['a textual awake limit', { ...provider, maxAwakeDeadlineMinutes: '60' }],
-    ['no stated services mode', { ...provider, servicesMode: undefined }],
-    ['an unknown services mode', { ...provider, servicesMode: 'cron' }],
+    ['no stated service backend', { ...provider, serviceBackend: undefined }],
+    ['an unknown service backend', { ...provider, serviceBackend: 'cron' }],
     [
       'no stated transport networks',
       { ...provider, transportNetworks: undefined },

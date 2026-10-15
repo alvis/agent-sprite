@@ -179,7 +179,7 @@ function providerComponent(
   id: string,
   leaf: ProviderGuestLeaf,
 ): ProviderComponent {
-  const { capabilities, awakeAdapter } = leaf;
+  const { capabilities, serviceBackend, awakeAdapter } = leaf;
   // the governor imports the adapter, so it must be code the provider itself
   // deploys under the fixed suffix, never a launcher or another driver's module
   if (
@@ -199,7 +199,7 @@ function providerComponent(
     wakeMode: capabilities.wakeMode,
     supportsCliWakeSleep: capabilities.supportsCliWakeSleep,
     maxAwakeDeadlineMinutes: capabilities.maxAwakeDeadlineMinutes,
-    servicesMode: capabilities.servicesMode,
+    serviceBackend,
     transportNetworks: [...capabilities.transportNetworks],
     ...(awakeAdapter && { awakeAdapter: awakeAdapter.module }),
   };

@@ -376,11 +376,12 @@ describe('cl:FlyMachineProvider', () => {
     expect({
       capabilities: flyMachine.capabilities,
       shellAccounts: flyMachine.shellAccounts,
+      serviceBackend: flyMachine.serviceBackend,
+      images: flyMachine.images,
       awakeAdapter: flyMachine.awakeAdapter,
     }).toEqual({
       capabilities: {
         guestChannel: 'ssh',
-        servicesMode: 'supervised',
         transportNetworks: ['172.16.0.0/12', 'fdaa::/16'],
         keepAwakeMode: 'governed',
         idleForms: ['memory-suspend', 'stop'],
@@ -393,6 +394,16 @@ describe('cl:FlyMachineProvider', () => {
         resizeRestarts: true,
       },
       shellAccounts: [],
+      serviceBackend: 'runit',
+      images: [
+        {
+          id: 'debian-12',
+          ref: 'debian:bookworm-slim',
+          family: 'debian',
+          release: { id: 'debian', versionId: '12' },
+          arch: ['x86_64'],
+        },
+      ],
       awakeAdapter: { module: expect.any(String), account: 'root' },
     });
   });

@@ -5,6 +5,7 @@ import { ProviderFault } from '#drivers/failures';
 import { BOOT_ID_FILE, BOOT_LOG, BOOT_READY_FILE } from './guest/boot-paths.js';
 
 import type { FlyApi, FlyMachineTarget } from './api.js';
+import type { FlyMachine } from './wire.js';
 
 /** what the ready file says about the current boot */
 type BootState = 'pending' | 'ok' | 'failed';
@@ -14,6 +15,33 @@ const BOOT_WAIT_MS = 180_000;
 const BOOT_POLL_MS = 1_000;
 const MILLISECONDS_PER_SECOND = 1_000;
 const BOOT_PROBE_SECONDS = 10;
+const START_WAIT_SECONDS = 60;
+
+/**
+ * starts a stopped or suspended machine, then waits for its boot script; a
+ * machine already starting, or one whose start conflicts with a start under
+ * way, is only waited for
+ * @param api Machines API client
+ * @param target app and machine
+ * @param machine the machine as last observed
+ */
+export async function startAndBoot(
+  api: FlyApi,
+  target: FlyMachineTarget,
+  machine: Pick<FlyMachine, 'state'>,
+): Promise<void> {
+  if (machine.state !== 'started') {
+    if (machine.state !== 'starting') {
+      await api.startMachine(target).catch((error: unknown) => {
+        if (!(error instanceof ProviderFault && error.code === 'conflict')) {
+          throw error;
+        }
+      });
+    }
+    await api.waitUntilStarted(target, START_WAIT_SECONDS);
+  }
+  await waitForBoot(api, target);
+}
 
 /**
  * waits until the boot script has rebuilt the root filesystem in the

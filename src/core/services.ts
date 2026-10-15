@@ -18,13 +18,13 @@ export { MAINTENANCE_TIMER };
 const MAINTENANCE_LABEL = 'Maintenance scheduler';
 
 /**
- * tells whether the guest supervisor, rather than the provider, runs the
+ * tells whether a backend setup installs, rather than the provider, runs the
  * services and the maintenance schedule
  * @param provider selected provider identifier
  * @returns true when the provider's services are supervised
  */
 export function isSupervisedProvider(provider: ProviderId): boolean {
-  return catalog.providers[provider].capabilities.servicesMode === 'supervised';
+  return catalog.providers[provider].serviceBackend === 'runit';
 }
 
 /**
