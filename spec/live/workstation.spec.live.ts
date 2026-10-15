@@ -1,7 +1,7 @@
 import { describe, inject, it } from 'vitest';
 
 import { t3Service } from '#drivers/agents/t3/service';
-import { codexInstall } from '#drivers/harnesses/codex/install';
+import { codexTool } from '#drivers/harnesses/codex/tools';
 import { tailscaleDaemon } from '#drivers/networks/tailscale/service';
 import { GUEST_KERNEL } from '#guest/guest-root';
 import { HOMEBREW } from '#guest/homebrew';
@@ -534,14 +534,14 @@ describe('live workstation lifecycle', () => {
         // a harness genuinely out of date: its previous release, installed by
         // its owning account through the guest's own npm, with a session of it
         // running through the update as an ACP agent session would
-        expect(create.profile.harnesses).toContain(codexInstall.component);
+        expect(create.profile.harnesses).toContain(codexTool.name);
 
-        const release = await installOlderRelease(provider, name, codexInstall);
+        const release = await installOlderRelease(provider, name, codexTool);
         const session = await startHarnessSession(provider, name);
 
-        expect(
-          await readLoginVersion(provider, name, codexInstall.component),
-        ).toBe(release.older);
+        expect(await readLoginVersion(provider, name, codexTool.name)).toBe(
+          release.older,
+        );
 
         // an update that skips unchanged components must still reinstall one
         // that is out of date, so make one stale before forcing the update
@@ -608,21 +608,20 @@ describe('live workstation lifecycle', () => {
         // the older harness was upgraded in place: a new session starts the
         // new release, while the running session keeps every process and the
         // files it started from
-        const upgraded =
-          manifestAfter.componentOutcomes[codexInstall.component];
+        const upgraded = manifestAfter.componentOutcomes[codexTool.name];
         const upgradedVersion = versionOf(upgraded);
 
         await annotate(
-          `${codexInstall.component} ${release.older} upgraded to ${upgradedVersion} (latest ${release.latest} before the update) with session processes ${session.map(({ pid }) => pid).join(', ')} running`,
+          `${codexTool.name} ${release.older} upgraded to ${upgradedVersion} (latest ${release.latest} before the update) with session processes ${session.map(({ pid }) => pid).join(', ')} running`,
         );
         expect(upgraded).toEqual({
           status: 'installed',
           version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
         });
         expect(upgradedVersion).not.toBe(release.older);
-        expect(
-          await readLoginVersion(provider, name, codexInstall.component),
-        ).toBe(upgradedVersion);
+        expect(await readLoginVersion(provider, name, codexTool.name)).toBe(
+          upgradedVersion,
+        );
         expect(await readHarnessSession(provider, name)).toEqual(
           replacedSession(session, (pattern) => expect.stringMatching(pattern)),
         );

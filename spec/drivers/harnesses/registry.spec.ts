@@ -13,11 +13,11 @@ describe('harness driver registration', () => {
     expect(catalog.harnesses.codex).toBe(codex);
   });
 
-  it('should expose each driver identifier, install component and spawn environment', () => {
+  it('should expose each driver identifier, tools and spawn environment', () => {
     expect(
-      [claude, codex].map(({ id, install, spawnEnvironment }) => ({
+      [claude, codex].map(({ id, tools, spawnEnvironment }) => ({
         id,
-        component: install.component,
+        component: tools.map(({ name }) => name).join(),
         environment: Object.keys(spawnEnvironment),
       })),
     ).toEqual([
@@ -33,13 +33,13 @@ describe('harness driver registration', () => {
     for (const driver of [claude, codex]) {
       expect(GUEST_LEAVES.harnesses[driver.id]).toEqual({
         guest: driver.guest,
-        install: driver.install,
+        tools: driver.tools,
         spawnEnvironment: driver.spawnEnvironment,
         acpAdapter: driver.acpAdapter,
       });
       expect(harnessCatalogEntry(driver)).toMatchObject({
         id: driver.id,
-        component: driver.install.component,
+        component: driver.id,
       });
     }
   });

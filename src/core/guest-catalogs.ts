@@ -13,10 +13,10 @@ import type {
 import type {
   AcpAdapterSpec,
   AgentGuestLeaf,
-  InstallSpec,
   NetworkGuestLeaf,
   ProviderGuestLeaf,
 } from '#drivers/contracts';
+import type { ToolSpec } from '#tools/contracts';
 
 import type { NetworkId } from './catalog.js';
 
@@ -25,6 +25,9 @@ import type { NetworkId } from './catalog.js';
 const ADAPTER_ACCOUNTS: Readonly<
   Record<ProviderComponent['keepAwakeMode'], string | undefined>
 > = { 'native-deadline': 'agent', 'governed': 'root', 'none': undefined };
+
+/** where a release installer links its tool's programs */
+const RELEASE_LINK_DIRECTORY = '/usr/local/bin';
 
 /** name of the file under the guest root that lists the selected harnesses */
 export const HARNESS_CATALOG_FILE = 'harnesses.json';
@@ -92,9 +95,9 @@ export function seedComponentCatalog(): ComponentCatalog {
 
 /**
  * describes one harness for the guest scripts that install and launch it
- * @param harness harness identifier with its install spec and spawn environment
+ * @param harness harness identifier with its tools and spawn environment
  * @param harness.id harness identifier
- * @param harness.install package and version probe
+ * @param harness.tools the harness's tools, its own CLI named after the harness
  * @param harness.spawnEnvironment environment the ACP agent passes to the harness
  * @param harness.acpAdapter the ACP adapter the harness provides, when it provides one
  * @returns the catalog entry guest scripts read
@@ -102,25 +105,17 @@ export function seedComponentCatalog(): ComponentCatalog {
  */
 export function harnessCatalogEntry(harness: {
   id: string;
-  install: InstallSpec;
+  tools: readonly ToolSpec[];
   spawnEnvironment: Readonly<Record<string, string>>;
   acpAdapter?: AcpAdapterSpec;
 }): HarnessCatalogEntry {
-  const { id, install, spawnEnvironment, acpAdapter } = harness;
-  if (install.source.kind !== 'npm') {
-    throw new CommandFault({
-      code: 'UNEXPECTED',
-      message: `Harness ${id} is not installable from npm`,
-    });
-  }
+  const { id, tools, spawnEnvironment, acpAdapter } = harness;
 
   return {
     id,
-    component: install.component,
-    package: install.source.package,
-    probe: [install.versionProbe.program, ...install.versionProbe.arguments],
+    ...npmComponent(id, namedTool(id, tools)),
     environment: { ...spawnEnvironment },
-    ...(acpAdapter && { adapter: npmComponent(id, acpAdapter.install) }),
+    ...(acpAdapter && { adapter: npmComponent(id, acpAdapter.tool) }),
   };
 }
 
@@ -235,61 +230,85 @@ function agentComponents(
     });
   }
 
+  const runtimes = leaf.tools.filter(({ name }) => name !== id);
+  const [runtime] = runtimes;
+  if (runtime === undefined || runtimes.length > 1) {
+    throw new CommandFault({
+      code: 'UNEXPECTED',
+      message: `Agent ${id} declares no single runtime beside its own tool`,
+    });
+  }
+
   return {
     agent: {
       id,
-      ...npmComponent(id, leaf.install),
+      ...npmComponent(id, namedTool(id, leaf.tools)),
       ...(channel && { distTag: channel.distTag, release: channel.id }),
       harnessNames: { ...leaf.harnessNames },
       httpPort,
     },
-    runtime: npmComponent(id, leaf.runtime),
+    runtime: npmComponent(id, runtime),
     packages: [...leaf.guestPackages],
   };
 }
 
 /**
- * describes an npm-installed component
- * @param owner identifier of the driver that installs it
- * @param install package and version probe
- * @returns the entry guest scripts read
- * @throws {CommandFault} when the component is not installable from npm
+ * finds a driver's own tool, which carries the driver's name
+ * @param id identifier of the driver
+ * @param tools the driver's tools
+ * @returns the tool named after the driver
+ * @throws {CommandFault} when the driver declares no tool of its own name
  */
-function npmComponent(owner: string, install: InstallSpec): ComponentEntry {
-  if (install.source.kind !== 'npm') {
+function namedTool(id: string, tools: readonly ToolSpec[]): ToolSpec {
+  const tool = tools.find(({ name }) => name === id);
+  if (tool === undefined) {
     throw new CommandFault({
       code: 'UNEXPECTED',
-      message: `Component ${install.component} of ${owner} is not installable from npm`,
+      message: `Driver ${id} declares no tool named ${id}`,
+    });
+  }
+
+  return tool;
+}
+
+/**
+ * describes an npm-installed component
+ * @param owner identifier of the driver that installs it
+ * @param tool the tool, whose first source is its npm package
+ * @returns the entry guest scripts read
+ * @throws {CommandFault} when the tool is not installable from npm first
+ */
+function npmComponent(owner: string, tool: ToolSpec): ComponentEntry {
+  const [source] = tool.sources;
+  if (source.kind !== 'npm') {
+    throw new CommandFault({
+      code: 'UNEXPECTED',
+      message: `Component ${tool.name} of ${owner} is not installable from npm`,
     });
   }
 
   return {
-    component: install.component,
-    package: install.source.package,
-    probe: [install.versionProbe.program, ...install.versionProbe.arguments],
+    component: tool.name,
+    package: source.package,
+    probe: [tool.version.executable, ...tool.version.args],
   };
 }
 
 /**
  * describes a component installed from an upstream release feed
  * @param id identifier of the network that installs it
- * @param leaf the network's install spec and the guest modules it deploys
+ * @param leaf the network's tools, release feed and the guest modules it deploys
  * @returns the entry guest scripts read
- * @throws {CommandFault} when the component is not installable from a release
- * feed, or its installer is not a root module the network itself deploys
+ * @throws {CommandFault} when the network declares no tool of its own name, or
+ * its installer is not a root module the network itself deploys
  */
 function releaseComponent(
   id: string,
   leaf: NetworkGuestLeaf,
 ): NetworkComponent {
-  const { install, guest } = leaf;
-  if (install.source.kind !== 'release') {
-    throw new CommandFault({
-      code: 'UNEXPECTED',
-      message: `Component ${install.component} of ${id} is not installable from a release feed`,
-    });
-  }
-  const { installer } = install.source;
+  const { releaseFeed, guest } = leaf;
+  const tool = namedTool(id, leaf.tools);
+  const { installer } = releaseFeed;
   // root imports the installer, so it must be root code of the same network,
   // and an `-install` module: a launcher runs its service when imported
   if (
@@ -307,9 +326,21 @@ function releaseComponent(
 
   return {
     id,
-    component: install.component,
-    feed: install.source.feed,
+    component: tool.name,
+    feed: releaseFeed.feed,
     installer,
-    probe: [install.versionProbe.program, ...install.versionProbe.arguments],
+    probe: [releaseProgram(tool.version.executable), ...tool.version.args],
   };
+}
+
+/**
+ * names the program a release installer's probe runs: root runs only an
+ * absolute path, and the installer links its tool into `/usr/local/bin`
+ * @param executable the probe's program, by name or absolute path
+ * @returns the absolute path of the program
+ */
+function releaseProgram(executable: string): string {
+  return executable.startsWith('/')
+    ? executable
+    : `${RELEASE_LINK_DIRECTORY}/${executable}`;
 }

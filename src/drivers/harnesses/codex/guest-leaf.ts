@@ -1,12 +1,12 @@
 import { CODEX_GUEST_MODULES } from './guest-modules.js';
-import { codexInstall } from './install.js';
 import { CODEX_SPAWN_ENVIRONMENT } from './paths.js';
+import { codexTool } from './tools.js';
 
 import type { HarnessGuestLeaf } from '#drivers/contracts';
 
 /** the guest facts of Codex, readable without loading the driver */
 export const codexGuestLeaf: HarnessGuestLeaf = {
   guest: CODEX_GUEST_MODULES,
-  install: codexInstall,
+  tools: [codexTool],
   spawnEnvironment: CODEX_SPAWN_ENVIRONMENT,
 };

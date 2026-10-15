@@ -9,8 +9,9 @@ import {
 import { none } from '#drivers/networks/none/index';
 
 import type { RegisteredNetwork } from '#core/networks';
-import type { InstallSpec, NetworkInputs } from '#drivers/contracts';
+import type { NetworkInputs } from '#drivers/contracts';
 import type { ServiceDefinition } from '#drivers/guest-channel';
+import type { ToolSpec } from '#tools/contracts';
 
 const inputs: NetworkInputs = {
   account: { environment: 'PARTIAL_ACCOUNT', prompt: 'Account' },
@@ -31,11 +32,15 @@ const daemon: ServiceDefinition = {
   needs: [],
 };
 
-const install: InstallSpec = {
-  component: 'partial',
-  source: { kind: 'release', feed: 'https://example.test', installer: 'x.js' },
-  versionProbe: { program: 'partial', arguments: ['--version'] },
-};
+const tools: readonly ToolSpec[] = [
+  {
+    name: 'partial',
+    required: true,
+    executables: ['partial'],
+    version: { executable: 'partial', args: ['--version'], account: 'root' },
+    sources: [{ kind: 'brew', formula: 'partial' }],
+  },
+];
 
 /**
  * builds a network that declares only the given optional facts
@@ -45,15 +50,15 @@ const install: InstallSpec = {
  */
 function fixture(
   id: string,
-  facts: Partial<Pick<RegisteredNetwork, 'daemon' | 'inputs' | 'install'>>,
+  facts: Partial<Pick<RegisteredNetwork, 'daemon' | 'inputs' | 'tools'>>,
 ): RegisteredNetwork {
   return { ...none, ...facts, displayName: id };
 }
 
 const inputsOnly = fixture('inputs-only', { inputs });
 const daemonOnly = fixture('daemon-only', { daemon });
-const installOnly = fixture('install-only', { install });
-const everything = fixture('everything', { inputs, daemon, install });
+const installOnly = fixture('install-only', { tools });
+const everything = fixture('everything', { inputs, daemon, tools });
 const partials = [inputsOnly, daemonOnly, installOnly, everything, none];
 
 describe('fn:networksWithInputs', () => {

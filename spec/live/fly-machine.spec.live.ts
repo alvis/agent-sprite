@@ -452,8 +452,12 @@ async function readHarnessVersions(
   harnesses: readonly HarnessId[],
 ): Promise<Record<string, string>> {
   const versions: Record<string, string> = {};
-  for (const { install } of harnessDrivers(harnesses)) {
-    const program = basename(install.versionProbe.program);
+  for (const { tools } of harnessDrivers(harnesses)) {
+    const [tool] = tools;
+    if (tool === undefined) {
+      continue;
+    }
+    const program = basename(tool.version.executable);
     versions[program] =
       (
         await asRoot(channel, `runuser -l agent -c '${program} --version'`)
@@ -1299,10 +1303,12 @@ describe('Fly Machine provider live probe', () => {
           cached: expect.stringMatching(/^libatomic1_\S+\.deb$/u) as string,
           brew: [`HOMEBREW_PREFIX: ${HOMEBREW.prefix}`],
           harnesses: Object.fromEntries(
-            harnessDrivers(manifest.profile.harnesses).map(({ install }) => [
-              basename(install.versionProbe.program),
-              expect.stringMatching(DOTTED_VERSION) as string,
-            ]),
+            harnessDrivers(manifest.profile.harnesses).flatMap(({ tools }) =>
+              tools.map(({ version }) => [
+                basename(version.executable),
+                expect.stringMatching(DOTTED_VERSION) as string,
+              ]),
+            ),
           ),
         });
         const update = successData(

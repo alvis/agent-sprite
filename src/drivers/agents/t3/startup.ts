@@ -1,6 +1,6 @@
 import { runAsAgent } from '#integrations/guest/account';
 
-import { t3Install } from './install.js';
+import { t3Tool } from './tools.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
@@ -10,7 +10,7 @@ import type { GuestChannel } from '#drivers/guest-channel';
  */
 export async function verifyT3Startup(guest: GuestChannel): Promise<void> {
   const help = await runAsAgent(guest, [
-    t3Install.versionProbe.program,
+    t3Tool.version.executable,
     'start',
     '--help',
   ]);
