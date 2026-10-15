@@ -20,7 +20,7 @@ _Run a coding agent on a Fly Sprite or Fly Machine that sleeps when idle, wakes 
 <br/>
 <div align="center">
 
-•&emsp;⚡ [Quick Start](#-quick-start)&emsp;•&emsp;💤 [Sleep and Wake](#-sleep-wake-and-persistent-storage)&emsp;•&emsp;🌐 [Private Networking](#-private-networking)&emsp;•&emsp;🔐 [Authentication](#-authentication)&emsp;•&emsp;📖 [Usage](#-usage)&emsp;•&emsp;📚 [CLI Reference](#-cli-reference)&emsp;•&emsp;📐 [Architecture](#-architecture)&emsp;•
+•&emsp;⚡ [Quick Start](#-quick-start)&emsp;•&emsp;💤 [Sleep and Wake](#-sleep-wake-and-persistent-storage)&emsp;•&emsp;🌐 [Private Networking](#-private-networking)&emsp;•&emsp;🔐 [Authentication](#-authentication)&emsp;•&emsp;📖 [Usage](#-usage)&emsp;•&emsp;📚 [CLI Reference](#-cli-reference)&emsp;•
 
 </div>
 <br/>
@@ -561,18 +561,18 @@ pnpm test:live:fly
 
 ---
 
-## 📐 Architecture
-
-[ARCHITECTURE.md](ARCHITECTURE.md) is the maintainer's guide: the mental model from profile to drivers to guest kernel, a directory map, what runs on your computer and on the guest, the create, setup, update, idle and cold-boot lifecycles, how to add a driver, where guest state lives, testing, and common pitfalls. The detailed runtime reference is [docs/architecture/workstation.md](docs/architecture/workstation.md), and accepted decisions are indexed in [docs/architecture](docs/architecture/README.md).
-
----
-
-## 📜 Changelog
-
-See the [GitHub releases](https://github.com/alvis/open-agent/releases).
-
----
-
 ## 📄 License
 
-[MIT](LICENSE) © Alvis HT Tang
+**MIT** [Alvis HT Tang](https://github.com/alvis)
+
+Free for personal and commercial use. See [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+
+**[⭐ Star on GitHub](https://github.com/alvis/open-agent)** · **[📦 View on npm](https://www.npmjs.com/package/open-agent)** · **[📖 Documentation](https://github.com/alvis/open-agent#readme)**
+
+_Built for developers who want their agent to keep working long after they close the laptop._
+
+</div>
