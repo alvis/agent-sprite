@@ -1,4 +1,5 @@
 import { readComponentCatalog } from './component-catalog.js';
+import { AGENT_HOME } from './guest-root.js';
 import { readHarnessCatalog } from './harness-catalog.js';
 import { resolveTrustedFile } from './native-files.js';
 import { runChild } from './run-child.js';
@@ -40,6 +41,8 @@ export async function probeInstalledVersions(
     versions[name] = (
       await runChild(runuser, ['-u', 'agent', '--', ...command], {
         env: environment,
+        // the updater's directory may be one the agent cannot read
+        cwd: AGENT_HOME,
         timeoutMs: PROBE_TIMEOUT_MS,
       })
     ).trim();

@@ -45,7 +45,17 @@ export async function runAsAgent(
 
   return run(
     '/usr/sbin/runuser',
-    ['-u', 'agent', '--', '/usr/bin/env', `PATH=${path}`, ...argv],
+    // from the agent's home: the installer's own directory may be one the
+    // agent cannot read, and a tool such as pnpm reads its directory's config
+    [
+      '-u',
+      'agent',
+      '--',
+      '/usr/bin/env',
+      `--chdir=${AGENT_HOME}`,
+      `PATH=${path}`,
+      ...argv,
+    ],
     capture,
   );
 }
