@@ -36,8 +36,8 @@ export interface HarnessPluginOptions {
 export interface CommandOptions {
   /** workstation name, from --name */
   name?: string;
-  /** explicit env file read before the ambient environment */
-  env?: string;
+  /** explicit env file read before the ambient environment, from --env-file */
+  envFile?: string;
   /** setup section to configure */
   section?: SetupSection;
   /** harness whose plugins the setup plugins section changes */

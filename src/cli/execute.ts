@@ -343,8 +343,8 @@ async function readModeEnvironment(
   operation: OperationContext,
 ): Promise<NodeJS.ProcessEnv> {
   try {
-    const selectedEnv = options.env
-      ? parse(await readInputFile(options.env, operation))
+    const selectedEnv = options.envFile
+      ? parse(await readInputFile(options.envFile, operation))
       : {};
 
     return { ...selectedEnv, ...process.env };
@@ -352,7 +352,7 @@ async function readModeEnvironment(
     checkOperation(operation);
     throw new CommandFault({
       code: 'INPUT',
-      message: `Selected --env file ${JSON.stringify(options.env)} must be a readable regular file.`,
+      message: `Selected env file ${JSON.stringify(options.envFile)} must be a readable regular file.`,
       cause,
       causeVisibility: 'private',
     });

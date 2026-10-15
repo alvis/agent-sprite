@@ -737,3 +737,70 @@ describe('cmd:show', () => {
     expect(sprite.execFile).not.toHaveBeenCalled();
   });
 });
+
+describe('provider choice on an existing workstation', () => {
+  it.each(['show', 'doctor', 'terminate'] as const)(
+    'should answer %s from the provider --provider names without searching the others',
+    async (command) => {
+      vi.stubEnv('SPRITES_TOKEN', 'test-org/1/0abc/0def');
+      vi.stubEnv('FLY_API_TOKEN', undefined);
+      const getSprite = vi.spyOn(SpritesClient.prototype, 'getSprite');
+      const listAllSprites = vi.spyOn(
+        SpritesClient.prototype,
+        'listAllSprites',
+      );
+
+      const result = await runCommand({
+        command,
+        machine: 'primary',
+        options: {
+          provider: 'fly-machine',
+          json: true,
+          nonInteractive: true,
+          localCredentials: false,
+          yes: true,
+        },
+      });
+
+      expect(result).toMatchObject({
+        command,
+        ok: false,
+        error: {
+          code: 'INPUT',
+          message: 'Provider prerequisites are missing or misconfigured',
+          details: expect.arrayContaining([
+            expect.stringContaining('FLY_API_TOKEN'),
+          ]),
+        },
+      });
+      expect(getSprite).not.toHaveBeenCalled();
+      expect(listAllSprites).not.toHaveBeenCalled();
+    },
+  );
+
+  it('should answer with sprite when only a provider token source is given', async () => {
+    vi.stubEnv('OPEN_AGENT_TEST_SOURCE', 'FlyV1 fm2_generated-macaroon');
+    vi.stubEnv('SPRITES_TOKEN', undefined);
+    vi.stubEnv('FLY_API_TOKEN', undefined);
+
+    const result = await runCommand({
+      command: 'show',
+      machine: 'primary',
+      options: {
+        providerTokenSource: 'env:OPEN_AGENT_TEST_SOURCE',
+        json: true,
+        nonInteractive: true,
+        localCredentials: false,
+      },
+    });
+
+    expect(result).toMatchObject({
+      command: 'show',
+      ok: false,
+      error: {
+        code: 'INPUT',
+        details: [expect.stringContaining('holds a Fly API token')],
+      },
+    });
+  });
+});

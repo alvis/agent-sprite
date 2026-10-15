@@ -133,7 +133,10 @@ function sourceReader(
     const ordered = [
       { value: explicit, description: 'flag' },
       { value: sources.processEnv[name], description: 'process environment' },
-      { value: sources.fileEnv[name], description: options.env ?? 'env file' },
+      {
+        value: sources.fileEnv[name],
+        description: options.envFile ?? 'env file',
+      },
       { value: sources.profile[name], description: 'saved profile' },
     ];
     const selected = ordered.find((entry) => Boolean(entry.value));

@@ -9,7 +9,7 @@ import { parseWholeNumber } from './whole-number.js';
 
 /** local provider credential selection shared by every operation */
 export const providerCredentialFlags = {
-  env: {
+  envFile: {
     kind: 'parsed',
     parse: String,
     optional: true,
@@ -21,7 +21,8 @@ export const providerCredentialFlags = {
     parse: String,
     optional: true,
     placeholder: 'SOURCE',
-    brief: 'SOURCE · provider management credential source reference',
+    brief:
+      'SOURCE · provider management credential source reference, for the provider --provider selects (sprite when omitted)',
   },
   localCredentials: {
     kind: 'boolean',
@@ -104,8 +105,8 @@ export const pairingFlags = {
   },
 } as const;
 
-/** driver and option selection, in the order interactive setup asks for it */
-export const selectionFlags = {
+/** provider choice, which commands on an existing workstation also accept to skip the search across providers */
+export const providerFlags = {
   provider: {
     kind: 'parsed',
     parse: buildChoiceParser(providerIds()),
@@ -113,6 +114,11 @@ export const selectionFlags = {
     placeholder: 'PROVIDER',
     brief: `PROVIDER · ${providerIds().join(', ')}`,
   },
+} as const;
+
+/** driver and option selection, in the order interactive setup asks for it */
+export const selectionFlags = {
+  ...providerFlags,
   ...machineFlags,
   agent: {
     kind: 'parsed',

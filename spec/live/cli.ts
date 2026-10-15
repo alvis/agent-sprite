@@ -66,7 +66,7 @@ export interface LiveCli {
 export interface LiveCliOptions {
   /** installed packed executable */
   bin: string;
-  /** absolute dotenv path passed with --env */
+  /** absolute dotenv path passed with --env-file */
   envFile: string;
   /** isolated HOME keeping local credentials and config out of the run */
   home: string;
@@ -92,7 +92,7 @@ export function createLiveCli(options: LiveCliOptions): LiveCli {
     XDG_CONFIG_HOME: join(home, '.config'),
     NO_COLOR: '1',
   };
-  const shared = ['--env', envFile, '--no-local-credentials'];
+  const shared = ['--env-file', envFile, '--no-local-credentials'];
 
   return {
     async json(args, timeoutMs, signal) {

@@ -1487,7 +1487,7 @@ describe('Fly Machine provider live probe', () => {
               '--json',
               '--non-interactive',
               '--no-local-credentials',
-              '--env',
+              '--env-file',
               envFile,
             ],
             {

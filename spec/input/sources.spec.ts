@@ -38,7 +38,7 @@ describe('fn:readInputSources', () => {
     );
 
     try {
-      const sources = await readInputSources({ env: envPath });
+      const sources = await readInputSources({ envFile: envPath });
 
       expect({
         fileEnv: sources.fileEnv,

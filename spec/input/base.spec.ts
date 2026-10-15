@@ -53,7 +53,7 @@ describe('fn:resolveBaseInputs', () => {
         name: 'chosen',
         networkAccount: 'flag-tailnet',
         localCredentials: false,
-        env: 'selected.env',
+        envFile: 'selected.env',
       },
       {
         processEnv: {

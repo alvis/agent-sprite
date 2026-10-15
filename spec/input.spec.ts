@@ -249,11 +249,11 @@ describe('fn:resolveInputs', () => {
     try {
       const values = [
         await resolveProviderCredential(
-          { env: path, localCredentials: false },
+          { envFile: path, localCredentials: false },
           'sprite',
         ),
         await resolveProviderCredential(
-          { env: path, localCredentials: false },
+          { envFile: path, localCredentials: false },
           'sprite',
           { reference: `file:${secretPath}` },
         ),

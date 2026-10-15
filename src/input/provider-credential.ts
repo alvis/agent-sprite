@@ -56,7 +56,7 @@ export async function resolveProviderCredential(
     },
     {
       value: sources.fileEnv[credential.environment],
-      source: `${credential.environment} in ${options.env ?? 'the env file'}`,
+      source: `${credential.environment} in ${options.envFile ?? 'the env file'}`,
     },
   ];
   const direct = candidates.find(({ value }) => Boolean(value));

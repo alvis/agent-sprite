@@ -1,6 +1,6 @@
 # Workstation architecture
 
-open-agent is a Node 24+ CLI that creates and manages persistent Fly Sprites through a layered workflow. Root workflows coordinate domain modules and narrow external integrations; an installed guest runs T3 Code, maintenance cron and optional Tailscale. Claude and Codex keep separate native configuration and plugin identities.
+open-agent is a Node 24+ CLI that creates and manages persistent coding workstations on Fly Sprites or Fly Machines through a layered workflow. Root workflows coordinate domain modules, provider drivers and narrow external integrations; an installed guest runs T3 Code, scheduled maintenance (cron on a Sprite, the guest supervisor's timer on a Fly Machine) and optional Tailscale. [ARCHITECTURE.md](../../ARCHITECTURE.md) is the shorter maintainer's guide to the same structure. Claude and Codex keep separate native configuration and plugin identities.
 
 ## File structure
 
@@ -61,13 +61,14 @@ src
     <kind>/<id>/guest-modules.ts  # Dependency-free list of that driver's guest modules
     <kind>/<id>/guest-leaf.ts     # Dependency-free guest facts of that driver, which the driver spreads
   integrations                # External APIs, credentials and guest/native boundaries
-    sprites.ts                # Official SDK mapping, pagination and ownership checks
-    tailscale.ts              # Enrollment, route approval and managed node cleanup
+    clipboard.ts              # Local clipboard for the copied agent URL
+    marketplaces.ts           # Marketplace source compatibility checks before plugin changes
     credentials.ts            # Local native secure storage and protected-file fallback
     guest                     # Guest runtime, services, files and locked transactions
     native                    # Independent Claude/Codex, GitHub/Git and T3 configuration
   guest                       # Guest kernel: TypeScript compiled for guest deployment under /opt/open-agent/guest
-    bootstrap-node.sh         # Sole shell file: checksum-verified Node bootstrap
+    bootstrap-node.sh         # Checksum-verified private Node bootstrap
+    update-gate.sh            # Per-minute gate that lets one update check through per interval
     guest-transaction.ts      # Serialized payload staging and configuration worker
     guest-root.ts             # Guest root constants and the helpers that name a module by its deployed path
     install-tools.ts          # Managed stable-tool installation
@@ -91,7 +92,7 @@ spec
 - **Interactive session** (`src/cli/interaction.ts`, `src/components/InteractionRoot.tsx`): keeps one Ink root mounted across a prompt queue. Rendered components collect input and display state; workflows own cloud mutations.
 - **Inputs and validation** (`src/input.ts`, `src/validation.ts`): apply explicit-source precedence, resolve eligible fallback credentials lazily and aggregate determinable preflight issues before provisioning.
 - **Workstation workflows** (`src/create.ts`, `src/setup.ts`, `src/workstation/configuration.ts`): share ordered native configuration steps, preserve unrelated settings and retain failed resources for recovery.
-- **Provider integration** (`src/integrations/sprites.ts`): authenticates, paginates live records and checks management/organization identity. Termination revalidates the immutable target identity immediately before deletion.
+- **Provider drivers** (`src/drivers/providers/sprite/provider.ts`, `src/drivers/providers/fly-machine/provider.ts`): authenticate, paginate live records and check management/organization identity through the Sprites SDK or the Fly Machines API. Termination revalidates the immutable target identity immediately before deletion.
 - **Guest transactions** (`src/integrations/guest/transaction.ts`, `src/guest/guest-transaction.ts`): serialize configuration, payload and manifest operations under one guest installation/update lock. Updater writes reread current state and merge only updater-owned fields.
 - **Native integrations** (`src/integrations/native/claude.ts`, `src/integrations/native/codex.ts`): merge real JSON/TOML and apply independently selected native sources/plugins. Shared reconciliation keeps harness differences explicit.
 - **Runtime inspection** (`src/integrations/guest/runtime.ts`): checks services, routing, native configuration and the T3 environment endpoint without a paid model turn. Probe failures become findings rather than disappearing or aborting unrelated observations.
@@ -104,7 +105,7 @@ flowchart LR
   CLI[Installed Stricli CLI] --> Workflows[Workstation workflows]
   CLI --> Ink[Persistent Ink session]
   Workflows --> Inputs[Inputs and validation]
-  Workflows --> Provider[Official Sprites SDK integration]
+  Workflows --> Provider[Provider driver: Sprites SDK or Fly Machines API]
   Workflows --> Tailnet[Tailscale management API]
   Provider --> Guest[Persistent guest]
   Guest --> Worker[Locked TypeScript worker]
@@ -123,7 +124,7 @@ flowchart LR
 3. Install managed developer tools, join the selected tailnet before accessing a private proxy, then merge native settings and plugins.
 4. Start services and assess current route, DNS, proxy and the T3 service and its `/.well-known/t3/environment` response.
 5. Make T3 public after readiness succeeds. Mint a native code last only for an explicit pairing request.
-6. Ordinary list/show read the control plane. `list` covers every registered provider with a credential and notes the rest as skipped; a command without `--provider` asks each ready provider for the workstation (`src/core/provider-lookup.ts`) and refuses only when the name exists on several. Explicit inspection and doctor execute guest checks and may wake the workstation.
+6. Ordinary list/show read the control plane. `list` covers every registered provider with a credential and notes the rest as skipped; a command without `--provider` asks each ready provider for the workstation (`src/core/provider-lookup.ts`) and refuses only when the name exists on several. `--provider` on `setup`, `show`, `doctor` and `terminate` skips that search, and on every command, `list` included, it names the provider a `--provider-token-source` belongs to (`sprite` when omitted). Explicit inspection and doctor execute guest checks and may wake the workstation.
 
 External integrations may depend on owning leaf contracts and permitted helpers, but cannot import application workflows or CLI implementations. Guest scripts form a separately deployable boundary: only permitted built-ins, `ws`, other guest code and the guest kernel may be imported, and driver guest code imports the kernel by the same relative specifier in the source tree and on the guest. Components never own cloud effects. These import directions are reviewed as architectural constraints; the project registers no custom ESLint boundary rule. Package subpath imports resolve module locations and do not enforce dependency direction.
 
@@ -151,7 +152,7 @@ Termination captures the exact managed tailnet identity before Sprite deletion a
 
 Root installation operations use trusted managed paths. Every module under `/opt/open-agent` is staged root-owned and unwritable by other accounts: 0700 for root-only entry points and 0755 for modules other accounts execute. No module is handed to another account, because root imports modules that agent-run code shares. Agent tools and native probes execute through the unprivileged account; recursive ownership/configuration work refuses symlinks instead of following them into unrelated paths. Guest mutations share the transaction lock, including native and manifest writes.
 
-Sprites and Tailscale management tokens remain local. Enrollment uses a transient private file that is removed after use. Selected GitHub and proxy client credentials intentionally persist in protected native guest configuration. Native GitHub authentication configures separate `agent` and provider-shell `sprite` accounts.
+Sprites, Fly and Tailscale management tokens remain local. Enrollment uses a transient private file that is removed after use. Selected GitHub and proxy client credentials intentionally persist in protected native guest configuration. Native GitHub authentication configures separate `agent` and provider-shell `sprite` accounts.
 
 Optional credentials are resolved lazily, so an explicit usable source does not fail because an unused saved store is malformed. Storage outcomes report the actual native or protected-file backend. Original work errors retain bounded redacted causes and independently reported restoration/storage failures.
 

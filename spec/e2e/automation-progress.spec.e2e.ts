@@ -76,7 +76,7 @@ describe('workflow:installed CLI automation reporting', () => {
         'list',
         '--json',
         '--no-local-credentials',
-        '--env',
+        '--env-file',
         envPath,
       ];
       const [ordinary, quiet, verboseQuiet, human, quietHuman] =
@@ -101,7 +101,7 @@ describe('workflow:installed CLI automation reporting', () => {
           }),
           execa(
             packedBin!,
-            ['list', '--no-local-credentials', '--env', envPath],
+            ['list', '--no-local-credentials', '--env-file', envPath],
             {
               cwd,
               env,
@@ -111,7 +111,13 @@ describe('workflow:installed CLI automation reporting', () => {
           ),
           execa(
             packedBin!,
-            ['list', '--quiet', '--no-local-credentials', '--env', envPath],
+            [
+              'list',
+              '--quiet',
+              '--no-local-credentials',
+              '--env-file',
+              envPath,
+            ],
             { cwd, env, extendEnv: false, reject: false },
           ),
         ]);

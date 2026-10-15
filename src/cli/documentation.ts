@@ -1,3 +1,9 @@
+/** how a command on an existing workstation finds its provider */
+const PROVIDER_SELECTION = `Without --provider, each provider with a ready credential is asked for the
+workstation. --provider PROVIDER names the provider instead, and it is the
+provider a --provider-token-source belongs to; with a token source and no
+--provider, sprite answers.`;
+
 /** complete create guidance without turning optional integrations into defaults */
 export const createDocumentation = {
   brief: 'create one new coding workstation',
@@ -51,12 +57,15 @@ export const listDocumentation = {
   customUsage: ['[options]'],
   fullDescription: `Lists current managed workstations from every provider whose credential
 is available, without waking their guests. A provider whose query fails is
-reported as unavailable. --json emits one structured result.
+reported as unavailable. --provider PROVIDER names the provider a
+--provider-token-source belongs to (sprite when omitted); every other provider
+is still listed. --json emits one structured result.
 
 EXAMPLES
   open-agent list
   open-agent list --json
-  open-agent list --no-local-credentials --provider-token-source env:MY_TOKEN`,
+  open-agent list --no-local-credentials --provider-token-source env:MY_TOKEN
+  open-agent list --provider fly-machine --provider-token-source env:FLY_TOKEN`,
 } as const;
 
 /** documents workstation details, explicit inspection and pairing */
@@ -67,7 +76,8 @@ export const showDocumentation = {
 waking the guest. --inspect checks live guest services and may wake it; use
 doctor for a readiness-focused report. --with-pair-code creates one code
 valid for five minutes and appends it to the agent URL. A bare interactive show
-opens the workstation action menu. Credentials precede output controls below.
+opens the workstation action menu. ${PROVIDER_SELECTION} Credentials precede
+output controls below.
 
 EXAMPLES
   open-agent show devbox
@@ -83,6 +93,7 @@ export const terminateDocumentation = {
 non-interactive mode, provide an exact workstation name and --yes. Network
 cleanup options follow the operation flag; credentials and output controls
 follow them. --yes confirms only the already selected deletion.
+${PROVIDER_SELECTION}
 
 EXAMPLES
   open-agent terminate devbox
@@ -95,8 +106,8 @@ export const doctorDocumentation = {
   customUsage: ['[<workstation>] [options]'],
   fullDescription: `Inspects current guest services, routing, and native setup;
 the check may wake the guest. Use show for provider details or show --inspect
-for details together with a live inspection. Credentials precede output
-controls in the flag table.
+for details together with a live inspection. ${PROVIDER_SELECTION} Credentials
+precede output controls in the flag table.
 
 EXAMPLES
   open-agent doctor devbox
