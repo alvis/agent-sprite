@@ -35,7 +35,7 @@ Use **Node.js 24 or newer**. Install the CLI from npm, or run it once with `npx`
 npm install -g open-agent
 ```
 
-Get a Sprites organization token for the default Fly Sprite provider (see [Prerequisites](#-prerequisites)), then put an agent on a machine and pair your client with it:
+Get a Sprites organization token in `SPRITES_TOKEN` for the default Fly Sprite provider, or a Fly organization token in `FLY_API_TOKEN` for `--provider fly-machine` (see [Prerequisites](#-prerequisites)); each token is needed only by its own provider. Then put an agent on a machine and pair your client with it:
 
 ```bash
 export SPRITES_TOKEN=…   # or let the interactive run prompt for it and save it on this computer
