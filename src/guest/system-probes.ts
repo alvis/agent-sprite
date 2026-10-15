@@ -1,5 +1,6 @@
 // guest kernel: imports only other guest constants, so host code may import it (REQ-MAINT-5)
 
+import { CHROME } from './chrome.js';
 import { GUEST_NODE } from './guest-root.js';
 import { HOMEBREW_TOOLS, TOOL_LINK_DIRECTORY } from './homebrew.js';
 import { RUSTUP_ENVIRONMENT } from './rust.js';
@@ -16,6 +17,9 @@ export const RUST_PROBE: VersionProbe = [
   `${TOOL_LINK_DIRECTORY}/rustc`,
   '--version',
 ];
+
+/** the probe of Google Chrome, which prints its full four-part version */
+export const CHROME_PROBE: VersionProbe = [CHROME.command, '--version'];
 
 /**
  * names the program and arguments that report the version of a tool poured from Homebrew
@@ -35,4 +39,5 @@ export const SYSTEM_PROBES: ReadonlyArray<readonly [string, VersionProbe]> = [
   ['guest-node', [GUEST_NODE, '--version']],
   ...HOMEBREW_TOOLS.map((tool) => [tool.formula, versionProbe(tool)] as const),
   ['rust', RUST_PROBE],
+  [CHROME.component, CHROME_PROBE],
 ];

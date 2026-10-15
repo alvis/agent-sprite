@@ -12,6 +12,7 @@ import { readHarnessCatalog } from './harness-catalog.js';
 import { HOMEBREW_TOOLS } from './homebrew.js';
 
 import { runAsAgent } from './install-tools/agent.js';
+import { chromeComponent } from './install-tools/chrome.js';
 import {
   home,
   link,
@@ -129,6 +130,8 @@ async function installTools(): Promise<void> {
   }
   // rustup's proxies run the toolchain, so it follows rustup
   await ledger.ensure(rustComponent(tools));
+  // agent-browser, poured above, drives this browser
+  await ledger.ensure(chromeComponent(tools));
   await installNetworks(components.networks, ledger);
   await installHarnesses(await readHarnessCatalog(), components);
 }

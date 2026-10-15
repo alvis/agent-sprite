@@ -110,4 +110,11 @@ export const HOMEBREW_TOOLS: readonly HomebrewTool[] = [
     links: [{ directory: 'bin', commands: ['http', 'https', 'httpie'] }],
     command: 'http',
   },
+  {
+    // finds the workstation's Google Chrome as `google-chrome` on PATH, so
+    // its own `agent-browser install` download is never needed
+    formula: 'agent-browser',
+    links: [{ directory: 'bin', commands: ['agent-browser'] }],
+    command: 'agent-browser',
+  },
 ];
