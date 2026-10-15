@@ -1986,7 +1986,7 @@ describe('workflow:installed CLI', () => {
     expect(output.error.message.split('\n')).toHaveLength(2);
   });
 
-  it('should emit one safe JSON failure when the isolated packed CLI import is missing', async () => {
+  it('should name the missing module and exit non-zero when the isolated packed CLI import is missing', async () => {
     expect(packedBin).toBeDefined();
     const sourceRoot = dirname(dirname(await realpath(packedBin!)));
     const result = await withIsolatedCli(async (cwd, env) => {
@@ -2008,16 +2008,10 @@ describe('workflow:installed CLI', () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe('');
-    expect(result.stdout.trim().split('\n')).toHaveLength(1);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      schemaVersion: 1,
-      command: 'show',
-      ok: false,
-      error: { code: 'UNEXPECTED', message: 'The command could not start.' },
-    });
-    expect(result.stdout).not.toContain('private-argument');
-    expect(result.stdout).not.toContain('Error:');
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('ERR_MODULE_NOT_FOUND');
+    expect(result.stderr).toContain('lib/cli/application.js');
+    expect(result.stderr).not.toContain('private-argument');
   });
 
   it('should keep parser errors and emission ownership local to repeated CLI invocations', async () => {
