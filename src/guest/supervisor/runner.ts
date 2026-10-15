@@ -85,9 +85,10 @@ export class ServiceRunner {
   /**
    * waits until a service's process has run through the startup window
    * @param entry the registered service
+   * @param since epoch milliseconds the start was asked for; a process that started earlier belongs to an earlier start
    * @throws {SupervisorFault} when it ends early or does not start in time
    */
-  public async awaitStartup(entry: ServiceEntry): Promise<void> {
+  public async awaitStartup(entry: ServiceEntry, since: number): Promise<void> {
     const { name } = entry.definition;
     const deadline = this.#params.now() + ENSURE_WAIT_MS;
     for (;;) {
@@ -97,17 +98,22 @@ export class ServiceRunner {
           `${name} was stopped while starting`,
         );
       }
-      const { running } = entry;
+      const { running, lastExit } = entry;
       if (running && !running.isStopping) {
         const remaining =
           STARTUP_WINDOW_MS - (this.#params.now() - running.startedAt);
         if (!(await settlesWithin(running.exited, remaining))) {
           return;
         }
-        throw new SupervisorFault(
-          'failed',
-          `${name} exited during startup (${entry.lastOutcome ?? 'unknown'})`,
-        );
+        throw exitedDuringStartup(entry);
+      }
+      // a process that crashes on launch can start and end between two looks
+      if (
+        lastExit !== undefined &&
+        lastExit.startedAt >= since &&
+        lastExit.endedAt - lastExit.startedAt < STARTUP_WINDOW_MS
+      ) {
+        throw exitedDuringStartup(entry);
       }
       if (this.#params.now() >= deadline) {
         throw new SupervisorFault(
@@ -310,7 +316,11 @@ export class ServiceRunner {
     entry.running = undefined;
     signalGroup(running.pid, 'SIGKILL');
     this.#saveChildren();
-    const uptime = this.#params.now() - running.startedAt;
+    const endedAt = this.#params.now();
+    const uptime = endedAt - running.startedAt;
+    if (!running.isStopping) {
+      entry.lastExit = { startedAt: running.startedAt, endedAt };
+    }
     entry.lastOutcome = describeExit(exit);
     const isRestarting =
       !running.isStopping &&
@@ -372,4 +382,16 @@ export class ServiceRunner {
         });
       });
   }
+}
+
+/**
+ * describes a service whose process ended inside its startup window
+ * @param entry the registered service
+ * @returns the fault an ensure fails with
+ */
+function exitedDuringStartup(entry: ServiceEntry): SupervisorFault {
+  return new SupervisorFault(
+    'failed',
+    `${entry.definition.name} exited during startup (${entry.lastOutcome ?? 'unknown'})`,
+  );
 }

@@ -290,6 +290,15 @@ async function startsOf(directory: string, name: string): Promise<number[]> {
 }
 
 /**
+ * counts the runs a crashing service recorded, one line each
+ * @param file where the service records its runs
+ * @returns the number of runs
+ */
+async function runsIn(file: string): Promise<number> {
+  return (await readFile(file, 'utf8')).split('\n').length - 1;
+}
+
+/**
  * tells whether a process still exists
  * @param pid process id
  * @returns whether it exists
@@ -510,6 +519,8 @@ describe('packed guest supervisor', () => {
           needs: [],
         },
       });
+      // the answer comes with the first run's exit, not a later run
+      const runsAtAnswer = await runsIn(runs);
       const exitsLogged = async (): Promise<number[]> =>
         [
           ...(await station.log()).matchAll(
@@ -518,7 +529,7 @@ describe('packed guest supervisor', () => {
         ].map(([, wait]) => Number(wait));
       await until(async () => (await exitsLogged()).length >= 3);
       const exits = await exitsLogged();
-      const runCount = (await readFile(runs, 'utf8')).split('\n').length - 1;
+      const runCount = await runsIn(runs);
       const removed = await daemon.request({
         action: 'remove',
         name: 'crasher',
@@ -526,6 +537,7 @@ describe('packed guest supervisor', () => {
 
       expect({
         ensured,
+        runsAtAnswer,
         exits: exits.slice(0, 3),
         isRunEachTime: runCount >= 3,
         removed,
@@ -536,10 +548,96 @@ describe('packed guest supervisor', () => {
           code: 'failed',
           error: 'crasher exited during startup (exit code 3)',
         },
+        runsAtAnswer: 1,
         exits: [1_000, 2_000, 4_000],
         isRunEachTime: true,
         removed: { ok: true },
         services: [{ name: 'open-agent-timer', status: 'running' }],
+      });
+      expect(await daemon.stop()).toBe(0);
+    },
+    SLOW_TEST_MS,
+  );
+
+  it(
+    'should start a service whose earlier startup crash is fixed',
+    async () => {
+      await using station = await workstation();
+      const daemon = await station.start();
+      const { directory } = station;
+      const ready = join(directory, 'ready');
+      const definition = sleeper(directory, 'recovered', {
+        arguments: [
+          '-c',
+          `test -e ${ready} || exit 3; echo $$ >> ${pidFile(directory, 'recovered')}; exec sleep 300`,
+          'recovered',
+        ],
+      });
+
+      const crashed = await daemon.request({ action: 'ensure', definition });
+      await writeFile(ready, '');
+      const fixed = await daemon.request({ action: 'ensure', definition });
+
+      expect({
+        answers: [crashed, fixed],
+        starts: (await startsOf(directory, 'recovered')).length,
+      }).toEqual({
+        answers: [
+          {
+            ok: false,
+            code: 'failed',
+            error: 'recovered exited during startup (exit code 3)',
+          },
+          { ok: true },
+        ],
+        starts: 1,
+      });
+      expect(await daemon.stop()).toBe(0);
+    },
+    SLOW_TEST_MS,
+  );
+
+  it(
+    'should report a dependent that crashes while an earlier one restarts after a replacement',
+    async () => {
+      await using station = await workstation();
+      const daemon = await station.start();
+      const { directory } = station;
+      const broken = join(directory, 'broken');
+      const runs = join(directory, 'runs');
+      const base = sleeper(directory, 'base');
+      await daemon.request({ action: 'ensure', definition: base });
+      await daemon.request({
+        action: 'ensure',
+        definition: sleeper(directory, 'first', { needs: ['base'] }),
+      });
+      await daemon.request({
+        action: 'ensure',
+        definition: sleeper(directory, 'second', {
+          arguments: [
+            '-c',
+            `test -e ${broken} && { echo run >> ${runs}; exit 3; }; exec sleep 300`,
+            'second',
+          ],
+          needs: ['base'],
+        }),
+      });
+      await writeFile(broken, '');
+
+      const replaced = await daemon.request({
+        action: 'ensure',
+        definition: { ...base, arguments: [...base.arguments, 'v2'] },
+      });
+      // the answer comes with the run that crashed while first started, not a later run
+      const runsAtAnswer = await runsIn(runs);
+
+      expect({ replaced, runsAtAnswer }).toEqual({
+        replaced: {
+          ok: false,
+          code: 'failed',
+          error: 'second exited during startup (exit code 3)',
+        },
+        runsAtAnswer: 2,
       });
       expect(await daemon.stop()).toBe(0);
     },

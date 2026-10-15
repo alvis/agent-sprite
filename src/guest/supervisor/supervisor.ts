@@ -170,8 +170,9 @@ export class Supervisor {
       this.#entries.set(name, entry);
       await this.#persist();
       this.#params.log.write({ service: name, event: 'registered' });
+      const since = this.#params.now();
       this.#runner.reconcile();
-      await this.#runner.awaitStartup(entry);
+      await this.#runner.awaitStartup(entry, since);
 
       return;
     }
@@ -183,8 +184,9 @@ export class Supervisor {
       }
       // an ensure starts a waiting service now rather than after its delay
       clearRestart(existing);
+      const since = this.#params.now();
       this.#runner.reconcile();
-      await this.#runner.awaitStartup(existing);
+      await this.#runner.awaitStartup(existing, since);
 
       return;
     }
@@ -226,8 +228,9 @@ export class Supervisor {
       await this.#persist();
       this.#params.log.write({ service: name, event: 'replaced' });
       existing.isHeld = false;
+      const since = this.#params.now();
       this.#runner.reconcile();
-      await this.#runner.awaitStartup(existing);
+      await this.#runner.awaitStartup(existing, since);
     } catch (error) {
       failures.push(error as Error);
     } finally {
@@ -236,11 +239,15 @@ export class Supervisor {
     for (const entry of dependents) {
       entry.isHeld = false;
     }
+    // a later dependent can crash while an earlier one is still starting
+    const restartedAt = this.#params.now();
     this.#runner.reconcile();
     for (const entry of dependents) {
-      await this.#runner.awaitStartup(entry).catch((error: unknown) => {
-        failures.push(error as Error);
-      });
+      await this.#runner
+        .awaitStartup(entry, restartedAt)
+        .catch((error: unknown) => {
+          failures.push(error as Error);
+        });
     }
     const [failure] = failures;
     if (failure) {

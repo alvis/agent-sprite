@@ -63,6 +63,14 @@ export interface RunningProcess {
   identity?: HolderProcess;
 }
 
+/** when a process that ended on its own ran */
+export interface ProcessSpan {
+  /** epoch milliseconds the process started */
+  startedAt: number;
+  /** epoch milliseconds the process ended */
+  endedAt: number;
+}
+
 /** one registered service and its process */
 export interface ServiceEntry {
   /** the registered definition */
@@ -77,6 +85,8 @@ export interface ServiceEntry {
   isHeld: boolean;
   /** the current process */
   running?: RunningProcess;
+  /** the last process that ended without the supervisor ending it */
+  lastExit?: ProcessSpan;
   /** the pending restart */
   restart?: NodeJS.Timeout;
   /** how the last process ended, or why the last start was refused */
