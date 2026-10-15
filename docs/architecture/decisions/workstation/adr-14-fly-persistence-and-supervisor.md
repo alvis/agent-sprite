@@ -16,7 +16,7 @@ Fly Machines have no persistent root filesystem and no service manager. A suspen
 - The idle governor and its adapters are ADR-13; the Fly adapter suspends or stops through the root-only `/.fly/api` socket.
 - Root must never run code the agent account can write (ADR-10).
 - Tools come from Homebrew bottles, which pour only at `/home/linuxbrew/.linuxbrew`.
-- Fly's `/exec` endpoint is the host's only command channel and is rate limited.
+- Fly's REST `/exec` endpoint takes no standard input, returns output only after the command ends, and is rate limited; `fly ssh console` streams both ways but needs flyctl and an SSH-scoped token on the host.
 
 ## ✅ Decision
 
@@ -36,7 +36,7 @@ Fly Machines have no persistent root filesystem and no service manager. A suspen
 
   Supervised providers use no cron. The update lock is root-only.
 
-- **Create and transport.** Create holds the workstation awake through readiness and exposure. The host keeps at most 3 `/exec` calls in flight per app and retries `429` with backoff.
+- **Create and transport.** Create holds the workstation awake through readiness and exposure. A guest command with input, or one that may run longer than 50 s, goes through `fly ssh console` with an SSH token derived in memory and reports its exit status in band. Short input-free commands, such as path checks, file reads and the boot probe, use REST `/exec`; the host keeps at most 3 of those in flight per app and retries `429` with backoff.
 
 ## 🔀 Alternatives considered
 
