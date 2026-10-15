@@ -88,12 +88,8 @@ export async function installGuestTools(
         options,
       });
       if (stored) {
-        // the refreshed kernel brings its gate and entry with it, and the
-        // interval file is rewritten from the stored profile
-        await installUpdateSchedule(
-          guest,
-          stored.options.updateCheckIntervalMinutes,
-        );
+        // the refreshed kernel brings its update entry with it
+        await installUpdateSchedule(guest);
         await updateGuestTools(guest);
 
         return readComponentOutcomes(guest);

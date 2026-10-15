@@ -10,7 +10,7 @@ import type { SetupContext } from './context.js';
 /**
  * records setup readiness and the persisted profile summary in provider
  * metadata; a run that changes only options the summary omits, such as the
- * update intervals, leaves the metadata as it is
+ * update due interval, leaves the metadata as it is
  * @param section setup area that completed
  * @param context provider, workstation, persisted profile and whether this run changed it
  * @returns the workstation as recorded after setup

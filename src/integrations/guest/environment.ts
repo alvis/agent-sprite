@@ -16,7 +16,7 @@ import type {
   ServiceDefinition,
 } from '#drivers/guest-channel';
 import type { NetworkLauncher } from '#drivers/networks/contracts';
-import type { PeriodicJob, ServiceBackendId } from '#os/contracts';
+import type { OsFamilyId, PeriodicJob, ServiceBackendId } from '#os/contracts';
 import type { ToolOwner, ToolSource } from '#tools/contracts';
 
 import type { GuestNetworkIdentity } from './types.js';
@@ -143,6 +143,11 @@ export interface GuestEnvironment {
     state: EnvironmentSetupState;
     /** optional tools with no usable source */
     skipped: readonly SkippedTool[];
+  };
+  /** the guest's OS */
+  os: {
+    /** family whose library and update fragment the updater sources */
+    family: OsFamilyId;
   };
   /** the workstation's profile */
   profile: WorkstationProfile;

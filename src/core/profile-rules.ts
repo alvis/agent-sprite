@@ -1,8 +1,5 @@
 import { largestMachine, pickMachine } from '#drivers/machine-sizes';
-import {
-  MAX_UPDATE_CHECK_MINUTES,
-  MAX_UPDATE_DUE_DAYS,
-} from '#guest/update-schedule';
+import { MAX_UPDATE_DUE_DAYS } from '#guest/update-schedule';
 
 import { catalog } from './catalog.js';
 import { selectionLabel } from './selection-inputs.js';
@@ -44,13 +41,6 @@ export const OPTION_BOUNDS: readonly OptionBound[] = [
     key: 'holdMaxMinutes',
     label: selectionLabel('holdMaxMinutes'),
     minimum: 1,
-    unit: 'minutes',
-  },
-  {
-    key: 'updateCheckIntervalMinutes',
-    label: selectionLabel('updateCheckIntervalMinutes'),
-    minimum: 1,
-    maximum: MAX_UPDATE_CHECK_MINUTES,
     unit: 'minutes',
   },
   {

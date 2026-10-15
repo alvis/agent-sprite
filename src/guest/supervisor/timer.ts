@@ -11,8 +11,8 @@ import type { SupervisedServiceState } from './protocol.js';
 
 // guest kernel: imports only Node built-ins and other guest code, and names no
 // provider. The supervisor's timer replaces cron on a provider whose services
-// it supervises: every pass starts the shared update entry, which runs the
-// updater only when its gate lets a check through, and ticks the idle
+// it supervises: every pass starts the shared update entry, whose updater ends
+// at once when no update is due, and ticks the idle
 // governor; the next pass is armed only once a pass ends, so passes never
 // overlap and the gap between ticks stays well under the governor's limit. A
 // pass that outlasts its deadline is abandoned and the timer arms the next one
@@ -40,8 +40,8 @@ const SHELL = '/bin/sh';
 
 /** the update schedule the timer runs */
 export interface UpdateSchedule {
-  /** the interval file the installer writes; the schedule runs only once it exists */
-  checkFile: string;
+  /** a file the installer writes; the schedule runs only once it exists */
+  readyFile: string;
   /** the shell command line of one update check */
   command: string;
   /** files the check runs as root, each of which must be root-controlled */
@@ -177,14 +177,14 @@ export class MaintenanceTimer {
 
   /**
    * starts the shared update entry as root once the schedule is installed,
-   * unless the last one still runs; the entry takes the update lock and asks
-   * the gate itself, so a pass costs one shell when no check is due
+   * unless the last one still runs; the entry takes the update lock itself,
+   * and its updater ends at once when no update is due
    */
   async #startUpdate(): Promise<void> {
     const { update, log } = this.#params;
     if (
       this.#update ||
-      !(await lstat(update.checkFile).catch(() => undefined))
+      !(await lstat(update.readyFile).catch(() => undefined))
     ) {
       return;
     }

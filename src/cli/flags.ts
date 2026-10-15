@@ -163,20 +163,13 @@ export const selectionFlags = {
     placeholder: 'MINUTES',
     brief: 'MINUTES · turn-hold lifetime after its last refresh (default 60)',
   },
-  updateCheckMinutes: {
-    kind: 'parsed',
-    parse: parseWholeNumber,
-    optional: true,
-    placeholder: 'MINUTES',
-    brief: 'MINUTES · between scheduled update checks, at least 1 (default 30)',
-  },
   updateDueDays: {
     kind: 'parsed',
     parse: parseWholeNumber,
     optional: true,
     placeholder: 'DAYS',
     brief:
-      'DAYS · after the last successful update before another is due, at least 1 (default 7)',
+      'DAYS · after the last successful update before another is due, at least 1 (default 1)',
   },
 } as const;
 

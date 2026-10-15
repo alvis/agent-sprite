@@ -161,8 +161,8 @@ describe('fn:validateSetupIntegrationOptions', () => {
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
   });
 
-  it('should allow the update interval switches only in the tools section or the full setup', () => {
-    const options = { updateCheckMinutes: 45, updateDueDays: 3 };
+  it('should allow the update interval switch only in the tools section or the full setup', () => {
+    const options = { updateDueDays: 3 };
 
     expect(() =>
       validateSetupIntegrationOptions(options, 'tools'),
@@ -175,7 +175,7 @@ describe('fn:validateSetupIntegrationOptions', () => {
       validateSetupIntegrationOptions({ updateDueDays: 3 }, 'proxy'),
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
     expect(() =>
-      validateSetupIntegrationOptions({ updateCheckMinutes: 45 }, 'network'),
+      validateSetupIntegrationOptions({ updateDueDays: 3 }, 'network'),
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
   });
 });

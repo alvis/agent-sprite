@@ -165,7 +165,7 @@ async function workstation(timer: TimerOptions = {}): Promise<Workstation> {
         updateSettleMs: timer.updateSettleMs,
       }),
       update: {
-        checkFile: join(directory, 'update-check-minutes'),
+        readyFile: join(directory, 'manifest.json'),
         command:
           timer.update?.(directory) ??
           `echo ran >> ${join(directory, 'updates')}`,
@@ -592,7 +592,7 @@ describe('packed guest supervisor', () => {
   );
 
   it(
-    'should run the update entry only once its check file exists and log the governor decision',
+    'should run the update entry only once its ready file exists and log the governor decision',
     async () => {
       await using station = await workstation();
       const { directory } = station;
@@ -609,7 +609,7 @@ describe('packed guest supervisor', () => {
         () => true,
         () => false,
       );
-      await writeFile(join(directory, 'update-check-minutes'), '30\n');
+      await writeFile(join(directory, 'manifest.json'), '{}\n');
       await until(async () =>
         stat(updates).then(
           () => true,
@@ -688,7 +688,7 @@ describe('packed guest supervisor', () => {
           `[ -e ${join(directory, 'updated')} ] || { touch ${join(directory, 'updating')}; sleep 1.5; touch ${join(directory, 'updated')}; rm ${join(directory, 'updating')}; }`,
       });
       const { directory } = station;
-      await writeFile(join(directory, 'update-check-minutes'), '30\n');
+      await writeFile(join(directory, 'manifest.json'), '{}\n');
       const daemon = await station.start();
 
       await until(async () =>

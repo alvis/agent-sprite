@@ -1,7 +1,4 @@
-import {
-  DEFAULT_UPDATE_CHECK_MINUTES,
-  DEFAULT_UPDATE_DUE_DAYS,
-} from '#guest/update-schedule';
+import { DEFAULT_UPDATE_DUE_DAYS } from '#guest/update-schedule';
 import { isRecord } from '#utilities/guards';
 
 import { catalog, DEFAULT_SELECTION } from './catalog.js';
@@ -46,8 +43,6 @@ export interface ProfileOptions {
   idleTimeoutMinutes: number;
   /** minutes a turn hold lasts after its last refresh */
   holdMaxMinutes: number;
-  /** minutes between scheduled update checks */
-  updateCheckIntervalMinutes: number;
   /** days after the last successful update before another is due */
   updateDueIntervalDays: number;
   /** fewest CPUs the machine must provide */
@@ -137,7 +132,6 @@ export const DEFAULT_PROFILE_OPTIONS: Readonly<ProfileOptions> = {
   isProxyEnabled: false,
   idleTimeoutMinutes: 5,
   holdMaxMinutes: 60,
-  updateCheckIntervalMinutes: DEFAULT_UPDATE_CHECK_MINUTES,
   updateDueIntervalDays: DEFAULT_UPDATE_DUE_DAYS,
   // 2 GB is the most a Fly machine can have and still suspend from memory
   minCpus: 2,

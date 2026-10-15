@@ -98,8 +98,23 @@ const AWAKE_ADAPTER_SCRIPTS: ReadonlyMap<string, string | undefined> = new Map([
   ],
 ]);
 const BOOTSTRAP_SCRIPT = 'guest/bootstrap-node.sh';
-// the cron gate runs as root before every scheduled update check
+// the cron gate runs as root every hour and runs the updater once an update
+// is due
 const UPDATE_GATE_SCRIPT = 'guest/update-gate.sh';
+// the shell updater and every library the gate sources for it
+const UPDATER_SCRIPTS = [
+  UPDATE_GATE_SCRIPT,
+  'guest/updater.sh',
+  'os/debian/update-system.sh',
+  'tools/homebrew/lib.sh',
+  'tools/npm/lib.sh',
+  'tools/rustup/lib.sh',
+  'tools/links.sh',
+];
+// the debian family's library the updater sources too: setup alone masks a
+// service with it, so its masking function is left out of the scan
+const FAMILY_LIBRARY = 'os/debian/lib.sh';
+const MASK_FUNCTION = /^oa_mask_service\(\) \{[\s\S]*?^\}$/m;
 // the only signals guest modules send, each to processes of their own: signal
 // 0 asks whether a lock creator's process exists and sends nothing, the apply
 // handoff ends its own agent-account child, first asking it to stop and then
@@ -631,9 +646,23 @@ describe('packed guest payload staging', () => {
       join(root, 'lib', BOOTSTRAP_SCRIPT),
       'utf8',
     );
-    // the cron gate is a shell script too: it decides, in one shell, whether
-    // Node starts at all
-    const gate = await readFile(join(root, 'lib', UPDATE_GATE_SCRIPT), 'utf8');
+    // the cron gate and the shell updater it runs, with every library it
+    // sources: none of them may control a service, and none masks one
+    const updater = new Map(
+      await Promise.all(
+        [...UPDATER_SCRIPTS, FAMILY_LIBRARY].map(
+          async (name) =>
+            [
+              name,
+              shellExecutableLines(
+                await readFile(join(root, 'lib', name), 'utf8'),
+              ),
+            ] as const,
+        ),
+      ),
+    );
+    const family = updater.get(FAMILY_LIBRARY)!;
+    updater.set(FAMILY_LIBRARY, family.replace(MASK_FUNCTION, ''));
     const controlling = [
       ...[...graph].filter((name) =>
         controlsServices(name, modules.get(name)!.source),
@@ -641,10 +670,13 @@ describe('packed guest payload staging', () => {
       ...(SERVICE_CONTROL.test(shellExecutableLines(bootstrap))
         ? [BOOTSTRAP_SCRIPT]
         : []),
-      ...(SERVICE_CONTROL.test(shellExecutableLines(gate))
-        ? [UPDATE_GATE_SCRIPT]
-        : []),
+      ...[...updater]
+        .filter(([, source]) => SERVICE_CONTROL.test(source))
+        .map(([name]) => name),
     ];
+    const masking = UPDATER_SCRIPTS.filter((name) =>
+      updater.get(name)!.includes('oa_mask_service'),
+    );
     expect([...graph]).toEqual(
       expect.arrayContaining([
         'guest/updater.js',
@@ -656,7 +688,9 @@ describe('packed guest payload staging', () => {
       ]),
     );
     expect(bootstrap).toContain('prune_trees');
-    expect(shellExecutableLines(gate)).not.toBe('');
+    expect(family).toMatch(MASK_FUNCTION);
+    expect(updater.get(UPDATE_GATE_SCRIPT)).toContain('oa_update_run');
+    expect(masking).toEqual([]);
     expect(modules.has('guest/update-services.js')).toBe(false);
     expect(modules.has('guest/updater/services.js')).toBe(false);
     expect(controlling).toEqual([]);
@@ -672,7 +706,7 @@ describe('packed guest payload staging', () => {
     await stage(root, directory.path, frame);
     const modules = await stagedModules(directory.path);
     const scripts = await Promise.all(
-      [BOOTSTRAP_SCRIPT, UPDATE_GATE_SCRIPT].map(async (name) => ({
+      [BOOTSTRAP_SCRIPT, ...UPDATER_SCRIPTS].map(async (name) => ({
         name,
         source: shellExecutableLines(
           await readFile(join(root, 'lib', name), 'utf8'),

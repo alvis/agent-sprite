@@ -78,7 +78,6 @@ const CREATE_FIELDS: readonly SelectionField[] = [
   'isProxyEnabled',
   'idleTimeoutMinutes',
   'holdMaxMinutes',
-  'updateCheckIntervalMinutes',
   'updateDueIntervalDays',
 ];
 
@@ -94,13 +93,12 @@ const SECTION_FIELDS: Readonly<
     'isProxyEnabled',
     'idleTimeoutMinutes',
     'holdMaxMinutes',
-    'updateCheckIntervalMinutes',
     'updateDueIntervalDays',
   ],
   agent: ['agentRelease'],
   network: ['network', 'isExitNodeEnabled'],
   proxy: ['isProxyEnabled'],
-  tools: ['updateCheckIntervalMinutes', 'updateDueIntervalDays'],
+  tools: ['updateDueIntervalDays'],
 };
 
 /** the machine minimums, which any setup section may carry because they resize rather than configure the guest */

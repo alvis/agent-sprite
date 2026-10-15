@@ -9,12 +9,7 @@ import { isRecord } from './records.js';
 import { runChild } from './run-child.js';
 import { mergeManifestUpdate } from './update-manifest.js';
 import { updateOptions } from './update-options.js';
-import {
-  checkIntervalDiagnostic,
-  isUpdateDue,
-  storedDueDays,
-  UPDATE_CHECK_FILE,
-} from './update-schedule.js';
+import { isUpdateDue, storedDueDays } from './update-schedule.js';
 import { probeInstalledVersions } from './update-versions.js';
 import { findTrustedExecutable } from './updater/executables.js';
 import {
@@ -90,24 +85,16 @@ async function runUpdater(): Promise<void> {
 
 /**
  * records why the schedule runs on a fallback, because the cron entry discards
- * every message: the stored due interval's reason and the interval file's
- * reason, or nothing once both are valid
+ * every message: the stored due interval's reason, or nothing once it is valid
  * @param manifest decoded installation manifest the run read
  * @param dueDiagnostic reason the default due interval applies, when it does
- * @returns after the manifest names the current reasons
+ * @returns after the manifest names the current reason
  */
 async function recordScheduleDiagnostic(
   manifest: Record<string, unknown>,
   dueDiagnostic: string | undefined,
 ): Promise<void> {
-  const diagnostics = [
-    dueDiagnostic,
-    checkIntervalDiagnostic(
-      await readFile(UPDATE_CHECK_FILE, 'utf8').catch(() => undefined),
-    ),
-  ].filter((diagnostic) => diagnostic !== undefined);
-  const lastUpdateDiagnostic =
-    diagnostics.length > 0 ? diagnostics.join('. ') : null;
+  const lastUpdateDiagnostic = dueDiagnostic ?? null;
   if (lastUpdateDiagnostic !== null) {
     process.stderr.write(`${lastUpdateDiagnostic}\n`);
   }
