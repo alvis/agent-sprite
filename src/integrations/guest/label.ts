@@ -7,8 +7,6 @@ import {
 
 import { guestFileExists, readGuestFile, writeGuestFile } from '../guest.js';
 
-import { withGuestTransaction } from './transaction.js';
-
 import type { GuestChannel } from '#drivers/guest-channel';
 
 /**
@@ -26,19 +24,17 @@ export async function writeWorkstationLabel(
   guest: GuestChannel,
   name: string,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    const existing = (await guestFileExists(guest, MACHINE_INFO_PATH))
-      ? await readGuestFile(guest, MACHINE_INFO_PATH)
-      : '';
-    await writeGuestFile(guest, {
-      path: WORKSTATION_NAME_RECORD,
-      contents: `${name}\n`,
-      mode: WORKSTATION_LABEL_MODE,
-    });
-    await writeGuestFile(guest, {
-      path: MACHINE_INFO_PATH,
-      contents: withWorkstationLabel(existing, name),
-      mode: WORKSTATION_LABEL_MODE,
-    });
+  const existing = (await guestFileExists(guest, MACHINE_INFO_PATH))
+    ? await readGuestFile(guest, MACHINE_INFO_PATH)
+    : '';
+  await writeGuestFile(guest, {
+    path: WORKSTATION_NAME_RECORD,
+    contents: `${name}\n`,
+    mode: WORKSTATION_LABEL_MODE,
+  });
+  await writeGuestFile(guest, {
+    path: MACHINE_INFO_PATH,
+    contents: withWorkstationLabel(existing, name),
+    mode: WORKSTATION_LABEL_MODE,
   });
 }

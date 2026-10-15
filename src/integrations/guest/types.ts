@@ -1,7 +1,7 @@
 import type { NetworkId } from '#core/catalog';
-import type { WorkstationProfile } from '#core/profile';
 import type { NetworkIdentity } from '#drivers/contracts';
-import type { ComponentOutcome } from '#guest/component-outcome';
+
+import type { Secret } from './session/secret.js';
 
 /** retained non-secret network device identity for authorised cleanup */
 export interface GuestNetworkIdentity extends NetworkIdentity {
@@ -9,26 +9,16 @@ export interface GuestNetworkIdentity extends NetworkIdentity {
   network: NetworkId;
 }
 
-/** non-secret persistent installation and maintenance record */
-export interface GuestManifest {
-  schema: 1;
-  createdAt: string;
-  lastAttemptedUpdate?: string;
-  lastSuccessfulUpdate?: string;
-  lastUpdateStatus?: 'succeeded' | 'failed';
-  lastUpdateError?: string;
-  /** why the update schedule runs on a fallback value, when it does */
-  lastUpdateDiagnostic?: string;
-  installedVersions: Record<string, string>;
-  /** what the last install run did to each component */
-  componentOutcomes?: Record<string, ComponentOutcome>;
-  profile: WorkstationProfile;
-  networkIdentity?: GuestNetworkIdentity;
-}
-
 /** arguments for a bounded guest command */
 export interface GuestRunOptions {
   input?: string;
+  /** a credential the command receives instead of `input`, only over a setup session */
+  secret?: {
+    /** the credential */
+    value: Secret;
+    /** piped to standard input, or written to a private file named in `OPEN_AGENT_SECRET_FILE` */
+    as: 'stdin' | 'shm-file';
+  };
   env?: Record<string, string>;
   timeoutMs?: number;
   step?: string;
@@ -50,5 +40,4 @@ export interface GuestFileParams {
   path: string;
   contents: string;
   mode?: number;
-  removeOnRelease?: boolean;
 }

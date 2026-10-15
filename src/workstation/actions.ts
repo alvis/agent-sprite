@@ -81,11 +81,11 @@ export async function chooseWorkstationAction(
 ): Promise<CommandResult> {
   let requestedMachine = request.machine;
   for (;;) {
-    const workstation = await selectManagedMachine(
-      provider,
-      requestedMachine,
+    const workstation = await selectManagedMachine(provider, requestedMachine, {
       interaction,
-    );
+      // the menu shows the control-plane summary; each action checks the guest itself
+      release: 'metadata',
+    });
     const machine = summarizeMachine(workstation);
     checkOperation();
     interaction.status({

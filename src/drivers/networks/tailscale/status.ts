@@ -1,10 +1,10 @@
-import { GUEST_ROOT } from '#guest/guest-root';
 import { runGuest, runGuestResult } from '#integrations/guest';
 import { sanitizeGuestDiagnostic } from '#integrations/guest/diagnostics';
 import { InteractionExit } from '#navigation/exit';
 import { checkOperation, runOperation } from '#operation';
 import { isRecord } from '#utilities/guards';
 
+import { tailscaleCommand } from './service.js';
 import { parseTailnetStatus } from './status-parser.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
@@ -25,11 +25,7 @@ export async function inspectTailscale(
 ): Promise<TailnetStatus> {
   let result: Awaited<ReturnType<typeof runGuestResult>>;
   try {
-    result = await runGuestResult(guest, [
-      `${GUEST_ROOT}/tools/tailscale`,
-      'status',
-      '--json',
-    ]);
+    result = await runGuestResult(guest, tailscaleCommand('status', '--json'));
   } catch (error) {
     checkOperation();
     if (

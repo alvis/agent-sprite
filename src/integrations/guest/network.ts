@@ -1,22 +1,20 @@
 import { NO_NETWORK } from '#core/catalog';
 import { agentService } from '#core/services';
 
-import { writeComponentCatalog } from './component-catalog.js';
 import {
-  readGuestManifest,
   networkIdentityRecorder,
+  readGuestEnvironment,
   writeGuestProfile,
-} from './manifest.js';
-import { installManagedServices } from './services.js';
-import { withGuestTransaction } from './transaction.js';
+} from './environment-store.js';
 
 import type { NetworkWithDaemon } from '#core/networks';
 import type { GuestChannel, GuestServiceState } from '#drivers/guest-channel';
 
 /**
  * stops the managed network daemon while retaining enrolment and cleanup
- * identity, drops the network from the updater's catalog, then reinstalls the
- * services that depended on it
+ * identity, detaching the agent service that depended on it, and records the
+ * workstation without a network; the setup plan that follows reinstalls the
+ * agent service and drops the network's tool and daemon
  * @param guest exact target guest
  * @param network network driver whose daemon is being removed
  */
@@ -24,34 +22,23 @@ export async function disableNetwork(
   guest: GuestChannel,
   network: NetworkWithDaemon,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    const manifest = await readGuestManifest(guest);
-    const { name: consumerName } = agentService(manifest.profile);
-    const services = await guest.services.list();
-    const service = services.find(
-      (entry) => entry.name === network.daemon.name,
-    );
-    const consumer = services.find((entry) => entry.name === consumerName);
-    await detachConsumer(guest, {
-      consumer: service ? consumer : undefined,
-      daemon: network.daemon.name,
-    });
-    await network.release(guest, {
-      service,
-      recordIdentity: networkIdentityRecorder(guest, network.id),
-    });
-    const profile = {
-      ...manifest.profile,
-      network: NO_NETWORK,
-      options: { ...manifest.profile.options, isExitNodeEnabled: false },
-    };
-    await writeGuestProfile(guest, profile);
-    // the updater reads the catalog, so it must stop updating the deselected
-    // network even when no agent service was registered to reinstall
-    await writeComponentCatalog(guest, profile);
-    if (consumer) {
-      await installManagedServices(guest);
-    }
+  const environment = await readGuestEnvironment(guest);
+  const { name: consumerName } = agentService(environment.profile);
+  const services = await guest.services.list();
+  const service = services.find((entry) => entry.name === network.daemon.name);
+  const consumer = services.find((entry) => entry.name === consumerName);
+  await detachConsumer(guest, {
+    consumer: service ? consumer : undefined,
+    daemon: network.daemon.name,
+  });
+  await network.release(guest, {
+    service,
+    recordIdentity: networkIdentityRecorder(guest, network.id),
+  });
+  await writeGuestProfile(guest, {
+    ...environment.profile,
+    network: NO_NETWORK,
+    options: { ...environment.profile.options, isExitNodeEnabled: false },
   });
 }
 

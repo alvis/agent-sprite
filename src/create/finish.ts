@@ -1,6 +1,7 @@
 import { networkDriver } from '#core/networks';
 import { agentPort, pairAgent } from '#core/services';
 import { commandError } from '#errors';
+import { SetupConnection } from '#integrations/guest/connection';
 import { sanitizeGuestDiagnostic } from '#integrations/guest/diagnostics';
 import { inspectGuest } from '#integrations/guest/runtime';
 import { inspectAgentEnvironment } from '#integrations/native';
@@ -13,6 +14,7 @@ import {
 import { ReadinessFault, assessReadiness } from '#readiness';
 import { inspectUntilServing } from '#serving';
 import { PairingSecret } from '#utilities/pairing-secret';
+import { OPEN_AGENT_VERSION } from '#utilities/version';
 
 import { configureNewWorkstation } from './configure.js';
 import { withCreateHold } from './hold.js';
@@ -63,38 +65,61 @@ export async function finishCreate(
   interaction?: Interaction,
 ): Promise<CommandResult> {
   checkOperation();
-  const guest = await context.provider.openGuest(workstation);
+  const channel = await context.provider.openGuest(workstation);
+  const connection = new SetupConnection(context.provider, workstation);
 
-  return withCreateHold(guest, async () => {
-    await configureNewWorkstation(
-      guest,
-      {
-        hostname: workstation.name,
-        profile: context.input.profile,
-        authKey: context.authKey,
-        exitNode: context.effectiveExitNode,
-        proxyUrl: context.input.proxyUrl,
-        proxyApiKey: context.input.proxyApiKey,
-        githubToken: context.input.githubToken,
-        githubHost: context.options.githubHost,
-        gitIdentity: context.input.gitIdentity,
-        runtimeEnv: context.input.runtimeEnv,
-        plugins: context.plugins,
-      },
-      interaction,
-    );
-    const observed = await inspectUntilServing(
-      async () => inspectAgentEnvironment(guest, context.input.profile.agent),
-      async () => inspectGuest(guest),
-    );
+  return withCreateHold(channel, async () => {
+    try {
+      return await configureAndFinalize(workstation, context, {
+        connection,
+        interaction,
+      });
+    } finally {
+      await connection.close();
+    }
+  });
+}
 
-    return finalizeCreate({
-      workstation,
-      guest,
-      observed,
-      context,
-      interaction,
-    });
+/**
+ * installs and configures the workstation over its setup session, waits for
+ * the agent to serve, then verifies, exposes and pairs it
+ * @param workstation exact newly created provider workstation
+ * @param context inputs confirmed before creation
+ * @param session the setup session and the progress boundary
+ * @param session.connection the workstation's root setup session
+ * @param session.interaction optional progress boundary
+ * @returns ready machine and current non-secret guest evidence
+ */
+async function configureAndFinalize(
+  workstation: WorkstationRecord,
+  context: CreateContext,
+  session: { connection: SetupConnection; interaction?: Interaction },
+): Promise<CommandResult> {
+  const { interaction } = session;
+  const guest = await configureNewWorkstation(context.provider, session, {
+    hostname: workstation.name,
+    profile: context.input.profile,
+    authKey: context.authKey,
+    exitNode: context.effectiveExitNode,
+    proxyUrl: context.input.proxyUrl,
+    proxyApiKey: context.input.proxyApiKey,
+    githubToken: context.input.githubToken,
+    githubHost: context.options.githubHost,
+    gitIdentity: context.input.gitIdentity,
+    runtimeEnv: context.input.runtimeEnv,
+    plugins: context.plugins,
+  });
+  const observed = await inspectUntilServing(
+    async () => inspectAgentEnvironment(guest, context.input.profile.agent),
+    async () => inspectGuest(guest),
+  );
+
+  return finalizeCreate({
+    workstation,
+    guest,
+    observed,
+    context,
+    interaction,
   });
 }
 
@@ -116,6 +141,7 @@ export async function finalizeCreate(
   );
   const ready = await context.provider.setMetadata(workstation, {
     setup: 'ready',
+    version: OPEN_AGENT_VERSION,
   });
 
   return finishReadyCreate({ ...finalization, workstation: ready });
@@ -238,7 +264,7 @@ function assertCreateReadiness(
 ): void {
   const readiness = assessReadiness(observed);
   const { failures } = readiness;
-  const network = networkDriver(observed.manifest.profile.network);
+  const network = networkDriver(observed.environment.profile.network);
   if (
     selectedExitNode &&
     !network.matchesExitNode(selectedExitNode, observed.network)
@@ -275,7 +301,7 @@ function createResult(context: ResultContext): CommandResult {
       ),
       preflight,
       retainedCredentials,
-      profile: observed.manifest.profile,
+      profile: observed.environment.profile,
       readiness: assessReadiness(observed),
       network: {
         deviceId: observed.network.deviceId,

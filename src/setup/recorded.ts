@@ -5,18 +5,16 @@ import {
   registeredSummary,
 } from '#core/profile';
 import { CommandFault } from '#errors';
-import { GUEST_ROOT } from '#guest/guest-root';
-import { guestFileExists } from '#integrations/guest';
-import { readGuestManifest } from '#integrations/guest/runtime';
+import { findGuestEnvironment } from '#integrations/guest/environment-store';
 
 import type { SetupSection } from '#command/contracts';
 import type { WorkstationProfile } from '#core/profile';
 import type { WorkstationRecord } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GuestManifest } from '#integrations/guest/types';
+import type { GuestEnvironment } from '#integrations/guest/environment';
 
 /**
- * reconstructs the selection of a workstation whose installation never wrote a manifest
+ * reconstructs the selection of a workstation whose installation never wrote environment.json
  * @param workstation workstation with its provider-recorded summary
  * @returns the recorded driver selection with default options, or the default profile
  */
@@ -57,10 +55,10 @@ export function assertSameWorkstationKind(
 
 /**
  * tells whether the guest is enrolled now, by asking the installed network
- * daemon; the identity the manifest recorded is cleanup data and never proves
- * enrolment, because a guest can lose its registration while the record stays
+ * daemon; the identity environment.json recorded is cleanup data and never
+ * proves enrolment, because a guest can lose its registration while the record stays
  * @param guest selected managed guest
- * @param manifest persisted manifest, absent before initial installation
+ * @param environment recorded environment, absent before initial installation
  * @param target whether this run targets the installed network, and the selection
  * @param target.isTargeted whether this run targets the installed network
  * @param target.profile selection this run applies
@@ -68,10 +66,10 @@ export function assertSameWorkstationKind(
  */
 export async function isNetworkEnrolled(
   guest: GuestChannel,
-  manifest: GuestManifest | undefined,
+  environment: GuestEnvironment | undefined,
   target: { isTargeted: boolean; profile: WorkstationProfile },
 ): Promise<boolean> {
-  return manifest !== undefined && target.isTargeted
+  return environment !== undefined && target.isTargeted
     ? Boolean(
         (await networkDriver(target.profile.network).status(guest)).deviceId,
       )
@@ -79,19 +77,18 @@ export async function isNetworkEnrolled(
 }
 
 /**
- * requires full recovery when initial installation has no manifest
+ * requires full recovery while the guest records no finished installation
  * @param guest selected managed guest
  * @param section requested setup scope
- * @returns persisted manifest, or undefined for initial full recovery
+ * @returns the recorded environment, absent before setup first wrote it
+ * @throws {CommandFault} when the installation is unfinished and the section is not `all`
  */
-export async function readSetupManifest(
+export async function readSetupEnvironment(
   guest: GuestChannel,
   section: SetupSection,
-): Promise<GuestManifest | undefined> {
-  if (await guestFileExists(guest, `${GUEST_ROOT}/manifest.json`)) {
-    return readGuestManifest(guest);
-  }
-  if (section !== 'all') {
+): Promise<GuestEnvironment | undefined> {
+  const environment = await findGuestEnvironment(guest);
+  if (environment?.setup.state !== 'ready' && section !== 'all') {
     throw new CommandFault({
       code: 'PREFLIGHT',
       message:
@@ -99,5 +96,5 @@ export async function readSetupManifest(
     });
   }
 
-  return undefined;
+  return environment;
 }

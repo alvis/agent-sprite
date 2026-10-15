@@ -1,6 +1,5 @@
 import { CommandFault } from '#errors';
 import { runGuestResult } from '#integrations/guest';
-import { withGuestTransaction } from '#integrations/guest/transaction';
 import {
   AGENT_PATH,
   asAgent,
@@ -46,20 +45,18 @@ async function applyClaudePlugins(
   guest: GuestChannel,
   actions: PluginActions,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    await reconcileMarketplaces(guest, {
-      sources: actions.marketplaces,
-      operation: 'add',
-      harness: CLAUDE_PLUGINS,
-    });
-    await reconcileClaudePlugins(guest, actions);
-    await reconcileMarketplaces(guest, {
-      sources: actions.removeMarketplaces,
-      operation: 'remove',
-      harness: CLAUDE_PLUGINS,
-    });
-    await recordSelectedPlugins(guest, actions, CLAUDE_PLUGINS);
+  await reconcileMarketplaces(guest, {
+    sources: actions.marketplaces,
+    operation: 'add',
+    harness: CLAUDE_PLUGINS,
   });
+  await reconcileClaudePlugins(guest, actions);
+  await reconcileMarketplaces(guest, {
+    sources: actions.removeMarketplaces,
+    operation: 'remove',
+    harness: CLAUDE_PLUGINS,
+  });
+  await recordSelectedPlugins(guest, actions, CLAUDE_PLUGINS);
 }
 
 /**

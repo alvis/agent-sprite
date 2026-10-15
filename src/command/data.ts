@@ -6,8 +6,9 @@ import type {
   CredentialSaveResult,
   ManagementCredentialName,
 } from '#integrations/credentials';
+import type { GuestEnvironment } from '#integrations/guest/environment';
 import type { GuestInspection } from '#integrations/guest/runtime';
-import type { GuestManifest } from '#integrations/guest/types';
+import type { UpdateStatus } from '#integrations/guest/updates';
 import type { MachineSummary } from '#machine';
 import type { ReadinessAssessment } from '#readiness';
 import type { PairingSecret } from '#utilities/pairing-secret';
@@ -75,7 +76,8 @@ export interface CurrentReadiness extends ReadinessAssessment {
   hub: GuestInspection['hub'];
   native: GuestInspection['native'];
   services: ServiceSummary[];
-  manifest: GuestManifest;
+  environment: GuestInspection['environment'];
+  updates?: UpdateStatus;
   governor: GuestInspection['governor'];
 }
 
@@ -138,17 +140,19 @@ export interface PluginsSetupData {
   plugins: Record<HarnessId, 'applied' | 'preserved'>;
 }
 
-/** how many components an install run changed and how many it found current */
+/** how many tools an update left current, did not run for, and failed */
 export interface ComponentCounts {
-  /** components the run installed or upgraded */
+  /** tools current after the update */
   installed: number;
-  /** components already at the latest stable version */
+  /** tools the update did not run for */
   skipped: number;
+  /** tools whose update failed */
+  failed: number;
 }
 
 /** tool mutation, an update schedule change, or recorded installation facts */
 export interface ToolsSetupData {
-  /** what the run did to the managed components, when it recorded any */
+  /** what the update did to the managed tools, when it recorded it */
   components?: ComponentCounts;
   tools:
     | 'updated'
@@ -156,8 +160,12 @@ export interface ToolsSetupData {
     | 'unchanged'
     | {
         status: 'recorded versions';
-        installedVersions: GuestManifest['installedVersions'];
-        lastSuccessfulUpdate: GuestManifest['lastSuccessfulUpdate'];
+        /** the installed tools environment.json records */
+        tools: GuestEnvironment['tools'];
+        /** the optional tools setup skipped */
+        skipped: GuestEnvironment['setup']['skipped'];
+        /** what the last update recorded, when one ran */
+        lastUpdate?: UpdateStatus;
       };
 }
 

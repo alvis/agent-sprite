@@ -28,7 +28,6 @@ describe('harness driver registration', () => {
 
   it('should keep the dependency-free guest leaves identical to what each driver declares', async () => {
     const { GUEST_LEAVES } = await import('#core/guest-leaves');
-    const { harnessCatalogEntry } = await import('#core/guest-catalogs');
 
     for (const driver of [claude, codex]) {
       expect(GUEST_LEAVES.harnesses[driver.id]).toEqual({
@@ -36,10 +35,6 @@ describe('harness driver registration', () => {
         tools: driver.tools,
         spawnEnvironment: driver.spawnEnvironment,
         acpAdapter: driver.acpAdapter,
-      });
-      expect(harnessCatalogEntry(driver)).toMatchObject({
-        id: driver.id,
-        component: driver.id,
       });
     }
   });

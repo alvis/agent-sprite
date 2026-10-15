@@ -1,5 +1,4 @@
 import { GUEST_NODE, GUEST_ROOT } from '#guest/guest-root';
-import { withGuestTransaction } from '#integrations/guest/transaction';
 import {
   ensurePrivateDirectory,
   readJsonObject,
@@ -65,32 +64,30 @@ async function installCodexHooks(
   guest: GuestChannel,
   command: AwakeHookCommand,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    await ensurePrivateDirectory(guest, CODEX_HOME);
-    const existingHooks = await readJsonObject(guest, CODEX_HOOKS);
-    await writeOwnedFile(
-      guest,
-      CODEX_HOOKS,
-      `${JSON.stringify(
-        {
-          ...existingHooks,
-          hooks: mergeWorkHooks(existingHooks.hooks, {
-            owned: CODEX_WORK_HOOKS,
-            command,
-          }),
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    await runAsAgent(guest, [
-      GUEST_NODE,
-      `${GUEST_ROOT}/${CODEX_HOOKS_TRUST_MODULE}`,
-      ...Object.entries(
-        workHookCommands({ owned: CODEX_WORK_HOOKS, command }),
-      ).flat(),
-    ]);
-  });
+  await ensurePrivateDirectory(guest, CODEX_HOME);
+  const existingHooks = await readJsonObject(guest, CODEX_HOOKS);
+  await writeOwnedFile(
+    guest,
+    CODEX_HOOKS,
+    `${JSON.stringify(
+      {
+        ...existingHooks,
+        hooks: mergeWorkHooks(existingHooks.hooks, {
+          owned: CODEX_WORK_HOOKS,
+          command,
+        }),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await runAsAgent(guest, [
+    GUEST_NODE,
+    `${GUEST_ROOT}/${CODEX_HOOKS_TRUST_MODULE}`,
+    ...Object.entries(
+      workHookCommands({ owned: CODEX_WORK_HOOKS, command }),
+    ).flat(),
+  ]);
 }
 
 /** idle-governor hooks of Codex */

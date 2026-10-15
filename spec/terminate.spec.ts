@@ -13,6 +13,7 @@ import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { InteractionExit } from '#navigation';
 import { terminateWorkstation } from '#terminate';
 
+import { environmentOf } from './fixtures/environment.js';
 import {
   DISABLED_NETWORK_PROFILE,
   TAILSCALE_PROFILE,
@@ -22,14 +23,8 @@ import { createFilesystemSprite, providerOf } from './mocks/sprites.js';
 import type { Sprite } from '@fly/sprites';
 
 import type { CommandRequest } from '#command';
-import type { GuestManifest } from '#integrations/guest/runtime';
 
-const manifest = {
-  schema: 1,
-  createdAt: '2026-10-01T12:00:00Z',
-  installedVersions: {},
-  profile: TAILSCALE_PROFILE,
-} satisfies GuestManifest;
+const environment = environmentOf(TAILSCALE_PROFILE);
 
 /**
  * creates a verified provider target with actual isolated guest files
@@ -106,7 +101,7 @@ describe('fn:terminateWorkstation', () => {
     expect(client.deleteSprite).not.toHaveBeenCalled();
   });
 
-  it('should delete a verified incomplete workstation without requiring an absent manifest or enrollment state', async () => {
+  it('should delete a verified incomplete workstation without requiring an absent environment or enrollment state', async () => {
     for (const hasManifest of [false, true]) {
       await using directory = await mkdtempDisposable(
         join(tmpdir(), 'open-agent-terminate-incomplete-'),
@@ -118,7 +113,7 @@ describe('fn:terminateWorkstation', () => {
         await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
         await sprite
           .filesystem()
-          .writeJSON('/opt/open-agent/manifest.json', manifest);
+          .writeJSON('/opt/open-agent/environment.json', environment);
       }
 
       const result = await terminateWorkstation(request, providerOf(client));
@@ -144,8 +139,8 @@ describe('fn:terminateWorkstation', () => {
       directory.path,
     );
     await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
-    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
-      ...manifest,
+    await sprite.filesystem().writeJSON('/opt/open-agent/environment.json', {
+      ...environment,
       profile: DISABLED_NETWORK_PROFILE,
     });
 
@@ -174,8 +169,8 @@ describe('fn:terminateWorkstation', () => {
     await filesystem.mkdir('/opt/open-agent', { recursive: true });
     await filesystem.mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
     await filesystem.writeFile(TAILSCALE_STATE_FILE, 'enrolled');
-    await filesystem.writeJSON('/opt/open-agent/manifest.json', {
-      ...manifest,
+    await filesystem.writeJSON('/opt/open-agent/environment.json', {
+      ...environment,
       profile: DISABLED_NETWORK_PROFILE,
       networkIdentity: {
         network: 'tailscale',
@@ -221,8 +216,8 @@ describe('fn:terminateWorkstation', () => {
     vi.stubGlobal('fetch', fetch);
     vi.stubEnv('TAILSCALE_API_KEY', 'generated-management-key');
     await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
-    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
-      ...manifest,
+    await sprite.filesystem().writeJSON('/opt/open-agent/environment.json', {
+      ...environment,
       networkIdentity: {
         network: 'tailscale',
         deviceId: 'managed-node',
@@ -286,8 +281,8 @@ describe('fn:terminateWorkstation', () => {
     await filesystem.mkdir('/opt/open-agent', { recursive: true });
     await filesystem.mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
     await filesystem.writeFile(TAILSCALE_STATE_FILE, 'enrolled');
-    await filesystem.writeJSON('/opt/open-agent/manifest.json', {
-      ...manifest,
+    await filesystem.writeJSON('/opt/open-agent/environment.json', {
+      ...environment,
       profile: DISABLED_NETWORK_PROFILE,
     });
 
@@ -314,8 +309,8 @@ describe('fn:terminateWorkstation', () => {
     );
     const filesystem = sprite.filesystem();
     await filesystem.mkdir('/opt/open-agent', { recursive: true });
-    await filesystem.writeJSON('/opt/open-agent/manifest.json', {
-      ...manifest,
+    await filesystem.writeJSON('/opt/open-agent/environment.json', {
+      ...environment,
       profile: DISABLED_NETWORK_PROFILE,
       networkIdentity: {
         network: 'tailscale',

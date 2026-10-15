@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { setupWorkstation } from '#setup';
 import { setupPlugins } from '#setup/plugins';
-import { setupTools } from '#setup/sections';
+import { setupTools } from '#setup/tools';
 
 import { driveInk } from '../fixtures/ink.js';
 import { pluginFlags } from '../fixtures/plugin-flags.js';
@@ -54,7 +54,6 @@ describe('workflow:scoped setup', () => {
         persistsProfile: false,
         isReleaseChanged: false,
         networkEnrolled: false,
-        initialInstallation: false,
         mutation: { started: false },
       };
       const observed = await driveInk(
@@ -170,7 +169,6 @@ describe('workflow:scoped setup', () => {
         persistsProfile: false,
         isReleaseChanged: false,
         networkEnrolled: false,
-        initialInstallation: false,
         mutation: { started: false },
       };
       await mkdir(join(root, 'home/agent/.codex'), { recursive: true });
@@ -295,7 +293,6 @@ describe('workflow:scoped setup', () => {
         persistsProfile: false,
         isReleaseChanged: false,
         networkEnrolled: false,
-        initialInstallation: false,
         mutation: { started: false },
       };
       await mkdir(join(root, 'home/agent/.codex'), { recursive: true });

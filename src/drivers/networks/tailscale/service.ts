@@ -31,3 +31,13 @@ export const tailscaleDaemon: ServiceDefinition = {
   account: 'root',
   needs: [],
 };
+
+/**
+ * renders a Tailscale CLI command bound to the managed daemon's socket; the
+ * CLI is the installed tool on the PATH
+ * @param args the subcommand and its arguments
+ * @returns argv that runs the CLI against the managed socket
+ */
+export function tailscaleCommand(...args: string[]): string[] {
+  return ['tailscale', `--socket=${TAILSCALE_SOCKET}`, ...args];
+}

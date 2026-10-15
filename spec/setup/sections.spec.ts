@@ -79,7 +79,6 @@ describe('fn:setupAgent', () => {
       persistsProfile: false,
       isReleaseChanged: false,
       networkEnrolled: false,
-      initialInstallation: false,
       mutation: { started: false },
     };
 

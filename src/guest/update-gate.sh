@@ -10,7 +10,9 @@
 # and update fragment, the tool helpers and the link helpers sourced first,
 # once every one is root's alone; it records the run in update-status.json,
 # and the run's output goes to update.log. It exits 0 when no update was due
-# or the run was recorded, whatever each tool's outcome, and 1 otherwise
+# or the run was recorded, whatever each tool's outcome, and 1 otherwise.
+# `--force`, which setup passes when the user asks for an update, runs the
+# updater whether or not one is due
 
 set -u
 umask 022
@@ -105,6 +107,21 @@ oa_gate_update() {
     "$OA_GATE_ENVIRONMENT" "$OA_GATE_STATUS" "$oa_gate_jq" "$OA_GATE_AWAKE" "$$"
 }
 
+case $# in
+0) oa_gate_force=0 ;;
+1)
+  test "$1" = --force || {
+    echo 'usage: update-gate.sh [--force]' >&2
+    exit 2
+  }
+  oa_gate_force=1
+  ;;
+*)
+  echo 'usage: update-gate.sh [--force]' >&2
+  exit 2
+  ;;
+esac
+
 if test "$(id -u)" != 0; then
   echo 'update-gate.sh is root'"'"'s alone' >&2
   exit 77
@@ -128,15 +145,17 @@ test -x "$oa_gate_jq" || oa_gate_jq=$(command -v jq) || {
 }
 oa_gate_last=$("$oa_gate_jq" -r '.lastSuccess | strings' "$OA_GATE_STATUS" 2>/dev/null) ||
   oa_gate_last=
-oa_gate_due "$oa_gate_last"
-case $? in
-0) ;;
-1) exit 0 ;;
-*)
-  echo "update gate: $OA_GATE_ENVIRONMENT cannot be read" >&2
-  exit 1
-  ;;
-esac
+if test "$oa_gate_force" != 1; then
+  oa_gate_due "$oa_gate_last"
+  case $? in
+  0) ;;
+  1) exit 0 ;;
+  *)
+    echo "update gate: $OA_GATE_ENVIRONMENT cannot be read" >&2
+    exit 1
+    ;;
+  esac
+fi
 
 oa_gate_family=$("$oa_gate_jq" -r '.os.family | strings' "$OA_GATE_ENVIRONMENT") || oa_gate_family=
 case $oa_gate_family in

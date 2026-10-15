@@ -2,6 +2,7 @@ import { requireValidSuppliedSelection } from '#input';
 import { readSetupSelection } from '#input/selection';
 import { readInputSources } from '#input/sources';
 import { selectManagedMachine } from '#inspect';
+import { SetupConnection } from '#integrations/guest/connection';
 import { summarizeMachine } from '#machine';
 import { InteractionExit, returnOnBack, withBackNavigation } from '#navigation';
 import { traceStage } from '#operation';
@@ -21,9 +22,9 @@ import {
   setupGithub,
   setupAgent,
   setupProxy,
-  setupTools,
 } from './setup/sections.js';
 import { selectSetupSection } from './setup/selection.js';
+import { setupTools } from './setup/tools.js';
 
 import type { CommandResult } from '#command';
 import type {
@@ -46,6 +47,17 @@ interface SetupSelectionParams {
   section: SetupSelection;
   provider: ProviderDriver;
   interaction?: Interaction;
+}
+
+/** a guest section to apply to a selected workstation */
+interface GuestSectionParams extends Omit<SetupSelectionParams, 'section'> {
+  section: Exclude<SetupSelection, 'network-credential'>;
+  /** the selected, supported workstation */
+  workstation: WorkstationRecord;
+  /** where interactive values are read from */
+  sources: InputSources;
+  /** the validated supplied values */
+  supplied: SuppliedSelection;
 }
 
 /**
@@ -105,27 +117,44 @@ async function setupSelection(
     request.options,
     section,
   );
-  const workstation = await selectManagedMachine(
+  const workstation = await selectManagedMachine(provider, request.machine, {
+    interaction: nested,
+    release: 'guest',
+  });
+
+  return setupGuestSection({
+    request,
+    section,
     provider,
-    request.machine,
-    nested,
-  );
-  const opened = await provider.openGuest(workstation);
+    interaction: nested,
+    workstation,
+    sources,
+    supplied,
+  });
+}
+
+/**
+ * applies a guest section to the selected workstation over one root setup
+ * session that every guest command of the run, the setup plan's included,
+ * shares
+ * @param params request, section, provider, prompts, workstation and validated inputs
+ * @returns section result
+ */
+async function setupGuestSection(
+  params: GuestSectionParams,
+): Promise<CommandResult> {
+  const { section, provider, workstation } = params;
+  const { interaction: nested } = params;
+  const connection = new SetupConnection(provider, workstation);
   const mutation = { started: false };
+  let current = connection;
   try {
-    const { context, guest } = await traceStage('setup.preparation', async () =>
-      prepareSetupContext({
-        provider,
-        supplied,
-        sources,
-        workstation,
-        guest: opened,
-        section,
-        options: request.options,
-        interaction: nested,
-        mutation,
-      }),
+    const { context, guest } = await prepareGuestSection(
+      params,
+      connection,
+      mutation,
     );
+    current = context.connection;
     if (nested && (section === 'all' || mutation.started)) {
       context.interaction = withBackNavigation(
         nested,
@@ -148,8 +177,45 @@ async function setupSelection(
       throw error;
     }
 
-    return setupFailure({ provider, workstation, error, mutation, section });
+    return await setupFailure({
+      provider,
+      workstation,
+      error,
+      mutation,
+      section,
+    });
+  } finally {
+    await current.close();
+    await connection.close();
   }
+}
+
+/**
+ * prepares the setup context of a guest section over the run's root session
+ * @param params request, section, provider, prompts, workstation and validated inputs
+ * @param connection the run's root setup session
+ * @param mutation whether the run has changed the workstation yet
+ * @returns the context and the guest channel the section runs over
+ */
+async function prepareGuestSection(
+  params: GuestSectionParams,
+  connection: SetupConnection,
+  mutation: SetupContext['mutation'],
+): ReturnType<typeof prepareSetupContext> {
+  return traceStage('setup.preparation', async () =>
+    prepareSetupContext({
+      provider: params.provider,
+      supplied: params.supplied,
+      sources: params.sources,
+      workstation: params.workstation,
+      connection,
+      guest: await connection.guest(),
+      section: params.section,
+      options: params.request.options,
+      interaction: params.interaction,
+      mutation,
+    }),
+  );
 }
 
 /**

@@ -1,11 +1,11 @@
 import { NO_NETWORK } from '#core/catalog';
 import { networksWithDaemon } from '#core/networks';
 import { sectionFields } from '#input/selection';
-import { writeComponentCatalog } from '#integrations/guest/component-catalog';
-import { assertGuestProfile } from '#integrations/guest/manifest';
+import {
+  assertGuestProfile,
+  writeGuestProfile,
+} from '#integrations/guest/environment-store';
 import { disableNetwork } from '#integrations/guest/network';
-import { writeGuestProfile } from '#integrations/guest/runtime';
-import { withGuestTransaction } from '#integrations/guest/transaction';
 
 import type { SetupSection } from '#command/contracts';
 import type { NetworkWithDaemon } from '#core/networks';
@@ -17,8 +17,9 @@ import type { SetupContext } from './context.js';
 /**
  * persists a validated selection and stops every daemon the selection no
  * longer runs, including a stray daemon left on a workstation without a network;
- * the updater reads the tools section's due interval from the stored profile,
- * so storing it is the whole change
+ * the update gate reads the tools section's due interval from environment.json,
+ * so storing it is the whole change. The setup session holds the guest's
+ * setup lock, so nothing else changes the record meanwhile
  * @param guest selected managed guest
  * @param profile validated selection this run applies
  * @param context recorded selection, targeted section and mutation tracking
@@ -35,22 +36,15 @@ export async function persistSetupProfile(
   },
 ): Promise<void> {
   const { mutation, expected, section } = context;
-  await withGuestTransaction(guest, async () => {
-    await assertGuestProfile(guest, expected);
-    mutation.started = true;
-    const deselected = sectionFields(section).includes('network')
-      ? await deselectedNetworks(guest, { profile, expected })
-      : [];
-    for (const network of deselected) {
-      await disableNetwork(guest, network);
-    }
-    await writeGuestProfile(guest, profile);
-    // the updater reads the catalog, so it must follow the new channel from
-    // this moment, not only from the next install
-    if (isReleaseChanged(profile, expected)) {
-      await writeComponentCatalog(guest, profile);
-    }
-  });
+  await assertGuestProfile(guest, expected);
+  mutation.started = true;
+  const deselected = sectionFields(section).includes('network')
+    ? await deselectedNetworks(guest, { profile, expected })
+    : [];
+  for (const network of deselected) {
+    await disableNetwork(guest, network);
+  }
+  await writeGuestProfile(guest, profile);
 }
 
 /**

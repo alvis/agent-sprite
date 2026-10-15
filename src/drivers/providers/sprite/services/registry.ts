@@ -1,12 +1,11 @@
 import { CommandFault, providerErrorCode } from '#errors';
-import { guestServiceRequest } from '#integrations/guest/transaction';
 import { checkOperation, runBoundedIO } from '#operation';
 
 import { isRecord } from '#utilities/guards';
 
 import type { Sprite } from '@fly/sprites';
 
-import type { GuestChannel, GuestServiceState } from '#drivers/guest-channel';
+import type { GuestServiceState } from '#drivers/guest-channel';
 
 const REGISTRY_TIMEOUT_MS = 30_000;
 const REGISTRY_SUCCESS_STATUS = 200;
@@ -28,21 +27,14 @@ type ServiceStatus = (typeof SERVICE_STATUSES)[number];
  * the SDK listServices turns unknown envelopes such as {} into [], losing
  * absence evidence; only this read bypasses that normalization; mutations
  * remain owned by the SDK, using its public client baseURL and token here
- * @param channel guest channel whose transaction guards the request
  * @param sprite exact target Sprite
  * @returns one fully validated registry snapshot
  */
 export async function readServiceRegistry(
-  channel: GuestChannel,
   sprite: Sprite,
 ): Promise<GuestServiceState[]> {
   return runBoundedIO(async (signal) =>
-    guestServiceRequest(channel, async () =>
-      requestRegistry(
-        sprite,
-        signal ?? AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
-      ),
-    ),
+    requestRegistry(sprite, signal ?? AbortSignal.timeout(REGISTRY_TIMEOUT_MS)),
   );
 }
 

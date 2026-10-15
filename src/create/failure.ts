@@ -6,6 +6,7 @@ import { InteractionExit } from '#navigation';
 import { recoverOperation } from '#operation';
 import { ReadinessFault } from '#readiness';
 import { redactResolved } from '#utilities/redaction';
+import { OPEN_AGENT_VERSION } from '#utilities/version';
 
 import type { CommandResult } from '#command';
 import type { WorkstationRecord } from '#drivers/contracts';
@@ -92,7 +93,10 @@ export async function markCreateIncomplete(
     },
   );
   const incompleteLabel = await recoverOperation(async () =>
-    context.provider.setMetadata(workstation, { setup: 'incomplete' }),
+    context.provider.setMetadata(workstation, {
+      setup: 'incomplete',
+      version: OPEN_AGENT_VERSION,
+    }),
   ).then(
     () => 'confirmed' as const,
     (failure: unknown) => {
@@ -119,16 +123,7 @@ export async function markCreateIncomplete(
       setupIncomplete: true,
       details: [
         ...(failure.details ?? []),
-        ...(privacy === 'unconfirmed'
-          ? [
-              'Private URL authentication could not be confirmed; inspect provider visibility.',
-            ]
-          : []),
-        ...(incompleteLabel === 'unconfirmed'
-          ? [
-              'The incomplete label could not be confirmed; inspect provider state.',
-            ]
-          : []),
+        ...unconfirmedRecovery({ privacy, incompleteLabel }),
         `Workstation ${workstation.name} was retained. Run open-agent setup ${workstation.name} to recover.`,
       ],
     },
@@ -161,4 +156,24 @@ export function authorizationFailure(error: unknown): CreatePreparation {
       },
     },
   };
+}
+
+/**
+ * explains each recovery step whose outcome could not be confirmed
+ * @param recovery whether the private visibility and the incomplete label were confirmed
+ * @returns one detail per unconfirmed step
+ */
+function unconfirmedRecovery(
+  recovery: Record<'privacy' | 'incompleteLabel', 'confirmed' | 'unconfirmed'>,
+): string[] {
+  return [
+    ...(recovery.privacy === 'unconfirmed'
+      ? [
+          'Private URL authentication could not be confirmed; inspect provider visibility.',
+        ]
+      : []),
+    ...(recovery.incompleteLabel === 'unconfirmed'
+      ? ['The incomplete label could not be confirmed; inspect provider state.']
+      : []),
+  ];
 }

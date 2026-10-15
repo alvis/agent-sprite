@@ -1,40 +1,15 @@
 import { CommandFault } from '#errors';
-import { MAINTENANCE_TIMER } from '#guest/supervisor/protocol';
+import { cronService } from '#os/services/cron';
 
 import { catalog } from './catalog.js';
 
 import type { AgentPairing } from '#drivers/contracts';
 import type { GuestChannel, ServiceDefinition } from '#drivers/guest-channel';
 
-import type { AgentId, NetworkId, ProviderId } from './catalog.js';
-
-/** service that runs the periodic maintenance schedule on a provider that runs services natively */
-export const CRON_SERVICE = 'open-agent-cron';
-
-/** the guest supervisor's timer, which runs the schedule where it supervises the services */
-export { MAINTENANCE_TIMER };
+import type { AgentId, NetworkId } from './catalog.js';
 
 /** how human output names the maintenance service */
 const MAINTENANCE_LABEL = 'Maintenance scheduler';
-
-/**
- * tells whether a backend setup installs, rather than the provider, runs the
- * services and the maintenance schedule
- * @param provider selected provider identifier
- * @returns true when the provider's services are supervised
- */
-export function isSupervisedProvider(provider: ProviderId): boolean {
-  return catalog.providers[provider].serviceBackend === 'runit';
-}
-
-/**
- * names the service that runs the maintenance schedule on a provider
- * @param provider selected provider identifier
- * @returns the cron service, or the supervisor's timer where it supervises
- */
-export function maintenanceService(provider: ProviderId): string {
-  return isSupervisedProvider(provider) ? MAINTENANCE_TIMER : CRON_SERVICE;
-}
 
 /**
  * lists the daemon the agent service depends on for a network
@@ -137,7 +112,6 @@ export function serviceLabels(): Record<string, string> {
         daemon ? [[daemon.name, displayName]] : [],
       ),
     ),
-    [CRON_SERVICE]: MAINTENANCE_LABEL,
-    [MAINTENANCE_TIMER]: MAINTENANCE_LABEL,
+    [cronService.name]: MAINTENANCE_LABEL,
   };
 }

@@ -4,7 +4,6 @@ import {
   SUPERVISOR_CONTROL,
   isControlResponse,
 } from '#guest/supervisor/protocol';
-import { guestServiceRequest } from '#integrations/guest/transaction';
 
 import type { ProviderErrorCode } from '#drivers/contracts';
 import type {
@@ -122,14 +121,12 @@ export class FlySupervisedServices implements GuestServiceControl {
     timeoutMs: number,
     input?: string,
   ): Promise<Extract<ControlResponse, { ok: true }>> {
-    const result = await guestServiceRequest(this.#channel, async () =>
-      this.#channel.exec({
-        program: GUEST_NODE,
-        arguments: [SUPERVISOR_CONTROL, ...words],
-        ...(input !== undefined && { input }),
-        timeoutMs,
-      }),
-    );
+    const result = await this.#channel.exec({
+      program: GUEST_NODE,
+      arguments: [SUPERVISOR_CONTROL, ...words],
+      ...(input !== undefined && { input }),
+      timeoutMs,
+    });
     const response = decode(result.stdout);
     if (!response) {
       throw new ProviderFault({

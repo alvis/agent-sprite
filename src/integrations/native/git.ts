@@ -6,8 +6,7 @@ import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
 import { HOMEBREW } from '#guest/homebrew';
 import { runGuestResult } from '#integrations/guest';
-import { withGuestTransaction } from '#integrations/guest/transaction';
-import { rememberSecret, redactResolved } from '#utilities/redaction';
+import { redactResolved } from '#utilities/redaction';
 
 import {
   USER,
@@ -18,8 +17,8 @@ import {
 } from './configuration.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
-
 import type { GitIdentity } from '#input/types';
+import type { Secret } from '#integrations/guest/session/secret';
 
 const GITHUB_DIAGNOSTIC_LIMIT = 1200;
 
@@ -32,38 +31,36 @@ export async function configureGit(
   guest: GuestChannel,
   identity: GitIdentity,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    const settings = [
-      ['user.name', identity.authorName],
-      ['user.email', identity.authorEmail],
-      ['user.useConfigOnly', 'true'],
-    ];
-    for (const [key, value] of settings) {
-      await runAsAgent(guest, ['git', 'config', '--global', key!, value!]);
-    }
-    await runAsAgent(guest, [
-      'jj',
-      'config',
-      'set',
-      '--user',
-      'user.name',
-      identity.authorName,
-    ]);
-    await runAsAgent(guest, [
-      'jj',
-      'config',
-      'set',
-      '--user',
-      'user.email',
-      identity.authorEmail,
-    ]);
-    await ensurePrivateDirectory(guest, `${HOME}/.config/open-agent`);
-    await writeOwnedFile(
-      guest,
-      `${HOME}/.config/open-agent/committer.json`,
-      `${JSON.stringify({ name: identity.committerName, email: identity.committerEmail })}\n`,
-    );
-  });
+  const settings = [
+    ['user.name', identity.authorName],
+    ['user.email', identity.authorEmail],
+    ['user.useConfigOnly', 'true'],
+  ];
+  for (const [key, value] of settings) {
+    await runAsAgent(guest, ['git', 'config', '--global', key!, value!]);
+  }
+  await runAsAgent(guest, [
+    'jj',
+    'config',
+    'set',
+    '--user',
+    'user.name',
+    identity.authorName,
+  ]);
+  await runAsAgent(guest, [
+    'jj',
+    'config',
+    'set',
+    '--user',
+    'user.email',
+    identity.authorEmail,
+  ]);
+  await ensurePrivateDirectory(guest, `${HOME}/.config/open-agent`);
+  await writeOwnedFile(
+    guest,
+    `${HOME}/.config/open-agent/committer.json`,
+    `${JSON.stringify({ name: identity.committerName, email: identity.committerEmail })}\n`,
+  );
 }
 
 /** where GitHub CLI is authenticated */
@@ -77,49 +74,46 @@ export interface GithubTarget {
 /**
  * authenticates GitHub CLI using a selected credential over stdin
  * configures separate protected stores for the agent and each provider shell account
- * @param guest target guest
- * @param token GitHub credential passed privately to the native CLI
+ * @param guest target guest, running over a setup session
+ * @param token GitHub credential, piped to the native CLI as session input
  * @param target selected GitHub host and provider shell accounts
  */
 export async function configureGithub(
   guest: GuestChannel,
-  token: string,
+  token: Secret,
   target: GithubTarget,
 ): Promise<void> {
   const hostname = target.hostname ?? 'github.com';
-  await withGuestTransaction(guest, async () => {
-    rememberSecret(token);
-    for (const user of [USER, ...target.shellAccounts]) {
-      const home = `/home/${user}`;
-      const owner = { user, shellAccounts: target.shellAccounts };
-      await ensurePrivateDirectory(guest, `${home}/.config`, owner);
-      await ensurePrivateDirectory(guest, `${home}/.config/gh`, owner);
-      await runGithubCommand({
-        guest,
-        user,
-        args: [
-          'auth',
-          'login',
-          '--hostname',
-          hostname,
-          '--git-protocol',
-          'https',
-          '--with-token',
-        ],
-        token,
-      });
-      await runGithubCommand({
-        guest,
-        user,
-        args: ['auth', 'setup-git', '--hostname', hostname],
-      });
-      await runGithubCommand({
-        guest,
-        user,
-        args: ['auth', 'status', '--hostname', hostname],
-      });
-    }
-  });
+  for (const user of [USER, ...target.shellAccounts]) {
+    const home = `/home/${user}`;
+    const owner = { user, shellAccounts: target.shellAccounts };
+    await ensurePrivateDirectory(guest, `${home}/.config`, owner);
+    await ensurePrivateDirectory(guest, `${home}/.config/gh`, owner);
+    await runGithubCommand({
+      guest,
+      user,
+      args: [
+        'auth',
+        'login',
+        '--hostname',
+        hostname,
+        '--git-protocol',
+        'https',
+        '--with-token',
+      ],
+      token,
+    });
+    await runGithubCommand({
+      guest,
+      user,
+      args: ['auth', 'setup-git', '--hostname', hostname],
+    });
+    await runGithubCommand({
+      guest,
+      user,
+      args: ['auth', 'status', '--hostname', hostname],
+    });
+  }
 }
 
 /**
@@ -131,33 +125,31 @@ export async function configureRuntimeEnv(
   guest: GuestChannel,
   environment: Record<string, string>,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    const forbidden = new Set([
-      ...driverCredentialNames(),
-      ...harnessEnvironmentNames(),
-      CLIPROXYAPI_INPUTS.apiKey.environment,
-      'GH_TOKEN',
-      'GITHUB_TOKEN',
-      'HOME',
-      'PATH',
-      'NODE_OPTIONS',
-      'LD_PRELOAD',
-    ]);
-    const names = Object.keys(environment);
-    const rejected = names.filter((name) => forbidden.has(name));
-    if (rejected.length) {
-      throw new CommandFault({
-        code: 'INPUT',
-        message: `Runtime environment contains restricted keys: ${rejected.join(', ')}`,
-      });
-    }
-    await ensurePrivateDirectory(guest, `${HOME}/.config/open-agent`);
-    await writeOwnedFile(
-      guest,
-      `${HOME}/.config/open-agent/runtime-env.json`,
-      `${JSON.stringify(environment)}\n`,
-    );
-  });
+  const forbidden = new Set([
+    ...driverCredentialNames(),
+    ...harnessEnvironmentNames(),
+    CLIPROXYAPI_INPUTS.apiKey.environment,
+    'GH_TOKEN',
+    'GITHUB_TOKEN',
+    'HOME',
+    'PATH',
+    'NODE_OPTIONS',
+    'LD_PRELOAD',
+  ]);
+  const names = Object.keys(environment);
+  const rejected = names.filter((name) => forbidden.has(name));
+  if (rejected.length) {
+    throw new CommandFault({
+      code: 'INPUT',
+      message: `Runtime environment contains restricted keys: ${rejected.join(', ')}`,
+    });
+  }
+  await ensurePrivateDirectory(guest, `${HOME}/.config/open-agent`);
+  await writeOwnedFile(
+    guest,
+    `${HOME}/.config/open-agent/runtime-env.json`,
+    `${JSON.stringify(environment)}\n`,
+  );
 }
 
 /**
@@ -166,14 +158,14 @@ export async function configureRuntimeEnv(
  * @param params.guest target guest channel
  * @param params.user non-root account receiving native GitHub configuration
  * @param params.args native GitHub arguments without credentials
- * @param params.token optional credential delivered only through stdin
+ * @param params.token optional credential delivered only as session input on stdin
  * @throws {Error} when native authentication, Git setup or status verification fails
  */
 async function runGithubCommand(params: {
   guest: GuestChannel;
   user: string;
   args: string[];
-  token?: string;
+  token?: Secret;
 }): Promise<void> {
   const { guest, user, args, token } = params;
   const result = await runGuestResult(
@@ -191,7 +183,7 @@ async function runGithubCommand(params: {
       HOMEBREW.gh,
       ...args,
     ],
-    { input: token ? `${token}\n` : undefined },
+    token ? { secret: { value: token, as: 'stdin' } } : {},
   );
   if (result.exitCode !== 0) {
     const detail = redactResolved(result.stderr)

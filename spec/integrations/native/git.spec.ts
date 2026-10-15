@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HOMEBREW } from '#guest/homebrew';
+import { Secret } from '#integrations/guest/session/secret';
 
 import {
   configureGit,
@@ -153,13 +154,21 @@ describe('fn:configureGithub', () => {
     const login = vi.fn<Sprite['execFileHTTP']>(async () => success);
     Object.assign(sprite, { execFileHTTP: login });
 
-    await configureGithub(guestOf(sprite), 'enterprise-token', {
-      hostname: 'github.enterprise.test',
-      shellAccounts: ['sprite'],
-    });
-    await configureGithub(guestOf(sprite), 'default-token', {
-      shellAccounts: ['sprite'],
-    });
+    await configureGithub(
+      guestOf(sprite),
+      Secret.fromHost('github', 'enterprise-token'),
+      {
+        hostname: 'github.enterprise.test',
+        shellAccounts: ['sprite'],
+      },
+    );
+    await configureGithub(
+      guestOf(sprite),
+      Secret.fromHost('github', 'default-token'),
+      {
+        shellAccounts: ['sprite'],
+      },
+    );
 
     expect(
       login.mock.calls.map(([file, args, options]) => ({
@@ -249,7 +258,7 @@ describe('fn:configureGithub', () => {
 
     const error = await configureGithub(
       guestOf(sprite),
-      'secret-github-value',
+      Secret.fromHost('github', 'secret-github-value'),
       { shellAccounts: ['sprite'] },
     ).catch((failure: Error) => failure);
     expect(error).toEqual(
@@ -285,9 +294,13 @@ describe('fn:configureGithub', () => {
     });
 
     await expect(
-      configureGithub(guestOf(sprite), 'github-value', {
-        shellAccounts: ['sprite'],
-      }),
+      configureGithub(
+        guestOf(sprite),
+        Secret.fromHost('github', 'github-value'),
+        {
+          shellAccounts: ['sprite'],
+        },
+      ),
     ).rejects.toEqual(
       expect.objectContaining({
         name: 'CommandFault',
