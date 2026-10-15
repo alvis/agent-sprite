@@ -1,0 +1,190 @@
+# open-agent's Homebrew library, sourced as root after the OS family's
+# library, whose oa_as it runs brew with: Homebrew lives at the default
+# prefix, the only one bottles pour at, owned by the linuxbrew system account,
+# and every formula is poured from its bottle, never built from source
+
+# the prefix's account, home and brew: LINUXBREW_HOME and HOMEBREW_PREFIX in
+# src/tools/accounts.ts, which this shell cannot import
+OA_BREW_ACCOUNT=linuxbrew
+OA_BREW_HOME=/home/linuxbrew
+OA_BREW_PREFIX=$OA_BREW_HOME/.linuxbrew
+OA_BREW=$OA_BREW_PREFIX/bin/brew
+# the status a brew function returns when a formula has no bottle for the guest
+OA_NO_BOTTLE_STATUS=78
+
+# runs brew as the prefix's account in a fixed environment: it never updates
+# itself unasked, never reports analytics and never builds a missing bottle
+# arguments: brew's arguments
+oa_brew() {
+  oa_as "$OA_BREW_ACCOUNT" env -i \
+    HOME="$OA_BREW_HOME" USER="$OA_BREW_ACCOUNT" LOGNAME="$OA_BREW_ACCOUNT" \
+    LANG=C.UTF-8 \
+    PATH="$OA_BREW_PREFIX/bin:$OA_BREW_PREFIX/sbin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    HOMEBREW_NO_AUTO_UPDATE=1 \
+    HOMEBREW_NO_ANALYTICS=1 \
+    HOMEBREW_NO_ENV_HINTS=1 \
+    HOMEBREW_NO_BOTTLE_SOURCE_FALLBACK=1 \
+    "$OA_BREW" "$@"
+}
+
+# tells whether Homebrew is installed at its prefix, owned by its account
+oa_homebrew_installed() {
+  test -x "$OA_BREW" &&
+    test "$(stat -c %U "$OA_BREW_PREFIX")" = "$OA_BREW_ACCOUNT" &&
+    oa_brew --version >/dev/null
+}
+
+# installs Homebrew at its default prefix from the official installer, pinned
+# by its digest, run non-interactively as the prefix's account, which owns the
+# prefix beforehand and so needs no sudo
+# arguments: installer URL, its sha256
+oa_homebrew_install() {
+  if oa_homebrew_installed; then
+    return 0
+  fi
+  if ! getent passwd "$OA_BREW_ACCOUNT" >/dev/null; then
+    echo "Homebrew needs the $OA_BREW_ACCOUNT account first" >&2
+    return 1
+  fi
+  install -d -o "$OA_BREW_ACCOUNT" -g "$(id -g "$OA_BREW_ACCOUNT")" -m 0755 \
+    "$OA_BREW_HOME" "$OA_BREW_PREFIX" || return 1
+  oa_homebrew_work=$(mktemp -d) || return 1
+  oa_homebrew_run "$oa_homebrew_work" "$1" "$2"
+  oa_homebrew_status=$?
+  rm -rf "$oa_homebrew_work"
+  test "$oa_homebrew_status" -eq 0 || return "$oa_homebrew_status"
+  oa_homebrew_installed
+}
+
+# downloads the installer into a work directory, checks its digest and runs it
+# arguments: work directory, installer URL, its sha256
+oa_homebrew_run() {
+  chmod 0755 "$1" || return 1
+  curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --max-time 300 \
+    -o "$1/install.sh" "$2" || return 1
+  if test "$(sha256sum "$1/install.sh" | cut -d ' ' -f 1)" != "$3"; then
+    echo "Refusing the Homebrew installer at $2: its digest is not the pinned one" >&2
+    return 1
+  fi
+  chmod 0644 "$1/install.sh" || return 1
+  oa_as "$OA_BREW_ACCOUNT" env -i \
+    HOME="$OA_BREW_HOME" USER="$OA_BREW_ACCOUNT" LOGNAME="$OA_BREW_ACCOUNT" \
+    LANG=C.UTF-8 PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    NONINTERACTIVE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_AUTO_UPDATE=1 \
+    /bin/bash "$1/install.sh"
+}
+
+# refuses a formula or tap name brew could read as an option
+# arguments: names
+oa_brew_names() {
+  for oa_names_formula; do
+    case $oa_names_formula in
+      '' | [!a-z0-9]* | *[!a-z0-9@._+/-]*)
+        echo "Refusing the formula $oa_names_formula" >&2
+        return 1
+        ;;
+    esac
+  done
+}
+
+# names the bottle tag of the guest's architecture
+oa_brew_tag() {
+  case $(uname -m) in
+    x86_64 | amd64) echo x86_64_linux ;;
+    aarch64 | arm64) echo arm64_linux ;;
+    *)
+      echo "Homebrew has no bottles for $(uname -m)" >&2
+      return 1
+      ;;
+  esac
+}
+
+# prints `no-bottle:<formula>` for every named formula that, or one of whose
+# runtime dependencies, has no bottle for the guest's architecture
+# arguments: formula names
+oa_brew_unbottled() {
+  oa_brew_names "$@" || return 1
+  oa_unbottled_tag=$(oa_brew_tag) || return 1
+  oa_unbottled_deps=$(oa_brew deps --for-each "$@") || return 1
+  # every formula and dependency, one per line, for brew info
+  oa_unbottled_all=$(printf '%s\n' "$oa_unbottled_deps" | tr -d ':' | tr ' ' '\n' | sort -u)
+  set --
+  while IFS= read -r oa_unbottled_name; do
+    test -z "$oa_unbottled_name" || set -- "$@" "$oa_unbottled_name"
+  done <<EOF
+$oa_unbottled_all
+EOF
+  oa_unbottled_missing=$(oa_brew info --json=v2 "$@" | oa_brew ruby -e "
+    require 'json'
+    JSON.parse(STDIN.read).fetch('formulae').each do |formula|
+      files = formula.dig('bottle', 'stable', 'files') || {}
+      puts formula.fetch('name') unless files.key?('$oa_unbottled_tag') || files.key?('all')
+    end
+  ") || return 1
+  printf '%s\n' "$oa_unbottled_deps" | awk -v missing="$oa_unbottled_missing" '
+    BEGIN { count = split(missing, names, "\n"); for (i = 1; i <= count; i++) absent[names[i]] = 1 }
+    {
+      formula = $1
+      sub(/:$/, "", formula)
+      refused = (formula in absent)
+      for (i = 2; i <= NF; i++) if ($i in absent) refused = 1
+      if (refused) print "no-bottle:" formula
+    }'
+}
+
+# tells whether a formula is installed
+# arguments: formula name
+oa_brew_installed() {
+  oa_brew_names "$1" || return 1
+  oa_brew list --formula --versions "$1" >/dev/null 2>&1
+}
+
+# installs a formula from its bottle, tapping its tap first; a formula that,
+# or one of whose dependencies, has no bottle for the guest is refused with
+# status 78, so setup can fall through to the tool's next source
+# arguments: formula name, then its tap when it is not homebrew/core
+oa_brew_install() {
+  oa_brew_names "$@" || return 1
+  if test "$#" -gt 1; then
+    oa_brew tap "$2" || return 1
+  fi
+  if oa_brew_installed "$1"; then
+    return 0
+  fi
+  oa_install_unbottled=$(oa_brew_unbottled "$1") || return 1
+  if test -n "$oa_install_unbottled"; then
+    printf '%s\n' "$oa_install_unbottled"
+    echo "Refusing $1: Homebrew has no bottle of it or a dependency for $(uname -m)" >&2
+    return "$OA_NO_BOTTLE_STATUS"
+  fi
+  oa_brew install --formula "$1"
+}
+
+# refreshes Homebrew and its formulae
+oa_brew_update() {
+  oa_brew update --quiet
+}
+
+# upgrades installed formulae from their bottles; one whose new version has no
+# bottle for the guest yet keeps its current version
+# arguments: formula names
+oa_brew_upgrade() {
+  oa_brew_names "$@" || return 1
+  oa_upgrade_unbottled=$(oa_brew_unbottled "$@") || return 1
+  for oa_upgrade_formula; do
+    shift
+    if printf '%s\n' "$oa_upgrade_unbottled" | grep -qxF "no-bottle:$oa_upgrade_formula"; then
+      echo "Keeping $oa_upgrade_formula: its new version has no bottle for $(uname -m)" >&2
+    elif oa_brew_installed "$oa_upgrade_formula"; then
+      set -- "$@" "$oa_upgrade_formula"
+    fi
+  done
+  test "$#" -eq 0 || oa_brew upgrade --formula "$@"
+}
+
+# prints the installed version of a formula
+# arguments: formula name
+oa_brew_version() {
+  oa_brew_names "$1" || return 1
+  oa_brew list --formula --versions "$1" | cut -d ' ' -f 2
+}
