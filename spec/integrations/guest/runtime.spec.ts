@@ -153,7 +153,7 @@ describe('fn:installGuestTools', () => {
         ([, args]) => args.includes('--version') || args.includes('version'),
       );
     // the selected network is none, so no network tool is probed
-    expect(versionCalls).toHaveLength(15);
+    expect(versionCalls).toHaveLength(17);
     expect(
       versionCalls.every(
         ([file, args]) =>
@@ -181,7 +181,9 @@ describe('fn:installGuestTools', () => {
       '/usr/local/bin/uv',
       '/usr/local/bin/rustup',
       '/usr/local/bin/http',
+      '/usr/local/bin/agent-browser',
       '/usr/local/bin/rustc',
+      '/usr/local/bin/google-chrome',
       '/home/agent/.local/bin/claude',
       '/home/agent/.local/bin/codex',
       '/home/agent/.local/bin/t3',

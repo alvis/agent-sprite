@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { openSync, writeSync } from 'node:fs';
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { createWriteStream, openSync, writeSync } from 'node:fs';
+import { mkdtemp, rename, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 
 import { readComponentOutcomes } from '../component-outcome.js';
 import { GUEST_KERNEL, GUEST_ROOT } from '../guest-root.js';
@@ -186,32 +188,54 @@ export async function downloadText(url: string): Promise<string> {
 }
 
 /**
- * stores a public tool archive only in the private installation directory
+ * stores a public tool archive only in the private installation directory,
+ * streamed so an archive as large as a browser is never held in memory. The
+ * transfer is abandoned once no data arrives for the download limit, rather
+ * than after a fixed time, so a large archive on a slow link still completes
  * @param url official release asset URL
  * @param name local archive filename
  */
 export async function download(url: string, name: string): Promise<void> {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(downloadTimeoutMs),
-  });
-  if (!response.ok) {
-    throw new Error(`Release download failed (status ${response.status})`);
+  const stall = new AbortController();
+  const stalled = (): void => {
+    stall.abort(new Error('Release download stalled'));
+  };
+  const timer = setTimeout(stalled, downloadTimeoutMs);
+  try {
+    const response = await fetch(url, { signal: stall.signal });
+    if (!response.ok) {
+      throw new Error(`Release download failed (status ${response.status})`);
+    }
+    if (!response.body) {
+      throw new Error('Release download returned no body');
+    }
+    await pipeline(
+      Readable.fromWeb(response.body),
+      async function* (chunks: AsyncIterable<Uint8Array>) {
+        for await (const chunk of chunks) {
+          timer.refresh();
+          yield chunk;
+        }
+      },
+      createWriteStream(join(temporary, name), { mode: privateMode }),
+    );
+  } finally {
+    clearTimeout(timer);
   }
-  await writeFile(
-    join(temporary, name),
-    Buffer.from(await response.arrayBuffer()),
-  );
 }
 
 /**
  * replaces a manager-owned symlink without following its existing target, and
  * records one in the tool link directory for the next boot of a provider that
- * rebuilds its root filesystem
+ * rebuilds its root filesystem. The new link is renamed over the old one, so
+ * the path never goes missing for a command started meanwhile
  * @param target installed manager-owned target
  * @param path fixed managed link
  */
 export async function link(target: string, path: string): Promise<void> {
-  await rm(path, { force: true });
-  await symlink(target, path);
+  const staged = `${path}.open-agent-new`;
+  await rm(staged, { force: true });
+  await symlink(target, staged);
+  await rename(staged, path);
   await recordLink(TOOL_LINK_RECORD, target, path);
 }

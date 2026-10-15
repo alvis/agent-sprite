@@ -124,7 +124,7 @@ Maintenance installs in place and never touches a service ([ADR-12](docs/archite
 
 1. Every minute, cron (`/etc/cron.d/open-agent` on a Sprite) or the supervisor's timer (on a Fly Machine) starts `update-gate.sh`, which lets a check through once `/opt/open-agent/update-check-minutes` minutes have passed.
 2. `updater.js` runs only when the due interval has passed since the last success. It takes the shared lock and a managed awake hold, then runs the installer.
-3. The installer's `ComponentLedger` (`src/guest/install-tools/ledger.ts`) resolves each component's latest stable version and skips every component already at it. Brew installs only bottles.
+3. The installer's `ComponentLedger` (`src/guest/install-tools/ledger.ts`) resolves each component's latest stable version and skips every component already at it. Brew installs only bottles; Google Chrome is Google's stable `.deb`, checked against the SHA-256 in Google's apt index and unpacked unchanged under `/opt/open-agent/tools/google-chrome`, one directory per package that is never overwritten, so a running browser keeps the version it started from.
 4. The success time advances only when every required component succeeded. A new agent or daemon version runs the next time its service restarts.
 
 ### Idle
@@ -173,6 +173,7 @@ Use an existing driver of the same kind as your template: `src/drivers/networks/
 | `/opt/open-agent/install-outcomes.json`             | The ledger: each component's `installed`, `skipped` or `failed` outcome from the last install run        |
 | `/opt/open-agent/install-tools.log`                 | The installer's private log                                                                              |
 | `/opt/open-agent/links`                             | The link record: one `path<TAB>target` line per link the installer made in `/usr/local/bin`              |
+| `/opt/open-agent/tools/google-chrome`               | Google Chrome, one unpacked stable package per release, linked as `/usr/local/bin/google-chrome`         |
 | `/opt/open-agent/components.json`, `harnesses.json` | The data catalogs the host writes from the guest-leaf registry                                           |
 | `/opt/open-agent/update-check-minutes`              | The update check interval the gate reads                                                                 |
 | `/opt/open-agent/run/awake`, `run/awake-root`       | The idle governor's state (`governor.json`) and the agent and managed holds                              |

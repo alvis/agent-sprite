@@ -42,6 +42,7 @@ const WORKER_MODULE = kernelModule('guest-transaction.js');
 // modules take their mode from the account their driver declares, and every
 // deploy path reads its mode from here through `payloadMode`
 const rootOnlyKernel = [
+  'chrome.js',
   'component-outcome.js',
   'guest-transaction.js',
   'guest-transaction/hold.js',
@@ -50,6 +51,7 @@ const rootOnlyKernel = [
   'homebrew.js',
   'install-tools.js',
   'install-tools/agent.js',
+  'install-tools/chrome.js',
   'install-tools/context.js',
   'install-tools/formula.js',
   'install-tools/homebrew.js',

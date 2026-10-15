@@ -99,6 +99,10 @@ vi.mock('#guest/install-tools/rust', () => ({
   rustComponent: () => settled('rust'),
 }));
 
+vi.mock('#guest/install-tools/chrome', () => ({
+  chromeComponent: () => settled('google-chrome'),
+}));
+
 // the log descriptor is shared by every run of the installer in this file
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:fs')>()),
@@ -223,7 +227,7 @@ describe('script:install-tools', () => {
     ).toEqual([]);
   });
 
-  it('should pour every Homebrew formula in table order and then the Rust toolchain', async () => {
+  it('should pour every Homebrew formula in table order and then the Rust toolchain and Chrome', async () => {
     await installTools();
 
     expect(state.poured).toEqual([
@@ -236,7 +240,9 @@ describe('script:install-tools', () => {
       'uv',
       'rustup',
       'httpie',
+      'agent-browser',
       'rust',
+      'google-chrome',
     ]);
   });
 

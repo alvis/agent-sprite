@@ -36,6 +36,7 @@ const FIELD_LABELS: Record<string, string> = {
   'python3': 'Python',
   'httpie': 'HTTPie',
   'rust': 'Rust',
+  'google-chrome': 'Google Chrome',
   'github': 'GitHub',
   'env': 'Environment variables',
   ...Object.fromEntries(
