@@ -1,4 +1,4 @@
-import { isRecord } from '../../../../guest/records.js';
+import { isRecord } from '#utilities/guards';
 
 const hookIdentityFields = [
   'hook_id',

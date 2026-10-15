@@ -194,10 +194,12 @@ export async function showWorkstation(
     release: options.inspect || options.withPairCode ? 'guest' : 'metadata',
   });
   const inspected = options.inspect
-    ? await inspectGuest(
-        await provider.openGuest(workstation),
-        interaction ? (update) => interaction.progress(update) : undefined,
-      )
+    ? await inspectGuest(await provider.openGuest(workstation), {
+        progress: interaction
+          ? (update) => interaction.progress(update)
+          : undefined,
+        provider,
+      })
     : undefined;
   const pairing = options.withPairCode
     ? await pairRecordedAgent(await provider.openGuest(workstation))
@@ -245,10 +247,12 @@ export async function doctorWorkstation(
     interaction,
     release: 'guest',
   });
-  const inspection = await inspectGuest(
-    await provider.openGuest(workstation),
-    interaction ? (update) => interaction.progress(update) : undefined,
-  );
+  const inspection = await inspectGuest(await provider.openGuest(workstation), {
+    progress: interaction
+      ? (update) => interaction.progress(update)
+      : undefined,
+    provider,
+  });
   const { ready, failures, skipped, probeFailures } =
     assessReadiness(inspection);
 
@@ -269,6 +273,7 @@ export async function doctorWorkstation(
       environment: inspection.environment,
       ...(inspection.updates ? { updates: inspection.updates } : {}),
       governor: inspection.governor,
+      ...(inspection.boot ? { boot: inspection.boot } : {}),
     },
   };
 

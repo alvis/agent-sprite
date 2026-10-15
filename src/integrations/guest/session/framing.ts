@@ -62,8 +62,8 @@ trap 'exit 143' TERM
 base64 -d > "$oa_secret/secret" || exit ${SECRET_DELIVERY_STATUS}
 ${SECRET_FILE_VARIABLE}="$oa_secret/secret" "$@" </dev/null
 exit $?`;
-/** the `PATH` every session command starts from, whatever the transport set */
-const SESSION_PATH =
+/** the `PATH` every session command, and every root command outside a session, starts from, whatever the transport set */
+export const SESSION_PATH =
   '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
 /**

@@ -1,12 +1,7 @@
-import { GUEST_NODE, GUEST_ROOT } from '#guest/guest-root';
-import { runGuestResult } from '#integrations/guest';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import {
-  AGENT_PATH,
   HOME,
-  asAgent,
   isRecord,
-  isStringArray,
   readJsonObject,
   readSelectedPlugins,
 } from '#integrations/native/configuration';
@@ -19,8 +14,8 @@ import {
 } from '../shared/plugin-state.js';
 import { awakeHooksReadiness, proxyReadiness } from '../shared/readiness.js';
 
-import { CLAUDE_INIT_PROBE_MODULE } from './guest-modules.js';
 import { CLAUDE_WORK_HOOKS } from './hooks.js';
+import { inspectClaudeInitialization } from './initialization.js';
 import {
   CLAUDE_INVENTORY,
   CLAUDE_PLUGIN_STATE,
@@ -28,7 +23,6 @@ import {
 } from './paths.js';
 
 import type {
-  HarnessCommandEvidence,
   HarnessInspection,
   HarnessReadinessContext,
   NativeHarnessInspection,
@@ -37,18 +31,7 @@ import type {
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { GuestCommandResult } from '#integrations/guest/types';
 
-const INITIALIZATION_PROBE_TIMEOUT_MS = 45_000;
-const INITIALIZATION_PROBE = `${GUEST_ROOT}/${CLAUDE_INIT_PROBE_MODULE}`;
-
-/** what the Claude SDK reports after loading the managed settings */
-export interface ClaudeInitialization extends HarnessCommandEvidence {
-  /** number of models the SDK offers */
-  modelCount: number;
-  /** agents the SDK registered */
-  agents: string[];
-  /** plugins the SDK loaded */
-  loadedPlugins: string[];
-}
+import type { ClaudeInitialization } from './initialization.js';
 
 /**
  * reads Claude settings, plugin inventory and SDK initialization without a model turn
@@ -58,12 +41,15 @@ export interface ClaudeInitialization extends HarnessCommandEvidence {
 export async function inspectClaude(
   guest: GuestChannel,
 ): Promise<HarnessInspection<ClaudeInitialization | undefined>> {
+  const selection = readSelectedPlugins(guest, CLAUDE_PLUGIN_STATE);
   const [settings, plugins, initialization, selectedPlugins, authenticated] =
     await Promise.all([
       readJsonObject(guest, CLAUDE_SETTINGS),
       listNativePlugins(guest, CLAUDE_INVENTORY),
-      inspectClaudeInitialization(guest),
-      readSelectedPlugins(guest, CLAUDE_PLUGIN_STATE),
+      selection.then(async (selected) =>
+        inspectClaudeInitialization(guest, selected),
+      ),
+      selection,
       runBoundedIO(async () =>
         guest.exists(`${HOME}/.claude/.credentials.json`),
       ),
@@ -117,53 +103,6 @@ function claudeConfiguration(evidence: {
       command: { program: AWAKE_COMMAND },
     }),
     authentication,
-  };
-}
-
-/**
- * asks the pinned SDK to report actual Claude initialization data
- * @param guest target guest
- * @returns native initialization evidence when available
- */
-async function inspectClaudeInitialization(
-  guest: GuestChannel,
-): Promise<ClaudeInitialization | undefined> {
-  if (!(await runBoundedIO(async () => guest.exists(INITIALIZATION_PROBE)))) {
-    return undefined;
-  }
-  const result = await runGuestResult(
-    guest,
-    asAgent([
-      '/usr/bin/env',
-      `PATH=${AGENT_PATH}`,
-      GUEST_NODE,
-      INITIALIZATION_PROBE,
-    ]),
-    { timeoutMs: INITIALIZATION_PROBE_TIMEOUT_MS },
-  );
-  if (result.exitCode !== 0) {
-    return undefined;
-  }
-  const response: unknown = JSON.parse(result.stdout);
-  if (
-    !isRecord(response) ||
-    response.initialized !== true ||
-    typeof response.modelCount !== 'number' ||
-    !isStringArray(response.commands) ||
-    !isStringArray(response.agents) ||
-    !isStringArray(response.loadedPlugins) ||
-    typeof response.selectedPluginsLoaded !== 'boolean'
-  ) {
-    return undefined;
-  }
-
-  return {
-    kind: 'commands',
-    modelCount: response.modelCount,
-    commands: response.commands,
-    agents: response.agents,
-    loadedPlugins: response.loadedPlugins,
-    selectedPluginsLoaded: response.selectedPluginsLoaded,
   };
 }
 

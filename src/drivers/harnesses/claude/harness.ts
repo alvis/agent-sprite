@@ -7,7 +7,7 @@ import { claudePlugins } from './plugins.js';
 
 import type { HarnessDriver } from '#drivers/contracts';
 
-import type { ClaudeInitialization } from './inspect.js';
+import type { ClaudeInitialization } from './initialization.js';
 
 /** Claude Code as a harness driver */
 export const claude: HarnessDriver<'claude', ClaudeInitialization | undefined> =

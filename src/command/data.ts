@@ -2,6 +2,7 @@ import type { CommandErrorCode } from '#command/contracts';
 import type { HarnessId, ProviderId } from '#core/catalog';
 import type { WorkstationProfile } from '#core/profile';
 import type { CreatePreflight } from '#create/types';
+import type { BootReport } from '#drivers/contracts';
 import type {
   CredentialSaveResult,
   ManagementCredentialName,
@@ -79,6 +80,7 @@ export interface CurrentReadiness extends ReadinessAssessment {
   environment: GuestInspection['environment'];
   updates?: UpdateStatus;
   governor: GuestInspection['governor'];
+  boot?: BootReport;
 }
 
 /** bounded doctor inspection result */

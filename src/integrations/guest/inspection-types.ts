@@ -1,4 +1,4 @@
-import type { NetworkStatus } from '#drivers/contracts';
+import type { BootReport, NetworkStatus } from '#drivers/contracts';
 import type { GuestServiceState } from '#drivers/guest-channel';
 import type { HubStatus } from '#drivers/shared/cliproxyapi/hub';
 import type { GovernorReport } from '#guest/idle/state';
@@ -20,6 +20,8 @@ export interface GuestInspection {
   probeFailures: InspectionProbeFailure[];
   /** the idle governor's recorded state, reported but never a readiness failure */
   governor: GovernorReport;
+  /** what the provider's boot hook recorded about the last boot; absent when it has none, or the inspection did not ask */
+  boot?: BootReport;
 }
 
 /** a live probe that could not establish its current guest state */

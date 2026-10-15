@@ -8,6 +8,7 @@ import { isRecord } from '#utilities/guards';
 import { jobsStep } from '../cron.js';
 
 import type {
+  GuestExecResult,
   GuestServiceControl,
   GuestServiceState,
   ServiceDefinition,
@@ -17,7 +18,6 @@ import type {
   StepCommand,
 } from '#integrations/guest/plan/contracts';
 import type { LibraryCall } from '#integrations/guest/plan/steps/library';
-import type { GuestSession } from '#integrations/guest/session/contracts';
 import type { ServiceBackend, ServiceStepContext } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
@@ -34,6 +34,8 @@ export const SERVICES_STEP = 'services:runit';
 const SERVICES_LIMIT_MS = 300_000;
 /** longest one control command may take: a start or stop waits up to 30 seconds, a removal twice that */
 const CONTROL_LIMIT_MS = 90_000;
+/** longest a listing may take, short enough for a provider's quick exec */
+const LIST_LIMIT_MS = 30_000;
 /** the exit of `oa_sv_stop` for a service open-agent did not install */
 const NOT_INSTALLED = 2;
 /** every status a listed service can report */
@@ -83,7 +85,11 @@ export const runitBackend: ServiceBackend = {
   tools: [RUNIT_TOOL],
   library: RUNIT_LIBRARY,
   steps: (context) => [servicesStep(context), jobsStep(context)],
-  control: (session) => new RunitServiceControl(session),
+  control: (session) =>
+    new RunitServiceControl(
+      async (argv, timeoutMs) => session.run({ argv, timeoutMs }),
+      familyOf(session.release).shell,
+    ),
 };
 
 /**
@@ -114,17 +120,29 @@ function servicesStep(context: ServiceStepContext): SetupStep {
   };
 }
 
-/** controls the runit services of a guest through its session, as root */
-class RunitServiceControl implements GuestServiceControl {
+/** runs one command as root on the guest, returning a non-zero exit as a result */
+export type RootRunner = (
+  argv: readonly [string, ...string[]],
+  timeoutMs: number,
+) => Promise<GuestExecResult>;
+
+/**
+ * controls the runit services of a guest as root, through a setup session or
+ * the provider's own channel, so status needs no session
+ */
+export class RunitServiceControl implements GuestServiceControl {
+  readonly #run: RootRunner;
   /** the guest's family shell, which sources the library */
   readonly #shell: string;
 
   /**
-   * binds the control to a session
-   * @param session the guest's root session
+   * binds the control to a way of running root commands
+   * @param run runs one root command on the guest
+   * @param shell the guest's family shell
    */
-  constructor(private readonly session: GuestSession) {
-    this.#shell = familyOf(session.release).shell;
+  constructor(run: RootRunner, shell: string) {
+    this.#run = run;
+    this.#shell = shell;
   }
 
   /**
@@ -133,7 +151,11 @@ class RunitServiceControl implements GuestServiceControl {
    * @throws {Error} when the listing fails or is malformed
    */
   public async list(): Promise<GuestServiceState[]> {
-    const { stdout } = await this.#call('listing the services', ['oa_sv_list']);
+    const { stdout } = await this.#call(
+      'listing the services',
+      ['oa_sv_list'],
+      LIST_LIMIT_MS,
+    );
     const states: unknown = JSON.parse(stdout);
     if (!Array.isArray(states) || !states.every(isServiceState)) {
       throw new Error('The guest reported a malformed service listing');
@@ -161,10 +183,10 @@ class RunitServiceControl implements GuestServiceControl {
    * @throws {Error} when open-agent installed no such service
    */
   public async stop(name: string): Promise<boolean> {
-    const result = await this.session.run({
-      argv: this.#argv(['oa_sv_stop', name]),
-      timeoutMs: CONTROL_LIMIT_MS,
-    });
+    const result = await this.#run(
+      this.#argv(['oa_sv_stop', name]),
+      CONTROL_LIMIT_MS,
+    );
     if (result.exitCode === NOT_INSTALLED) {
       throw new Error(`There is no service ${name} to stop`);
     }
@@ -184,14 +206,16 @@ class RunitServiceControl implements GuestServiceControl {
    * runs one library call and fails unless it exits 0
    * @param action what the call does, for the error
    * @param call the function and its arguments
+   * @param timeoutMs longest the call may take
    * @returns its output
    * @throws {Error} when the call exits non-zero
    */
-  async #call(action: string, call: LibraryCall): Promise<{ stdout: string }> {
-    const result = await this.session.run({
-      argv: this.#argv(call),
-      timeoutMs: CONTROL_LIMIT_MS,
-    });
+  async #call(
+    action: string,
+    call: LibraryCall,
+    timeoutMs = CONTROL_LIMIT_MS,
+  ): Promise<{ stdout: string }> {
+    const result = await this.#run(this.#argv(call), timeoutMs);
     if (result.exitCode !== 0) {
       const reason = result.stderr.trim() || `exit ${result.exitCode}`;
 

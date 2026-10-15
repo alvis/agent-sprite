@@ -353,6 +353,27 @@ export interface ProviderDriver<
    * @returns the boot hook step
    */
   bootHookStep?(needs: readonly string[]): Promise<SetupStep>;
+  /**
+   * reads what the boot hook recorded about the last boot, for doctor;
+   * absent when the provider declares no boot hook
+   * @param guest guest channel of the workstation
+   * @returns the last boot's result, its steps and its log's latest lines
+   */
+  inspectBoot?(guest: GuestChannel): Promise<BootReport>;
+}
+
+/** what a provider's boot hook recorded about the guest's last boot */
+export interface BootReport {
+  /** the last boot's result; absent when no boot has recorded one */
+  status?: 'ok' | 'failed';
+  /** when the last boot started, as an ISO 8601 timestamp */
+  startedAt?: string;
+  /** how long the last boot took */
+  durationMs?: number;
+  /** every step of the last boot that did not succeed, with its outcome */
+  unsuccessfulSteps: Readonly<Record<string, string>>;
+  /** the boot log's latest step and result lines, oldest first */
+  log: readonly string[];
 }
 
 /** one compiled guest module a driver contributes to the deployable payload */
