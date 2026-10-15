@@ -43,11 +43,7 @@ export class SpriteGuestChannel implements GuestChannel {
   constructor(params: SpriteGuestChannelParams) {
     const { sprite, restorableServices } = params;
     this.#sprite = sprite;
-    this.services = new SpriteServiceControl({
-      sprite,
-      channel: this,
-      restorableServices,
-    });
+    this.services = new SpriteServiceControl({ sprite, restorableServices });
   }
 
   /**

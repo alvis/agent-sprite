@@ -1,4 +1,3 @@
-import { withGuestTransaction } from '#integrations/guest/transaction';
 import {
   ensurePrivateDirectory,
   isRecord,
@@ -24,32 +23,30 @@ export async function configureClaude(
   guest: GuestChannel,
   params: HarnessConfigureParams,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    await ensurePrivateDirectory(guest, CLAUDE_CONFIG_DIR);
-    const current = await readJsonObject(guest, CLAUDE_SETTINGS);
-    const previousEnv = isRecord(current.env) ? current.env : {};
-    const proxy = await resolveClaudeProxy({
-      guest,
-      current: previousEnv,
-      proxy: params.proxy,
-    });
-    // the hook installer runs next on this same file; refusing hooks it could
-    // not merge now keeps the whole native update all-or-nothing
-    assertMergeableHooks(current.hooks, CLAUDE_WORK_HOOKS);
-    const next = {
-      ...current,
-      env: {
-        ...proxy.env,
-        DISABLE_AUTOUPDATER: '1',
-      },
-    };
-    await writeOwnedFile(
-      guest,
-      CLAUDE_SETTINGS,
-      `${JSON.stringify(next, null, 2)}\n`,
-    );
-    if (proxy.removeOwnership) {
-      await removeClaudeProxyOwnership(guest);
-    }
+  await ensurePrivateDirectory(guest, CLAUDE_CONFIG_DIR);
+  const current = await readJsonObject(guest, CLAUDE_SETTINGS);
+  const previousEnv = isRecord(current.env) ? current.env : {};
+  const proxy = await resolveClaudeProxy({
+    guest,
+    current: previousEnv,
+    proxy: params.proxy,
   });
+  // the hook installer runs next on this same file; refusing hooks it could
+  // not merge now keeps the whole native update all-or-nothing
+  assertMergeableHooks(current.hooks, CLAUDE_WORK_HOOKS);
+  const next = {
+    ...current,
+    env: {
+      ...proxy.env,
+      DISABLE_AUTOUPDATER: '1',
+    },
+  };
+  await writeOwnedFile(
+    guest,
+    CLAUDE_SETTINGS,
+    `${JSON.stringify(next, null, 2)}\n`,
+  );
+  if (proxy.removeOwnership) {
+    await removeClaudeProxyOwnership(guest);
+  }
 }

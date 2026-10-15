@@ -1,7 +1,13 @@
 import { guestAsset } from '#guest/assets';
+import { isGovernorReport } from '#guest/idle/state';
+import { checkOperation } from '#operation';
 import { SHARED_MODE } from '#os/contracts';
 
+import { runGuestResult } from '../guest.js';
+
 import type { ProviderCapabilities } from '#drivers/contracts';
+import type { GuestChannel } from '#drivers/guest-channel';
+import type { GovernorReport } from '#guest/idle/state';
 import type { PeriodicJob, ServiceStepContext } from '#os/contracts';
 
 import type { SetupStep, StepCommand } from './plan/contracts.js';
@@ -37,6 +43,9 @@ const HOLD_LIMIT_MS = AWAKE_DEADLINE_MS + HOLD_SLACK_MS;
 
 /** longest one command of the directories step may take */
 const IDLE_STEP_LIMIT_MS = 30_000;
+
+/** longest the governor report may take */
+const REPORT_LIMIT_MS = 30_000;
 
 /**
  * lists the periodic jobs the idle governor needs: a governed provider's
@@ -117,4 +126,32 @@ export function idleStep(
     critical: true,
     retry: 'transport',
   };
+}
+
+/**
+ * reads the idle governor's recorded state through root's `report`, which
+ * reads the agent-writable record as untrusted data; the state is reported,
+ * never a readiness failure, so an unreadable record becomes a reason
+ * @param guest target guest
+ * @returns the validated state, or why none could be read
+ */
+export async function inspectGovernor(
+  guest: GuestChannel,
+): Promise<GovernorReport> {
+  try {
+    const { exitCode, stdout } = await runGuestResult(
+      guest,
+      [AWAKE_COMMAND, 'report'],
+      { timeoutMs: REPORT_LIMIT_MS },
+    );
+    const report: unknown = exitCode === 0 ? JSON.parse(stdout) : undefined;
+
+    return isGovernorReport(report)
+      ? report
+      : { recorded: false, reason: 'the governor report is unavailable' };
+  } catch {
+    checkOperation();
+
+    return { recorded: false, reason: 'the governor report is unavailable' };
+  }
 }

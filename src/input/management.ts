@@ -1,4 +1,5 @@
 import { CommandFault } from '#errors';
+import { Secret } from '#integrations/guest/session/secret';
 
 import type { NetworkDriver, NetworkManagement } from '#drivers/contracts';
 
@@ -21,7 +22,7 @@ export function networkManagement(
  * selects the supplied enrolment key or mints one short-lived single-use key
  * @param network selected network
  * @param input resolved caller-side network credentials and account
- * @returns a transient key for one new device
+ * @returns a transient key for one new device, delivered as setup session input
  */
 export async function resolveEnrollmentKey(
   network: Pick<NetworkDriver, 'displayName' | 'issueCredential'>,
@@ -29,13 +30,14 @@ export async function resolveEnrollmentKey(
     ResolvedInputs,
     'enrollmentKey' | 'networkKey' | 'networkAccount'
   >,
-): Promise<string> {
+): Promise<Secret> {
+  if (input.enrollmentKey) {
+    return Secret.fromHost('env-file', input.enrollmentKey);
+  }
   const management = networkManagement(input);
-  const key =
-    input.enrollmentKey ??
-    (management?.account
-      ? await network.issueCredential(management)
-      : undefined);
+  const key = management?.account
+    ? await network.issueCredential(management)
+    : undefined;
   if (!key) {
     throw new CommandFault({
       code: 'INPUT',
@@ -43,5 +45,5 @@ export async function resolveEnrollmentKey(
     });
   }
 
-  return key;
+  return Secret.fromHost('provider-api', key);
 }

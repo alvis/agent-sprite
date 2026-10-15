@@ -1,8 +1,8 @@
 import { catalog } from '#core/catalog';
 import { harnessDrivers } from '#core/harnesses';
 import { networkDriver } from '#core/networks';
-import { isSupervisedProvider, maintenanceService } from '#core/services';
 import { finding, gatedFinding } from '#drivers/findings';
+import { cronService } from '#os/services/cron';
 
 import { CommandFault } from './errors.js';
 
@@ -72,7 +72,7 @@ export function assessReadiness(
  * @returns named readiness findings in reporting order
  */
 function readinessChecks(inspection: GuestInspection): ReadinessFinding[] {
-  const { profile } = inspection.manifest;
+  const { profile } = inspection.environment;
   const { native } = inspection;
   const { isExitNodeEnabled, isProxyEnabled } = profile.options;
   const drivers = harnessDrivers(profile.harnesses);
@@ -81,19 +81,15 @@ function readinessChecks(inspection: GuestInspection): ReadinessFinding[] {
     environment: native?.agentEnvironment,
   });
   const network = networkDriver(profile.network);
-  // a supervised provider's schedule runs on the guest supervisor's timer, not cron
-  const maintenance = maintenanceService(profile.provider);
 
   return [
     ...agent.service,
     finding(
       inspection.services.some(
         (service) =>
-          service.name === maintenance && service.status === 'running',
+          service.name === cronService.name && service.status === 'running',
       ),
-      isSupervisedProvider(profile.provider)
-        ? 'maintenance timer'
-        : 'maintenance cron service',
+      'maintenance cron service',
     ),
     ...agent.environment,
     ...network.readiness(inspection.network, { isExitNodeEnabled }),

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { setupPlugins } from '#setup/plugins';
-import { setupTools } from '#setup/sections';
+import { setupTools } from '#setup/tools';
 
 import { driveInk } from '../fixtures/ink.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
@@ -36,7 +36,6 @@ function setupContext(
     persistsProfile: false,
     isReleaseChanged: false,
     networkEnrolled: false,
-    initialInstallation: true,
     mutation: { started: false },
   };
 }

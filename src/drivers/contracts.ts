@@ -1,4 +1,5 @@
 import type { WorkstationProfile } from '#core/profile';
+import type { SetupStep } from '#integrations/guest/plan/contracts';
 import type { GuestAsset, OsImage, ServiceBackendId } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
@@ -215,6 +216,8 @@ export interface WorkstationMetadata {
   setup: WorkstationSetupState;
   /** compact profile summary; absent when the provider has none recorded */
   profile?: RecordedProfile;
+  /** open-agent release that last set the workstation up; absent when none is recorded */
+  version?: string;
 }
 
 /** provider-neutral failure surfaced instead of a provider SDK error */
@@ -342,6 +345,14 @@ export interface ProviderDriver<
    * @param workstation managed workstation
    */
   awaitGuestReady(workstation: WorkstationRecord): Promise<void>;
+  /**
+   * builds the step that installs the provider's boot hook and prepares the
+   * guest with it, which setup runs before any package step; absent when the
+   * provider declares no boot hook
+   * @param needs ids of the steps installing the libraries the hook sources
+   * @returns the boot hook step
+   */
+  bootHookStep?(needs: readonly string[]): Promise<SetupStep>;
 }
 
 /** one compiled guest module a driver contributes to the deployable payload */

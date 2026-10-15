@@ -14,6 +14,8 @@ export const SCHEMA_KEY = 'open-agent-schema';
 export const SCHEMA_VERSION = '1';
 /** records the setup state of the current provisioning attempt */
 export const SETUP_KEY = 'open-agent-setup';
+/** records the open-agent release that last set the machine up */
+export const VERSION_KEY = 'open-agent-version';
 /** one key per profile summary field; harnesses are comma-separated */
 const PROFILE_KEYS = {
   provider: 'open-agent-provider',
@@ -54,8 +56,8 @@ export function creationMetadata(
 
 /**
  * encodes a metadata update; an unrecorded setup state removes its key, and
- * an absent profile summary leaves the recorded one untouched
- * @param metadata setup state and optional profile summary
+ * an absent profile summary or version leaves the recorded one untouched
+ * @param metadata setup state, optional profile summary and optional version
  * @returns keys to set, or to remove with an empty value
  */
 export function metadataUpdate(
@@ -64,11 +66,12 @@ export function metadataUpdate(
   return {
     [SETUP_KEY]: setupValue(metadata.setup),
     ...(metadata.profile ? profileEntries(metadata.profile) : {}),
+    ...(metadata.version ? { [VERSION_KEY]: metadata.version } : {}),
   };
 }
 
 /**
- * decodes setup state and profile summary without waking the machine
+ * decodes setup state, profile summary and version without waking the machine
  * @param metadata machine metadata
  * @returns recorded metadata
  */
@@ -77,10 +80,12 @@ export function readMetadata(
 ): WorkstationMetadata {
   const setup = metadata?.[SETUP_KEY];
   const profile = metadata && readProfile(metadata);
+  const version = metadata?.[VERSION_KEY];
 
   return {
     setup: setup === 'ready' || setup === 'incomplete' ? setup : 'not recorded',
     ...(profile ? { profile } : {}),
+    ...(version ? { version } : {}),
   };
 }
 

@@ -3,6 +3,7 @@ import { checkOperation, currentOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
 import { FlyApi } from './api.js';
+import { flyBootHookStep } from './boot-hook-step.js';
 import { startAndBoot, waitForBoot } from './boot.js';
 import { FlyGuestChannel } from './channel.js';
 import { createManagedApp } from './creation.js';
@@ -77,6 +78,7 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
   public readonly shellAccounts = flyMachineGuestLeaf.shellAccounts;
   public readonly images = FLY_MACHINE_IMAGES;
   public readonly serviceBackend = flyMachineGuestLeaf.serviceBackend;
+  public readonly bootHookStep = flyBootHookStep;
   public readonly bootHook = flyMachineGuestLeaf.bootHook;
   public readonly awakeAdapter = flyMachineGuestLeaf.awakeAdapter;
   public readonly awakeAsset = flyMachineGuestLeaf.awakeAsset;

@@ -1,4 +1,3 @@
-import { withGuestTransaction } from '#integrations/guest/transaction';
 import {
   ensurePrivateDirectory,
   readTomlObject,
@@ -19,9 +18,7 @@ export async function configureCodex(
   guest: GuestChannel,
   params: HarnessConfigureParams,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    await ensurePrivateDirectory(guest, CODEX_HOME);
-    const current = await readTomlObject(guest, CODEX_CONFIG);
-    await configureCodexProxy({ guest, current, proxy: params.proxy });
-  });
+  await ensurePrivateDirectory(guest, CODEX_HOME);
+  const current = await readTomlObject(guest, CODEX_CONFIG);
+  await configureCodexProxy({ guest, current, proxy: params.proxy });
 }

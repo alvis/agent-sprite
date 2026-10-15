@@ -1,15 +1,10 @@
 import { posix } from 'node:path';
 
-import {
-  AGENT_HOME,
-  GUEST_NODE,
-  GUEST_ROOT,
-  kernelModule,
-} from '#guest/guest-root';
+import { guestAsset, readAsset } from '#guest/assets';
+import { AGENT_HOME } from '#guest/guest-root';
+import { ROOT_ONLY_MODE } from '#os/contracts';
 
 import { runGuest } from '../guest.js';
-
-import { deployGuestPayload } from './payloads.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
@@ -37,8 +32,11 @@ export const USER = 'agent';
 export const HOME = AGENT_HOME;
 
 export const AGENT_PATH = `${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin`;
-const NATIVE_FILES_MODULE = kernelModule('native-files.js');
-const NATIVE_FILES_PATH = `${GUEST_ROOT}/${NATIVE_FILES_MODULE}`;
+/** the program that changes one file in an account's home as that account, read from the package and run inline */
+const HOME_FILES = guestAsset(
+  'integrations/guest/home-files.sh',
+  ROOT_ONLY_MODE,
+);
 
 /**
  * runs a command as the non-root guest account
@@ -106,7 +104,8 @@ export async function removeOwnedFile(
 }
 
 /**
- * deploys the current file helper and invokes it as the native account
+ * runs the home files program as the native account, which refuses a linked
+ * or foreign path below its home
  * @param params target account, operation and private stdin contents
  * @throws {Error} when the account or destination is outside the managed home
  */
@@ -126,7 +125,6 @@ async function runNativeFileCommand(
       'Native file path must remain inside its owning account home',
     );
   }
-  await deployGuestPayload(guest, NATIVE_FILES_MODULE);
   await runGuest(
     guest,
     [
@@ -134,8 +132,10 @@ async function runNativeFileCommand(
       '-u',
       user,
       '--',
-      GUEST_NODE,
-      NATIVE_FILES_PATH,
+      '/bin/sh',
+      '-c',
+      await readAsset(HOME_FILES),
+      'oa-home-files',
       operation,
       home,
       path,

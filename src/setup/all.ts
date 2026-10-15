@@ -1,10 +1,8 @@
-import { installManagedServices } from '#integrations/guest/runtime';
+import { catalog } from '#core/catalog';
+import { markInstallationReady } from '#integrations/guest/install';
 import { traceStage } from '#operation';
-import {
-  nativeConfigurationSteps,
-  runNativeConfigurationSteps,
-} from '#workstation/configuration';
 
+import { installSetupPlan } from './install.js';
 import { setupNetwork } from './network.js';
 import { setupPlugins } from './plugins.js';
 import {
@@ -13,27 +11,20 @@ import {
   setupGithub,
   setupProxy,
   setupAgent,
-  setupTools,
+  stopService,
 } from './sections.js';
 import { exposeWhenServing } from './serving.js';
 
-import type {
-  AllSetupData,
-  EnvironmentSetupData,
-  GitSetupData,
-  GithubSetupData,
-  PluginsSetupData,
-  ProxySetupData,
-  NetworkSetupData,
-  ToolsSetupData,
-} from '#command/data';
+import type { AllSetupData } from '#command/data';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { NativeConfigurationSteps } from '#workstation/configuration';
 
 import type { SetupContext } from './context.js';
 
 /**
- * reconciles all managed guest sections and verify current readiness
+ * reconciles every managed guest section: the setup plan installs the tools,
+ * services and jobs, then the network, accounts, gateway, runtime environment
+ * and plugins are configured, the agent is verified to serve and exposed, and
+ * only then is the installation recorded ready
  * @param guest guest channel of the managed workstation
  * @param context full setup choices, prompts, and redaction values
  * @returns non-secret section outcomes after readiness succeeds
@@ -42,74 +33,54 @@ export async function setupAll(
   guest: GuestChannel,
   context: SetupContext,
 ): Promise<AllSetupData> {
-  const steps = nativeConfigurationSteps({
-    mode: 'setup',
-    initialInstallation: context.initialInstallation,
+  const { interaction, profile } = context;
+  interaction?.progress({
+    stage: 'tools',
+    message: 'Installing the guest environment and managed developer tools',
   });
-  const configured = await configureSetupSections(guest, context, steps);
-  const agent = await finalizeSetupAll(guest, context);
+  if (context.isReleaseChanged) {
+    // the plan's service step starts the stopped agent on the selected release
+    await stopService(guest, catalog.agents[profile.agent].service.name);
+  }
+  await installSetupPlan(context);
+  const configured = await traceStage('setup.native.configuration', async () =>
+    configureSections(guest, context),
+  );
+  await exposeWhenServing(guest, context);
+  await markInstallationReady(guest);
+  // the release was switched by the plan, not by pairing
+  const agent = context.options.withPairCode
+    ? await setupAgent(guest, { ...context, isReleaseChanged: false })
+    : undefined;
 
-  return { ...configured, ...agent };
+  return { tools: 'updated', ...configured, ...agent };
 }
 
 /**
- * Apply the context-specific full setup order through existing section owners.
+ * configures each section in turn through its owner, skipping those this run
+ * opts out of
  * @param guest guest channel of the managed workstation
  * @param context full setup choices and mutation state
- * @param steps context-specific full setup order
- * @returns completed native and service section outcomes
+ * @returns the configured sections' outcomes
  */
-async function configureSetupSections(
+async function configureSections(
   guest: GuestChannel,
   context: SetupContext,
-  steps: NativeConfigurationSteps,
-): Promise<AllSetupData> {
-  let tools!: ToolsSetupData;
-  let network!: NetworkSetupData;
-  let github: GithubSetupData | undefined;
-  let git: GitSetupData | undefined;
-  let proxy!: ProxySetupData;
-  let environment: EnvironmentSetupData | undefined;
-  let plugins: PluginsSetupData | undefined;
-  const handlers = {
-    tools: async (): Promise<void> => {
-      tools = await setupTools(guest, {
-        ...context,
-        options: { ...context.options, update: true },
-      });
-    },
-    network: async (): Promise<void> => {
-      network = await setupNetwork(guest, context);
-    },
-    github: async (): Promise<void> => {
-      if (context.options.github !== false) {
-        github = await setupGithub(guest, context);
-      }
-    },
-    git: async (): Promise<void> => {
-      if (context.options.gitIdentity !== false) {
-        git = await setupGit(guest, context);
-      }
-    },
-    proxy: async (): Promise<void> => {
-      proxy = await setupProxy(guest, context);
-    },
-    environment: async (): Promise<void> => {
-      if (context.options.envFile) {
-        environment = await setupEnvironment(guest, context);
-      }
-    },
-    plugins: async (): Promise<void> => {
-      if (context.options.plugins !== false) {
-        plugins = await setupPlugins(guest, context);
-      }
-    },
-    services: async (): Promise<void> => installServices(guest, context),
-  };
-  await runSetupPhases(steps, handlers);
+): Promise<Omit<AllSetupData, 'tools'>> {
+  const { options } = context;
+  const network = await setupNetwork(guest, context);
+  const github =
+    options.github === false ? undefined : await setupGithub(guest, context);
+  const git =
+    options.gitIdentity === false ? undefined : await setupGit(guest, context);
+  const proxy = await setupProxy(guest, context);
+  const environment = options.envFile
+    ? await setupEnvironment(guest, context)
+    : undefined;
+  const plugins =
+    options.plugins === false ? undefined : await setupPlugins(guest, context);
 
   return {
-    ...tools,
     ...network,
     ...github,
     ...git,
@@ -117,59 +88,4 @@ async function configureSetupSections(
     ...environment,
     ...plugins,
   };
-}
-
-/**
- * installs the managed services; the tools phase has already installed the
- * selected release, which only a restarted agent loads, so the agent restarts
- * when this run changed the release channel
- * @param guest guest channel of the managed workstation
- * @param context full setup choices
- */
-async function installServices(
-  guest: GuestChannel,
-  context: SetupContext,
-): Promise<void> {
-  await installManagedServices(guest, {
-    isAgentRestarted: context.isReleaseChanged,
-  });
-}
-
-/**
- * reports the real ordered setup phases without inventing skipped step work
- * @param steps selected native setup order
- * @param handlers actual section actions
- */
-async function runSetupPhases(
-  steps: NativeConfigurationSteps,
-  handlers: Parameters<typeof runNativeConfigurationSteps>[1],
-): Promise<void> {
-  await traceStage('setup.native.preparation', async () =>
-    runNativeConfigurationSteps(steps.preparation, handlers),
-  );
-  await traceStage('setup.native.configuration', async () =>
-    runNativeConfigurationSteps(steps.configuration, handlers),
-  );
-  await traceStage('setup.native.completion', async () =>
-    runNativeConfigurationSteps(steps.completion, handlers),
-  );
-}
-
-/**
- * Verify services before exposure and mint pairing only when requested.
- * @param guest guest channel of the managed workstation
- * @param context selected setup options and pairing policy
- * @returns optional requested pairing outcome
- */
-async function finalizeSetupAll(
-  guest: GuestChannel,
-  context: SetupContext,
-): Promise<Awaited<ReturnType<typeof setupAgent>> | undefined> {
-  // the configuration steps may have restarted the agent service
-  await exposeWhenServing(guest, context);
-
-  // the release was switched by the configuration steps, not by pairing
-  return context.options.withPairCode
-    ? setupAgent(guest, { ...context, isReleaseChanged: false })
-    : undefined;
 }

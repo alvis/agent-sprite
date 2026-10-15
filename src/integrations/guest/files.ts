@@ -2,17 +2,36 @@ import { posix } from 'node:path';
 
 import { runBoundedIO } from '#operation';
 
-import {
-  currentGuestTransaction,
-  withGuestTransaction,
-} from './transaction.js';
+import { runGuest } from '../guest.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
 import type { GuestFileParams } from './types.js';
 
+/** the radix chmod reads a mode in */
+const OCTAL = 8;
+/** mode of a root file written without one: root's, readable by every account */
+const DEFAULT_MODE = 0o644;
+
 /**
- * writes a guest file atomically with an explicit mode
+ * the root program that replaces a file with its standard input atomically:
+ * the parent is made when missing, the contents land in a private temporary
+ * file beside the target, take their mode, then replace the target; its
+ * arguments are the path and the octal mode
+ */
+const WRITE_PROGRAM = [
+  'umask 022',
+  'oa_directory=$(dirname "$1")',
+  '{ test -d "$oa_directory" || mkdir -p "$oa_directory"; }',
+  'oa_temporary=$(mktemp "$oa_directory/.open-agent-XXXXXXXXXX")',
+  `trap 'rm -f "$oa_temporary"' EXIT`,
+  'cat >"$oa_temporary"',
+  'chmod "$2" "$oa_temporary"',
+  'mv -f "$oa_temporary" "$1"',
+].join(' && ');
+
+/**
+ * writes a root-owned guest file atomically with an explicit mode
  * @param guest target guest
  * @param params destination, contents, and optional permissions
  */
@@ -20,13 +39,13 @@ export async function writeGuestFile(
   guest: GuestChannel,
   params: GuestFileParams,
 ): Promise<void> {
-  assertRootFilePath(params.path);
-  if (params.removeOnRelease && !currentGuestTransaction(guest)) {
-    throw new Error('Transient guest files require an active transaction');
-  }
-  await withGuestTransaction(guest, async () => {
-    await currentGuestTransaction(guest)!.write(params);
-  });
+  const { path, contents, mode = DEFAULT_MODE } = params;
+  assertRootFilePath(path);
+  await runGuest(
+    guest,
+    ['/bin/sh', '-c', WRITE_PROGRAM, 'oa-write', path, mode.toString(OCTAL)],
+    { input: contents, step: 'guest file write' },
+  );
 }
 
 /**
@@ -57,16 +76,11 @@ export async function readGuestFile(
   guest: GuestChannel,
   path: string,
 ): Promise<string> {
-  const transaction = currentGuestTransaction(guest);
-  if (transaction) {
-    return transaction.read(path);
-  }
-
   return runBoundedIO(async () => guest.read(path));
 }
 
 /**
- * checks guest existence through the current filesystem transaction when present
+ * checks whether a guest path exists
  * @param guest exact target guest
  * @param path absolute guest path
  * @returns whether the path exists
@@ -75,15 +89,11 @@ export async function guestFileExists(
   guest: GuestChannel,
   path: string,
 ): Promise<boolean> {
-  const transaction = currentGuestTransaction(guest);
-
-  return transaction
-    ? transaction.exists(path)
-    : runBoundedIO(async () => guest.exists(path));
+  return runBoundedIO(async () => guest.exists(path));
 }
 
 /**
- * removes a root-controlled file through its protected guest executor
+ * removes a root-controlled file, doing nothing when it is absent
  * @param guest exact target guest
  * @param path root-controlled guest path
  */
@@ -92,7 +102,7 @@ export async function removeGuestFile(
   path: string,
 ): Promise<void> {
   assertRootFilePath(path);
-  await withGuestTransaction(guest, async () => {
-    await currentGuestTransaction(guest)!.remove(path);
+  await runGuest(guest, ['rm', '-f', '--', path], {
+    step: 'guest file removal',
   });
 }

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { none } from '#drivers/networks/none/index';
+import { revealSecret } from '#integrations/guest/session/secret';
 import { setupNetwork } from '#setup/network';
 
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
@@ -79,7 +80,9 @@ async function runObservedSetup(params: {
       return Promise.resolve();
     },
     enroll: async (_guest, enrollment) => {
-      calls.push(`enroll:${enrollment.credential}`);
+      calls.push(
+        `enroll:${enrollment.credential ? revealSecret(enrollment.credential) : ''}`,
+      );
 
       return Promise.resolve();
     },
@@ -113,7 +116,6 @@ async function runObservedSetup(params: {
     persistsProfile: false,
     isReleaseChanged: false,
     networkEnrolled: params.enrolled,
-    initialInstallation: false,
     mutation: { started: false },
   };
 
@@ -166,7 +168,6 @@ describe('fn:setupNetwork', () => {
       persistsProfile: false,
       isReleaseChanged: false,
       networkEnrolled: false,
-      initialInstallation: false,
       mutation: { started: false },
     };
 

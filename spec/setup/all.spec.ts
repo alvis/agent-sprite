@@ -57,7 +57,6 @@ describe('fn:setupAll', () => {
       persistsProfile: false,
       isReleaseChanged: false,
       networkEnrolled: false,
-      initialInstallation: false,
       mutation: { started: false },
     };
     await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });

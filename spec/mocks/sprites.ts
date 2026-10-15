@@ -1,4 +1,3 @@
-import { EventEmitter } from 'node:events';
 import {
   access,
   chmod,
@@ -11,7 +10,6 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { PassThrough } from 'node:stream';
 
 import { Sprite, SpriteFilesystem, SpritesClient } from '@fly/sprites';
 import { vi } from 'vitest';
@@ -26,11 +24,11 @@ import {
   removeNativeFile,
   writeNativeFile,
 } from '#guest/native-files';
+import { SetupConnection } from '#integrations/guest/connection';
 
-import type { ChownOptions, ExecResult, SpriteCommand } from '@fly/sprites';
+import type { ChownOptions, ExecResult } from '@fly/sprites';
 
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
-import type { TransactionRequest } from '#integrations/guest/transaction/protocol';
 
 // the agent services core lets a provider stop and restore, as core binds them
 const restorableServices = Object.values(catalog.agents).map(
@@ -53,7 +51,7 @@ const channels = new WeakMap<Sprite, SpriteGuestChannel>();
 
 /**
  * presents an SDK mock through the Sprite driver's guest channel, reusing one
- * channel per Sprite so guest transactions stay keyed to the same target
+ * channel per Sprite so every caller acts on the same target
  * @param sprite SDK mock
  * @returns the driver channel bound to the mock
  */
@@ -107,22 +105,25 @@ export function providerOf(client: SpritesClient): ProviderDriver {
  * binds a provider to one SDK mock and returns the record it would have listed,
  * so provider calls on the record reach the mock without another lookup
  * @param sprite SDK mock
- * @returns the bound provider and the workstation record for the mock
+ * @returns the bound provider, the workstation record for the mock and its setup connection
  */
 export function workstationOf(sprite: Sprite): {
   provider: ProviderDriver;
   workstation: WorkstationRecord;
+  connection: SetupConnection;
 } {
   const workstation = toRecord(sprite);
+  const provider = new SpriteProvider({
+    client: sprite.client,
+    sprites: new WeakMap([[workstation, sprite]]),
+    channels: new Map([[workstation.id, guestOf(sprite)]]),
+    restorableServices,
+  });
 
   return {
-    provider: new SpriteProvider({
-      client: sprite.client,
-      sprites: new WeakMap([[workstation, sprite]]),
-      channels: new Map([[workstation.id, guestOf(sprite)]]),
-      restorableServices,
-    }),
+    provider,
     workstation,
+    connection: new SetupConnection(provider, workstation),
   };
 }
 
@@ -165,9 +166,7 @@ export function createFilesystemSprite(params: FilesystemSpriteParams): Sprite {
         contents: string | Buffer,
         options?: { mode?: number },
       ): Promise<void> => {
-        // a provisioned guest always has its guest root and the cron
-        // directory, and every transaction stages the directories of the
-        // modules it mirrors there
+        // a provisioned guest always has its guest root and the cron directory
         if (
           path.startsWith('/opt/open-agent/') ||
           path.startsWith('/etc/cron.d/')
@@ -225,190 +224,9 @@ export function createFilesystemSprite(params: FilesystemSpriteParams): Sprite {
         return native ?? execute(file, args, options);
       },
     ),
-    spawn: vi.fn<Sprite['spawn']>((_command, args = []) =>
-      createSdkTransactionStream(sprite, filesystem, args.at(-1) === '1'),
-    ),
   } satisfies Partial<Sprite>);
 
   return sprite;
-}
-
-/**
- * forwards framed transaction primitives to the existing SDK unit boundary
- * without simulating flock, worker scheduling, or guest process ownership
- * @param sprite SDK mock with real temporary filesystem handlers
- * @param filesystem existing SDK filesystem mock
- * @param _bootstrap whether missing managed Node may be bootstrapped
- * @returns an SDK command-shaped stream for the host transaction client
- */
-function createSdkTransactionStream(
-  sprite: Sprite,
-  filesystem: SpriteFilesystem,
-  _bootstrap: boolean,
-): SpriteCommand {
-  const stdin = new PassThrough();
-  const stdout = new PassThrough();
-  const stderr = new PassThrough();
-  const shape = {
-    stdin,
-    stdout,
-    stderr,
-    close: vi.fn(() => {
-      closed = true;
-      stdout.end();
-      stderr.end();
-    }),
-  } satisfies Partial<SpriteCommand>;
-  const command = Object.assign(new EventEmitter(), shape);
-  let closed = false;
-  let buffer = '';
-  let payloads = 3;
-  let begun = false;
-  let ready = false;
-  let ended = false;
-  let pending = 0;
-  const transient = new Set<string>();
-  const emit = (event: object): void => {
-    if (!closed) {
-      stdout.write(`${JSON.stringify(event)}\n`);
-    }
-  };
-  const release = async (): Promise<void> => {
-    if (closed || !ended || pending > 0 || !ready) {
-      return;
-    }
-    const cleanup = await Promise.allSettled(
-      [...transient].map(async (path) => filesystem.rm(path, { force: true })),
-    );
-    emit({
-      type: 'released',
-      cleanupFailed: cleanup.some((result) => result.status === 'rejected'),
-    });
-  };
-  const accept = (request: TransactionRequest & { id: number }): void => {
-    emit({ type: 'accepted', id: request.id });
-    pending++;
-    void dispatchSdkTransaction({ sprite, filesystem, request, transient })
-      .then(
-        (result) => emit({ type: 'settled', id: request.id, result }),
-        (error: NodeJS.ErrnoException) =>
-          emit({
-            type: 'settled',
-            id: request.id,
-            failure: error.code ?? 'FAILED',
-          }),
-      )
-      .finally(() => {
-        pending--;
-        void release();
-      });
-  };
-  stdin.setEncoding('utf8');
-  stdin.on('data', (chunk: string) => {
-    buffer += chunk;
-    for (;;) {
-      const newline = buffer.indexOf('\n');
-      if (newline < 0) {
-        break;
-      }
-      const line = buffer.slice(0, newline);
-      buffer = buffer.slice(newline + 1);
-      if (!begun) {
-        begun = line === 'begin';
-        continue;
-      }
-      if (payloads > 0) {
-        payloads--;
-        if (payloads === 0) {
-          ready = true;
-          emit({ type: 'ready', installed: false });
-        }
-        continue;
-      }
-      const frame: unknown = JSON.parse(line);
-      if (
-        typeof frame === 'object' &&
-        frame !== null &&
-        'type' in frame &&
-        frame.type !== 'heartbeat'
-      ) {
-        accept(frame as TransactionRequest & { id: number });
-      }
-    }
-  });
-  stdin.on('end', () => {
-    ended = true;
-    void release();
-  });
-  queueMicrotask(() => stdout.write('locked\n'));
-
-  return command as Pick<
-    SpriteCommand,
-    'stdin' | 'stdout' | 'stderr' | 'close'
-  > as SpriteCommand;
-}
-
-/**
- * maps one accepted request to the SDK methods already backed by temp files
- * @param params SDK command and filesystem dispatch inputs
- * @param params.sprite mocked SDK guest
- * @param params.filesystem mocked SDK filesystem
- * @param params.request framed primitive and request ID
- * @param params.transient paths cleaned when the stream closes
- * @returns primitive result after the existing SDK handler settles
- */
-async function dispatchSdkTransaction(params: {
-  sprite: Sprite;
-  filesystem: SpriteFilesystem;
-  request: TransactionRequest & { id: number };
-  transient: Set<string>;
-}): Promise<object> {
-  const { sprite, filesystem, request, transient } = params;
-  switch (request.type) {
-    case 'run': {
-      const [file, ...args] = request.argv;
-      const options = { input: request.input, env: request.env };
-      const result =
-        request.input === undefined
-          ? await sprite.execFile(
-              '/usr/bin/sudo',
-              ['-n', '-E', '--', file!, ...args],
-              options,
-            )
-          : await sprite.execFileHTTP(
-              '/usr/bin/sudo',
-              ['-n', '-E', '--', file!, ...args],
-              options,
-            );
-
-      return {
-        stdout: String(result.stdout),
-        stderr: String(result.stderr),
-        exitCode: result.exitCode,
-      };
-    }
-    case 'read':
-      return {
-        contents: String(await filesystem.readFile(request.path, 'utf8')),
-      };
-    case 'exists':
-      return { exists: await filesystem.exists(request.path) };
-    case 'write':
-      if (request.removeOnRelease) {
-        transient.add(request.path);
-      }
-      await filesystem.writeFile(request.path, request.contents, {
-        mode: request.mode,
-      });
-
-      return {};
-    case 'remove':
-      await filesystem.rm(request.path, { force: true, asRoot: true });
-
-      return {};
-    default:
-      throw new Error('Unexpected transaction request');
-  }
 }
 
 /**

@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
 import { buildApplication, buildRouteMap } from '@stricli/core';
 
 import { catalog } from '#core/catalog';
+import { OPEN_AGENT_VERSION } from '#utilities/version';
 
 import { commandRoutes } from './commands.js';
 import { emitResult } from './execute.js';
@@ -67,16 +67,7 @@ function createApplication(
     ),
     {
       name: 'open-agent',
-      versionInfo: {
-        currentVersion: (
-          JSON.parse(
-            readFileSync(
-              new URL('../../package.json', import.meta.url),
-              'utf8',
-            ),
-          ) as { version: string }
-        ).version,
-      },
+      versionInfo: { currentVersion: OPEN_AGENT_VERSION },
       localization: { text: applicationText(state) },
       scanner: { caseStyle: 'allow-kebab-for-camel' },
       documentation: {

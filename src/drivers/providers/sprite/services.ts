@@ -1,5 +1,4 @@
 import { CommandFault, ensureError, retainRecoveryFailure } from '#errors';
-import { guestServiceRequest } from '#integrations/guest/transaction';
 import { recoverOperation, runBoundedIO } from '#operation';
 
 import { callSprites } from './failures.js';
@@ -20,7 +19,6 @@ import type {
 } from '@fly/sprites';
 
 import type {
-  GuestChannel,
   GuestServiceControl,
   GuestServiceState,
   ServiceDefinition,
@@ -29,12 +27,10 @@ import type {
 const REPLACEMENT_STARTUP_WINDOW = '5s';
 const STOP_TIMEOUT = '15s';
 
-/** binds service control to one Sprite and the channel guarding its IO */
+/** binds service control to one Sprite */
 export interface SpriteServiceControlParams {
   /** exact target Sprite */
   sprite: Sprite;
-  /** guest channel whose transaction guards every service request */
-  channel: GuestChannel;
   /**
    * managed services this control may stop and restore while replacing a
    * service they depend on; core supplies them
@@ -45,16 +41,14 @@ export interface SpriteServiceControlParams {
 /** native Sprite service supervision behind the provider-neutral contract */
 export class SpriteServiceControl implements GuestServiceControl {
   readonly #sprite: Sprite;
-  readonly #channel: GuestChannel;
   readonly #restorable: readonly string[];
 
   /**
    * binds service requests to one Sprite
-   * @param params exact Sprite and owning channel
+   * @param params exact Sprite and the services it may restore
    */
   constructor(params: SpriteServiceControlParams) {
     this.#sprite = params.sprite;
-    this.#channel = params.channel;
     this.#restorable = params.restorableServices;
   }
 
@@ -63,7 +57,7 @@ export class SpriteServiceControl implements GuestServiceControl {
    * @returns current services
    */
   public async list(): Promise<GuestServiceState[]> {
-    return readServiceRegistry(this.#channel, this.#sprite);
+    return readServiceRegistry(this.#sprite);
   }
 
   /**
@@ -137,16 +131,16 @@ export class SpriteServiceControl implements GuestServiceControl {
   }
 
   /**
-   * starts one service request only while the surrounding transaction is healthy
+   * starts one service request, mapping SDK failures to provider faults
    * @param request SDK service request
    * @returns request outcome
    */
   async #request<T>(request: () => Promise<T>): Promise<T> {
-    return guestServiceRequest(this.#channel, async () => callSprites(request));
+    return callSprites(request);
   }
 
   /**
-   * opens one service event stream under the transaction guard
+   * opens one service event stream
    * @param request SDK request returning a service event stream
    * @returns stream owned by the current invocation
    */

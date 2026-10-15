@@ -1,4 +1,3 @@
-import { withGuestTransaction } from '#integrations/guest/transaction';
 import {
   ensurePrivateDirectory,
   readJsonObject,
@@ -49,22 +48,20 @@ async function installClaudeHooks(
   guest: GuestChannel,
   command: AwakeHookCommand,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    await ensurePrivateDirectory(guest, CLAUDE_CONFIG_DIR);
-    const current = await readJsonObject(guest, CLAUDE_SETTINGS);
-    const next = {
-      ...current,
-      hooks: mergeWorkHooks(current.hooks, {
-        owned: CLAUDE_WORK_HOOKS,
-        command,
-      }),
-    };
-    await writeOwnedFile(
-      guest,
-      CLAUDE_SETTINGS,
-      `${JSON.stringify(next, null, 2)}\n`,
-    );
-  });
+  await ensurePrivateDirectory(guest, CLAUDE_CONFIG_DIR);
+  const current = await readJsonObject(guest, CLAUDE_SETTINGS);
+  const next = {
+    ...current,
+    hooks: mergeWorkHooks(current.hooks, {
+      owned: CLAUDE_WORK_HOOKS,
+      command,
+    }),
+  };
+  await writeOwnedFile(
+    guest,
+    CLAUDE_SETTINGS,
+    `${JSON.stringify(next, null, 2)}\n`,
+  );
 }
 
 /** idle-governor hooks of Claude Code */

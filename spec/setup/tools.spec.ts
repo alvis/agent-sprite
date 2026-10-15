@@ -21,7 +21,7 @@ import {
   persistSetupProfile,
   profileUpdateSelected,
 } from '#setup/integrations';
-import { setupTools } from '#setup/sections';
+import { setupTools } from '#setup/tools';
 
 import { driveInk } from '../fixtures/ink.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
@@ -76,7 +76,6 @@ function toolsContext(
     persistsProfile: run.persists,
     isReleaseChanged: false,
     networkEnrolled: false,
-    initialInstallation: false,
     mutation: { started: false },
   };
 }
@@ -193,7 +192,6 @@ describe('fn:setupTools --update', () => {
       persistsProfile: false,
       isReleaseChanged: false,
       networkEnrolled: false,
-      initialInstallation: true,
       mutation: { started: false },
     };
 

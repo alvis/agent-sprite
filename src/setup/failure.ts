@@ -2,6 +2,7 @@ import { commandError, ensureError, retainRecoveryFailure } from '#errors';
 import { InteractionExit } from '#navigation';
 import { recoverOperation } from '#operation';
 import { ReadinessFault } from '#readiness';
+import { OPEN_AGENT_VERSION } from '#utilities/version';
 
 import type { CommandResult } from '#command';
 import type { SetupSection } from '#command/contracts';
@@ -94,7 +95,10 @@ async function recoverIncompleteLabel(
 ): Promise<'confirmed' | 'unconfirmed'> {
   try {
     await recoverOperation(async () =>
-      provider.setMetadata(workstation, { setup: 'incomplete' }),
+      provider.setMetadata(workstation, {
+        setup: 'incomplete',
+        version: OPEN_AGENT_VERSION,
+      }),
     );
 
     return 'confirmed';

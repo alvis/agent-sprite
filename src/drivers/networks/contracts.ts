@@ -1,3 +1,4 @@
+import type { Secret } from '#integrations/guest/session/secret';
 import type { GuestAsset } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
@@ -99,8 +100,8 @@ export type NetworkIdentityRecorder = (
 export interface NetworkEnrollParams {
   /** device name the workstation registers under */
   hostname: string;
-  /** single-use enrolment credential when the guest is not registered */
-  credential?: string;
+  /** single-use enrolment credential when the guest is not registered, delivered as setup session input */
+  credential?: Secret;
   /** selected exit node or native selector; absent for direct routing */
   exitNode?: NetworkExitNode | string;
   /** persists the observed device identity once enrolment is confirmed */

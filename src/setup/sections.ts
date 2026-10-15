@@ -8,13 +8,9 @@ import { selectedChannel } from '#core/release-channels';
 import { pairAgent } from '#core/services';
 import { CommandFault } from '#errors';
 import { resolveInputs } from '#input';
-import { assertGuestProfile } from '#integrations/guest/manifest';
-import {
-  installGuestTools,
-  installManagedServices,
-  readGuestManifest,
-} from '#integrations/guest/runtime';
-import { withGuestTransaction } from '#integrations/guest/transaction';
+import { assertGuestProfile } from '#integrations/guest/environment-store';
+import { markInstallationReady } from '#integrations/guest/install';
+import { Secret } from '#integrations/guest/session/secret';
 import {
   configureGit,
   configureGithub,
@@ -23,20 +19,17 @@ import {
 import { promptUnavailableDetail } from '#operation';
 import { PairingSecret } from '#utilities/pairing-secret';
 
+import { installSetupPlan } from './install.js';
 import { exposeWhenServing } from './serving.js';
 
-import type { Interaction } from '#command/contracts';
 import type {
   AgentSetupData,
-  ComponentCounts,
   GithubSetupData,
   GitSetupData,
   ProxySetupData,
   EnvironmentSetupData,
-  ToolsSetupData,
 } from '#command/data';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GuestManifest } from '#integrations/guest/runtime';
 
 import type { SetupContext } from './context.js';
 
@@ -51,12 +44,12 @@ export async function setupAgent(
   guest: GuestChannel,
   context: SetupContext,
 ): Promise<AgentSetupData> {
-  const { options, interaction, mutation, profile } = context;
+  const { options, interaction, profile } = context;
   if (context.isReleaseChanged) {
     await switchAgentRelease(guest, context);
   } else if (!options.withPairCode) {
-    mutation.started = true;
-    await installManagedServices(guest);
+    await installSetupPlan(context);
+    await markInstallationReady(guest);
   }
   if (!options.withPairCode) {
     return { service: 'configured', pairing: { status: 'not requested' } };
@@ -78,8 +71,9 @@ export async function setupAgent(
 
 /**
  * installs the release the selected channel currently publishes, which is a
- * downgrade when the channel is older, restarts the agent service so it runs
- * that release, then waits for the agent to serve and exposes it
+ * downgrade when the channel is older: the agent service is stopped first, so
+ * the plan's service step starts it on that release, then the agent is waited
+ * for to serve and exposed
  * @param guest guest channel of the managed workstation
  * @param context selection already stored with the selected channel, prompts and mutation state
  */
@@ -88,7 +82,8 @@ async function switchAgentRelease(
   context: SetupContext,
 ): Promise<void> {
   const { interaction, mutation, profile } = context;
-  const { displayName, releaseChannels } = catalog.agents[profile.agent];
+  const { displayName, releaseChannels, service } =
+    catalog.agents[profile.agent];
   const channel = selectedChannel(
     releaseChannels,
     profile.options.agentRelease,
@@ -98,9 +93,34 @@ async function switchAgentRelease(
     message: `Installing the ${channel?.id ?? 'selected'} release of ${displayName}; this may take several minutes`,
   });
   mutation.started = true;
-  await installGuestTools(guest, profile);
-  await installManagedServices(guest, { isAgentRestarted: true });
+  await stopService(guest, service.name);
+  await installSetupPlan(context);
+  await markInstallationReady(guest);
   await exposeWhenServing(guest, context);
+}
+
+/**
+ * stops a service when it runs
+ * @param guest guest channel of the managed workstation
+ * @param name service name as the backend lists it
+ * @throws {CommandFault} when the service reports a stop failure
+ */
+export async function stopService(
+  guest: GuestChannel,
+  name: string,
+): Promise<void> {
+  const services = await guest.services.list();
+  if (
+    services.some(
+      (entry) => entry.name === name && entry.status === 'running',
+    ) &&
+    !(await guest.services.stop(name))
+  ) {
+    throw new CommandFault({
+      code: 'PROVIDER',
+      message: `The ${name} service reported a stop failure`,
+    });
+  }
 }
 
 /**
@@ -122,7 +142,7 @@ export async function setupGithub(
     return { github: 'skipped' };
   }
   mutation.started = true;
-  await configureGithub(guest, input.githubToken, {
+  await configureGithub(guest, Secret.fromHost('github', input.githubToken), {
     hostname: options.githubHost,
     shellAccounts: catalog.providers[context.profile.provider].shellAccounts,
   });
@@ -170,31 +190,29 @@ export async function setupProxy(
   guest: GuestChannel,
   context: SetupContext,
 ): Promise<ProxySetupData> {
-  return withGuestTransaction(guest, async () => {
-    const { input, profile, mutation } = context;
-    const { isProxyEnabled } = profile.options;
-    await assertGuestProfile(guest, profile);
-    if (isProxyEnabled && (!input.proxyUrl || !input.proxyApiKey)) {
-      throw new Error('Validated CLIProxyAPI inputs were unavailable');
-    }
-    mutation.started = true;
-    const drivers = harnessDrivers(profile.harnesses);
-    await configureHarnesses(guest, {
+  const { input, profile, mutation } = context;
+  const { isProxyEnabled } = profile.options;
+  await assertGuestProfile(guest, profile);
+  if (isProxyEnabled && (!input.proxyUrl || !input.proxyApiKey)) {
+    throw new Error('Validated CLIProxyAPI inputs were unavailable');
+  }
+  mutation.started = true;
+  const drivers = harnessDrivers(profile.harnesses);
+  await configureHarnesses(guest, {
+    drivers,
+    proxy: proxyRoute({
+      enabled: isProxyEnabled,
+      url: input.proxyUrl,
+      apiKey: input.proxyApiKey,
       drivers,
-      proxy: proxyRoute({
-        enabled: isProxyEnabled,
-        url: input.proxyUrl,
-        apiKey: input.proxyApiKey,
-        drivers,
-      }),
-    });
-
-    return {
-      proxy: isProxyEnabled
-        ? { status: 'configured', baseUrl: input.proxyUrl }
-        : { status: 'disabled' },
-    };
+    }),
   });
+
+  return {
+    proxy: isProxyEnabled
+      ? { status: 'configured', baseUrl: input.proxyUrl }
+      : { status: 'disabled' },
+  };
 }
 
 /**
@@ -241,115 +259,4 @@ export async function setupEnvironment(
       names: Object.keys(input.runtimeEnv),
     },
   };
-}
-
-/**
- * refreshes managed developer tools on the guest; an update also redeploys the
- * update entry, while viewing recorded versions changes nothing
- * @param guest guest channel of the managed workstation
- * @param context parsed update flag, prompts, and mutation state
- * @returns tool update outcome
- */
-export async function setupTools(
-  guest: GuestChannel,
-  context: SetupContext,
-): Promise<ToolsSetupData> {
-  const { options, interaction, profile, mutation } = context;
-  // a changed due interval was stored before this section ran;
-  // with nothing else asked for and nobody to ask, that is the whole outcome
-  if (context.persistsProfile && !options.update && !interaction) {
-    return { tools: 'scheduled' };
-  }
-  if (!options.update && !interaction) {
-    throw new CommandFault({
-      code: 'USAGE',
-      message: [
-        'Non-interactive tools setup requires --update',
-        promptUnavailableDetail(),
-      ]
-        .filter(Boolean)
-        .join('. '),
-    });
-  }
-  const action = options.update
-    ? 'update'
-    : await selectToolsAction(interaction!);
-  if (action === 'versions') {
-    const manifest = await readGuestManifest(guest);
-
-    return {
-      tools: {
-        status: 'recorded versions',
-        installedVersions: manifest.installedVersions,
-        lastSuccessfulUpdate: manifest.lastSuccessfulUpdate,
-      },
-    };
-  }
-  if (
-    interaction &&
-    !options.update &&
-    !options.yes &&
-    !(await interaction.confirm({
-      message:
-        'Install latest stable tools now? Running services are not restarted.',
-    }))
-  ) {
-    return { tools: 'unchanged' };
-  }
-  interaction?.progress({
-    stage: 'tools',
-    message:
-      'Installing latest stable tools in place; this may take several minutes',
-  });
-  mutation.started = true;
-  const outcomes = await installGuestTools(guest, profile);
-
-  return outcomes
-    ? { tools: 'updated', components: countOutcomes(outcomes) }
-    : { tools: 'updated' };
-}
-
-/**
- * summarizes an install run as counts of changed and already-current components
- * @param outcomes what the run did to each component
- * @returns how many components were installed and how many were skipped
- */
-function countOutcomes(
-  outcomes: NonNullable<GuestManifest['componentOutcomes']>,
-): ComponentCounts {
-  const statuses = Object.values(outcomes).map(({ status }) => status);
-
-  return {
-    installed: statuses.filter((status) => status === 'installed').length,
-    skipped: statuses.filter((status) => status === 'skipped').length,
-  };
-}
-
-/**
- * chooses recorded versions or an explicit tool mutation
- * @param interaction active managed-tools menu
- * @returns selected tools action
- */
-async function selectToolsAction(interaction: Interaction): Promise<string> {
-  return interaction.select(
-    {
-      message: 'Managed tools',
-      description:
-        'Viewing versions makes no changes. Updating installs latest stable tools in place and never restarts a running service.',
-    },
-    [
-      {
-        value: 'versions',
-        label: 'View recorded installed versions',
-        description:
-          'Versions captured by the last successful installation/update',
-      },
-      {
-        value: 'update',
-        label: 'Update tools now',
-        description:
-          'May take several minutes; running services keep their current process',
-      },
-    ],
-  );
 }

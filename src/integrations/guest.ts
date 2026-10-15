@@ -3,7 +3,7 @@ import { posix } from 'node:path';
 import { CommandFault } from '#errors';
 
 import { sanitizeGuestDiagnostic } from './guest/diagnostics.js';
-import { currentGuestTransaction } from './guest/transaction.js';
+import { runSessionCommand } from './guest/session-guest.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
@@ -54,10 +54,11 @@ export async function runGuest(
 }
 
 /**
- * returns a bounded guest command's exit status without exposing output in errors
+ * returns a bounded guest command's exit status without exposing output in
+ * errors; a secret input needs a channel that runs over a setup session
  * @param guest target guest
  * @param argv executable and argument array
- * @param options command input, environment, and timeout
+ * @param options command input or secret, environment, and timeout
  * @returns captured output and exit status
  */
 export async function runGuestResult(
@@ -65,13 +66,21 @@ export async function runGuestResult(
   argv: readonly string[],
   options: GuestRunOptions = {},
 ): Promise<GuestCommandResult> {
-  const transaction = currentGuestTransaction(guest);
-  if (transaction) {
-    return transaction.run(argv, options);
-  }
   const [file, ...args] = argv;
   if (!file) {
     throw new Error('Guest command must contain an executable');
+  }
+  if (options.secret) {
+    return runSessionCommand(
+      guest,
+      {
+        program: file,
+        arguments: args,
+        environment: options.env,
+        timeoutMs: options.timeoutMs,
+      },
+      { kind: 'secret', ...options.secret },
+    );
   }
 
   return guest.exec({

@@ -1,36 +1,24 @@
-import { readAsset } from '#guest/assets';
-import { GUEST_ROOT } from '#guest/guest-root';
-import {
-  guestFileExists,
-  removeGuestFile,
-  runGuest,
-  writeGuestFile,
-} from '#integrations/guest';
-import { checkOperation, recoverOperation } from '#operation';
+import { guestFileExists, runGuest } from '#integrations/guest';
 
-import { tailscaleDaemon, tailscaleLauncher } from './service.js';
+import {
+  tailscaleCommand,
+  tailscaleDaemon,
+  tailscaleLauncher,
+} from './service.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { Secret } from '#integrations/guest/session/secret';
 
-const ENROLLMENT_KEY_MODE = 0o600;
 const ENROLLMENT_TIMEOUT_MS = 120_000;
 
 /**
- * prepares writable native DNS and supervises the persistent Tailscale daemon
+ * supervises the persistent Tailscale daemon, whose launcher setup installed
+ * and which prepares writable native DNS each time it starts
  * @param guest target guest with confirmed unrestricted networking
  */
 export async function ensureTailnetDaemon(guest: GuestChannel): Promise<void> {
-  const { asset } = tailscaleLauncher;
   await runGuest(guest, ['/usr/bin/test', '-c', '/dev/net/tun']);
   await guest.assertUnrestrictedNetwork();
-  await writeGuestFile(guest, {
-    path: asset.installAs,
-    contents: await readAsset(asset),
-    mode: asset.mode,
-  });
-  await runGuest(guest, ['/bin/sh', asset.installAs, '--prepare'], {
-    step: 'tailscale launcher prepare',
-  });
   await guest.services.ensure(tailscaleDaemon);
 }
 
@@ -52,7 +40,7 @@ export async function restoreTailnetDns(guest: GuestChannel): Promise<void> {
 /** credential, exit-node selector and device name for one enrollment */
 export interface TailnetEnrollParams {
   /** single-use enrollment credential */
-  authKey: string;
+  authKey: Secret;
   /** requested exit-node selector */
   selected: string;
   /** tailnet device hostname */
@@ -60,8 +48,15 @@ export interface TailnetEnrollParams {
 }
 
 /**
- * enrolls a guest and bounds removal of its transient enrollment credential
- * @param guest target guest
+ * the program that enrols with the key file the session wrote for it, which
+ * the session removes once the command ends; its arguments are the CLI's
+ */
+const ENROLL_PROGRAM = 'exec "$@" --auth-key="file:$OPEN_AGENT_SECRET_FILE"';
+
+/**
+ * enrolls a guest with its single-use credential, delivered as a private
+ * session file that never outlives the command
+ * @param guest target guest, running over a setup session
  * @param params enrollment credential, exit-node selector and device name
  */
 export async function enrollTailnet(
@@ -69,33 +64,25 @@ export async function enrollTailnet(
   params: TailnetEnrollParams,
 ): Promise<void> {
   const { authKey, selected, hostname } = params;
-  const keyPath = `${GUEST_ROOT}/tailscale-enrollment.key`;
-  await writeGuestFile(guest, {
-    path: keyPath,
-    contents: `${authKey}\n`,
-    mode: ENROLLMENT_KEY_MODE,
-    removeOnRelease: true,
-  });
-  try {
-    await runGuest(
-      guest,
-      [
-        `${GUEST_ROOT}/tools/tailscale`,
+  await runGuest(
+    guest,
+    [
+      '/bin/sh',
+      '-c',
+      ENROLL_PROGRAM,
+      'oa-tailscale-up',
+      ...tailscaleCommand(
         'up',
-        `--auth-key=file:${keyPath}`,
         `--exit-node=${selected}`,
         '--exit-node-allow-lan-access=false',
         '--accept-routes=false',
         `--hostname=${hostname}`,
-      ],
-      { timeoutMs: ENROLLMENT_TIMEOUT_MS },
-    );
-  } finally {
-    await recoverOperation(async () => removeGuestFile(guest, keyPath)).catch(
-      (error: unknown) => {
-        checkOperation();
-        throw error;
-      },
-    );
-  }
+      ),
+    ],
+    {
+      secret: { value: authKey, as: 'shm-file' },
+      timeoutMs: ENROLLMENT_TIMEOUT_MS,
+      step: 'tailscale up',
+    },
+  );
 }

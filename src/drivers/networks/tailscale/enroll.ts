@@ -1,9 +1,8 @@
-import { GUEST_ROOT } from '#guest/guest-root';
 import { runGuest, runGuestResult } from '#integrations/guest';
-import { withGuestTransaction } from '#integrations/guest/transaction';
 import { isRecord } from '#utilities/guards';
 
 import { ensureTailnetDaemon, enrollTailnet } from './daemon.js';
+import { tailscaleCommand } from './service.js';
 import { inspectTailscale } from './status.js';
 
 import type { NetworkEnrollParams, NetworkExitNode } from '#drivers/contracts';
@@ -12,7 +11,7 @@ import type { GuestChannel } from '#drivers/guest-channel';
 import type { TailnetStatus } from './types.js';
 
 /**
- * starts the persistent Tailscale daemon and enrols through a transient key file
+ * starts the persistent Tailscale daemon and enrols through a session key file
  * @param guest target guest
  * @param enrollment device hostname, enrolment credential and exit-node choice
  */
@@ -21,15 +20,13 @@ export async function enrollTailscale(
   enrollment: NetworkEnrollParams,
 ): Promise<void> {
   const { exitNode, recordIdentity } = enrollment;
-  await withGuestTransaction(guest, async () => {
-    await ensureTailnetDaemon(guest);
-    await selectTailnetExitNode(guest, enrollment);
-    const status = await inspectTailscale(guest);
-    assertTailnetReady(status, exitNode);
-    await recordIdentity({
-      deviceId: status.deviceId,
-      ip: status.ip,
-    });
+  await ensureTailnetDaemon(guest);
+  await selectTailnetExitNode(guest, enrollment);
+  const status = await inspectTailscale(guest);
+  assertTailnetReady(status, exitNode);
+  await recordIdentity({
+    deviceId: status.deviceId,
+    ip: status.ip,
   });
 }
 
@@ -45,28 +42,25 @@ async function selectTailnetExitNode(
   const { hostname, credential, exitNode } = enrollment;
   const selected =
     typeof exitNode === 'string' ? exitNode : (exitNode?.ip ?? '');
-  const current = await runGuestResult(guest, [
-    `${GUEST_ROOT}/tools/tailscale`,
-    'status',
-    '--json',
-  ]);
+  const current = await runGuestResult(
+    guest,
+    tailscaleCommand('status', '--json'),
+  );
   const status: unknown =
     current.exitCode === 0 ? JSON.parse(current.stdout) : undefined;
   const enrolled =
     isRecord(status) && isRecord(status.Self) && Boolean(status.Self.ID);
   if (enrolled) {
-    await runGuest(guest, [
-      `${GUEST_ROOT}/tools/tailscale`,
-      'set',
-      '--accept-dns=false',
-    ]);
-    await runGuest(guest, [
-      `${GUEST_ROOT}/tools/tailscale`,
-      'set',
-      `--exit-node=${selected}`,
-      '--exit-node-allow-lan-access=false',
-      '--accept-dns=true',
-    ]);
+    await runGuest(guest, tailscaleCommand('set', '--accept-dns=false'));
+    await runGuest(
+      guest,
+      tailscaleCommand(
+        'set',
+        `--exit-node=${selected}`,
+        '--exit-node-allow-lan-access=false',
+        '--accept-dns=true',
+      ),
+    );
 
     return;
   }

@@ -1,3 +1,5 @@
+import { readAsset } from '#guest/assets';
+
 import { BOOT_HOOK, BOOT_HOOK_ON_VOLUME } from './boot-layout.js';
 
 import type {
@@ -39,6 +41,18 @@ export interface BootHookStepParams {
   hook: string;
   /** ids of steps the boot hook step needs, such as the one installing the guest libraries it calls */
   needs?: readonly string[];
+}
+
+/**
+ * builds the boot hook step from the hook the package ships, so a rebuilt
+ * root filesystem is restored on boot
+ * @param needs ids of the steps installing the libraries the hook sources
+ * @returns a step that installs the hook and runs it once
+ */
+export async function flyBootHookStep(
+  needs: readonly string[],
+): Promise<SetupStep> {
+  return bootHookStep({ hook: await readAsset(BOOT_HOOK), needs });
 }
 
 /**

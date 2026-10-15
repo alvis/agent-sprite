@@ -6,6 +6,7 @@ import type {
   WorkstationRecord,
 } from '#drivers/contracts';
 import type { ResolvedInputs } from '#input/types';
+import type { SetupConnection } from '#integrations/guest/connection';
 
 /** records whether guest mutations began during this setup invocation */
 export interface SetupProgress {
@@ -18,6 +19,8 @@ export interface SetupContext {
   provider: ProviderDriver;
   /** managed workstation selected for this run */
   workstation: WorkstationRecord;
+  /** the root setup session the run's guest commands and plan share */
+  connection: SetupConnection;
   options: CommandOptions;
   interaction?: Interaction;
   input: ResolvedInputs;
@@ -29,7 +32,6 @@ export interface SetupContext {
   isReleaseChanged: boolean;
   /** whether the guest already holds a device identity on the selected network */
   networkEnrolled: boolean;
-  initialInstallation: boolean;
   verifiedExitNode?: NetworkExitNode;
   mutation: SetupProgress;
 }

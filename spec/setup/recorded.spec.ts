@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { isNetworkEnrolled } from '#setup/recorded';
 
+import { environmentOf } from '../fixtures/environment.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 
 import type { NetworkStatus } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GuestManifest } from '#integrations/guest/types';
+import type { GuestEnvironment } from '#integrations/guest/environment';
 
 const status = vi.hoisted(() => ({
   current: vi.fn<() => Promise<NetworkStatus>>(),
@@ -19,13 +20,9 @@ vi.mock('#core/networks', async (importOriginal) => ({
 
 const guest =
   {} satisfies Partial<GuestChannel> as Partial<GuestChannel> as GuestChannel;
-const recorded: GuestManifest = {
-  schema: 1,
-  createdAt: '2026-10-09T00:00:00Z',
-  installedVersions: {},
-  profile: DISABLED_NETWORK_PROFILE,
+const recorded: GuestEnvironment = environmentOf(DISABLED_NETWORK_PROFILE, {
   networkIdentity: { network: 'none', deviceId: 'nOLD' },
-};
+});
 const target = { isTargeted: true, profile: DISABLED_NETWORK_PROFILE };
 
 describe('fn:isNetworkEnrolled', () => {

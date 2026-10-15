@@ -1,4 +1,5 @@
 import { summarizeProfile } from '#drivers/providers/recorded';
+import { OPEN_AGENT_VERSION } from '#utilities/version';
 
 import type { SetupSection } from '#command/contracts';
 import type { ProfileSummary } from '#core/profile';
@@ -8,9 +9,10 @@ import type { RecordedProfile } from '#drivers/providers/recorded';
 import type { SetupContext } from './context.js';
 
 /**
- * records setup readiness and the persisted profile summary in provider
- * metadata; a run that changes only options the summary omits, such as the
- * update due interval, leaves the metadata as it is
+ * records setup readiness, the persisted profile summary and the open-agent
+ * version in provider metadata; a run that changes only options the summary
+ * omits, such as the update due interval, leaves the metadata as it is unless
+ * it recorded another version
  * @param section setup area that completed
  * @param context provider, workstation, persisted profile and whether this run changed it
  * @returns the workstation as recorded after setup
@@ -24,6 +26,7 @@ export async function recordSetupMetadata(
   const summary = summarizeProfile(context.profile);
   if (
     !isComplete &&
+    workstation.metadata.version === OPEN_AGENT_VERSION &&
     (!context.persistsProfile ||
       isSameSummary(workstation.metadata.profile, summary))
   ) {
@@ -33,6 +36,7 @@ export async function recordSetupMetadata(
   return provider.setMetadata(workstation, {
     setup: isComplete ? 'ready' : workstation.metadata.setup,
     profile: summary,
+    version: OPEN_AGENT_VERSION,
   });
 }
 

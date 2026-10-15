@@ -9,12 +9,14 @@ import { resolveSecret } from '#input/sources';
 import { PairingSecret } from '#utilities/pairing-secret';
 import { rememberSecret } from '#utilities/redaction';
 
+import { environmentOf } from '../fixtures/environment.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 
 import type { CommandOptions, CommandResult } from '#command';
 import type { CurrentReadiness } from '#command/data';
 import type { GovernorState } from '#guest/idle/state';
 import type { GuestInspection } from '#integrations/guest/runtime';
+import type { UpdateToolOutcome } from '#integrations/guest/updates';
 import type { MachineSummary } from '#machine';
 
 const machine: MachineSummary & { provider: 'sprite' } = {
@@ -79,15 +81,20 @@ const inspection: GuestInspection = {
     reachable: false,
     reason: 'CLIProxyAPI is disabled',
   },
-  manifest: {
-    schema: 1,
-    createdAt: '2026-10-09T00:00:00.000Z',
-    installedVersions: {},
-    profile: DISABLED_NETWORK_PROFILE,
-  },
+  environment: environmentOf(DISABLED_NETWORK_PROFILE),
   probeFailures: [],
   governor: { recorded: true, state: RECORDED_GOVERNOR },
 };
+
+/**
+ * an optional tool the last update failed to upgrade
+ * @param name tool name
+ * @param reason why the upgrade failed
+ * @returns the recorded outcome
+ */
+function failedUpdate(name: string, reason: string): UpdateToolOutcome {
+  return { name, manager: 'brew', required: false, outcome: 'failed', reason };
+}
 
 /**
  * Captures writes to the real output stream seam.
@@ -331,7 +338,7 @@ describe('fn:writeResult', () => {
           hub: inspection.hub,
           native: inspection.native,
           services: [{ name: 't3-code', state: 'running' }],
-          manifest: inspection.manifest,
+          environment: inspection.environment,
           governor: inspection.governor,
         },
       },
@@ -394,8 +401,7 @@ describe('fn:writeResult', () => {
     );
   });
 
-  it('should show the schedule diagnostic the updater recorded in the maintenance details', () => {
-    const diagnostic = 'the interval file holds no usable value';
+  it('should name the tools the last update failed in the maintenance details', () => {
     const output = captureResult(
       {
         command: 'show',
@@ -404,9 +410,18 @@ describe('fn:writeResult', () => {
           machine,
           inspection: {
             ...inspection,
-            manifest: {
-              ...inspection.manifest,
-              lastUpdateDiagnostic: diagnostic,
+            updates: {
+              startedAt: '2026-10-09T00:00:00.000Z',
+              finishedAt: '2026-10-09T00:01:00.000Z',
+              tools: [
+                failedUpdate('ripgrep-failure-fixture', 'no bottle'),
+                {
+                  name: 'gh',
+                  manager: 'brew',
+                  required: false,
+                  outcome: 'installed',
+                },
+              ],
             },
           },
         },
@@ -414,7 +429,7 @@ describe('fn:writeResult', () => {
       {},
     );
 
-    expect(output.stdout).toContain(diagnostic);
+    expect(output.stdout).toContain('ripgrep-failure-fixture');
   });
 
   describe('idle governor line by keep-awake mode', () => {
@@ -626,7 +641,7 @@ describe('fn:writeResult', () => {
       network: { ...inspection.network, exitNodeName: 'home-router' },
       hub: inspection.hub,
       native: inspection.native,
-      manifest: inspection.manifest,
+      environment: inspection.environment,
       governor: inspection.governor,
     };
     const output = captureResult(
@@ -716,10 +731,7 @@ describe('fn:writeResult', () => {
         },
         inspection: {
           ...inspection,
-          manifest: {
-            ...inspection.manifest,
-            lastUpdateError: 'hidden-proxy-key',
-          },
+          updates: { tools: [failedUpdate('gh', 'hidden-proxy-key')] },
         },
         pairing: { status: 'created', token: pairing },
       },
@@ -753,7 +765,7 @@ describe('fn:writeResult', () => {
         agentUrl: 'https://primary.sprites.app/#token=requested-pairing-token',
       },
       pairing: { token: 'requested-pairing-token' },
-      inspection: { manifest: { lastUpdateError: '[REDACTED]' } },
+      inspection: { updates: { tools: [{ reason: '[REDACTED]' }] } },
     });
     expect(disclosed.stdout).not.toContain('hidden-proxy-key');
     expect(disclosedHuman.stdout).toContain(
@@ -776,9 +788,10 @@ describe('fn:writeResult', () => {
             ...inspection.network,
             reason: `Tailscale rejected ${secret} twice: ${secret}`,
           },
-          manifest: {
-            ...inspection.manifest,
-            lastUpdateError: `updater rejected ${secret} twice: ${secret}`,
+          updates: {
+            tools: [
+              failedUpdate('gh', `updater rejected ${secret} twice: ${secret}`),
+            ],
           },
         },
       },
@@ -830,7 +843,7 @@ describe('fn:writeResult', () => {
             hub: inspection.hub,
             native: inspection.native,
             services: [],
-            manifest: inspection.manifest,
+            environment: inspection.environment,
             governor: inspection.governor,
           },
         },

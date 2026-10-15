@@ -92,7 +92,7 @@ function machineSize(value: JsonValue | undefined): JsonValue | undefined {
 /**
  * words the machine minimums a workstation recorded
  * @param options recorded profile options
- * @returns the minimums on one line, none when the manifest records none
+ * @returns the minimums on one line, none when the profile records none
  */
 function machineRequirement(options: JsonObject): string | undefined {
   const { minCpus, minMemoryGb } = options;
@@ -110,7 +110,8 @@ function machineRequirement(options: JsonObject): string | undefined {
 function inspectionDetails(value: JsonValue | undefined): JsonObject {
   const inspection = asRecord(value);
   const native = asRecord(inspection.native);
-  const manifest = asRecord(inspection.manifest);
+  const recorded = asRecord(inspection.environment);
+  const updates = asRecord(inspection.updates);
   const environment = asRecord(native.agentEnvironment);
   const agentState = asRecord(native.harnesses);
   const readiness = asRecord(inspection.readiness);
@@ -142,41 +143,96 @@ function inspectionDetails(value: JsonValue | undefined): JsonObject {
       native.agentEnvironment === undefined
         ? undefined
         : environmentDetails(environment),
-    'Agent release channel': asRecord(asRecord(manifest.profile).options)
+    'Agent release channel': asRecord(asRecord(recorded.profile).options)
       .agentRelease,
     'Machine requirement': machineRequirement(
-      asRecord(asRecord(manifest.profile).options),
+      asRecord(asRecord(recorded.profile).options),
     ),
-    'Installed tools': installedTools(manifest.installedVersions),
+    'Installed tools': installedTools(recorded.tools, updates.tools),
+    'Skipped tools': skippedTools(asRecord(recorded.setup).skipped),
     'Idle governor':
       inspection.governor === undefined
         ? undefined
         : governorLine(asRecord(inspection.governor)),
     'Maintenance':
-      inspection.manifest === undefined
+      inspection.updates === undefined
         ? undefined
         : {
-            lastSuccessfulUpdate: manifest.lastSuccessfulUpdate,
-            lastUpdateStatus: manifest.lastUpdateStatus,
-            scheduleDiagnostic: manifest.lastUpdateDiagnostic,
+            lastSuccessfulUpdate: updates.lastSuccess,
+            lastUpdateStartedAt: updates.startedAt,
+            lastUpdateFinishedAt: updates.finishedAt,
+            failedTools: failedTools(updates.tools),
           },
   };
 }
 
 /**
- * lists each installed tool with the first line of its version output
- * @param value recorded installed versions
- * @returns the versions by tool, none when the manifest records none
+ * lists each installed tool with the version the last update left, or the
+ * source setup installed it from when no update recorded one
+ * @param tools the tools environment.json records
+ * @param outcomes what the last update did to each tool
+ * @returns the version or source by tool, none when nothing is recorded
  */
-function installedTools(value: JsonValue | undefined): JsonObject | undefined {
-  return value === undefined
+function installedTools(
+  tools: JsonValue | undefined,
+  outcomes: JsonValue | undefined,
+): JsonObject | undefined {
+  if (!Array.isArray(tools)) {
+    return undefined;
+  }
+  const versions = new Map(
+    (Array.isArray(outcomes) ? outcomes : []).flatMap((entry) => {
+      const { name, to } = asRecord(entry);
+
+      return typeof name === 'string' && typeof to === 'string'
+        ? [[name, to.split('\n')[0]] as const]
+        : [];
+    }),
+  );
+
+  return Object.fromEntries(
+    tools.flatMap((entry) => {
+      const { name, source } = asRecord(entry);
+
+      return typeof name === 'string'
+        ? [[name, versions.get(name) ?? asRecord(source).kind]]
+        : [];
+    }),
+  );
+}
+
+/**
+ * lists the optional tools setup skipped, with why
+ * @param value the skipped tools environment.json records
+ * @returns the reason by tool, none when none was skipped
+ */
+function skippedTools(value: JsonValue | undefined): JsonObject | undefined {
+  const skipped = Array.isArray(value) ? value : [];
+
+  return skipped.length === 0
     ? undefined
     : Object.fromEntries(
-        Object.entries(asRecord(value)).map(([tool, version]) => [
-          tool,
-          typeof version === 'string' ? version.split('\n')[0] : version,
-        ]),
+        skipped.flatMap((entry) => {
+          const { name, reason } = asRecord(entry);
+
+          return typeof name === 'string' ? [[name, reason]] : [];
+        }),
       );
+}
+
+/**
+ * names the tools the last update failed
+ * @param value what the last update did to each tool
+ * @returns the failed tools, none when none failed
+ */
+function failedTools(value: JsonValue | undefined): string[] | undefined {
+  const failed = (Array.isArray(value) ? value : []).flatMap((entry) => {
+    const { name, outcome } = asRecord(entry);
+
+    return typeof name === 'string' && outcome === 'failed' ? [name] : [];
+  });
+
+  return failed.length === 0 ? undefined : failed;
 }
 
 /**

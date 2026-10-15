@@ -5,6 +5,7 @@ import { bindProvider } from '#core/providers';
 import { commandError } from '#errors';
 import { resolveCreateInputs, retainEnteredProviderToken } from '#input';
 import { networkManagement, resolveEnrollmentKey } from '#input/management';
+import { assertImageTools } from '#integrations/guest/plan/assemble';
 import { machineNameProblem } from '#machine';
 import {
   runOperation,
@@ -78,6 +79,9 @@ export async function prepareCreate(
     true,
   );
   const provider = bindProvider(profile.provider, values.token);
+  // a required tool no source serves on the provider's image refuses here,
+  // before the provider creates anything
+  assertImageTools(provider, profile);
   const names = await checkProviderAndNetwork(provider, values, input);
   const refused = await providerCheckFailure(names, {
     input,

@@ -5,7 +5,6 @@ import {
   mapHarnesses,
 } from '#core/harnesses';
 import { resolveInputs } from '#input';
-import { withGuestTransaction } from '#integrations/guest/transaction';
 import { returnOnBack, withBackNavigation } from '#navigation';
 import {
   hasActions,
@@ -79,22 +78,20 @@ export async function setupPlugins(
     );
   }
 
-  return withGuestTransaction(guest, async () => {
-    const applied = new Set<HarnessId>();
-    for (const driver of harnessDrivers(profile.harnesses)) {
-      if (hasActions(actions[driver.id])) {
-        mutation.started = true;
-        await driver.plugins.apply(guest, actions[driver.id]);
-        applied.add(driver.id);
-      }
+  const applied = new Set<HarnessId>();
+  for (const driver of harnessDrivers(profile.harnesses)) {
+    if (hasActions(actions[driver.id])) {
+      mutation.started = true;
+      await driver.plugins.apply(guest, actions[driver.id]);
+      applied.add(driver.id);
     }
+  }
 
-    return {
-      plugins: mapHarnesses((driver) =>
-        applied.has(driver.id) ? 'applied' : 'preserved',
-      ),
-    };
-  });
+  return {
+    plugins: mapHarnesses((driver) =>
+      applied.has(driver.id) ? 'applied' : 'preserved',
+    ),
+  };
 }
 
 /**

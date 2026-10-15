@@ -18,6 +18,7 @@ import { OperationContext, withOperation } from '#operation';
 import { normalizePluginOptions, resolvePluginActions } from '#plugins';
 import { rememberSecret } from '#utilities/redaction';
 
+import { environmentOf } from '../fixtures/environment.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 import { guestOf, providerOf } from '../mocks/sprites.js';
 
@@ -71,12 +72,7 @@ const observed = {
     },
   },
   hub: { skipped: true, reachable: false },
-  manifest: {
-    schema: 1,
-    createdAt: '2026-10-09T00:00:00Z',
-    installedVersions: {},
-    profile: DISABLED_NETWORK_PROFILE,
-  },
+  environment: environmentOf(DISABLED_NETWORK_PROFILE),
   probeFailures: [],
   governor: { recorded: false, reason: 'no awake event has been recorded yet' },
 } satisfies GuestInspection;

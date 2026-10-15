@@ -1,5 +1,7 @@
 import { pairAgent } from '#core/services';
-import { inspectGuest, readGuestManifest } from '#integrations/guest/runtime';
+import { readGuestEnvironment } from '#integrations/guest/environment-store';
+import { assertSupportedRelease } from '#integrations/guest/release-guard';
+import { inspectGuest } from '#integrations/guest/runtime';
 
 import { PairingSecret } from '#utilities/pairing-secret';
 
@@ -23,6 +25,34 @@ import type {
   WorkstationRecord,
 } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { ReleaseSource } from '#integrations/guest/release-guard';
+
+/**
+ * resolves a machine from current provider state, prompting only when
+ * permitted, and refuses one a newer open-agent release set up
+ * @param provider authenticated provider driver
+ * @param requestedName exact machine name when supplied
+ * @param selection the inline machine selector and where the release that set the machine up is read from
+ * @param selection.interaction optional inline machine selector
+ * @param selection.release where the recorded release is read from
+ * @returns the freshly fetched, ownership-checked and supported workstation
+ * @throws {CommandFault} when a newer open-agent release set it up
+ */
+export async function selectManagedMachine(
+  provider: ProviderDriver,
+  requestedName: string | undefined,
+  selection: { interaction?: Interaction; release: ReleaseSource },
+): Promise<WorkstationRecord> {
+  const { interaction, release } = selection;
+  const workstation = await findManagedMachine(
+    provider,
+    requestedName,
+    interaction,
+  );
+  await assertSupportedRelease(provider, workstation, release);
+
+  return workstation;
+}
 
 /**
  * resolves a machine from current provider state, prompting only when permitted
@@ -31,7 +61,7 @@ import type { GuestChannel } from '#drivers/guest-channel';
  * @param interaction optional inline machine selector
  * @returns the freshly fetched and ownership-checked workstation
  */
-export async function selectManagedMachine(
+async function findManagedMachine(
   provider: ProviderDriver,
   requestedName: string | undefined,
   interaction?: Interaction,
@@ -125,6 +155,12 @@ async function listProvider(
   }
   try {
     const workstations = await entry.driver.list();
+    // listing never wakes a guest, so only the release metadata records is checked
+    await Promise.all(
+      workstations.map(async (workstation) =>
+        assertSupportedRelease(entry.driver, workstation, 'metadata'),
+      ),
+    );
 
     return {
       machines: workstations.map((workstation) => ({
@@ -151,12 +187,12 @@ export async function showWorkstation(
   provider: ProviderDriver,
   interaction?: Interaction,
 ): Promise<CommandResult> {
-  const workstation = await selectManagedMachine(
-    provider,
-    request.machine,
-    interaction,
-  );
   const options = request.options;
+  // a control-plane summary never wakes the guest; an inspection or pairing does
+  const workstation = await selectManagedMachine(provider, request.machine, {
+    interaction,
+    release: options.inspect || options.withPairCode ? 'guest' : 'metadata',
+  });
   const inspected = options.inspect
     ? await inspectGuest(
         await provider.openGuest(workstation),
@@ -205,11 +241,10 @@ export async function doctorWorkstation(
   requestedName: string | undefined,
   interaction?: Interaction,
 ): Promise<CommandResult> {
-  const workstation = await selectManagedMachine(
-    provider,
-    requestedName,
+  const workstation = await selectManagedMachine(provider, requestedName, {
     interaction,
-  );
+    release: 'guest',
+  });
   const inspection = await inspectGuest(
     await provider.openGuest(workstation),
     interaction ? (update) => interaction.progress(update) : undefined,
@@ -231,7 +266,8 @@ export async function doctorWorkstation(
         name: service.name,
         state: service.status,
       })),
-      manifest: inspection.manifest,
+      environment: inspection.environment,
+      ...(inspection.updates ? { updates: inspection.updates } : {}),
       governor: inspection.governor,
     },
   };
@@ -257,7 +293,7 @@ export async function doctorWorkstation(
  * @returns the pairing credential
  */
 async function pairRecordedAgent(guest: GuestChannel): Promise<AgentPairing> {
-  const { profile } = await readGuestManifest(guest);
+  const { profile } = await readGuestEnvironment(guest);
 
   return pairAgent(guest, profile.agent);
 }

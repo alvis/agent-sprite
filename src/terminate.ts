@@ -1,9 +1,9 @@
 import { networkDriver, networksWithDaemon } from '#core/networks';
 import { defaultProfile } from '#core/profile';
-import { GUEST_ROOT } from '#guest/guest-root';
 import { resolveInputs } from '#input';
 import { networkManagement } from '#input/management';
-import { readGuestManifest } from '#integrations/guest/runtime';
+import { ENVIRONMENT_PATH } from '#integrations/guest/environment';
+import { readGuestEnvironment } from '#integrations/guest/environment-store';
 
 import { CommandFault, commandError } from './errors.js';
 import { selectManagedMachine } from './inspect.js';
@@ -60,11 +60,11 @@ export async function terminateWorkstation(
         'Non-interactive termination requires an exact workstation name and --yes',
     });
   }
-  const workstation = await selectManagedMachine(
-    provider,
-    request.machine,
+  const workstation = await selectManagedMachine(provider, request.machine, {
     interaction,
-  );
+    // a guest that cannot be read is still deleted unless its metadata names a newer release
+    release: 'guest-or-metadata',
+  });
   assertTerminationTarget(workstation, request);
   if (!(await confirmDeletion(workstation, request, interaction))) {
     return {
@@ -111,7 +111,7 @@ export async function terminateWorkstation(
 
 /**
  * captures enrolled identity without requiring a completed installation; the
- * network the manifest recorded the identity for owns the device, then the
+ * network environment.json recorded the identity for owns the device, then the
  * selected network, then any other network that runs a daemon and still holds
  * enrollment state, so a network deselected earlier is still cleaned up
  * @param guest ownership-checked target before permanent deletion
@@ -120,13 +120,13 @@ export async function terminateWorkstation(
 async function captureNetworkIdentity(
   guest: GuestChannel,
 ): Promise<NetworkIdentityCapture> {
-  const manifest = (await runBoundedIO(async () =>
-    guest.exists(`${GUEST_ROOT}/manifest.json`),
+  const environment = (await runBoundedIO(async () =>
+    guest.exists(ENVIRONMENT_PATH),
   ))
-    ? await readGuestManifest(guest)
+    ? await readGuestEnvironment(guest)
     : undefined;
-  const selected = manifest && networkDriver(manifest.profile.network);
-  const recorded = manifest?.networkIdentity;
+  const selected = environment && networkDriver(environment.profile.network);
+  const recorded = environment?.networkIdentity;
   const candidates = networksWithDaemon();
   const ordered = [
     ...candidates.filter(({ id }) => id === recorded?.network),
@@ -145,7 +145,7 @@ async function captureNetworkIdentity(
     const capture = {
       network,
       identity,
-      profile: isSelected ? manifest?.profile : undefined,
+      profile: isSelected ? environment?.profile : undefined,
     };
     if (identity.deviceId || identity.ip) {
       return capture;

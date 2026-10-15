@@ -1,6 +1,5 @@
 import { stringify } from 'smol-toml';
 
-import { withGuestTransaction } from '#integrations/guest/transaction';
 import {
   isRecord,
   readTomlObject,
@@ -50,21 +49,19 @@ async function applyCodexPlugins(
   guest: GuestChannel,
   actions: PluginActions,
 ): Promise<void> {
-  await withGuestTransaction(guest, async () => {
-    await reconcileMarketplaces(guest, {
-      sources: actions.marketplaces,
-      operation: 'add',
-      harness: CODEX_PLUGINS,
-    });
-    await reconcileCodexPlugins(guest, actions);
-    await reconcileMarketplaces(guest, {
-      sources: actions.removeMarketplaces,
-      operation: 'remove',
-      harness: CODEX_PLUGINS,
-    });
-    await setCodexPluginEnablement(guest, actions);
-    await recordSelectedPlugins(guest, actions, CODEX_PLUGINS);
+  await reconcileMarketplaces(guest, {
+    sources: actions.marketplaces,
+    operation: 'add',
+    harness: CODEX_PLUGINS,
   });
+  await reconcileCodexPlugins(guest, actions);
+  await reconcileMarketplaces(guest, {
+    sources: actions.removeMarketplaces,
+    operation: 'remove',
+    harness: CODEX_PLUGINS,
+  });
+  await setCodexPluginEnablement(guest, actions);
+  await recordSelectedPlugins(guest, actions, CODEX_PLUGINS);
 }
 
 /**

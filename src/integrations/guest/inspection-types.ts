@@ -4,7 +4,8 @@ import type { HubStatus } from '#drivers/shared/cliproxyapi/hub';
 import type { GovernorReport } from '#guest/idle/state';
 import type { NativeConfigurationInspection } from '#integrations/native';
 
-import type { GuestManifest } from './types.js';
+import type { GuestEnvironment } from './environment.js';
+import type { UpdateStatus } from './updates.js';
 
 /** current explicit guest inspection result */
 export interface GuestInspection {
@@ -12,7 +13,10 @@ export interface GuestInspection {
   network: NetworkStatus;
   native?: NativeConfigurationInspection;
   hub: HubStatus;
-  manifest: GuestManifest;
+  /** the environment setup recorded */
+  environment: GuestEnvironment;
+  /** what the updater recorded about its last run; absent before it ran */
+  updates?: UpdateStatus;
   probeFailures: InspectionProbeFailure[];
   /** the idle governor's recorded state, reported but never a readiness failure */
   governor: GovernorReport;
