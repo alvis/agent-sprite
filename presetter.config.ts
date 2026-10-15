@@ -17,7 +17,8 @@ export default preset('open-agent', {
         'prettier --check --no-error-on-unmatched-pattern {source} {test} bin scripts',
       'lint:check:eslint':
         'eslint --flag v10_config_lookup_from_file --no-cache --cache-location node_modules/.cache/open-agent-lint-check --format stylish --max-warnings 0 --no-error-on-unmatched-pattern --no-warn-ignored {source} {test} bin scripts',
-      'lint:check:shell': 'sh -n src/guest/bootstrap-node.sh && sh -n src/guest/update-gate.sh',
+      'lint:check:shell':
+        "find src -name '*.sh' -exec sh -c 'for f; do sh -n \"$f\" || exit 1; done' sh {} + && find src -name '*.sh' -exec shellcheck --shell=sh --severity=style {} +",
       'test': 'run-s "test:vitest -- --project=open-agent:UNIT {@:}" --',
       'test:coverage': 'vitest run --project=open-agent:UNIT --coverage',
     },

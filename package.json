@@ -26,9 +26,9 @@
   },
   "scripts": {
     "build": "run build",
-    "postbuild": "cp src/guest/*.sh lib/guest/ && chmod +x bin/cli.mjs",
+    "postbuild": "find src -name '*.sh' -exec sh -c 'for f; do d=\"lib/${f#src/}\"; mkdir -p \"${d%/*}\" && cp \"$f\" \"$d\" || exit 1; done' sh {} + && chmod +x bin/cli.mjs",
     "lint": "run lint --",
-    "postlint": "eslint --max-warnings 0 bin && sh -n src/guest/bootstrap-node.sh && sh -n src/guest/update-gate.sh",
+    "postlint": "eslint --max-warnings 0 bin && run lint:check:shell",
     "lint:check": "run lint:check",
     "local": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts run",
     "prepare": "run prepare",
