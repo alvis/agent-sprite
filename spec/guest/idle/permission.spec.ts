@@ -9,7 +9,6 @@ import type { ProviderCapabilities } from '#drivers/contracts';
 // guest rule, so a capability-axis value set drifting between the two fails typecheck
 const governedUrlTraffic: ProviderCapabilities = {
   guestChannel: 'provider-exec',
-  servicesMode: 'supervised',
   transportNetworks: [],
   keepAwakeMode: 'governed',
   idleForms: ['memory-suspend', 'stop'],

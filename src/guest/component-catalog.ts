@@ -154,7 +154,7 @@ export function isProviderComponent(
       (typeof value.maxAwakeDeadlineMinutes === 'number' &&
         Number.isSafeInteger(value.maxAwakeDeadlineMinutes) &&
         value.maxAwakeDeadlineMinutes > 0)) &&
-    (value.servicesMode === 'native' || value.servicesMode === 'supervised') &&
+    (value.serviceBackend === 'provider' || value.serviceBackend === 'runit') &&
     isStringArray(value.transportNetworks) &&
     value.transportNetworks.every(isTransportNetwork) &&
     (value.awakeAdapter === undefined ||

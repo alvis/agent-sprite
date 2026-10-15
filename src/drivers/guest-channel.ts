@@ -83,7 +83,7 @@ export interface GuestServiceState {
   startedAt?: string;
 }
 
-/** native services, or the guest supervisor when servicesMode is supervised */
+/** provider services, or the guest supervisor when the service backend is runit */
 export interface GuestServiceControl {
   /**
    * reads every service and its current state from one complete registry

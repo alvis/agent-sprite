@@ -8,7 +8,6 @@ export const spriteGuestLeaf: ProviderGuestLeaf = {
   shellAccounts: ['sprite'],
   capabilities: {
     guestChannel: 'provider-exec',
-    servicesMode: 'native',
     // exit nodes were verified live on a Sprite without any exception
     transportNetworks: [],
     keepAwakeMode: 'native-deadline',
@@ -23,6 +22,8 @@ export const spriteGuestLeaf: ProviderGuestLeaf = {
     // a Sprite has one size, so there is nothing to restart
     resizeRestarts: false,
   },
+  // a Sprite runs its services itself
+  serviceBackend: 'provider',
   // the agent account applies the deadline, so the adapter never needs root
   awakeAdapter: { module: SPRITE_AWAKE_MODULE, account: 'agent' },
 };

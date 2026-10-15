@@ -33,6 +33,7 @@ import type {
   WorkstationRecord,
 } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { OsImage } from '#os/contracts';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -58,6 +59,12 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
   public readonly incompatibilities: readonly ProfileIncompatibility[] = [];
   public readonly prerequisites: ProviderPrerequisites = SPRITE_PREREQUISITES;
   public readonly shellAccounts = spriteGuestLeaf.shellAccounts;
+  // a Sprite boots one image Fly picks and names neither its release nor its
+  // architecture, so only the guest probe tells them; its tooling is Debian's
+  public readonly images: readonly [OsImage, ...OsImage[]] = [
+    { id: 'sprite', family: 'debian', arch: ['x86_64', 'aarch64'] },
+  ];
+  public readonly serviceBackend = spriteGuestLeaf.serviceBackend;
   public readonly awakeAdapter = spriteGuestLeaf.awakeAdapter;
   readonly #session?: SpriteSession;
 
@@ -247,6 +254,15 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
     channels.set(workstation.id, channel);
 
     return channel;
+  }
+
+  /**
+   * a Sprite wakes on its first exec and runs no boot script of open-agent's,
+   * so there is nothing to wait for
+   * @param _workstation managed workstation
+   */
+  public async awaitGuestReady(_workstation: WorkstationRecord): Promise<void> {
+    // the Sprite exec API waits for a sleeping Sprite to wake itself
   }
 
   /**

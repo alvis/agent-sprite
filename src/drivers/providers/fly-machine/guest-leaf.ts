@@ -9,7 +9,6 @@ export const flyMachineGuestLeaf: ProviderGuestLeaf = {
   shellAccounts: [],
   capabilities: {
     guestChannel: 'ssh',
-    servicesMode: 'supervised',
     // the Fly proxy and the 6PN private network reach the machine over its
     // private interface; a tunnel's default route would otherwise capture their
     // replies and hang the guest channel and the public URL
@@ -27,6 +26,8 @@ export const flyMachineGuestLeaf: ProviderGuestLeaf = {
     // an update of the machine's guest reboots it
     resizeRestarts: true,
   },
+  // a Fly Machine boots no init system, so runit supervises its services
+  serviceBackend: 'runit',
   // root alone reaches the guest-local Machines API socket, so the governor
   // imports the adapter as root and the agent account never can
   awakeAdapter: { module: FLY_MACHINE_AWAKE_MODULE, account: 'root' },

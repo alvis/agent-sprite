@@ -1,4 +1,5 @@
 import type { WorkstationProfile } from '#core/profile';
+import type { GuestAsset, OsImage, ServiceBackendId } from '#os/contracts';
 
 import type {
   GuestAccount,
@@ -33,9 +34,6 @@ export type DriverKind = 'providers' | 'harnesses' | 'agents' | 'networks';
 
 /** how core reaches the guest */
 export type GuestChannelMode = 'provider-exec' | 'ssh';
-
-/** who supervises guest services */
-export type ServicesMode = 'native' | 'supervised';
 
 /** who decides when the workstation sleeps */
 export type KeepAwakeMode = 'native-deadline' | 'governed' | 'none';
@@ -95,8 +93,6 @@ export interface DriverDescriptor<
 export interface ProviderCapabilities {
   /** how core reaches the guest */
   guestChannel: GuestChannelMode;
-  /** who supervises guest services */
-  servicesMode: ServicesMode;
   /**
    * guest networks, as CIDR prefixes, that carry the provider's own transport
    * and so must never be routed through a network driver's tunnel; empty when
@@ -171,6 +167,12 @@ export interface ProviderDeclaration<
   prerequisites: ProviderPrerequisites;
   /** guest login accounts the provider adds beside the agent account; they share its GitHub CLI login */
   shellAccounts: readonly string[];
+  /** OS images the provider can create workstations from, the default first */
+  images: readonly [OsImage, ...OsImage[]];
+  /** who runs the guest services: the provider itself, or a backend setup installs */
+  serviceBackend: ServiceBackendId;
+  /** guest program each boot runs to restore what the provider resets; absent when the root disk persists */
+  bootHook?: GuestAsset;
 }
 
 /** what core binds a provider to before any provider call */
@@ -320,6 +322,12 @@ export interface ProviderDriver<
    * @returns the guest channel
    */
   openGuest(workstation: WorkstationRecord): Promise<GuestChannel>;
+  /**
+   * waits until the guest has finished booting, so setup never races the
+   * provider's own boot work
+   * @param workstation managed workstation
+   */
+  awaitGuestReady(workstation: WorkstationRecord): Promise<void>;
 }
 
 /** one compiled guest module a driver contributes to the deployable payload */

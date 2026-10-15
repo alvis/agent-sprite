@@ -3,13 +3,13 @@ import { checkOperation, currentOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
 import { FlyApi } from './api.js';
-import { waitForBoot } from './boot.js';
+import { startAndBoot, waitForBoot } from './boot.js';
 import { FlyGuestChannel } from './channel.js';
 import { createManagedApp } from './creation.js';
 import { waitUntilDeleted } from './deletion.js';
 import { deriveSshToken } from './flyctl.js';
 import { flyMachineGuestLeaf } from './guest-leaf.js';
-import { declaresAgentService } from './machine-config.js';
+import { declaresAgentService, FLY_MACHINE_IMAGES } from './machine-config.js';
 import { FLY_MACHINES } from './machines.js';
 import { metadataUpdate } from './metadata.js';
 import {
@@ -64,7 +64,6 @@ interface VerifiedWorkstation {
   organization: string;
 }
 
-const START_WAIT_SECONDS = 60;
 /** the addresses that make a workstation reachable from the internet */
 const PUBLIC_IP_TYPES: ReadonlySet<FlyIpType> = new Set([
   'v4',
@@ -84,6 +83,8 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
   public readonly prerequisites: ProviderPrerequisites =
     FLY_MACHINE_PREREQUISITES;
   public readonly shellAccounts = flyMachineGuestLeaf.shellAccounts;
+  public readonly images = FLY_MACHINE_IMAGES;
+  public readonly serviceBackend = flyMachineGuestLeaf.serviceBackend;
   public readonly awakeAdapter = flyMachineGuestLeaf.awakeAdapter;
   readonly #session?: FlySession;
 
@@ -323,18 +324,7 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
       return existing;
     }
     const { app, machine } = await this.#fetchMatching(workstation);
-    if (machine.state !== 'started') {
-      const target = { app: app.name, machine: machine.id };
-      if (machine.state !== 'starting') {
-        await api.startMachine(target).catch((error: unknown) => {
-          if (!(error instanceof ProviderFault && error.code === 'conflict')) {
-            throw error;
-          }
-        });
-      }
-      await api.waitUntilStarted(target, START_WAIT_SECONDS);
-    }
-    await waitForBoot(api, { app: app.name, machine: machine.id });
+    await startAndBoot(api, { app: app.name, machine: machine.id }, machine);
     const channel = new FlyGuestChannel({
       api,
       app: app.name,
@@ -344,6 +334,19 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
     channels.set(workstation.id, channel);
 
     return channel;
+  }
+
+  /**
+   * waits until the boot script has rebuilt the root filesystem in the
+   * machine's current boot
+   * @param workstation managed workstation, already started
+   */
+  public async awaitGuestReady(workstation: WorkstationRecord): Promise<void> {
+    const { app, machine } = await this.#fetchMatching(workstation);
+    await waitForBoot(this.#bound().api, {
+      app: app.name,
+      machine: machine.id,
+    });
   }
 
   /**

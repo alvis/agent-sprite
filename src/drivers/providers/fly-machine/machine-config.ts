@@ -7,6 +7,8 @@ import {
 import { bootScript } from './guest/boot-script.js';
 import { guestOf } from './machines.js';
 
+import type { OsImage } from '#os/contracts';
+
 import type { FlyMachineOffer } from './machines.js';
 import type { FlyGuest, FlyServiceRoute } from './wire.js';
 
@@ -54,6 +56,17 @@ export interface MachineSpecParams {
 
 /** stock Debian; the boot script restores everything else from the volume */
 export const MACHINE_IMAGE = 'debian:bookworm-slim';
+/** the OS images a workstation machine is created from */
+export const FLY_MACHINE_IMAGES: readonly [OsImage, ...OsImage[]] = [
+  {
+    id: 'debian-12',
+    ref: MACHINE_IMAGE,
+    family: 'debian',
+    release: { id: 'debian', versionId: '12' },
+    // Fly Machines run on x86_64 hosts
+    arch: ['x86_64'],
+  },
+];
 /** volume name; Fly volume names allow only letters, digits and underscores */
 export const VOLUME_NAME = 'open_agent';
 /** persistent storage size */

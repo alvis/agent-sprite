@@ -129,7 +129,7 @@ export function fixtureProvider(
     wakeMode: 'url-traffic',
     supportsCliWakeSleep: false,
     maxAwakeDeadlineMinutes: null,
-    servicesMode: 'native',
+    serviceBackend: 'provider',
     transportNetworks: [],
     awakeAdapter: FIXTURE_ADAPTER,
     ...overrides,

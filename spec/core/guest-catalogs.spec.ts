@@ -268,7 +268,7 @@ describe('fn:componentCatalog provider entry', () => {
       wakeMode: 'url-traffic',
       supportsCliWakeSleep: false,
       maxAwakeDeadlineMinutes: 60,
-      servicesMode: 'native',
+      serviceBackend: 'provider',
       transportNetworks: [],
     });
   });
