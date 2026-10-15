@@ -12,9 +12,9 @@ import type { ProviderCredential } from '#input/provider-credential';
 import type { ProviderAvailability } from '#inspect';
 
 /**
- * notes that a provider was left out of a list because it has no credential
+ * notes that a provider's workstations could not be listed because it has no credential
  * @param id provider without a credential
- * @returns the provider as unavailable, naming the credential that would include it
+ * @returns the provider as unavailable with unknown workstation status, naming the credential that would list them
  */
 export function skippedProvider(id: ProviderId): ProviderAvailability {
   const { credential } = catalog.providers[id].prerequisites;
@@ -22,7 +22,7 @@ export function skippedProvider(id: ProviderId): ProviderAvailability {
   return {
     id,
     code: 'INPUT',
-    reason: `skipped, no ${credential.label} was found; set ${credential.environment} to include it`,
+    reason: `workstation status unknown, no ${credential.label} was found; supply one in ${credential.environment}, or with --provider ${id} --provider-token-source, to list its workstations`,
   };
 }
 
