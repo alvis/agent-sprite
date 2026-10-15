@@ -150,6 +150,10 @@ function inspectionDetails(value: JsonValue | undefined): JsonObject {
     ),
     'Installed tools': installedTools(recorded.tools, updates.tools),
     'Skipped tools': skippedTools(asRecord(recorded.setup).skipped),
+    'Last boot':
+      inspection.boot === undefined
+        ? undefined
+        : bootDetails(asRecord(inspection.boot)),
     'Idle governor':
       inspection.governor === undefined
         ? undefined
@@ -163,6 +167,24 @@ function inspectionDetails(value: JsonValue | undefined): JsonObject {
             lastUpdateFinishedAt: updates.finishedAt,
             failedTools: failedTools(updates.tools),
           },
+  };
+}
+
+/**
+ * condenses the boot hook's record of the last boot: its result and start,
+ * the steps that did not succeed, and the hook's latest log lines
+ * @param boot the boot report from the inspection
+ * @returns the last boot's details
+ */
+function bootDetails(boot: JsonObject): JsonObject {
+  const unsuccessful = asRecord(boot.unsuccessfulSteps);
+
+  return {
+    status: boot.status ?? 'not recorded',
+    startedAt: boot.startedAt,
+    unsuccessfulSteps:
+      Object.keys(unsuccessful).length === 0 ? undefined : unsuccessful,
+    log: boot.log,
   };
 }
 

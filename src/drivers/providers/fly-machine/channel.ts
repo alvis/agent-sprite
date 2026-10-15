@@ -1,13 +1,16 @@
 import { execa } from 'execa';
 
 import { ProviderFault } from '#drivers/failures';
+import { SESSION_PATH } from '#integrations/guest/session/framing';
 import { currentOperation, runOperation } from '#operation';
+import { familyOf } from '#os/families';
+import { RunitServiceControl } from '#os/services/runit/backend';
 
 import { flyctlAgent } from './agent.js';
 import { FLYCTL, flyctlEnvironment, prepareFlyctlDirectory } from './flyctl.js';
 import { inBandCommand, splitInBandStatus, verifiedStatus } from './in-band.js';
+import { FLY_MACHINE_IMAGES } from './machine-config.js';
 import { FlyGuestProcess } from './process.js';
-import { FlySupervisedServices } from './services.js';
 
 import type {
   GuestChannel,
@@ -49,9 +52,8 @@ const ENV_PROGRAM = '/usr/bin/env';
  * endpoint for short input-free checks, behind the guest contract
  */
 export class FlyGuestChannel implements GuestChannel {
-  public readonly services: GuestServiceControl = new FlySupervisedServices(
-    this,
-  );
+  /** the runit services, controlled as root through this channel, so status needs no setup session */
+  public readonly services: GuestServiceControl;
   readonly #params: FlyGuestChannelParams;
 
   /**
@@ -60,6 +62,17 @@ export class FlyGuestChannel implements GuestChannel {
    */
   constructor(params: FlyGuestChannelParams) {
     this.#params = params;
+    this.services = new RunitServiceControl(
+      async ([program, ...args], timeoutMs) =>
+        this.exec({
+          program,
+          arguments: args,
+          environment: { PATH: SESSION_PATH },
+          timeoutMs,
+        }),
+      // every image a machine is created from is of one family
+      familyOf(FLY_MACHINE_IMAGES[0]).shell,
+    );
   }
 
   /**

@@ -1,8 +1,18 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { ProviderFault } from '#drivers/failures';
+import { runGuest } from '#integrations/guest';
+import { isRecord } from '#utilities/guards';
 
-import { BOOT_ID_FILE, BOOT_LOG, BOOT_READY_FILE } from './boot-layout.js';
+import {
+  BOOT_ID_FILE,
+  BOOT_LOG,
+  BOOT_READY_FILE,
+  BOOT_STATUS,
+} from './boot-layout.js';
+
+import type { BootReport } from '#drivers/contracts';
+import type { GuestChannel } from '#drivers/guest-channel';
 
 import type { FlyApi, FlyMachineTarget } from './api.js';
 import type { FlyMachine } from './wire.js';
@@ -110,4 +120,98 @@ async function readBootState(
 
     return 'pending';
   }
+}
+
+/** the prefix of every line the boot hook logs itself, as opposed to a step's own output */
+const LOG_PREFIX = 'open-agent-boot ';
+/** how many of the boot hook's latest lines the report keeps */
+const LOG_LINES = 20;
+/** the line separating the status from the log lines in the probe's output */
+const SEPARATOR = '--- open-agent boot log ---';
+/** longest the probe may take, short enough for the REST exec endpoint */
+const REPORT_TIMEOUT_MS = 30_000;
+/**
+ * prints boot-status.json, the separator, then the hook's latest own lines
+ * of boot.log; either file may be missing before the first boot recorded it
+ */
+const REPORT_PROBE = [
+  'cat "$1" 2>/dev/null',
+  'printf "\\n%s\\n" "$3"',
+  `grep -F -- "$4" "$2" 2>/dev/null | tail -n ${String(LOG_LINES)}`,
+  'exit 0',
+].join('\n');
+
+/**
+ * reads the last boot's result and the boot hook's latest log lines in one
+ * guest command; the log keeps only the hook's own lines, never a step's
+ * output, which may quote the guest's files
+ * @param guest guest channel of the machine
+ * @returns the last boot's result, its unsuccessful steps and its latest log lines
+ */
+export async function inspectFlyBoot(guest: GuestChannel): Promise<BootReport> {
+  const { stdout } = await runGuest(
+    guest,
+    [
+      '/bin/sh',
+      '-c',
+      REPORT_PROBE,
+      'oa-boot',
+      BOOT_STATUS,
+      BOOT_LOG,
+      SEPARATOR,
+      LOG_PREFIX,
+    ],
+    { timeoutMs: REPORT_TIMEOUT_MS, step: 'boot record read' },
+  );
+  const separator = stdout.lastIndexOf(`\n${SEPARATOR}\n`);
+  const status = separator < 0 ? '' : stdout.slice(0, separator);
+  const log =
+    separator < 0 ? '' : stdout.slice(separator + SEPARATOR.length + 2);
+
+  return {
+    ...parseBootStatus(status),
+    log: log
+      .split('\n')
+      .filter((line) => line.startsWith(LOG_PREFIX))
+      .map((line) => line.slice(LOG_PREFIX.length)),
+  };
+}
+
+/**
+ * reads the result and the unsuccessful steps out of boot-status.json
+ * @param text the file's contents; empty before a boot recorded them
+ * @returns the recorded result, nothing when the file is absent or malformed
+ */
+function parseBootStatus(text: string): Omit<BootReport, 'log'> {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    value = undefined;
+  }
+  if (!isRecord(value)) {
+    return { unsuccessfulSteps: {} };
+  }
+  const steps = isRecord(value.steps) ? value.steps : {};
+
+  return {
+    ...(value.status === 'ok' || value.status === 'failed'
+      ? { status: value.status }
+      : {}),
+    ...(typeof value.startedAt === 'string'
+      ? { startedAt: value.startedAt }
+      : {}),
+    ...(typeof value.durationMs === 'number'
+      ? { durationMs: value.durationMs }
+      : {}),
+    unsuccessfulSteps: Object.fromEntries(
+      Object.entries(steps).flatMap(([name, step]) =>
+        isRecord(step) &&
+        typeof step.outcome === 'string' &&
+        step.outcome !== 'ok'
+          ? [[name, step.outcome]]
+          : [],
+      ),
+    ),
+  };
 }

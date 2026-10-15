@@ -1,8 +1,6 @@
-import { GUEST_NODE, GUEST_ROOT } from '#guest/guest-root';
 import {
   ensurePrivateDirectory,
   readJsonObject,
-  runAsAgent,
   writeOwnedFile,
 } from '#integrations/native/configuration';
 
@@ -12,7 +10,7 @@ import {
   workHookCommands,
 } from '../shared/hooks.js';
 
-import { CODEX_HOOKS_TRUST_MODULE } from './guest-modules.js';
+import { trustCodexHooks } from './hook-trust.js';
 import { CODEX_HOME, CODEX_HOOKS } from './paths.js';
 
 import type {
@@ -81,13 +79,10 @@ async function installCodexHooks(
       2,
     )}\n`,
   );
-  await runAsAgent(guest, [
-    GUEST_NODE,
-    `${GUEST_ROOT}/${CODEX_HOOKS_TRUST_MODULE}`,
-    ...Object.entries(
-      workHookCommands({ owned: CODEX_WORK_HOOKS, command }),
-    ).flat(),
-  ]);
+  await trustCodexHooks(
+    guest,
+    workHookCommands({ owned: CODEX_WORK_HOOKS, command }),
+  );
 }
 
 /** idle-governor hooks of Codex */

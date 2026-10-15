@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   hasNoClaudePendingInteractions,
   isClaudeHookNotification,
-} from '#drivers/harnesses/claude/guest/claude-init-notifications';
+} from '#drivers/harnesses/claude/init-notifications';
 
 const started = {
   type: 'system',

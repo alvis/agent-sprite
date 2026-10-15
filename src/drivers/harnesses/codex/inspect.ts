@@ -1,13 +1,12 @@
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import {
+  HOME,
   isRecord,
-  isStringArray,
   readJsonObject,
   readSelectedPlugins,
   readTomlObject,
 } from '#integrations/native/configuration';
-import { runNativeProbe } from '#integrations/native/probe';
-import { runBoundedIO } from '#operation';
+import { checkOperation, runBoundedIO } from '#operation';
 
 import { hasWorkHooks } from '../shared/hooks.js';
 import {
@@ -16,7 +15,7 @@ import {
 } from '../shared/plugin-state.js';
 import { awakeHooksReadiness, proxyReadiness } from '../shared/readiness.js';
 
-import { CODEX_SKILLS_PROBE_MODULE } from './guest-modules.js';
+import { withCodexAppServer } from './app-server.js';
 import { CODEX_WORK_HOOKS } from './hooks.js';
 import {
   CODEX_CONFIG,
@@ -47,13 +46,14 @@ import type { GuestCommandResult } from '#integrations/guest/types';
 export async function inspectCodex(
   guest: GuestChannel,
 ): Promise<HarnessInspection<HarnessSkillEvidence | undefined>> {
+  const selection = readSelectedPlugins(guest, CODEX_PLUGIN_STATE);
   const [settings, hooks, plugins, selectedPlugins, skills, authenticated] =
     await Promise.all([
       readTomlObject(guest, CODEX_CONFIG),
       readJsonObject(guest, CODEX_HOOKS),
       listNativePlugins(guest, CODEX_INVENTORY),
-      readSelectedPlugins(guest, CODEX_PLUGIN_STATE),
-      inspectCodexSkills(guest),
+      selection,
+      selection.then(async (selected) => inspectCodexSkills(guest, selected)),
       runBoundedIO(async () => guest.exists(`${CODEX_HOME}/auth.json`)),
     ] as const);
 
@@ -122,24 +122,52 @@ function codexConfiguration(evidence: {
 }
 
 /**
- * reads native Codex skills with their original plugin identities
+ * lists the skills Codex loaded in the agent's home, through its app server,
+ * keeping those of the selected plugins with their original identities
  * @param guest target guest
- * @returns validated selected native skill inventory
+ * @param selected plugin identities open-agent selected
+ * @returns validated selected native skill inventory, absent when Codex could not list it
  */
 async function inspectCodexSkills(
   guest: GuestChannel,
+  selected: readonly string[],
 ): Promise<HarnessSkillEvidence | undefined> {
-  const value = await runNativeProbe(guest, CODEX_SKILLS_PROBE_MODULE);
-  if (
-    !isRecord(value) ||
-    !isStringArray(value.selected) ||
-    !Array.isArray(value.skills) ||
-    !value.skills.every(isCodexSkill)
-  ) {
+  let result: Record<string, unknown>;
+  try {
+    result = await withCodexAppServer(guest, async (request) =>
+      request('skills/list', { cwds: [HOME], forceReload: true }),
+    );
+  } catch {
+    checkOperation();
+
+    return undefined;
+  }
+  const workspace = Array.isArray(result.data)
+    ? result.data.filter(isRecord).find((item) => item.cwd === HOME)
+    : undefined;
+  if (!workspace || !Array.isArray(workspace.skills)) {
+    return undefined;
+  }
+  const skills = workspace.skills.filter(
+    (skill) =>
+      isRecord(skill) &&
+      typeof skill.pluginId === 'string' &&
+      selected.includes(skill.pluginId),
+  );
+  if (!skills.every(isCodexSkill)) {
     return undefined;
   }
 
-  return { kind: 'skills', selected: value.selected, skills: value.skills };
+  return {
+    kind: 'skills',
+    selected: [...selected],
+    skills: skills.map(({ pluginId, name, path, enabled }) => ({
+      pluginId,
+      name,
+      path,
+      enabled,
+    })),
+  };
 }
 
 /**
