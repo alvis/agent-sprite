@@ -71,10 +71,16 @@ vi.mock('#core/catalog', () => {
     displayName: 'Claude Code',
     supportsProxy: true,
     acpAdapter: {
-      install: {
-        component: 'claude-acp',
-        source: { kind: 'npm', package: 'claude-acp' },
-        versionProbe: { program: 'claude-acp', arguments: ['--version'] },
+      tool: {
+        name: 'claude-acp',
+        required: true,
+        executables: ['claude-acp'],
+        version: {
+          executable: 'claude-acp',
+          args: ['--version'],
+          account: 'agent',
+        },
+        sources: [{ kind: 'npm', package: 'claude-acp', account: 'agent' }],
       },
       launch: { program: 'claude-acp', arguments: [] },
     },

@@ -23,8 +23,8 @@ import {
 } from '#guest/update-schedule';
 
 import type { WorkstationProfile } from '#core/profile';
-import type { InstallSpec } from '#drivers/contracts';
 import type { ComponentOutcome } from '#guest/component-outcome';
+import type { ToolSpec } from '#tools/contracts';
 
 import type { LiveProvider } from './providers.js';
 
@@ -533,24 +533,16 @@ export function expectedComponents(
   profile: Pick<WorkstationProfile, 'agent' | 'harnesses' | 'network'>,
 ): string[] {
   const agent = catalog.agents[profile.agent];
-  const { install: network } = networkDriver(profile.network);
-  const installs: InstallSpec[] = [
-    ...(network ? [network] : []),
-    ...harnessDrivers(profile.harnesses).flatMap(({ install, acpAdapter }) => [
-      install,
-      ...(acpAdapter ? [acpAdapter.install] : []),
+  const tools: ToolSpec[] = [
+    ...networkDriver(profile.network).tools,
+    ...harnessDrivers(profile.harnesses).flatMap(({ tools, acpAdapter }) => [
+      ...tools,
+      ...(acpAdapter ? [acpAdapter.tool] : []),
     ]),
-    agent.install,
-    agent.runtime,
+    ...agent.tools,
   ];
 
-  return [
-    'node',
-    'git',
-    'jj',
-    'gh',
-    ...installs.map(({ component }) => component),
-  ].sort();
+  return ['node', 'git', 'jj', 'gh', ...tools.map(({ name }) => name)].sort();
 }
 
 /**
@@ -1357,18 +1349,19 @@ function asAgentWithNode(command: string): string {
  * genuinely out of date, as on a guest that last updated before that release
  * @param provider selected provider
  * @param name exact workstation name
- * @param install the component's install specification, which must come from npm
+ * @param tool the component's tool declaration, whose first source must be npm
  * @returns the release installed and the latest one
  */
 export async function installOlderRelease(
   provider: LiveProvider,
   name: string,
-  install: InstallSpec,
+  tool: ToolSpec,
 ): Promise<OlderRelease> {
-  if (install.source.kind !== 'npm') {
-    throw new Error(`${install.component} is not installed from npm`);
+  const [source] = tool.sources;
+  if (source.kind !== 'npm') {
+    throw new Error(`${tool.name} is not installed from npm`);
   }
-  const { package: npmPackage } = install.source;
+  const { package: npmPackage } = source;
   const npm = `${GUEST_ROOT}/node/bin/npm`;
   const picked = await asRootDetached(
     provider,

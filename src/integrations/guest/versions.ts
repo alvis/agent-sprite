@@ -6,8 +6,8 @@ import { SYSTEM_PROBES } from '#guest/system-probes';
 import { runAsAgent } from './account.js';
 
 import type { AgentId, HarnessId, NetworkId } from '#core/catalog';
-import type { InstallSpec } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { ToolSpec } from '#tools/contracts';
 
 /** selected agent, harnesses and network whose versions are probed */
 export interface InstalledVersionSelection {
@@ -30,18 +30,13 @@ export async function readInstalledVersions(
   selection: InstalledVersionSelection,
 ): Promise<Record<string, string>> {
   const agent = catalog.agents[selection.agent];
-  const { install } = networkDriver(selection.network);
   const probes = [
     ...SYSTEM_PROBES,
-    ...(install ? [probe(install)] : []),
-    ...harnessDrivers(selection.harnesses).flatMap(
-      ({ install, acpAdapter }) => [
-        probe(install),
-        ...(acpAdapter ? [probe(acpAdapter.install)] : []),
-      ],
+    ...networkDriver(selection.network).tools.map(probe),
+    ...harnessDrivers(selection.harnesses).flatMap(({ tools, acpAdapter }) =>
+      [...tools, ...(acpAdapter ? [acpAdapter.tool] : [])].map(probe),
     ),
-    probe(agent.install),
-    probe(agent.runtime),
+    ...agent.tools.map(probe),
   ];
   const entries = await Promise.all(
     probes.map(async ([name, argv]) => {
@@ -55,13 +50,10 @@ export async function readInstalledVersions(
 }
 
 /**
- * names the probe that reports one component's installed version
- * @param install the component's install spec
- * @returns the component key and the program and arguments that report its version
+ * names the probe that reports one tool's installed version
+ * @param tool the tool's declaration
+ * @returns the tool's name and the program and arguments that report its version
  */
-function probe(install: InstallSpec): readonly [string, string[]] {
-  return [
-    install.component,
-    [install.versionProbe.program, ...install.versionProbe.arguments],
-  ];
+function probe(tool: ToolSpec): readonly [string, string[]] {
+  return [tool.name, [tool.version.executable, ...tool.version.args]];
 }

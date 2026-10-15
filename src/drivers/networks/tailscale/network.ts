@@ -27,7 +27,8 @@ export const tailscale: NetworkDriver<'tailscale', TailnetStatus> = {
   kind: 'networks',
   displayName: 'Tailscale',
   supportsExitNode: true,
-  ...tailscaleGuestLeaf,
+  guest: tailscaleGuestLeaf.guest,
+  tools: tailscaleGuestLeaf.tools,
   inputs: {
     account: {
       environment: 'TAILSCALE_TAILNET',

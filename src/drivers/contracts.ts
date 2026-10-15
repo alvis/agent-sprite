@@ -1,5 +1,6 @@
 import type { WorkstationProfile } from '#core/profile';
 import type { GuestAsset, OsImage, ServiceBackendId } from '#os/contracts';
+import type { ToolSpec } from '#tools/contracts';
 
 import type {
   GuestAccount,
@@ -10,7 +11,6 @@ import type {
   ServiceDefinition,
 } from './guest-channel.js';
 import type { HarnessPluginEvidence } from './harness-evidence.js';
-import type { InstallSource } from './install-sources.js';
 import type {
   PrerequisiteProblem,
   ProviderPreflightParams,
@@ -350,20 +350,10 @@ export interface GuestPayload {
   account: GuestAccount;
 }
 
-/** how one component is installed and its installed version observed */
-export interface InstallSpec {
-  /** key recorded in the manifest's installed versions */
-  component: string;
-  /** where the latest stable release is obtained */
-  source: InstallSource;
-  /** command whose output reports the installed version */
-  versionProbe: GuestCommand;
-}
-
 /** a process that speaks ACP on a harness's behalf */
 export interface AcpAdapterSpec {
-  /** installation and version probe, upgraded with its harness */
-  install: InstallSpec;
+  /** the adapter as a tool, installed and upgraded with its harness */
+  tool: ToolSpec;
   /** command the ACP agent runs to launch the adapter */
   launch: GuestCommand;
 }
@@ -486,8 +476,8 @@ export interface HarnessDriver<
   Evidence extends HarnessPluginEvidence | undefined =
     HarnessPluginEvidence | undefined,
 > extends HarnessDeclaration<Name> {
-  /** package or release and version probe */
-  install: InstallSpec;
+  /** the tools the harness installs, its own CLI first */
+  tools: readonly ToolSpec[];
   /** native marketplace plugin actions */
   plugins: HarnessPluginControl;
   /** idle-governor hook installer */
@@ -586,10 +576,8 @@ export interface AgentDriver<
   HarnessName extends string = string,
   Environment = unknown,
 > extends AgentDeclaration<Name, HarnessName> {
-  /** package or release and version probe */
-  install: InstallSpec;
-  /** runtime the agent needs beside its own package, with its version probe */
-  runtime: InstallSpec;
+  /** the tools the agent installs: its own CLI, then the runtime it needs */
+  tools: readonly ToolSpec[];
   /** npm packages the agent's guest modules import, installed beside it */
   guestPackages: readonly string[];
   /** compiled guest modules the agent contributes to the deployable payload */

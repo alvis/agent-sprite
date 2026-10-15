@@ -1,7 +1,8 @@
+import type { ToolSpec } from '#tools/contracts';
+
 import type {
   DriverDescriptor,
   GuestPayload,
-  InstallSpec,
   ReadinessFinding,
 } from '../contracts.js';
 import type {
@@ -183,14 +184,14 @@ export interface NetworkDeclaration<
 
 /**
  * an optional private-network tool; a network that is no tool, such as one
- * that selects no private network, declares no `install`, `inputs` or `daemon`
+ * that selects no private network, declares no tools, `inputs` or `daemon`
  */
 export interface NetworkDriver<
   Name extends string = string,
   Status extends NetworkStatus = NetworkStatus,
 > extends NetworkDeclaration<Name> {
-  /** package or release and version probe; installed and updated only while the network is selected; absent when the network installs nothing */
-  install?: InstallSpec;
+  /** the tools the network installs, installed and updated only while it is selected; empty when it installs nothing */
+  tools: readonly ToolSpec[];
   /** caller-side inputs, read and prompted for by core; absent when the network takes none */
   inputs?: NetworkInputs;
   /** compiled guest modules the network contributes to the deployable payload; empty when it deploys none */

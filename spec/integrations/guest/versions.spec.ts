@@ -25,7 +25,7 @@ const commands = [
   ['agent-browser', '/usr/local/bin/agent-browser', '--version'],
   ['rust', '/usr/local/bin/rustc', '--version'],
   ['google-chrome', '/usr/local/bin/google-chrome', '--version'],
-  ['tailscale', '/usr/local/bin/tailscale', 'version'],
+  ['tailscale', 'tailscale', 'version'],
   ['claude', '/home/agent/.local/bin/claude', '--version'],
   ['codex', '/home/agent/.local/bin/codex', '--version'],
   ['t3', '/home/agent/.local/bin/t3', '--version'],
@@ -101,7 +101,7 @@ describe('fn:readInstalledVersions', () => {
 
     expect(versions).not.toHaveProperty('tailscale');
     expect(execute.mock.calls.map(([, args]) => args?.at(-2))).not.toContain(
-      '/usr/local/bin/tailscale',
+      'tailscale',
     );
     expect(Object.keys(versions)).toEqual(
       commands.filter(([name]) => name !== 'tailscale').map(([name]) => name),
@@ -123,13 +123,18 @@ describe('fn:readInstalledVersions', () => {
           {
             ...driver,
             acpAdapter: {
-              install: {
-                component: 'codex-acp',
-                source: { kind: 'npm', package: 'codex-acp' },
-                versionProbe: {
-                  program: '/home/agent/.local/bin/codex-acp',
-                  arguments: ['--version'],
+              tool: {
+                name: 'codex-acp',
+                required: true,
+                executables: ['codex-acp'],
+                version: {
+                  executable: '/home/agent/.local/bin/codex-acp',
+                  args: ['--version'],
+                  account: 'agent',
                 },
+                sources: [
+                  { kind: 'npm', package: 'codex-acp', account: 'agent' },
+                ],
               },
               launch: { program: 'codex-acp', arguments: [] },
             },

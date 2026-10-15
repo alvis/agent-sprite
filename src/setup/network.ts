@@ -117,12 +117,12 @@ async function installSelectedNetwork(
   context: Pick<SetupContext, 'profile' | 'mutation'>,
 ): Promise<void> {
   const { profile, mutation } = context;
-  const { install } = networkDriver(profile.network);
-  if (
-    install &&
-    (await readGuestManifest(guest)).installedVersions[install.component] ===
-      undefined
-  ) {
+  const { tools } = networkDriver(profile.network);
+  if (tools.length === 0) {
+    return;
+  }
+  const { installedVersions } = await readGuestManifest(guest);
+  if (tools.some(({ name }) => installedVersions[name] === undefined)) {
     mutation.started = true;
     await installGuestTools(guest, profile);
   }

@@ -14,6 +14,23 @@ import type {
   NetworkGuestLeaf,
   ProviderGuestLeaf,
 } from '#drivers/contracts';
+import type { ToolSpec } from '#tools/contracts';
+
+/**
+ * declares a fixture tool installed first from npm
+ * @param name tool name, which is also its program
+ * @param pkg npm package that provides it
+ * @returns a required tool, probed as the agent with `--version`
+ */
+function npmTool(name: string, pkg: string): ToolSpec {
+  return {
+    name,
+    required: true,
+    executables: [name],
+    version: { executable: name, args: ['--version'], account: 'agent' },
+    sources: [{ kind: 'npm', package: pkg, account: 'agent' }],
+  };
+}
 
 /**
  * loads the guest catalogs against a registry whose only network deploys the
@@ -143,13 +160,10 @@ describe('fn:componentCatalog', () => {
           await importOriginal<typeof import('#core/guest-leaves')>();
         const network: NetworkGuestLeaf = {
           ...tailscaleGuestLeaf,
-          install: {
-            ...tailscaleGuestLeaf.install,
-            source: {
-              kind: 'release',
-              feed: 'https://releases.example/feed',
-              installer,
-            },
+          releaseFeed: {
+            kind: 'release',
+            feed: 'https://releases.example/feed',
+            installer,
           },
           guest: [{ module: installer, account: 'root' }],
         };
@@ -189,17 +203,9 @@ describe('fn:componentCatalog', () => {
 });
 
 describe('fn:harnessCatalogEntry', () => {
-  const install = {
-    component: 'fixture',
-    source: { kind: 'npm', package: '@example/fixture' },
-    versionProbe: { program: 'fixture', arguments: ['--version'] },
-  } as const;
+  const tools = [npmTool('fixture', '@example/fixture')];
   const acpAdapter: AcpAdapterSpec = {
-    install: {
-      component: 'fixture-acp',
-      source: { kind: 'npm', package: '@example/fixture-acp' },
-      versionProbe: { program: 'fixture-acp', arguments: ['--version'] },
-    },
+    tool: npmTool('fixture-acp', '@example/fixture-acp'),
     launch: { program: 'fixture-acp', arguments: [] },
   };
 
@@ -207,7 +213,7 @@ describe('fn:harnessCatalogEntry', () => {
     expect(
       harnessCatalogEntry({
         id: 'fixture',
-        install,
+        tools,
         spawnEnvironment: { FIXTURE: '1' },
         acpAdapter,
       }),
@@ -227,7 +233,7 @@ describe('fn:harnessCatalogEntry', () => {
 
   it('should carry no adapter for a harness that declares none', () => {
     expect(
-      harnessCatalogEntry({ id: 'fixture', install, spawnEnvironment: {} }),
+      harnessCatalogEntry({ id: 'fixture', tools, spawnEnvironment: {} }),
     ).not.toHaveProperty('adapter');
   });
 
@@ -235,17 +241,13 @@ describe('fn:harnessCatalogEntry', () => {
     expect(() =>
       harnessCatalogEntry({
         id: 'fixture',
-        install,
+        tools,
         spawnEnvironment: {},
         acpAdapter: {
           ...acpAdapter,
-          install: {
-            ...acpAdapter.install,
-            source: {
-              kind: 'release',
-              feed: 'https://releases.example/feed',
-              installer: 'drivers/networks/x/guest/x-install.js',
-            },
+          tool: {
+            ...acpAdapter.tool,
+            sources: [{ kind: 'brew', formula: 'fixture-acp' }],
           },
         },
       }),
