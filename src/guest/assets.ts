@@ -3,7 +3,22 @@ import { posix } from 'node:path';
 
 import { runBoundedIO } from '#operation';
 
+import { GUEST_ROOT } from './guest-root.js';
+
 import type { GuestAsset } from '#os/contracts';
+
+/**
+ * declares a guest program installed under the guest root at the path it has
+ * in the package, so the guest tree mirrors the compiled one
+ * @param path path of the `.sh` file relative to the compiled package root
+ * @param mode installed mode
+ * @returns the guest program
+ */
+export function guestAsset(path: string, mode: GuestAsset['mode']): GuestAsset {
+  assetUrl({ path });
+
+  return { path, mode, installAs: `${GUEST_ROOT}/${path}` };
+}
 
 /**
  * locates a guest program in the package: the build copies every `.sh` under
