@@ -20,6 +20,7 @@ import { isLive, isManaged, toRecord, workstationMachine } from './records.js';
 import { configuredRegion } from './region.js';
 import { resizeMachine } from './resize.js';
 import { isAccessDenied } from './status.js';
+import { PUBLIC_IP_TYPES } from './wire.js';
 
 import type { WorkstationProfile } from '#core/profile';
 import type {
@@ -35,7 +36,7 @@ import type {
 } from '#drivers/contracts';
 import type { GuestChannel, GuestProcess } from '#drivers/guest-channel';
 
-import type { FlyApp, FlyIpType, FlyMachine } from './wire.js';
+import type { FlyApp, FlyMachine } from './wire.js';
 
 /** live provider state shared by every record one bound driver returns */
 interface FlySession {
@@ -63,13 +64,6 @@ interface VerifiedWorkstation {
   organization: string;
 }
 
-/** the addresses that make a workstation reachable from the internet */
-const PUBLIC_IP_TYPES: ReadonlySet<FlyIpType> = new Set([
-  'v4',
-  'v6',
-  'shared_v4',
-]);
-
 /** Fly Machines as a provider driver: one app, machine and volume per workstation */
 export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
   public readonly id = 'fly-machine';
@@ -85,6 +79,7 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
   public readonly serviceBackend = flyMachineGuestLeaf.serviceBackend;
   public readonly bootHook = flyMachineGuestLeaf.bootHook;
   public readonly awakeAdapter = flyMachineGuestLeaf.awakeAdapter;
+  public readonly awakeAsset = flyMachineGuestLeaf.awakeAsset;
   readonly #session?: FlySession;
 
   /**

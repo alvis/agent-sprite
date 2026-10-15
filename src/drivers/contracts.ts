@@ -174,6 +174,8 @@ export interface ProviderDeclaration<
   serviceBackend: ServiceBackendId;
   /** guest program each boot runs to restore what the provider resets, such as a rebuilt root disk; absent when it resets nothing */
   bootHook?: GuestAsset;
+  /** guest program the idle governor runs to apply an awake deadline or enter an idle form; absent when nothing keeps the provider awake */
+  awakeAsset?: GuestAsset;
 }
 
 /** what core binds a provider to before any provider call */

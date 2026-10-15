@@ -34,7 +34,10 @@ export interface EnvironmentParams {
   /** the workstation's profile */
   profile: WorkstationProfile;
   /** the selected provider */
-  provider: Pick<ProviderDeclaration, 'id' | 'capabilities' | 'serviceBackend'>;
+  provider: Pick<
+    ProviderDeclaration,
+    'id' | 'capabilities' | 'serviceBackend' | 'awakeAsset'
+  >;
   /** every tool setup resolved */
   tools: readonly ToolSpec[];
   /** the source picked for each tool, or why none is usable */
@@ -172,6 +175,7 @@ function providerFacts(
     transportNetworks: [...capabilities.transportNetworks],
     idleTimeoutMinutes: capped(profile.options.idleTimeoutMinutes),
     holdMaxMinutes: capped(profile.options.holdMaxMinutes),
+    awakeAdapter: provider.awakeAsset?.installAs ?? null,
   };
 }
 

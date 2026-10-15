@@ -86,6 +86,17 @@ const SERVICE_CONTROL = new RegExp(
 // the one use of the Sprite local API the awake adapter makes: its own task
 const SPRITE_TASK_SOCKET = "const SPRITE_API_SOCKET = '/.sprite/api.sock';";
 const SPRITE_ADAPTER = 'drivers/providers/sprite/guest/sprite-awake.js';
+// the shell idle governor, its awake command, and the provider adapters it runs
+const AWAKE_SCRIPT = 'guest/awake.sh';
+// each with the one line it may have that looks like service control: the
+// Sprite adapter's socket, which it uses for its own task alone
+const AWAKE_ADAPTER_SCRIPTS: ReadonlyMap<string, string | undefined> = new Map([
+  ['drivers/providers/fly-machine/guest/fly-machine-awake.sh', undefined],
+  [
+    'drivers/providers/sprite/guest/sprite-awake.sh',
+    'OA_SPRITE_SOCKET=/.sprite/api.sock',
+  ],
+]);
 const BOOTSTRAP_SCRIPT = 'guest/bootstrap-node.sh';
 // the cron gate runs as root before every scheduled update check
 const UPDATE_GATE_SCRIPT = 'guest/update-gate.sh';
@@ -884,6 +895,27 @@ describe('packed guest payload staging', () => {
     expect(shellExecutableLines(script)).toContain('guest/idle/awake.js');
     expect(controlling).toEqual([]);
     expect(modes).toEqual([]);
+  });
+
+  it('should give the shell idle governor and its awake adapters no way to control a service', async () => {
+    const root = await packageRoot();
+
+    const controlling: string[] = [];
+    for (const [name, allowed] of [
+      [AWAKE_SCRIPT, undefined] as const,
+      ...AWAKE_ADAPTER_SCRIPTS,
+    ]) {
+      const source = await readFile(join(root, 'lib', name), 'utf8');
+      const executable = shellExecutableLines(source).replaceAll(
+        allowed ?? '',
+        '',
+      );
+      if (SERVICE_CONTROL.test(executable)) {
+        controlling.push(name);
+      }
+    }
+
+    expect(controlling).toEqual([]);
   });
 
   it.each([

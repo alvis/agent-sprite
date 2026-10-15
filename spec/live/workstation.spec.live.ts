@@ -5,7 +5,7 @@ import { codexTool } from '#drivers/harnesses/codex/tools';
 import { tailscaleDaemon } from '#drivers/networks/tailscale/service';
 import { GUEST_KERNEL } from '#guest/guest-root';
 import { HOMEBREW } from '#guest/homebrew';
-import { AWAKE_COMMAND } from '#guest/idle/command';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 
 import { successData, tail } from './cli.js';
 import {

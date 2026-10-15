@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { AWAKE_COMMAND } from '#guest/idle/command';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { recoverOperation } from '#operation';
 
 import type { GuestChannel } from '#drivers/guest-channel';

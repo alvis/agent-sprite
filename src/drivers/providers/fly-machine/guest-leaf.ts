@@ -1,3 +1,6 @@
+import { guestAsset } from '#guest/assets';
+import { ROOT_ONLY_MODE } from '#os/contracts';
+
 import { BOOT_HOOK } from './boot-layout.js';
 import { FLY_MACHINE_AWAKE_MODULE } from './guest-modules.js';
 import { PRIVATE_V6_NETWORK, PROXY_V4_NETWORK } from './private-networks.js';
@@ -35,4 +38,9 @@ export const flyMachineGuestLeaf: ProviderGuestLeaf = {
   // root alone reaches the guest-local Machines API socket, so the governor
   // imports the adapter as root and the agent account never can
   awakeAdapter: { module: FLY_MACHINE_AWAKE_MODULE, account: 'root' },
+  // the governor's tick runs the adapter as root, so it is root's alone
+  awakeAsset: guestAsset(
+    'drivers/providers/fly-machine/guest/fly-machine-awake.sh',
+    ROOT_ONLY_MODE,
+  ),
 };

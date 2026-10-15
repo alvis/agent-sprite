@@ -1,4 +1,4 @@
-import { AWAKE_COMMAND } from '#guest/idle/command';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import {
   isRecord,
   isStringArray,

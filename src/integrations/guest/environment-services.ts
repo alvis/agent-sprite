@@ -1,7 +1,11 @@
 import { cronService } from '#os/services/cron';
 
+import { governorJobs } from './awake.js';
+
+import type { ProviderCapabilities } from '#drivers/contracts';
 import type { ServiceDefinition } from '#drivers/guest-channel';
 import type { NetworkDriver } from '#drivers/networks/contracts';
+import type { PeriodicJob } from '#os/contracts';
 
 import type { EnvironmentNetwork } from './environment.js';
 
@@ -18,6 +22,18 @@ export function guestServices(
   daemon?: ServiceDefinition,
 ): ServiceDefinition[] {
   return [cronService, ...(daemon ? [daemon] : []), agent];
+}
+
+/**
+ * lists the jobs environment.json records for cron to run: a governed
+ * provider's per-minute governor tick
+ * @param capabilities whether the provider governs its keep-awake
+ * @returns the jobs, in the order cron lists them
+ */
+export function guestJobs(
+  capabilities: Pick<ProviderCapabilities, 'keepAwakeMode'>,
+): PeriodicJob[] {
+  return governorJobs(capabilities);
 }
 
 /**

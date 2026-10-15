@@ -66,6 +66,7 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
   ];
   public readonly serviceBackend = spriteGuestLeaf.serviceBackend;
   public readonly awakeAdapter = spriteGuestLeaf.awakeAdapter;
+  public readonly awakeAsset = spriteGuestLeaf.awakeAsset;
   readonly #session?: SpriteSession;
 
   /**

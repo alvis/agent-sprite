@@ -10,7 +10,6 @@ import {
   GUEST_ROOT,
 } from '#guest/guest-root';
 import { HOMEBREW } from '#guest/homebrew';
-import { AWAKE_COMMAND } from '#guest/idle/command';
 import {
   AWAKE_DIRECTORY,
   GOVERNOR_STATE_FILE,
@@ -21,6 +20,7 @@ import {
   UPDATE_CHECK_STAMP_FILE,
   UPDATE_LOCK_PATH,
 } from '#guest/update-schedule';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { ComponentOutcome } from '#guest/component-outcome';

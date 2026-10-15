@@ -85,6 +85,13 @@ export interface FlyMachinePage {
 export type FlyIpType =
   'v4' | 'v6' | 'shared_v4' | 'private_v6' | 'egress_v4' | 'egress_v6';
 
+/** the addresses that make a workstation reachable from the internet */
+export const PUBLIC_IP_TYPES: ReadonlySet<FlyIpType> = new Set([
+  'v4',
+  'v6',
+  'shared_v4',
+]);
+
 /** one address assigned to an app */
 export interface FlyIpAssignment {
   /** the address */

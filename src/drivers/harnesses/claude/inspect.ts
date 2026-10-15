@@ -1,6 +1,6 @@
 import { GUEST_NODE, GUEST_ROOT } from '#guest/guest-root';
-import { AWAKE_COMMAND } from '#guest/idle/command';
 import { runGuestResult } from '#integrations/guest';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import {
   AGENT_PATH,
   HOME,
