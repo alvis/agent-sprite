@@ -2,7 +2,7 @@
 
 ## Start here
 
-Read the [package guide](../README.md) for CLI usage, then [architecture](architecture/README.md) for runtime boundaries and accepted decisions.
+Read the [package guide](../README.md) for CLI usage, the [maintainer's guide](../ARCHITECTURE.md) for how the project fits together, then [architecture](architecture/README.md) for runtime boundaries and accepted decisions.
 
 ## Durable domains
 

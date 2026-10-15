@@ -95,7 +95,7 @@ async function configureSetupSections(
       proxy = await setupProxy(guest, context);
     },
     environment: async (): Promise<void> => {
-      if (context.options.env) {
+      if (context.options.envFile) {
         environment = await setupEnvironment(guest, context);
       }
     },

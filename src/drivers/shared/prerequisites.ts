@@ -76,7 +76,7 @@ export function missingCredential(
     subject: credential.environment,
     problem: `${credential.label} is not set`,
     fix: [
-      `Set ${credential.environment} or pass --env FILE containing ${credential.environment};`,
+      `Set ${credential.environment} or pass --env-file FILE containing ${credential.environment};`,
       'use --provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT;',
       'or run in a TTY to enter it when prompted.',
       `It needs ${credential.scope}. ${credential.obtain}`,

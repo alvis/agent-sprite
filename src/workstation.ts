@@ -45,7 +45,7 @@ import type { OperationContext } from '#operation';
  * @example
  * const result = await runCommand({
  *   command: 'list',
- *   options: { env: '.env', nonInteractive: true },
+ *   options: { envFile: '.env', nonInteractive: true },
  * });
  */
 export async function runCommand(

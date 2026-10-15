@@ -4,21 +4,23 @@
 
 # open-agent
 
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?style=flat-square&logo=nodedotjs&logoColor=white)](./package.json)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![npm](https://img.shields.io/npm/dm/open-agent?style=flat-square)](https://www.npmjs.com/package/open-agent)
+[![build](https://img.shields.io/github/actions/workflow/status/alvis/open-agent/main.yaml?branch=main&style=flat-square)](https://github.com/alvis/open-agent/actions/workflows/main.yaml)
+[![dependencies](https://img.shields.io/librariesio/release/npm/open-agent?style=flat-square)](https://libraries.io/npm/open-agent)
+[![license](https://img.shields.io/github/license/alvis/open-agent.svg?style=flat-square)](https://github.com/alvis/open-agent/blob/main/LICENSE)
 
 **Your coding workstation, ready when you are.**
 
-_Create persistent Fly Sprites with T3 Code, Claude Code, Codex, and your native tools. Configure once, return to the same workstation._
+_Create persistent coding workstations on Fly Sprites or Fly Machines with T3 Code, Claude Code, Codex, and your native tools. Configure once, return to the same workstation._
 
 </div>
 
-> 🧩 **Built on [Fly Sprites](https://sprites.dev/) and [T3 Code](https://github.com/pingdotgg/t3code).** `open-agent` manages the workstation through the official Sprites SDK while Claude and Codex keep their own native configuration and plugins.
+> 🧩 **Built on [Fly Sprites](https://sprites.dev/), [Fly Machines](https://fly.io/docs/machines/) and [T3 Code](https://github.com/pingdotgg/t3code).** `open-agent` manages each workstation through the official Sprites SDK or the Fly Machines API and flyctl, while Claude and Codex keep their own native configuration and plugins.
 
 <br/>
 <div align="center">
 
-•&emsp;🔑 [Environment](#-environment-variables)&emsp;•&emsp;🔐 [Authentication](#-authentication)&emsp;•&emsp;📖 [Usage](#-usage)&emsp;•&emsp;📚 [CLI Reference](#-cli-reference)&emsp;•
+•&emsp;🔑 [Environment](#-environment-variables)&emsp;•&emsp;🔐 [Authentication](#-authentication)&emsp;•&emsp;📖 [Usage](#-usage)&emsp;•&emsp;📚 [CLI Reference](#-cli-reference)&emsp;•&emsp;📐 [Architecture](#-architecture)&emsp;•
 
 </div>
 <br/>
@@ -38,12 +40,12 @@ chmod 600 .env
 Meet the selected provider's [prerequisites](#-prerequisites); for the default Fly Sprite provider, put a Sprites organization token in `SPRITES_TOKEN` in the protected `.env` file. Add credentials for any selected network or proxy, then create a workstation:
 
 ```bash
-pnpm run local -- create --env .env --name my-workstation --with-pair-code
+pnpm run local -- create --env-file .env --name my-workstation --with-pair-code
 ```
 
 Interactive creation asks, in order, for the provider, the minimum CPUs and the minimum memory in GB (both default to 2; asked again with the reason when the provider offers no machine that large), ACP agent, the agent's release channel (only when the agent declares more than one; T3 Code offers `stable` and `nightly`), harnesses (only those the agent supports), network, then the options those drivers support: an exit node only when the network supports one, CLIProxyAPI only when a selected harness supports it, and idle minutes only when the provider keeps workstations awake. A step with a single choice is skipped. GitHub authentication and Git/Jujutsu identity are separate choices. Copy the returned agent URL into your client; its native pairing code is valid for five minutes.
 
-Dotenv files are loaded only when explicitly selected with `--env FILE`. See [.env.example](.env.example) for every supported environment input and its meaning.
+Dotenv files are loaded only when explicitly selected with `--env-file FILE`. See [.env.example](.env.example) for every supported environment input and its meaning.
 
 ---
 
@@ -72,15 +74,17 @@ A remote coding workstation involves more than installing an editor:
 
 ## 🚀 Key Features
 
-| Feature                           | What it gives you                                                                                                                       |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **Six workstation commands**      | Create, configure, list, show, diagnose, and permanently terminate managed Sprites                                                      |
-| **Persistent T3 workstation**     | T3 Code with Claude Code, Codex, a Node, Python and Rust toolchain, Git, Jujutsu, GitHub CLI, and network diagnostics                   |
-| **Optional networking and proxy** | Join a tailnet, select exit-node routing, or route both harnesses to an existing CLIProxyAPI hub                                        |
-| **Independent native plugins**    | Repeatable marketplace and plugin actions for Claude and Codex, without converting one harness’s plugins into the other’s               |
-| **Readable terminal interaction** | Searchable selectors, labelled back navigation, masked credential prompts, and grouped inspection results                               |
-| **Live provider discovery**       | Paginated provider queries and exact managed-target checks, without a local machine registry                                            |
-| **Scheduled tool maintenance**    | Latest stable managed-tool updates once due (default seven days), checked on a configurable interval (default 30 minutes) while running |
+| Feature                           | What it gives you                                                                                                                                                           |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Six workstation commands**      | Create, configure, list, show, diagnose, and permanently terminate managed workstations                                                                                     |
+| **Two providers**                 | Fly Sprites, or Fly Machines with a persistent volume; you set minimum CPUs and memory and the provider runs the smallest machine that fits                                 |
+| **Persistent T3 workstation**     | T3 Code on its `stable` or `nightly` channel, with Claude Code, Codex, a Node, Python and Rust toolchain, Git, Jujutsu, GitHub CLI, and network diagnostics                 |
+| **Optional networking and proxy** | Join a tailnet, select exit-node routing, or route both harnesses to an existing CLIProxyAPI hub                                                                            |
+| **Independent native plugins**    | Repeatable marketplace and plugin actions for Claude and Codex, without converting one harness’s plugins into the other’s                                                   |
+| **Idle governor**                 | The workstation sleeps after a configurable idle time and stays awake while a harness turn or managed operation runs                                                        |
+| **Readable terminal interaction** | Searchable selectors, labelled back navigation, masked credential prompts, and grouped inspection results                                                                   |
+| **Live provider discovery**       | Paginated provider queries and exact managed-target checks, without a local machine registry                                                                                |
+| **Scheduled tool maintenance**    | Latest stable managed-tool updates once due (default seven days), checked on a configurable interval (default 30 minutes), skipping current tools and restarting no service |
 
 ---
 
@@ -89,15 +93,17 @@ A remote coding workstation involves more than installing an editor:
 | ✅ Supported | ⚠️ Partial (see note) | ❌ Unsupported | 🔜 Planned |
 | ------------ | --------------------- | -------------- | ---------- |
 
-| Capability                            | Support | Notes                                                                                              |
-| ------------------------------------- | ------- | -------------------------------------------------------------------------------------------------- |
-| Fly Sprites management                | ✅      | Official SDK; authenticated provider operations and live machine discovery                         |
-| T3 Code service and pairing           | ✅      | T3 is the sole public HTTP service; a requested code is attached to its normal URL                 |
-| Claude and Codex native configuration | ✅      | Separate settings and plugin selections; optional direct CLIProxyAPI routing                       |
-| GitHub authentication                 | ✅      | Separate protected native credentials for T3’s `agent` account and the provider’s `sprite` account |
-| Tailscale and exit-node routing       | ✅      | Optional; exit routing requires an existing approved exit node and permitted access                |
-| Existing CLIProxyAPI hub              | ✅      | Optional client configuration; the manager does not host a new hub                                 |
-| Idle governor                         | ⚠️      | Native work hooks and managed setup/update holds; arbitrary shells and tools can bypass hooks      |
+| Capability                            | Support | Notes                                                                                             |
+| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| Fly Sprites (`sprite`)                | ✅      | Official SDK; authenticated provider operations and live machine discovery; one 8 CPU, 16 GB size |
+| Fly Machines (`fly-machine`)          | ✅      | Machines API and `fly ssh console`; one app, machine and volume per workstation; resizable        |
+| T3 Code service and pairing           | ✅      | T3 is the sole public HTTP service; a requested code is attached to its normal URL                |
+| Claude and Codex native configuration | ✅      | Separate settings and plugin selections; optional direct CLIProxyAPI routing                      |
+| GitHub authentication                 | ✅      | Separate protected native credentials for T3’s `agent` account and a Sprite’s `sprite` account    |
+| No private network (`none`)           | ✅      | Default without network input; installs no network tool and registers no network service          |
+| Tailscale and exit-node routing       | ✅      | Optional; exit routing requires an existing approved exit node and permitted access               |
+| Existing CLIProxyAPI hub              | ✅      | Optional client configuration; the manager does not host a new hub                                |
+| Idle governor                         | ⚠️      | Native work hooks and managed setup/update holds; arbitrary shells and tools can bypass hooks     |
 
 Local execution requires Node.js 24+. Packaged terminal regression checks use `node-pty`; Windows terminals and screen-reader behavior remain outside the verified platform scope.
 
@@ -132,9 +138,9 @@ Every workstation gets these tools for the `agent` account, linked in `/usr/loca
 
 The Node.js on the agent's `PATH` is Homebrew's Current line. open-agent's own guest code runs on a separate, private Node under `/opt/open-agent/node`, which is never on the agent's `PATH`, so updating either one leaves the other alone. The Rust toolchain is the `stable` channel with the minimal profile plus `clippy` and `rustfmt`, installed in the agent's home by `rustup`; `show` and `doctor` report each tool's version.
 
-`list` and ordinary `show` read the control plane. `show --inspect` and `doctor` explicitly check the guest and may wake it. A stored setup label is not a current health result. `list` queries every provider whose credential is available and notes the others as skipped, so one missing credential never fails the list; every other command finds the workstation on any such provider without `--provider`, and asks for `--provider` only when the same name exists on several.
+`list` and ordinary `show` read the control plane. `show --inspect` and `doctor` explicitly check the guest and may wake it. A stored setup label is not a current health result. `list` queries every provider whose credential is available and notes the others as skipped, so one missing credential never fails the list. Every other command looks for the named workstation on each provider whose credential is ready, so you rarely need to name the provider of an existing workstation; when the same name exists on several providers, the command stops with an `INPUT` error that names them. `--provider PROVIDER` on `show`, `doctor`, `terminate` and `setup` names the provider instead and skips that search, so the error never occurs. It is also the provider a `--provider-token-source` belongs to, on `list` too; with a token source and no `--provider`, the source belongs to the default `sprite`.
 
-For boundaries, runtime flow, and design decisions, see the [architecture index](docs/architecture/README.md).
+For how the CLI, the drivers and the guest fit together, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -155,7 +161,7 @@ Each provider declares the host tools and the management credential it needs. `c
 - **Credential**: `FLY_API_TOKEN`, a Fly organization token able to create apps, machines and volumes: `fly tokens create org -o <organization>`. The organization it names owns the workstations. `--provider-token-source` selects another source, as for Sprites
 - **Scope check**: before any provider call, flyctl decodes the token offline (`fly tokens debug`); a deploy, SSH or other narrowed token, an expired token, or a value that is not a Fly token is refused with its fix. A Sprites token is refused by its shape without being decoded
 - **Placement**: each workstation is one app named after it, holding one machine and one volume, in `OPEN_AGENT_FLY_REGION` or, when unset, the region nearest this computer. Its URL is `https://<name>.fly.dev`, routed only after setup makes it ready
-- **Cold boot**: a stop resets the machine's root filesystem, so the installed tools, both accounts' homes and an apt cache live on its volume. A boot script, the machine's init, binds them back, recreates the `agent` and `linuxbrew` accounts under their original ids and reinstalls the recorded apt packages from the cache in seconds, before any command reaches the guest. It logs each step to `/opt/open-agent/boot.log` and `fly logs`, and records the last boot in `/opt/open-agent/boot-status.json`
+- **Cold boot**: a stop resets the machine's root filesystem, so the installed tools, both accounts' homes and an apt cache live on its volume. A boot script, the machine's init, binds them back, recreates the `agent` and `linuxbrew` accounts under their original ids and reinstalls the recorded apt packages from the cache in seconds, and replays the recorded tool links into `/usr/local/bin`, before any command reaches the guest. Tailscale keeps its node state on the volume, so a cold-booted workstation stays enrolled; a daemon that has logged out anyway re-joins with `setup --section network`. It logs each step to `/opt/open-agent/boot.log` and `fly logs`, and records the last boot in `/opt/open-agent/boot-status.json`
 - **Idle**: the idle governor, run by the guest supervisor as root, suspends the machine from memory with a `POST` to the guest-local `/.fly/api` socket when the deadline passes, and stops it through the same socket when the machine has more than 2 GB of memory, swap or a schedule, or the suspend is refused. No token is on the guest, and the agent account cannot reach the socket. A URL request resumes a suspended machine or cold-boots a stopped one
 - **Guest access**: commands run over `fly ssh console` with a token derived in memory from the organization token; it is never written to disk or sent to the guest. It has full access only to its own app, but it can still read everything in the organization (every app, machine and volume), and it can issue SSH certificates and add WireGuard peers to the organization, because an SSH session needs both. It expires with the organization token
 - **WireGuard peer**: the first SSH session creates an organization WireGuard peer, named `interactive-<host>-…`, and stores its private key in `$XDG_CONFIG_HOME/open-agent/flyctl/config.yml`; later sessions reuse it. List the organization's peers with `fly wireguard list <organization>` and remove this one with `fly wireguard remove <organization> <name>`; the next session then creates a new one
@@ -168,11 +174,11 @@ Each provider declares the host tools and the management credential it needs. `c
 
 ### CLI Runtime
 
-Pass `--env FILE` for dotenv input. Explicit flags and credential references precede process environment, selected dotenv values, eligible profile/local defaults, prompts, and defaults. A malformed flag value is a `USAGE` error. Selection values from every source, option bounds and boolean environment values are then validated together before any provider call: every problem, such as an unknown driver, a malformed number or an out-of-range timeout, is reported in one `INPUT` error.
+Pass `--env-file FILE` for dotenv input. Explicit flags and credential references precede process environment, selected dotenv values, eligible profile/local defaults, prompts, and defaults. A malformed flag value is a `USAGE` error. Selection values from every source, option bounds and boolean environment values are then validated together before any provider call: every problem, such as an unknown driver, a malformed number or an out-of-range timeout, is reported in one `INPUT` error.
 
 | Variables                                     | Meaning                                                                                     |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `OPEN_AGENT_PROVIDER`, `OPEN_AGENT_AGENT`     | Provider and ACP agent; fixed after creation                                                |
+| `OPEN_AGENT_PROVIDER`, `OPEN_AGENT_AGENT`     | Provider and ACP agent for create; fixed after creation. Other commands take `--provider`   |
 | `OPEN_AGENT_HARNESSES`                        | Comma-separated harnesses the agent drives                                                  |
 | `OPEN_AGENT_NETWORK`                          | `none` or `tailscale`; `none` keeps the workstation off any private network                 |
 | `OPEN_AGENT_CPU`, `OPEN_AGENT_MEM`            | Minimum CPUs and minimum memory in GB, whole numbers from `1`; default `2` and `2`          |
@@ -253,14 +259,6 @@ Create, setup and show mint no code by default. `--with-pair-code` is the canoni
 
 ---
 
-## 📐 Architecture
-
-Root workflows coordinate domain modules and narrow integrations. `src/guest` is the guest kernel and each driver's `guest/` folder holds its own deployable payloads, `src/components` owns Ink views, and `src/cli` owns parsing and terminal adapters. Cloud mutations stay outside React rendering.
-
-`bin/cli.mjs` launches the installed compiled CLI. Source aliases intentionally point at TypeScript; packed aliases point at compiled JavaScript. Use `pnpm run local --` for checkout execution. See the [architecture index](docs/architecture/README.md) for runtime boundaries and accepted decisions.
-
----
-
 ## 📖 Usage
 
 Use the interactive CLI to select workstations and configure sections, or pass names and flags for automation. In the examples below, replace `open-agent` with `pnpm run local --` when working from this unpublished checkout. The temporary runner preserves arguments, environment, working directory, signals and exit status; it does not install a global command.
@@ -282,12 +280,13 @@ Run `open-agent COMMAND --help` for the complete command-specific flag list, or 
 
 | Flags                                                                                                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--env PATH`                                                                                                       | Select a dotenv file explicitly                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `--env-file FILE`                                                                                                  | Select a dotenv file explicitly; no dotenv file is read otherwise                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `--json`, `--non-interactive`                                                                                      | Disable prompts; JSON emits one structured final result on stdout                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `--yes`                                                                                                            | On create/setup/terminate, approve already-selected actions; termination still requires an explicit target                                                                                                                                                                                                                                                                                                                                                                       |
 | `--color` / `--no-color`, `--quiet`, `--verbose`                                                                   | Color, routine-progress suppression and redacted timings                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `--local-credentials` / `--no-local-credentials`                                                                   | Skip eligible saved/discovered local credentials and saving prompted credentials                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `--provider`, `--agent`, `--harness` (repeatable), `--network`                                                     | Select the drivers; the provider and agent are fixed after creation                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `--local-credentials` / `--no-local-credentials`                                                                   | Use or skip eligible saved and discovered local credentials, and the saving of prompted credentials                                                                                                                                                                                                                                                                                                                                                                              |
+| `--provider PROVIDER`                                                                                              | On create, selects the provider (`sprite` or `fly-machine`; fixed after creation). On `setup`, `show`, `doctor` and `terminate`, names the provider that holds the workstation instead of asking every provider with a ready credential, and is the provider a `--provider-token-source` belongs to (`sprite` when omitted). On `list`, it only names the provider a `--provider-token-source` belongs to; every provider is still listed                                        |
+| `--agent`, `--harness` (repeatable), `--network`                                                                   | On create and setup, select the drivers (`t3`, `claude` and `codex`, `none` or `tailscale`); the agent is fixed after creation                                                                                                                                                                                                                                                                                                                                                   |
 | `--cpu`, `--mem`                                                                                                   | Minimum CPUs and minimum memory in GB (whole numbers from 1, default 2 and 2); the provider runs the smallest machine it offers that meets both and `create` refuses a minimum it cannot meet. `setup` resizes only when one is given: a Fly Machine restarts to change size, so `setup` warns, asks in an interactive run (default no), proceeds with `--yes` and otherwise fails with a usage error; a size the machine already has changes nothing, and a Sprite has one size |
 | `--release`                                                                                                        | Release channel of the ACP agent (T3 Code: `stable`, the default, follows npm `latest`; `nightly` follows npm `nightly`); `setup --section agent` or `--section all` switches it, installs that channel's current version (a downgrade back to `stable`), restarts the agent and waits for readiness                                                                                                                                                                             |
 | `--idle-minutes`, `--hold-max-minutes`                                                                             | Idle suspension (`0` never suspends) and turn-hold lifetime                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -302,7 +301,7 @@ Run `open-agent COMMAND --help` for the complete command-specific flag list, or 
 | `--uninstall-claude-plugin`, `--uninstall-codex-plugin`                                                            | Repeatable removal                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `--reuse-marketplaces`                                                                                             | Reuse the first harness's marketplace sources for the other selected harnesses in this operation                                                                                                                                                                                                                                                                                                                                                                                 |
 | `--plugins` / `--no-plugins`, `--claude-plugins` / `--no-claude-plugins`, `--codex-plugins` / `--no-codex-plugins` | Permit or skip selected plugin work; enabling does not select a plugin                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `--github` / `--no-github`, `--git-identity` / `--no-git-identity`                                                 | Permit or skip optional GitHub authentication or Git/Jujutsu identity                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `--github` / `--no-github`, `--git-identity` / `--no-git-identity`, `--github-host`                                | Permit or skip optional GitHub authentication or Git/Jujutsu identity, and select the GitHub host                                                                                                                                                                                                                                                                                                                                                                                |
 | `--git-name`, `--git-email`, `--git-committer-name`, `--git-committer-email`                                       | Set explicit Git identity independently of GitHub authentication                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `--with-pair-code` (per-agent alias such as `--with-t3-pair-code`)                                                 | Create and disclose a fresh code on the normal agent URL                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `show --inspect`                                                                                                   | Inspect live guest configuration; may wake the guest and take longer                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -327,10 +326,10 @@ The **Network** section separates guest networking from **Replace saved API key 
 List managed workstations, read provider details, then request live readiness or a fresh client pairing when needed:
 
 ```bash
-open-agent list --env .env --json
-open-agent show my-workstation --env .env --json
-open-agent doctor my-workstation --env .env --json
-open-agent show my-workstation --env .env --with-pair-code
+open-agent list --env-file .env --json
+open-agent show my-workstation --env-file .env --json
+open-agent doctor my-workstation --env-file .env --json
+open-agent show my-workstation --env-file .env --with-pair-code
 ```
 
 `list` and ordinary `show` do not wake the guest. Add `--inspect` to show for explicit guest checks, or `--json` to the pairing command for structured output. The executable flushes both streams before exiting.
@@ -340,7 +339,7 @@ open-agent show my-workstation --env .env --with-pair-code
 Register the same GitHub marketplace independently for both harnesses, then enable the selected native plugin identities:
 
 ```bash
-open-agent setup my-workstation --env .env \
+open-agent setup my-workstation --env-file .env \
   --claude-marketplace alvis/.agents --codex-marketplace alvis/.agents \
   --claude-plugin essential@alvis --claude-plugin coding@alvis \
   --claude-plugin specification@alvis --claude-plugin governance@alvis \
@@ -351,20 +350,20 @@ open-agent setup my-workstation --env .env \
 Explicit plugin actions infer `--section plugins`; a conflicting section errors. All four marketplace/plugin input flags and every removal/disable/uninstall action are repeatable. A selection for one harness does not select it for the other.
 
 ```bash
-open-agent setup my-workstation --env .env \
+open-agent setup my-workstation --env-file .env \
   --disable-claude-plugin coding@alvis \
   --uninstall-codex-plugin coding@alvis
 ```
 
-`--reuse-marketplaces` replaces `--reuse-claude-marketplaces`. It takes the marketplace sources of the first harness, in catalog order, that has any and applies them once to the other selected harnesses; it reuses sources only for the requested operation. Skip flags alone select no operation. Unrelated native settings and plugins are preserved.
+`--reuse-marketplaces` takes the marketplace sources of the first harness, in catalog order, that has any and applies them once to the other selected harnesses; it reuses sources only for the requested operation. Skip flags alone select no operation. Unrelated native settings and plugins are preserved.
 
 ### Example: Recover or Update a Workstation
 
 Recover an incomplete installation or explicitly refresh managed tools:
 
 ```bash
-open-agent setup my-workstation --env .env --section all
-open-agent setup my-workstation --env .env --section tools --update
+open-agent setup my-workstation --env-file .env --section all
+open-agent setup my-workstation --env-file .env --section tools --update
 ```
 
 Full setup updates tools and configures all areas. For a smaller repair, select the relevant section, such as `--section github`. Failures include bounded redacted diagnostics, the failed section, and a retry command. A successful targeted retry does not establish full readiness or clear the global incomplete-setup marker.
@@ -423,15 +422,18 @@ Pairing disclosure is opt-in and structurally marked. Other resolved credentials
 
 ## 🔧 Maintenance
 
-A managed Sprite runs `t3-code` and `open-agent-cron`, plus `tailscaled` when Tailscale is enabled. T3 is the only public HTTP service; administration uses authenticated provider interfaces.
+A Sprite runs `t3-code` and `open-agent-cron` as Sprite services, plus `tailscaled` when Tailscale is selected. A Fly Machine has no service manager, so its boot script starts the guest supervisor, `/opt/open-agent/bin/open-agent-supervisor`, which runs `t3-code` and `tailscaled`, restarts an exited service with a doubling delay, restores the running services after a cold boot, and runs a maintenance timer in place of cron. It logs to `/opt/open-agent/supervisor.log`, each service's output goes to `/opt/open-agent/supervisor/logs/<name>.log`, and `doctor` reports the timer as `open-agent-timer` under Maintenance. T3 is the only public HTTP service; administration uses authenticated provider interfaces.
 
-A Fly Machine has no service manager of its own, so its boot script runs the guest supervisor, `/opt/open-agent/bin/open-agent-supervisor`, as root. The supervisor runs `t3-code` and `tailscaled` as their declared accounts, starting a service only once the services it needs run, restarts an exited service after a delay that doubles from one second up to a limit, and keeps the desired services on the volume, so a cold boot restores the running ones and leaves the stopped ones stopped. Registering an unchanged service keeps its process. It runs no file another account can change as root. In place of cron, its maintenance timer starts the same update gate every minute and runs the idle governor's tick at least every three minutes; no cron is installed there. The supervisor logs service starts and exits, governor decisions and timer failures to `/opt/open-agent/supervisor.log`, each service's output goes to `/opt/open-agent/supervisor/logs/<name>.log`, and `doctor` reports the timer as `open-agent-timer` under Maintenance.
+**Updates.** While the workstation runs, cron (the supervisor's timer on a Fly Machine) checks every **30 minutes** by default, and once **seven days** have passed since the last successful update it installs the latest managed tools in place. A tool whose installed version is already the latest, with no outdated dependency, is skipped. The agent follows the npm dist-tag of its recorded release channel (`stable` unless another was selected). Change the intervals with `--update-check-minutes` (1 to 10080) and `--update-due-days` (1 to 365); `setup --section tools` or `setup --section all` changes them on a live workstation without restarting a service, and a run that only changes an interval reports `tools: "scheduled"`. The success time advances only after every required install succeeds. A fallback the updater had to take, or an unusable interval file, is recorded as `lastUpdateDiagnostic` in the manifest, which `show --inspect` and `doctor` report under Maintenance alongside the `Agent release channel`.
 
-Cron (the supervisor's timer on a Fly Machine) checks every **30 minutes** by default while the workstation runs, and after **seven days** by default since the last successful update it installs the latest managed tools in place; the agent follows the dist-tag of its recorded release channel (`stable` unless another was selected), which the root-owned component catalog carries to every scheduled or forced update. Both are configurable with `--update-check-minutes` (a whole number from 1 to 10080) and `--update-due-days` (a whole number from 1 to 365), and `setup --section tools` or `setup --section all` changes them on a live workstation without restarting a service. A tools run that only changes an interval stores it and installs the schedule in one step and reports `tools: "scheduled"`; an interval that matches the recorded one changes nothing, so the interactive tools menu and the `--update` requirement behave as before, and a later `setup --section tools --update` redeploys the gate and the cron entry with the refreshed tools. The check interval is exact for every value, not only divisors of 60: cron starts a small shell gate every minute, the gate compares the epoch minute against the minute it last let a check through, and Node starts only when the interval has elapsed. The interval lives in one root-owned file, `/opt/open-agent/update-check-minutes`, that the host writes from the stored profile; the updater reads the due days from the stored profile and falls back to seven when it cannot. The cron entry discards all output, so the updater records any such fallback, and an unusable interval file, as `lastUpdateDiagnostic` in the manifest, which `show --inspect` and `doctor` report under Maintenance. The updater never stops, starts, restarts, registers or deletes a service, so a running agent or network daemon keeps its process; a newly installed version runs the next time the service restarts, which `setup --section agent --release CHANNEL` and `setup --section all` do when the release channel changed. `show --inspect` and `doctor` report the channel as `Agent release channel`. Success time advances only after every required install succeeds.
+**No service restarts.** The updater never stops, starts, restarts, registers or deletes a service, so a running agent or network daemon keeps its process; a newly installed version runs the next time the service restarts, which `setup --section agent --release CHANNEL` and `setup --section all` do when the release channel changed. Updates can still interrupt active work: there are no compatibility, staging, or safe-point gates. Project dependencies, the guest distribution, and the provider runtime are outside the maintenance scope.
 
-Updates can interrupt active work. There are no compatibility, staging, or safe-point gates. Project dependencies, the guest distribution, and the Sprites runtime are outside the maintenance scope.
+**Staying awake.** One idle governor decides how long the workstation stays awake, from what the harnesses and the managed operations report. A Claude Code or Codex hook runs the root-owned `/opt/open-agent/bin/open-agent-awake` command: a prompt (`UserPromptSubmit`) opens a **turn hold**, every tool call (`PreToolUse`) is a **heartbeat** that refreshes it, and the end of the turn (`Stop`, `SessionEnd`) closes it. Managed setup, update and transaction work opens a **managed hold** of its own, refreshed while the work runs and dropped once its process has exited. The workstation stays awake until the later of the last heartbeat plus the idle timeout (`--idle-minutes`, default 5) and the latest open hold, and no hold lasts longer than `--hold-max-minutes` (default 60) after its last refresh, so a turn whose end hook never fires lapses at that maximum.
 
-**Staying awake.** One idle governor decides how long the workstation stays awake, from what the harnesses and the managed operations report. A Claude Code or Codex hook runs the root-owned `/opt/open-agent/bin/open-agent-awake` command: a prompt (`UserPromptSubmit`) opens a **turn hold**, every tool call (`PreToolUse`) is a **heartbeat** that refreshes it, and the end of the turn (`Stop`, `SessionEnd`) closes it. Managed setup, update and transaction work opens a **managed hold** of its own, refreshed while the work runs and dropped once its process has exited. The workstation stays awake until the later of the last heartbeat plus the idle timeout (`--idle-minutes`, default 5) and the latest open hold, and no hold lasts longer than `--hold-max-minutes` (default 60) after its last refresh. A turn whose end hook never fires therefore lapses at that maximum instead of holding the Sprite for ever. On Sprite the deadline is mirrored into a Sprite task (`open-agent-awake`) that expires at the deadline and is removed when nothing keeps the workstation awake; a Sprite task cannot last more than 60 minutes, so `create` refuses an idle timeout or hold maximum above 60 for Sprite. The command never fails a turn: it exits 0 within eight seconds whatever happens, and every hook allows ten. `show --inspect` and `doctor` report the governor (last heartbeat, open holds, deadline, last adapter result) and whether each harness has all four awake hooks installed. Idle cron acquires no hold. Arbitrary shells, third-party tools, and paths bypassing hooks may not keep the Sprite awake.
+- **Sprite**: the deadline is mirrored into a Sprite task (`open-agent-awake`) that expires at the deadline and is removed when nothing keeps the workstation awake. A Sprite task cannot last more than 60 minutes, so `create` refuses an idle timeout or hold maximum above 60 for Sprite.
+- **Fly Machine**: once the deadline passes, the supervisor suspends the machine, or stops it when suspending is ruled out; see [Prerequisites](#fly-machine---provider-fly-machine). A URL request wakes it.
+
+The command never fails a turn: it exits 0 within eight seconds whatever happens, and every hook allows ten. `show --inspect` and `doctor` report the governor (last heartbeat, open holds, deadline, last adapter result) and whether each harness has all four awake hooks installed. Arbitrary shells, third-party tools, and paths bypassing hooks may not keep the workstation awake.
 
 ---
 
@@ -455,11 +457,29 @@ pnpm test
 pnpm test:e2e
 ```
 
-The live suite runs against real providers and cleans up after itself. It reads `.env`, or the file `OPEN_AGENT_LIVE_ENV` names. The Fly Machine probe is a separate project that also needs `FLY_API_TOKEN` there and sweeps the organization's run-prefixed Fly apps:
+The live suites run against real providers, spend real money and clean up after themselves. They read `.env`, or the file `OPEN_AGENT_LIVE_ENV` names; the Fly Machine probe also needs `FLY_API_TOKEN` there:
 
 ```bash
 pnpm test:live
 pnpm test:live:fly
 ```
 
-Presetter 9.1 owns generated configuration with ESM, strict, and React presets. Unit specs mirror source paths and may replace only provider boundaries: `@fly/sprites`, and the Fly Machines API through `fetch`. The dedicated end-to-end project runs the packed, installed executable and uses `node-pty` for real terminal input. The same packed runner powers `pnpm run local`; checkout aliases are never rewritten for execution.
+[ARCHITECTURE.md](ARCHITECTURE.md#-testing) explains what each suite proves and how live runs are cleaned up.
+
+---
+
+## 📐 Architecture
+
+[ARCHITECTURE.md](ARCHITECTURE.md) is the maintainer's guide: the mental model from profile to drivers to guest kernel, a directory map, what runs on your computer and on the guest, the create, setup, update, idle and cold-boot lifecycles, how to add a driver, where guest state lives, testing, and common pitfalls. The detailed runtime reference is [docs/architecture/workstation.md](docs/architecture/workstation.md), and accepted decisions are indexed in [docs/architecture](docs/architecture/README.md).
+
+---
+
+## 📜 Changelog
+
+See the [GitHub releases](https://github.com/alvis/open-agent/releases).
+
+---
+
+## 📄 License
+
+[MIT](LICENSE) © Alvis HT Tang

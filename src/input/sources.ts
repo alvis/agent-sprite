@@ -161,8 +161,8 @@ export async function readInputSources(
 export async function readEnvironmentSources(
   options: CommandOptions,
 ): Promise<Pick<InputSources, 'processEnv' | 'fileEnv'>> {
-  const fileEnv = options.env
-    ? parse(await readInputText(options.env, '--env file'))
+  const fileEnv = options.envFile
+    ? parse(await readInputText(options.envFile, 'env file'))
     : {};
 
   return { processEnv: process.env, fileEnv };

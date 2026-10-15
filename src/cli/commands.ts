@@ -20,6 +20,7 @@ import {
   pairingFlags,
   pluginFlags,
   providerCredentialFlags,
+  providerFlags,
   selectionFlags,
   setupFlags,
 } from './flags.js';
@@ -58,6 +59,7 @@ type FlagsFor<T> = RequiredBooleanFields<
   Pick<CommandOptions, Extract<keyof T, keyof CommandOptions>>
 >;
 type CommonFlags = FlagsFor<typeof commonFlags>;
+type ProviderCommonFlags = CommonFlags & FlagsFor<typeof providerFlags>;
 type ConfigurationFlags = FlagsFor<
   typeof consentFlags &
     typeof pairingFlags &
@@ -74,12 +76,13 @@ type CreateFlags = ConfigurationFlags & Pick<CommandOptions, 'name'>;
 type SetupFlags = ConfigurationFlags &
   FlagsFor<typeof setupFlags> &
   HarnessPluginFlagValues;
-type InspectFlags = CommonFlags &
+type InspectFlags = ProviderCommonFlags &
   Required<Pick<CommandOptions, 'inspect'>> &
   Pick<CommandOptions, 'withPairCode'>;
 type TerminateFlags = FlagsFor<
   typeof consentFlags &
     typeof networkSelectionFlags &
+    typeof providerFlags &
     typeof providerCredentialFlags &
     typeof networkCredentialFlags &
     typeof outputFlags
@@ -181,10 +184,13 @@ const listCommand = buildCommand({
    * @param flags parsed command options
    * @returns completion after final output
    */
-  async func(this: InvocationContext, flags: CommonFlags): Promise<void> {
+  async func(
+    this: InvocationContext,
+    flags: ProviderCommonFlags,
+  ): Promise<void> {
     return execute({ command: 'list', options: flags }, this.state);
   },
-  parameters: { flags: commonFlags },
+  parameters: { flags: { ...providerFlags, ...commonFlags } },
   docs: listDocumentation,
 });
 const showCommand = buildCommand({
@@ -209,6 +215,7 @@ const showCommand = buildCommand({
         brief: 'check live guest services and configuration (may wake it)',
       },
       ...pairingFlags,
+      ...providerFlags,
       ...providerCredentialFlags,
       localCredentials: {
         ...providerCredentialFlags.localCredentials,
@@ -241,6 +248,7 @@ const terminateCommand = buildCommand({
     flags: {
       ...consentFlags,
       ...networkSelectionFlags,
+      ...providerFlags,
       ...providerCredentialFlags,
       ...networkCredentialFlags,
       ...outputFlags,
@@ -258,13 +266,13 @@ const doctorCommand = buildCommand({
    */
   async func(
     this: InvocationContext,
-    flags: CommonFlags,
+    flags: ProviderCommonFlags,
     machine?: string,
   ): Promise<void> {
     return execute({ command: 'doctor', machine, options: flags }, this.state);
   },
   parameters: {
-    flags: commonFlags,
+    flags: { ...providerFlags, ...commonFlags },
     positional: machinePositional,
   },
   docs: doctorDocumentation,

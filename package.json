@@ -2,34 +2,41 @@
   "name": "open-agent",
   "version": "0.0.0",
   "private": true,
+  "description": "Persistent coding workstations with your choice of machine provider, ACP agent, harnesses and network",
+  "homepage": "https://github.com/alvis/open-agent#readme",
+  "bugs": {
+    "url": "https://github.com/alvis/open-agent/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alvis/open-agent.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Alvis HT Tang",
+    "email": "alvis@hilbert.space"
+  },
   "type": "module",
   "imports": {
     "#components/*": "./src/components/*.tsx",
     "#*": "./src/*.ts"
-  },
-  "publishConfig": {
-    "access": "public",
-    "imports": {
-      "#components/*": "./lib/components/*.js",
-      "#*": "./lib/*.js"
-    }
   },
   "bin": {
     "open-agent": "./bin/cli.mjs"
   },
   "scripts": {
     "build": "run build",
+    "postbuild": "cp src/guest/*.sh lib/guest/ && chmod +x bin/cli.mjs",
     "lint": "run lint --",
+    "postlint": "eslint --max-warnings 0 bin && sh -n src/guest/bootstrap-node.sh && sh -n src/guest/update-gate.sh",
     "lint:check": "run lint:check",
     "local": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts run",
-    "postbuild": "cp src/guest/*.sh lib/guest/ && chmod +x bin/cli.mjs",
-    "postlint": "eslint --max-warnings 0 bin && sh -n src/guest/bootstrap-node.sh && sh -n src/guest/update-gate.sh",
     "prepare": "run prepare",
     "test": "run test",
+    "test:coverage": "run test:coverage --",
     "test:e2e": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:e2e",
     "test:live": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:live",
     "test:live:fly": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:live:fly",
-    "test:coverage": "run test:coverage --",
     "typecheck": "run typecheck"
   },
   "dependencies": {
@@ -60,5 +67,12 @@
   "packageManager": "pnpm@12.11.0",
   "engines": {
     "node": ">=24.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "imports": {
+      "#components/*": "./lib/components/*.js",
+      "#*": "./lib/*.js"
+    }
   }
 }

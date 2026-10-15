@@ -209,7 +209,7 @@ export async function setupEnvironment(
 ): Promise<EnvironmentSetupData> {
   const { options, interaction, mutation } = context;
   const envPath =
-    options.env ??
+    options.envFile ??
     (interaction && !options.nonInteractive
       ? await interaction.input({
           message: 'Runtime env file path',
@@ -219,13 +219,16 @@ export async function setupEnvironment(
   if (!envPath) {
     throw new CommandFault({
       code: 'INPUT',
-      message: ['Runtime env setup requires --env', promptUnavailableDetail()]
+      message: [
+        'Runtime env setup requires --env-file',
+        promptUnavailableDetail(),
+      ]
         .filter(Boolean)
         .join('. '),
     });
   }
   const input = await resolveInputs(
-    { ...options, env: envPath },
+    { ...options, envFile: envPath },
     undefined,
     [],
   );

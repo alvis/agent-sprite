@@ -38,7 +38,7 @@ describe('fn:setupAll', () => {
     const context: SetupContext = {
       ...workstationOf(sprite),
       options: {
-        env: envPath,
+        envFile: envPath,
         github: false,
         gitIdentity: false,
         plugins: false,

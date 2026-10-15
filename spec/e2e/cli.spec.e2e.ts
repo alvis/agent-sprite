@@ -202,7 +202,7 @@ describe('workflow:installed CLI', () => {
       const result = await withIsolatedCli(async (cwd, env) =>
         execa(
           packedBin!,
-          [command, ...args, '--json', '--env', join(cwd, 'missing.env')],
+          [command, ...args, '--json', '--env-file', join(cwd, 'missing.env')],
           { cwd, env, extendEnv: false, reject: false },
         ),
       );
@@ -223,7 +223,7 @@ describe('workflow:installed CLI', () => {
     expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
       runTerminal(packedBin!, [], {
-        args: ['terminate', '--env', join(cwd, 'missing.env')],
+        args: ['terminate', '--env-file', join(cwd, 'missing.env')],
         cwd,
         env: { ...env, CI: 'true' },
       }),
@@ -247,7 +247,7 @@ describe('workflow:installed CLI', () => {
       const result = await withIsolatedCli(async (cwd, env) =>
         execa(
           packedBin!,
-          [...args, '--json', '--env', join(cwd, 'missing.env')],
+          [...args, '--json', '--env-file', join(cwd, 'missing.env')],
           {
             cwd,
             env,
@@ -292,7 +292,7 @@ describe('workflow:installed CLI', () => {
       error: {
         code: 'INPUT',
         details: expect.arrayContaining([
-          expect.stringContaining('SPRITES_TOKEN or pass --env FILE'),
+          expect.stringContaining('SPRITES_TOKEN or pass --env-file FILE'),
           expect.stringContaining(
             'env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT',
           ),
@@ -352,7 +352,7 @@ describe('workflow:installed CLI', () => {
     },
   );
 
-  it('should identify an unreadable selected --env file without exposing its raw read failure', async () => {
+  it('should identify an unreadable selected env file without exposing its raw read failure', async () => {
     expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(
@@ -361,7 +361,7 @@ describe('workflow:installed CLI', () => {
           'list',
           '--json',
           '--no-local-credentials',
-          '--env',
+          '--env-file',
           join(cwd, 'missing.env'),
         ],
         { cwd, env, extendEnv: false, reject: false },
@@ -490,7 +490,7 @@ describe('workflow:installed CLI', () => {
           '--verbose',
           '--non-interactive',
           '--no-local-credentials',
-          '--env',
+          '--env-file',
           envPath,
         ],
         { cwd, env, extendEnv: false, reject: false },
@@ -1025,6 +1025,126 @@ describe('workflow:installed CLI', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('--release');
       expect(result.stdout).toContain('stable, nightly');
+    },
+  );
+
+  it.each([['list'], ['show'], ['doctor'], ['terminate']])(
+    'should list the provider flag and its token source meaning in %s help',
+    async (command) => {
+      expect(packedBin).toBeDefined();
+      const result = await withIsolatedCli(async (cwd, env) =>
+        execa(packedBin!, [command, '--help'], {
+          cwd,
+          env,
+          extendEnv: false,
+          reject: false,
+        }),
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('--provider PROVIDER');
+      expect(result.stdout).toContain('sprite, fly-machine');
+      expect(result.stdout).toContain('--provider-token-source belongs to');
+    },
+  );
+
+  it('should give a list token source to the provider --provider names', async () => {
+    expect(packedBin).toBeDefined();
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin!,
+        [
+          'list',
+          '--json',
+          '--no-local-credentials',
+          '--provider',
+          'fly-machine',
+          '--provider-token-source',
+          'env:OPEN_AGENT_TEST_SOURCE',
+        ],
+        {
+          cwd,
+          env: { ...env, OPEN_AGENT_TEST_SOURCE: 'offline-placeholder' },
+        },
+      ),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'list',
+      ok: false,
+      error: {
+        code: 'INPUT',
+        details: [
+          expect.stringMatching(/^fly-machine: .*is not a Fly API token/u),
+          expect.stringMatching(/^sprite: skipped/u),
+        ],
+      },
+    });
+    expect(attempts).toEqual([]);
+  });
+
+  it.each([['show'], ['doctor'], ['terminate']])(
+    'should reject an unknown %s provider flag as one usage result before any provider call',
+    async (command) => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+        runOffline(
+          packedBin!,
+          [command, 'devbox', '--json', '--provider', 'bogus'],
+          {
+            cwd,
+            env,
+          },
+        ),
+      );
+
+      expect(result.exitCode).toBe(2);
+      expect(result.stdout.trim().split('\n')).toHaveLength(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        command,
+        ok: false,
+        error: { code: 'USAGE' },
+      });
+      expect(result.stdout).toContain('bogus');
+      expect(attempts).toEqual([]);
+    },
+  );
+
+  it.each([['show'], ['doctor'], ['terminate']])(
+    'should answer %s from the named provider even when another provider has a ready credential',
+    async (command) => {
+      expect(packedBin).toBeDefined();
+      const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+        runOffline(
+          packedBin!,
+          [
+            command,
+            'devbox',
+            '--provider',
+            'fly-machine',
+            ...(command === 'terminate' ? ['--yes'] : []),
+            '--json',
+            '--non-interactive',
+            '--no-local-credentials',
+          ],
+          { cwd, env: { ...env, SPRITES_TOKEN: 'test-org/1/0abc/0def' } },
+        ),
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        command,
+        ok: false,
+        error: {
+          code: 'INPUT',
+          message: 'Provider prerequisites are missing or misconfigured',
+          details: expect.arrayContaining([
+            expect.stringContaining('FLY_API_TOKEN'),
+          ]),
+        },
+      });
+      expect(attempts).toEqual([]);
     },
   );
 
@@ -1976,7 +2096,7 @@ describe('workflow:installed CLI', () => {
         }),
         execa(
           packedBin!,
-          ['show', '--json', '--env', join(cwd, 'absent.env')],
+          ['show', '--json', '--env-file', join(cwd, 'absent.env')],
           {
             cwd,
             env,
@@ -2007,6 +2127,28 @@ describe('workflow:installed CLI', () => {
     expect(missingEnv.stdout.trim().split('\n')).toHaveLength(1);
     expect(missingEnv.stderr).toContain('environment: started');
     expect(missingEnv.stderr).toContain('environment: failed');
+  });
+
+  it('should reject the removed --env flag like any unknown flag', async () => {
+    expect(packedBin).toBeDefined();
+    const result = await withIsolatedCli(async (cwd, env) =>
+      execa(packedBin!, ['show', '--json', '--env', join(cwd, 'absent.env')], {
+        cwd,
+        env,
+        extendEnv: false,
+        reject: false,
+        timeout: 2_000,
+      }),
+    );
+
+    expect(result.exitCode).toBe(2);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
+      command: 'show',
+      ok: false,
+      error: { code: 'USAGE' },
+    });
+    expect(result.stderr).toBe('');
   });
 
   it('should preserve CLI arguments and shows command-specific help', async () => {
@@ -2062,7 +2204,7 @@ describe('workflow:installed CLI', () => {
     expect(result.stdout).toContain(
       'setup [<workstation>] [--section SECTION]',
     );
-    expect(result.stdout).toContain('[--env]');
+    expect(result.stdout).toContain('[--env-file]');
     expect(result.stdout).toContain('FILE · explicit env file');
     expect(result.stdout).toContain('ARGUMENTS\n  [workstation]');
   });
