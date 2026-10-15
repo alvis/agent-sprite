@@ -116,7 +116,7 @@ A coding agent on your laptop stops when the lid closes, and putting one on a re
 | Fly Machines (`fly-machine`)   | ✅      | Machines API and `fly ssh console`; one app, machine and volume per workstation; resizable                   |
 | GitHub authentication          | ✅      | Separate protected native credentials for T3’s `agent` account and a Sprite’s `sprite` account               |
 
-The CLI runs on your computer and requires Node.js 24+. Packaged terminal regression checks use `node-pty`; Windows terminals and screen-reader behavior remain outside the verified platform scope.
+The CLI runs on your computer and requires Node.js 24+. Windows terminals and screen readers are not yet verified.
 
 ---
 
@@ -520,44 +520,6 @@ The idle governor, the awake hooks and storage across sleep are covered in [Slee
 **Updates.** While the workstation runs, cron (the supervisor's timer on a Fly Machine) checks every **30 minutes** by default, and once **seven days** have passed since the last successful update it installs the latest agent, harnesses and managed tools in place. A tool whose installed version is already the latest, with no outdated dependency, is skipped. The agent follows the npm dist-tag of its recorded release channel (`stable` unless another was selected). Change the intervals with `--update-check-minutes` (1 to 10080) and `--update-due-days` (1 to 365); `setup --section tools` or `setup --section all` changes them on a live workstation without restarting a service, and a run that only changes an interval reports `tools: "scheduled"`. The success time advances only after every required install succeeds. A fallback the updater had to take, or an unusable interval file, is recorded as `lastUpdateDiagnostic` in the manifest, which `show --inspect` and `doctor` report under Maintenance alongside the `Agent release channel`.
 
 **No service restarts.** The updater never stops, starts, restarts, registers or deletes a service, so a running agent or network daemon keeps its process; a newly installed version runs the next time the service restarts, which `setup --section agent --release CHANNEL` and `setup --section all` do when the release channel changed. Updates can still interrupt active work: there are no compatibility, staging, or safe-point gates. Project dependencies, the guest distribution, and the provider runtime are outside the maintenance scope.
-
----
-
-## ⚠️ Verification Limits
-
-Paid model turns, billing, soak, outage and concurrency experiments are outside the verification scope. Ordinary paid thread startup, MCP activity and native hooks during model turns remain outside the verified scope.
-
-Focused tests replace only `@fly/sprites` and the Fly Machines HTTP API, and use real temporary-file native configuration merges. They do not claim exhaustive integration coverage. Selected-source coverage remains below 100%; focused coverage was explicitly accepted with the configured thresholds unchanged. OS credential, interactive, network, and unreachable validated-guard paths retain documented coverage gaps.
-
----
-
-## 💻 Development
-
-Contributions are welcome. Working on open-agent itself needs Node.js 24+ and pnpm (the exact version is pinned in `package.json`). `pnpm run local` builds, packs and installs the CLI into a temporary directory and runs it with your arguments, environment, working directory, signals and exit status preserved:
-
-```bash
-pnpm install
-pnpm run local -- create --env-file .env --name my-agent --with-pair-code
-```
-
-Run the source and installed-package checks before opening a pull request:
-
-```bash
-pnpm typecheck
-pnpm lint:check
-pnpm build
-pnpm test
-pnpm test:e2e
-```
-
-The live suites run against real providers, spend real money and clean up after themselves. They read `.env`, or the file `OPEN_AGENT_LIVE_ENV` names; the Fly Machine probe also needs `FLY_API_TOKEN` there:
-
-```bash
-pnpm test:live
-pnpm test:live:fly
-```
-
-[ARCHITECTURE.md](ARCHITECTURE.md#-testing) explains what each suite proves and how live runs are cleaned up.
 
 ---
 
