@@ -35,6 +35,8 @@ interface ResultStreams {
 export interface PreparedResult {
   channel: 'stdout' | 'stderr';
   text: string;
+  /** stderr lines written after the payload, such as unavailable providers beside piped list rows */
+  notice?: string;
 }
 
 const DEFAULT_COLUMNS = 80;
@@ -69,7 +71,13 @@ export function prepareResult(
   if (safe.ok && safe.command === 'list' && !streams.stdout.isTTY) {
     const rows = machineRows(safe.data);
     if (rows) {
-      return { channel: 'stdout', text: formatListTsv(rows) };
+      const notice = unavailableProviders(safe.data);
+
+      return {
+        channel: 'stdout',
+        text: formatListTsv(rows),
+        ...(notice ? { notice } : {}),
+      };
     }
   }
   const channel = safe.ok ? 'stdout' : 'stderr';
@@ -91,6 +99,9 @@ export function writePreparedResult(
   streams: ResultStreams = DEFAULT_STREAMS,
 ): void {
   streams[prepared.channel].write(prepared.text);
+  if (prepared.notice) {
+    streams.stderr.write(prepared.notice);
+  }
 }
 
 /**

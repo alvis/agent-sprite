@@ -1077,7 +1077,7 @@ describe('workflow:installed CLI', () => {
         code: 'INPUT',
         details: [
           expect.stringMatching(/^fly-machine: .*is not a Fly API token/u),
-          expect.stringMatching(/^sprite: skipped/u),
+          'sprite: workstation status unknown, no Sprites API token was found; supply one in SPRITES_TOKEN, or with --provider sprite --provider-token-source, to list its workstations',
         ],
       },
     });
