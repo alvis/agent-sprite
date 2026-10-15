@@ -584,6 +584,8 @@ export interface AgentDriver<
   guest: readonly GuestPayload[];
   /** command, account, public port and dependencies on nothing; core adds the network daemon */
   service: ServiceDefinition;
+  /** the launcher the service runs, which reads its launch facts from environment.json */
+  launcher: GuestAsset;
   /**
    * observes what the running agent service reports about itself
    * @param guest guest channel

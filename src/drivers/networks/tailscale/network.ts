@@ -14,7 +14,7 @@ import {
 } from './preflight.js';
 import { tailscaleReadiness } from './readiness.js';
 import { releaseTailscale } from './release.js';
-import { tailscaleDaemon } from './service.js';
+import { tailscaleDaemon, tailscaleLauncher } from './service.js';
 import { inspectTailscale } from './status.js';
 
 import type { NetworkDriver } from '#drivers/contracts';
@@ -44,6 +44,7 @@ export const tailscale: NetworkDriver<'tailscale', TailnetStatus> = {
     exitNode: { environment: 'TAILSCALE_EXIT_NODE', prompt: 'Home exit node' },
   },
   daemon: tailscaleDaemon,
+  launcher: tailscaleLauncher,
   preflight: preflightTailscale,
   verifyExitNode: verifyTailscaleExitNode,
   issueCredential: issueTailscaleCredential,

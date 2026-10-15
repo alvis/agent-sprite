@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { ServiceLogStream } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
-import { LAUNCHER_PATH } from '#drivers/networks/tailscale/service';
+import { tailscaleLauncher } from '#drivers/networks/tailscale/service';
 import { persistSetupProfile } from '#setup/integrations';
 
 import {
@@ -21,6 +21,8 @@ import {
 import type { ServiceWithState, Sprite } from '@fly/sprites';
 
 import type { WorkstationProfile } from '#core/profile';
+
+const LAUNCHER_PATH = tailscaleLauncher.asset.installAs;
 
 const tailscaled = {
   name: 'tailscaled',
@@ -61,7 +63,7 @@ async function workstation(
       recursive: true,
     },
   );
-  await filesystem.writeFile(LAUNCHER_PATH, '// staged launcher\n');
+  await filesystem.writeFile(LAUNCHER_PATH, '# staged launcher\n');
   await filesystem.writeJSON('/opt/open-agent/manifest.json', {
     schema: 1,
     createdAt: '2026-10-09T00:00:00Z',

@@ -1,18 +1,14 @@
-import { GUEST_NODE, GUEST_ROOT } from '#guest/guest-root';
+import { readAsset } from '#guest/assets';
+import { GUEST_ROOT } from '#guest/guest-root';
 import {
   guestFileExists,
   removeGuestFile,
   runGuest,
   writeGuestFile,
 } from '#integrations/guest';
-import { deployGuestPayload } from '#integrations/guest/payloads';
 import { checkOperation, recoverOperation } from '#operation';
 
-import {
-  TAILSCALE_LAUNCHER_MODULE,
-  TAILSCALE_STATE_MODULE,
-} from './guest-modules.js';
-import { LAUNCHER_PATH, tailscaleDaemon } from './service.js';
+import { tailscaleDaemon, tailscaleLauncher } from './service.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
@@ -24,12 +20,15 @@ const ENROLLMENT_TIMEOUT_MS = 120_000;
  * @param guest target guest with confirmed unrestricted networking
  */
 export async function ensureTailnetDaemon(guest: GuestChannel): Promise<void> {
+  const { asset } = tailscaleLauncher;
   await runGuest(guest, ['/usr/bin/test', '-c', '/dev/net/tun']);
   await guest.assertUnrestrictedNetwork();
-  // the launcher imports the state module, so both are deployed together
-  await deployGuestPayload(guest, TAILSCALE_STATE_MODULE);
-  await deployGuestPayload(guest, TAILSCALE_LAUNCHER_MODULE);
-  await runGuest(guest, [GUEST_NODE, LAUNCHER_PATH, '--prepare'], {
+  await writeGuestFile(guest, {
+    path: asset.installAs,
+    contents: await readAsset(asset),
+    mode: asset.mode,
+  });
+  await runGuest(guest, ['/bin/sh', asset.installAs, '--prepare'], {
     step: 'tailscale launcher prepare',
   });
   await guest.services.ensure(tailscaleDaemon);
@@ -40,10 +39,13 @@ export async function ensureTailnetDaemon(guest: GuestChannel): Promise<void> {
  * @param guest guest whose managed daemon has already stopped
  */
 export async function restoreTailnetDns(guest: GuestChannel): Promise<void> {
-  if (await guestFileExists(guest, LAUNCHER_PATH)) {
-    await runGuest(guest, [GUEST_NODE, LAUNCHER_PATH, '--restore'], {
-      step: 'tailscale launcher restore',
-    });
+  const { asset, stateDirectory } = tailscaleLauncher;
+  if (await guestFileExists(guest, asset.installAs)) {
+    await runGuest(
+      guest,
+      ['/bin/sh', asset.installAs, '--restore', stateDirectory],
+      { step: 'tailscale launcher restore' },
+    );
   }
 }
 

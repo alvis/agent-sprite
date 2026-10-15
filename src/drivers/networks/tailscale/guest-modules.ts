@@ -4,12 +4,6 @@ import type { GuestPayload } from '#drivers/contracts';
 
 const folder = 'networks/tailscale';
 
-/** compiled module that supervises the Tailscale daemon and its DNS and transport rules */
-export const TAILSCALE_LAUNCHER_MODULE = driverModule(
-  folder,
-  'tailscale-launcher.js',
-);
-
 /** compiled module that installs the stable Tailscale release on the guest */
 export const TAILSCALE_INSTALL_MODULE = driverModule(
   folder,
@@ -24,7 +18,6 @@ export const TAILSCALE_STATE_MODULE = driverModule(
 
 /** compiled guest modules Tailscale contributes to the deployable payload */
 export const TAILSCALE_GUEST_MODULES: readonly GuestPayload[] = [
-  { module: TAILSCALE_LAUNCHER_MODULE, account: 'root' },
   { module: TAILSCALE_INSTALL_MODULE, account: 'root' },
   { module: TAILSCALE_STATE_MODULE, account: 'root' },
 ];
