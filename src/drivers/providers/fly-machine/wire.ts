@@ -356,6 +356,7 @@ export function wireMachineConfig(spec: MachineSpec): Record<string, unknown> {
       raw_value: Buffer.from(file.contents).toString('base64'),
       mode: file.mode,
     })),
+    rootfs: { persist: spec.rootfs },
     mounts: [{ volume: spec.volume, path: spec.mountPath }],
     restart: { policy: 'on-failure' },
     services: [

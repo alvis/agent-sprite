@@ -1,0 +1,218 @@
+#!/bin/sh
+# open-agent's Fly Machine boot stub: the machine's init, which the machine
+# configuration writes to the root filesystem on every boot. It checks that
+# the volume and its guest root are root's alone and binds the guest root,
+# then runs the boot hook setup keeps on the volume, named by its one
+# argument, only while the hook and every directory above it are root's
+# alone. Until then, and after a hook that exited unexpectedly until setup
+# replaces it, it reports the boot ready so setup can reach the machine to
+# repair it. The hook replaces itself with runsvdir, to which the stub hands
+# a stop as a hangup, so runit stops every service. A boot whose volume or
+# hook halts waits ten minutes, for someone to read the log, then stops the
+# machine through the guest-local Machines API. It uses the image's own
+# tools alone
+
+set -u
+umask 022
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C
+export PATH LC_ALL
+
+OA_VOLUME=/data
+OA_VOLUME_ROOT=$OA_VOLUME/open-agent
+OA_GUEST_ROOT=/opt/open-agent
+OA_RUN=/run/open-agent
+OA_READY=$OA_RUN/boot-ready
+OA_FLY_API=/.fly/api
+# how long a halted boot waits before it stops the machine, and its stop
+# request may take
+OA_HALT_SECONDS=600
+OA_STOP_SECONDS=30
+# how often the stub looks for a hook it may run
+OA_POLL_SECONDS=5
+# the exit of a hook a critical step halted
+OA_HALTED=3
+
+# writes one line to the console, which Fly keeps as the machine's log
+# arguments: the message
+oa_log() {
+  printf 'open-agent-boot %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+}
+
+# tells whether a directory is root's alone: a real directory root owns that
+# no group or other account can write
+# arguments: the directory
+oa_root_only() {
+  test -d "$1" && ! test -L "$1" &&
+    test "$(stat -c %u "$1")" = 0 &&
+    test $((0$(stat -c %a "$1") & 022)) -eq 0
+}
+
+# tells whether root may run a file: a regular file root's alone, as is every
+# directory above it
+# arguments: the file
+oa_trusted() {
+  test -f "$1" && ! test -L "$1" || return 1
+  test "$(stat -c %u "$1")" = 0 || return 1
+  test $((0$(stat -c %a "$1") & 022)) -eq 0 || return 1
+  oa_trusted_directory=${1%/*}
+  while test -n "$oa_trusted_directory"; do
+    oa_root_only "$oa_trusted_directory" || return 1
+    oa_trusted_directory=${oa_trusted_directory%/*}
+  done
+  oa_root_only /
+}
+
+# writes the ready file the host waits for, naming this boot
+# arguments: ok or failed
+oa_ready() {
+  printf '%s %s\n' "$oa_boot_id" "$1" >"$OA_READY.new" && mv -f "$OA_READY.new" "$OA_READY"
+}
+
+# checks the volume and its guest root and binds the guest root over its root
+# filesystem path, once per boot
+oa_volume() {
+  if ! mountpoint -q "$OA_VOLUME"; then
+    oa_log "no volume is mounted at $OA_VOLUME"
+    return 1
+  fi
+  if ! oa_root_only "$OA_VOLUME"; then
+    oa_log "$OA_VOLUME is not root's alone"
+    return 1
+  fi
+  if ! test -e "$OA_VOLUME_ROOT"; then
+    install -d -m 0755 "$OA_VOLUME_ROOT" || return 1
+  fi
+  if ! oa_root_only "$OA_VOLUME_ROOT"; then
+    oa_log "$OA_VOLUME_ROOT is not root's alone"
+    return 1
+  fi
+  if test "$(stat -c '%d %i' "$OA_VOLUME_ROOT")" = "$(stat -c '%d %i' "$OA_GUEST_ROOT" 2>/dev/null)"; then
+    return 0
+  fi
+  if mountpoint -q "$OA_GUEST_ROOT"; then
+    oa_log "something other than $OA_VOLUME_ROOT is mounted at $OA_GUEST_ROOT"
+    return 1
+  fi
+  mkdir -p "$OA_GUEST_ROOT" && mount --bind "$OA_VOLUME_ROOT" "$OA_GUEST_ROOT"
+}
+
+# asks the Machines API, through the guest-local socket, to stop this machine;
+# succeeds only when the API answers with a 2xx status. The image has no curl,
+# so Perl, which its base packages always include, writes the request
+oa_stop_machine() {
+  perl -e '
+    use strict;
+    use warnings;
+    use Socket;
+    my ($socket_path, $app, $machine, $seconds) = @ARGV;
+    die "FLY_APP_NAME and FLY_MACHINE_ID name no machine\n"
+      unless $app =~ /^[a-z0-9][a-z0-9-]{0,62}$/ && $machine =~ /^[a-z0-9]{1,32}$/;
+    local $SIG{ALRM} = sub { die "the Machines API did not answer in time\n" };
+    alarm $seconds;
+    socket(my $api, PF_UNIX, SOCK_STREAM, 0) or die "socket: $!\n";
+    connect($api, sockaddr_un($socket_path)) or die "connect: $!\n";
+    my $request = "POST /v1/apps/$app/machines/$machine/stop HTTP/1.0\r\nHost: flaps\r\nContent-Length: 0\r\n\r\n";
+    syswrite($api, $request) == length($request) or die "write: $!\n";
+    my $status = <$api>;
+    defined $status or die "the Machines API closed without an answer\n";
+    $status =~ s/\s+$//;
+    print "stop answered: $status\n";
+    exit($status =~ m{^HTTP/1\.[01] 2[0-9][0-9]\b} ? 0 : 1);
+  ' "$OA_FLY_API" "${FLY_APP_NAME:-}" "${FLY_MACHINE_ID:-}" "$OA_STOP_SECONDS"
+}
+
+# waits, then stops the machine, again and again until it stops: the init
+# never exits, so an idle machine would otherwise run, and bill, for ever
+oa_halt() {
+  trap 'exit 0' INT TERM HUP
+  oa_log "halt=waiting $OA_HALT_SECONDS seconds, then stopping the machine"
+  while :; do
+    sleep "$OA_HALT_SECONDS" &
+    wait $!
+    if oa_stop_machine; then
+      oa_log "halt=stop requested"
+    else
+      oa_log "halt=stop failed; retrying after $OA_HALT_SECONDS seconds"
+    fi
+  done
+}
+
+# hands a stop to the hook, or to the runsvdir it became, as a hangup, on
+# which runsvdir stops every service before it exits
+oa_forward() {
+  oa_stopping=1
+  kill -HUP "$oa_child" 2>/dev/null || :
+}
+
+# runs the hook and waits for it to exit, forwarding a stop
+oa_run() {
+  oa_stopping=
+  /bin/sh "$oa_hook" boot </dev/null &
+  oa_child=$!
+  trap oa_forward INT TERM HUP
+  while :; do
+    wait "$oa_child"
+    oa_status=$?
+    kill -0 "$oa_child" 2>/dev/null || break
+  done
+  trap 'exit 0' INT TERM HUP
+  return "$oa_status"
+}
+
+oa_hook=${1-}
+case $oa_hook in
+  "$OA_VOLUME_ROOT"/*.sh) ;;
+  *)
+    oa_log "the boot stub needs the boot hook's path under $OA_VOLUME_ROOT"
+    exit 1
+    ;;
+esac
+case $oa_hook in
+  */../* | */./*)
+    oa_log "refusing the boot hook path $oa_hook"
+    exit 1
+    ;;
+esac
+
+trap 'exit 0' INT TERM HUP
+install -d -m 0755 "$OA_RUN"
+oa_boot_id=$(cat /proc/sys/kernel/random/boot_id)
+oa_log "boot id=$oa_boot_id stub started"
+if ! oa_volume; then
+  oa_ready failed
+  oa_halt
+fi
+
+# the hook last run, so one that exited unexpectedly runs again only once
+# setup has replaced it
+oa_ran=
+oa_waiting=
+while :; do
+  if oa_trusted "$oa_hook" && oa_sum=$(cksum <"$oa_hook") && test "$oa_sum" != "$oa_ran"; then
+    oa_ran=$oa_sum
+    oa_waiting=
+    oa_log "handover=boot hook"
+    oa_run
+    oa_status=$?
+    if test -n "$oa_stopping"; then
+      exit 0
+    fi
+    if test "$oa_status" = "$OA_HALTED"; then
+      oa_log "handover=none: a critical step of the boot hook failed; see $OA_GUEST_ROOT/boot.log"
+      oa_halt
+    fi
+    oa_log "the boot hook exited with status $oa_status; waiting for setup to replace it"
+    oa_ready ok
+  elif test -z "$oa_waiting" && test -z "$oa_ran"; then
+    oa_waiting=1
+    if test -e "$oa_hook"; then
+      oa_log "refusing $oa_hook: it or a directory above it is not root's alone; waiting for setup to replace it"
+    else
+      oa_log "no boot hook at $oa_hook yet; waiting for setup to install it"
+    fi
+    oa_ready ok
+  fi
+  sleep "$OA_POLL_SECONDS" &
+  wait $!
+done

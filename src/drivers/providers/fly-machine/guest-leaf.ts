@@ -1,3 +1,4 @@
+import { BOOT_HOOK } from './boot-layout.js';
 import { FLY_MACHINE_AWAKE_MODULE } from './guest-modules.js';
 import { PRIVATE_V6_NETWORK, PROXY_V4_NETWORK } from './private-networks.js';
 
@@ -28,6 +29,9 @@ export const flyMachineGuestLeaf: ProviderGuestLeaf = {
   },
   // a Fly Machine boots no init system, so runit supervises its services
   serviceBackend: 'runit',
+  // a host move rebuilds the root filesystem from the image, which the boot
+  // hook restores from the volume
+  bootHook: BOOT_HOOK,
   // root alone reaches the guest-local Machines API socket, so the governor
   // imports the adapter as root and the agent account never can
   awakeAdapter: { module: FLY_MACHINE_AWAKE_MODULE, account: 'root' },

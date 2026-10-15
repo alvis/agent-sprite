@@ -2,7 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { ProviderFault } from '#drivers/failures';
 
-import { BOOT_ID_FILE, BOOT_LOG, BOOT_READY_FILE } from './guest/boot-paths.js';
+import { BOOT_ID_FILE, BOOT_LOG, BOOT_READY_FILE } from './boot-layout.js';
 
 import type { FlyApi, FlyMachineTarget } from './api.js';
 import type { FlyMachine } from './wire.js';

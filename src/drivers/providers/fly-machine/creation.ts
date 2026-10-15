@@ -2,6 +2,7 @@ import { WorkstationCreationFault } from '#drivers/creation';
 import { ProviderFault } from '#drivers/failures';
 import { pickMachine } from '#drivers/machine-sizes';
 import { summarizeProfile } from '#drivers/providers/recorded';
+import { readAsset } from '#guest/assets';
 import {
   cancellationReason,
   checkOperation,
@@ -9,6 +10,7 @@ import {
   recoverOperation,
 } from '#operation';
 
+import { BOOT_STUB } from './boot-layout.js';
 import { machineSpec, VOLUME_NAME, VOLUME_SIZE_GB } from './machine-config.js';
 import { FLY_MACHINES } from './machines.js';
 import { creationMetadata } from './metadata.js';
@@ -84,6 +86,7 @@ export async function createManagedApp(
       spec: machineSpec({
         machine,
         volume,
+        bootStub: await readAsset(BOOT_STUB),
         port,
         metadata: creationMetadata(summarizeProfile(profile)),
       }),

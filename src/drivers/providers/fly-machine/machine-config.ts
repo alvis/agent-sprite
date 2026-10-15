@@ -1,10 +1,9 @@
 import {
   BOOT_INIT,
-  BOOT_SCRIPT_MODE,
-  BOOT_SCRIPT_PATH,
+  BOOT_STUB_MODE,
+  BOOT_STUB_PATH,
   VOLUME_PATH,
-} from './guest/boot-paths.js';
-import { bootScript } from './guest/boot-script.js';
+} from './boot-layout.js';
 import { guestOf } from './machines.js';
 
 import type { OsImage } from '#os/contracts';
@@ -32,6 +31,8 @@ export interface MachineSpec {
   init: readonly string[];
   /** files written to the root filesystem before the init runs */
   files: readonly MachineFile[];
+  /** whether the root filesystem outlives a stop: `always` keeps what setup installed there across restarts */
+  rootfs: 'always';
   /** volume mounted as persistent storage */
   volume: string;
   /** where the volume is mounted */
@@ -48,13 +49,15 @@ export interface MachineSpecParams {
   machine: FlyMachineOffer;
   /** volume mounted as persistent storage */
   volume: string;
+  /** the boot stub's text, which the machine writes to its root filesystem */
+  bootStub: string;
   /** ACP agent port a later exposure publishes */
   port: number;
   /** initial machine metadata */
   metadata: Readonly<Record<string, string>>;
 }
 
-/** stock Debian; the boot script restores everything else from the volume */
+/** stock Debian; the boot hook restores everything else from the volume */
 export const MACHINE_IMAGE = 'debian:bookworm-slim';
 /** the OS images a workstation machine is created from */
 export const FLY_MACHINE_IMAGES: readonly [OsImage, ...OsImage[]] = [
@@ -73,11 +76,12 @@ export const VOLUME_NAME = 'open_agent';
 export const VOLUME_SIZE_GB = 10;
 
 /**
- * describes a workstation machine, which boots the boot script from its
- * root filesystem; its service is declared now because
- * changing it later restarts the machine, and it stays unreachable until
- * exposure assigns the app public addresses
- * @param params preset, volume, ACP agent port and initial metadata
+ * describes a workstation machine, whose init is the boot stub its
+ * configuration writes to the root filesystem, which keeps across restarts;
+ * the stub runs the boot hook setup keeps on the volume. Its service is
+ * declared now because changing it later restarts the machine, and it stays
+ * unreachable until exposure assigns the app public addresses
+ * @param params preset, volume, boot stub, ACP agent port and initial metadata
  * @returns the machine description
  */
 export function machineSpec(params: MachineSpecParams): MachineSpec {
@@ -88,11 +92,12 @@ export function machineSpec(params: MachineSpecParams): MachineSpec {
     init: BOOT_INIT,
     files: [
       {
-        guestPath: BOOT_SCRIPT_PATH,
-        contents: bootScript(),
-        mode: BOOT_SCRIPT_MODE,
+        guestPath: BOOT_STUB_PATH,
+        contents: params.bootStub,
+        mode: BOOT_STUB_MODE,
       },
     ],
+    rootfs: 'always',
     volume: params.volume,
     mountPath: VOLUME_PATH,
     port: params.port,
