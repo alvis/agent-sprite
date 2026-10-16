@@ -6,6 +6,8 @@ import { ROOT_ONLY_MODE } from '#os/contracts';
 
 import { runGuest } from '../guest.js';
 
+import { contentsInput } from './files.js';
+
 import type { GuestChannel } from '#drivers/guest-channel';
 
 import type { GuestRunResult } from './types.js';
@@ -78,7 +80,8 @@ export async function ensurePrivateDirectory(
 }
 
 /**
- * writes a private native configuration file owned by the guest account
+ * writes a private native configuration file owned by the guest account;
+ * contents that hold a credential, such as a gateway key, go as a secret input
  * @param guest target guest
  * @param path absolute file path
  * @param contents serialized native settings
@@ -140,6 +143,9 @@ async function runNativeFileCommand(
       home,
       path,
     ],
-    { input: contents, step: 'native home file update' },
+    {
+      ...(contents === undefined ? {} : contentsInput(contents)),
+      step: 'native home file update',
+    },
   );
 }

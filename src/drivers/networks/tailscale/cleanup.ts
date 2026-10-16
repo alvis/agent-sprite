@@ -90,9 +90,9 @@ export async function cleanupTailnetDevice(
  * removes the device a logged-out guest used to hold, so enrolment keeps the
  * workstation name; the daemon is started first and a guest that still holds
  * any device is left alone, because only a logged-out guest has lost the device
- * the manifest recorded
+ * environment.json recorded
  * @param guest target guest
- * @param params identity the manifest recorded and the management credential
+ * @param params identity environment.json recorded and the management credential
  * @throws {CommandFault} when the recorded device exists and cannot be deleted
  */
 export async function removeStaleTailnetDevice(

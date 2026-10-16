@@ -180,7 +180,7 @@ export function registeredSummary(
 }
 
 /**
- * validates an untrusted decoded value, such as a stored manifest profile
+ * validates an untrusted decoded value, such as the profile environment.json stores
  * @param value decoded value
  * @param options requests validated alongside the profile
  * @returns the validated profile, or every violation found

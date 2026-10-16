@@ -2,9 +2,17 @@ import { inspect } from 'node:util';
 
 import { rememberSecret } from '#utilities/redaction';
 
-/** where the host obtained a credential it hands to the guest */
+/**
+ * where the host obtained a credential it hands to the guest; `embedded` is
+ * guest file contents that hold one
+ */
 export type HostCredentialSource =
-  'credential-store' | 'env-file' | 'prompt' | 'provider-api' | 'github';
+  | 'credential-store'
+  | 'env-file'
+  | 'prompt'
+  | 'provider-api'
+  | 'github'
+  | 'embedded';
 
 const REDACTED = '[REDACTED]';
 
@@ -44,6 +52,17 @@ export class Secret {
     rememberSecret(value);
 
     return new Secret(source, value);
+  }
+
+  /**
+   * wraps guest file contents that hold a credential the host resolved, such
+   * as a native configuration file that embeds a gateway key; the credential
+   * within is registered for redaction already, so the contents are not
+   * @param contents file contents that hold a resolved credential
+   * @returns the contents, delivered only as a secret
+   */
+  public static embedding(contents: string): Secret {
+    return new Secret('embedded', contents);
   }
 
   /**

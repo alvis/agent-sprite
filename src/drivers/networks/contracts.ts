@@ -104,7 +104,7 @@ export interface NetworkEnrollParams {
   recordIdentity: NetworkIdentityRecorder;
 }
 
-/** what the manifest recorded about a network before termination */
+/** what environment.json recorded about a network before termination */
 export interface NetworkRecord {
   /** identity retained from an earlier inspection of this network's device */
   identity?: NetworkIdentity;
@@ -144,7 +144,7 @@ export interface NetworkCleanupParams {
 
 /** inputs for removing a workstation's earlier device before it enrols again */
 export interface NetworkStaleDeviceParams {
-  /** identity the manifest recorded for this workstation's earlier device */
+  /** identity environment.json recorded for this workstation's earlier device */
   recorded: NetworkIdentity;
   /** management credential, when the caller supplied one */
   management?: NetworkManagement;
@@ -269,7 +269,7 @@ export interface NetworkDriver<
   /**
    * captures the device identity before a workstation is deleted
    * @param guest ownership-checked guest channel
-   * @param record what the manifest recorded
+   * @param record what environment.json recorded
    * @returns captured native or persisted identity
    */
   identify(guest: GuestChannel, record: NetworkRecord): Promise<Status>;
@@ -291,7 +291,7 @@ export interface NetworkDriver<
    * the network keeps no named device; fails when the earlier device exists
    * and cannot be removed
    * @param guest guest channel
-   * @param params identity the manifest recorded and the management credential
+   * @param params identity environment.json recorded and the management credential
    */
   removeStaleDevice?(
     guest: GuestChannel,

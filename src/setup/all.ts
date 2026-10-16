@@ -22,9 +22,10 @@ import type { SetupContext } from './context.js';
 
 /**
  * reconciles every managed guest section: the setup plan installs the tools,
- * services and jobs, then the network, accounts, gateway, runtime environment
- * and plugins are configured, the agent is verified to serve and exposed, and
- * only then is the installation recorded ready
+ * then the network, accounts, gateway, runtime environment and plugins are
+ * configured before the plan installs and starts the services and jobs, the
+ * agent is verified to serve and exposed, and only then is the installation
+ * recorded ready
  * @param guest guest channel of the managed workstation
  * @param context full setup choices, prompts, and redaction values
  * @returns non-secret section outcomes after readiness succeeds
@@ -42,10 +43,17 @@ export async function setupAll(
     // the plan's service step starts the stopped agent on the selected release
     await stopService(guest, catalog.agents[profile.agent].service.name);
   }
-  await installSetupPlan(context);
-  const configured = await traceStage('setup.native.configuration', async () =>
-    configureSections(guest, context),
-  );
+  const sections: { configured?: Omit<AllSetupData, 'tools'> } = {};
+  await installSetupPlan(context, async () => {
+    sections.configured = await traceStage(
+      'setup.native.configuration',
+      async () => configureSections(guest, context),
+    );
+  });
+  const { configured } = sections;
+  if (!configured) {
+    throw new Error('Setup ran no section before the services started');
+  }
   await exposeWhenServing(guest, context);
   await markInstallationReady(guest);
   // the release was switched by the plan, not by pairing

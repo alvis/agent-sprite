@@ -12,7 +12,7 @@ import type { TailnetStatus } from './types.js';
 /**
  * captures enrolled identity without requiring a completed installation
  * @param guest ownership-checked target before permanent deletion
- * @param record what the manifest recorded about the network
+ * @param record what environment.json recorded about the network
  * @returns captured native or persisted managed tailnet identity
  */
 export async function identifyTailnetDevice(

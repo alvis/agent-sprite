@@ -6,6 +6,7 @@ import { commandError } from '#errors';
 import { resolveCreateInputs, retainEnteredProviderToken } from '#input';
 import { networkManagement, resolveEnrollmentKey } from '#input/management';
 import { assertImageTools } from '#integrations/guest/plan/assemble';
+import { assertRuntimeEnv } from '#integrations/native/git';
 import { machineNameProblem } from '#machine';
 import {
   runOperation,
@@ -62,6 +63,9 @@ export async function prepareCreate(
 ): Promise<CreatePreparation> {
   const input = await resolveCreateInputs(request.options, interaction);
   const { profile } = input;
+  // the runtime environment is written only once the plan has run, so a
+  // restricted variable refuses here, before the provider creates anything
+  assertRuntimeEnv(input.runtimeEnv);
   const blocked = await inputFailure(input);
   if (blocked) {
     return blocked;

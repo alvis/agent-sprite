@@ -72,8 +72,10 @@ export interface SetupAssembly {
   environment: GuestEnvironment;
   /** steps every package step builds on: guest libraries, boot hook, accounts, bootstrap packages, Homebrew and sysctl */
   foundation: readonly SetupStep[];
-  /** the steps after the foundation: tools, idle governor, environment.json and services */
+  /** the steps after the foundation: tools, idle governor and environment.json */
   steps: readonly SetupStep[];
+  /** the services and cron jobs the backend installs and starts, in a plan of their own once the steps succeeded */
+  services: readonly SetupStep[];
 }
 
 /**
@@ -145,8 +147,9 @@ export function assertImageTools(
  * assembles a workstation's setup plan: the guest libraries and assets, the
  * provider's boot hook before any package step, the agent account, the
  * bootstrap packages, Homebrew and the ping sysctl, then every resolved tool,
- * the idle governor's directories, environment.json, and the services and
- * cron jobs the backend installs and starts
+ * the idle governor's directories and environment.json; the services and
+ * cron jobs the backend installs and starts are a plan of their own, so the
+ * caller can configure the workstation before anything starts
  * @param params the provider, profile, probed release and version
  * @returns the steps, the resolved tools and the environment they record
  * @throws {CommandFault} when a required tool has no usable source on the guest
@@ -197,11 +200,9 @@ export async function assemblePlan(
         mode: ENVIRONMENT_MODE,
         needs: [IDLE_STEP, ...required],
       }),
-      ...backendSteps(provider.serviceBackend, {
-        family,
-        needs: [ENVIRONMENT_STEP],
-      }),
     ],
+    // they run once environment.json is written, which the steps include
+    services: backendSteps(provider.serviceBackend, { family, needs: [] }),
   };
 }
 

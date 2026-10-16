@@ -66,9 +66,9 @@ export function foreignIdentifiers(identity: WorkstationIdentity): string[] {
     ...[root, `/etc/cron.d/${PRODUCT}`].filter(
       (path) => !identity.guestPaths.includes(path),
     ),
-    ...(identity.schedule.includes(`${root}/guest/updater.js`)
+    ...(identity.schedule.includes(`${root}/guest/update-gate.sh`)
       ? []
-      : [`schedule without ${root}/guest/updater.js`]),
+      : [`schedule without ${root}/guest/update-gate.sh`]),
   ].map((item) => `missing ${item}`);
   const foreign = [
     ...identity.labels.filter((label) => !label.startsWith(PRODUCT)),

@@ -5,6 +5,15 @@ import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
 import { CODEX_HOOKS } from '#drivers/harnesses/codex/paths';
 import { AGENT_HOME, GUEST_ROOT } from '#guest/guest-root';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
+import {
+  ENVIRONMENT_PATH,
+  parseEnvironment,
+} from '#integrations/guest/environment';
+import {
+  parseUpdateStatus,
+  UPDATE_JOB,
+  UPDATE_STATUS_PATH,
+} from '#integrations/guest/updates';
 
 import {
   AWAKE_DIRECTORY,
@@ -15,52 +24,18 @@ import {
 } from './layout.js';
 
 import type { WorkstationProfile } from '#core/profile';
+import type { GuestEnvironment } from '#integrations/guest/environment';
+import type { UpdateStatus } from '#integrations/guest/updates';
 import type { ToolSpec } from '#tools/contracts';
 
 import type { LiveProvider } from './providers.js';
-
-/** the recorded result of one component in one install run */
-export interface ComponentOutcome {
-  /** whether the run installed the component, found it current, or failed it */
-  status: 'installed' | 'skipped' | 'failed';
-  /** bare dotted version the component is at after the run, when known */
-  version?: string;
-  /** safe, fixed reason a component failed */
-  error?: string;
-}
-
-/** what the guest records after an update */
-export interface GuestManifestState {
-  /** versions the last successful update probed */
-  installedVersions: Record<string, string>;
-  /** what the last install run did to each component */
-  componentOutcomes: Record<string, ComponentOutcome>;
-  /** when the last update succeeded */
-  lastSuccessfulUpdate: string | undefined;
-  /** when the last update was attempted */
-  lastAttemptedUpdate: string | undefined;
-  /** outcome of the last attempted update */
-  lastUpdateStatus: string | undefined;
-  /** the safe diagnostic of the last failed update */
-  lastUpdateError: string | undefined;
-  /** why the updater fell back to a default schedule value, when it did */
-  lastUpdateDiagnostic: string | undefined;
-}
-
-/** one run of the updater that a scheduled entry started */
-export interface UpdaterRun {
-  /** the script node ran */
-  script: string;
-  /** the updater's exit code */
-  exitCode: number;
-}
 
 /** what one run of the scheduled entry did */
 export interface ScheduledRun {
   /** exit status of the entry, the line cron runs */
   exitStatus: number;
-  /** every updater process the entry started, which a skipped check leaves none of */
-  updaterRuns: UpdaterRun[];
+  /** whether an update ran meanwhile, which moves the recorded start */
+  updated: boolean;
 }
 
 /** one entry of the guest root tree as the guest reports it */
@@ -75,121 +50,98 @@ export interface GuestEntry {
   path: string;
 }
 
-/** what an update must leave untouched when every component is current */
+/** what an update must leave untouched when every tool is current */
 export interface ToolState {
-  /** target of the managed Node link */
-  nodeLink: string;
-  /** file count and checksum of the listing of the tools directory with inodes, modification times and sizes */
-  tools: string;
+  /** file count and checksum of the listing of the Homebrew kegs with inodes and modification times */
+  kegs: string;
   /** the links in the system tool directory with inodes, modification times and targets */
   binLinks: string;
   /** the manifests of the agent's npm packages with inodes and modification times */
   manifests: string;
 }
 
-/** the Node trees beside the managed link */
-export interface NodeTrees {
-  /** target of the managed Node link */
-  link: string;
-  /** every tree directory in the guest root, sorted */
-  trees: string[];
-}
-
-/** component the live update makes stale: a bottled tool no service uses */
+/** tool whose link the live update removes: a bottled tool no service uses */
 export const STALE_COMPONENT = 'jj';
-/** recorded version no release ever has */
-export const STALE_VERSION = '0.0.0-stale';
-const MANIFEST_PATH = `${GUEST_ROOT}/manifest.json`;
-const NODE = `${GUEST_ROOT}/node/bin/node`;
 const STALE_BINARY = `/usr/local/bin/${STALE_COMPONENT}`;
-const TOOLS = `${GUEST_ROOT}/tools`;
-const INSTALL_LOG = `${GUEST_ROOT}/install-tools.log`;
-/** the version an older Node tree claims, which no release is */
-const OLDER_NODE = 'v0.0.1';
-const OLDER_TREE = 'node-v0.0.1.Older0';
-/** links the manager itself creates in the guest root: the Node link, the tools and each tree's bin */
-const MANAGED_LINKS = [
-  new RegExp(`^${GUEST_ROOT}/node$`),
-  new RegExp(`^${GUEST_ROOT}/tools/[^/]+$`),
-  new RegExp(`^${GUEST_ROOT}/node-v[^/]+/bin/[^/]+$`),
-];
-/** lines an install leaves in the log, which a run that finds everything current must not */
-const INSTALL_ACTIVITY =
-  /^(?:Installing Node .*|Component \S+ is .*; installing .*|Running \/usr\/bin\/(?:tar|install)|Running \/bin\/bash)$/;
-const COMPONENT_CURRENT = /^Component (\S+) is current at \S+; skipped$/;
-const COMPONENT_DURATION = /^Component (\S+) took (\d+) ms$/;
-/** compilers and build tools, as Homebrew formulae or Debian packages, without a version suffix */
-const COMPILERS = new Set([
-  'gcc',
-  'g++',
-  'cpp',
-  'clang',
-  'llvm',
-  'make',
-  'cmake',
-  'binutils',
-  'build-essential',
-]);
+/** the log of the last update run, root's alone */
+const UPDATE_LOG = `${GUEST_ROOT}/update.log`;
+const CRON_ENTRY_PATH = '/etc/cron.d/open-agent';
+/** the agent's npm prefix and Homebrew's Node, which the agent's npm tools run on */
+const NPM_PREFIX = `${AGENT_HOME}/.local`;
+const HOMEBREW_NODE = `${HOMEBREW.prefix}/opt/node/bin`;
+/** one tool's outcome as the updater logs it */
+const LOGGED_OUTCOME = /^(\S+) \((\S+)\): (installed|skipped|failed)\b/;
+/** compilers and build tools, as Homebrew formulae, without a version suffix */
+const COMPILERS = new Set(['gcc', 'llvm', 'make', 'cmake', 'binutils']);
 
 /**
- * reads the manifest the updater maintains, straight from the guest
+ * reads the record setup leaves on the guest, straight from the guest
  * @param provider selected provider
  * @param name exact workstation name
- * @returns the fields an update changes
+ * @returns the validated record
  */
-export async function readManifestState(
+export async function readEnvironment(
   provider: LiveProvider,
   name: string,
-): Promise<GuestManifestState> {
-  const manifest = JSON.parse(
-    await provider.execute(name, `cat ${MANIFEST_PATH}`),
-  ) as Partial<GuestManifestState>;
+): Promise<GuestEnvironment> {
+  return parseEnvironment(
+    await provider.execute(name, `cat ${ENVIRONMENT_PATH}`),
+  );
+}
 
-  return {
-    installedVersions: manifest.installedVersions ?? {},
-    componentOutcomes: manifest.componentOutcomes ?? {},
-    lastSuccessfulUpdate: manifest.lastSuccessfulUpdate,
-    lastAttemptedUpdate: manifest.lastAttemptedUpdate,
-    lastUpdateStatus: manifest.lastUpdateStatus,
-    lastUpdateError: manifest.lastUpdateError,
-    lastUpdateDiagnostic: manifest.lastUpdateDiagnostic,
+/** what the updater recorded about its last run, with how its links ended */
+export interface UpdateRecord extends UpdateStatus {
+  /** `restored` or `failed`; absent before the run reached the links */
+  links?: string;
+}
+
+/**
+ * reads what the updater recorded about its last run, straight from the guest
+ * @param provider selected provider
+ * @param name exact workstation name
+ * @returns the record, with no tools before any update ran
+ */
+export async function readUpdateRecord(
+  provider: LiveProvider,
+  name: string,
+): Promise<UpdateRecord> {
+  const text = await provider.execute(
+    name,
+    `cat ${UPDATE_STATUS_PATH} 2>/dev/null || true`,
+  );
+  const status = parseUpdateStatus(text) ?? { tools: [] };
+  const { links } = (status.startedAt ? JSON.parse(text) : {}) as {
+    links?: unknown;
   };
+
+  return typeof links === 'string' ? { ...status, links } : status;
 }
 
-/** the update intervals the stored profile records */
+/**
+ * reads each tool's outcome of the last update run
+ * @param status what the updater recorded
+ * @returns each tool's outcome by its name
+ */
+export function updateOutcomes(status: UpdateRecord): Record<string, string> {
+  return Object.fromEntries(
+    status.tools.map(({ name, outcome }) => [name, outcome]),
+  );
+}
+
+/** the update intervals the guest records */
 export interface StoredIntervals {
-  /** days after the last successful update before another is due */
+  /** days after the last successful update before another is due, as the stored profile holds them */
   updateDueIntervalDays: number;
+  /** the same days, as the update gate reads them from the schedule */
+  scheduleDueDays: number;
 }
-
-/** how long a scheduled entry may take before the live proof gives up on it */
-const ENTRY_TIMEOUT_MS = 10 * 60_000;
-const ENTRY_POLL_MS = 5_000;
-const CRON_ENTRY_PATH = '/etc/cron.d/open-agent';
-const ENTRY_SCRIPT = '/run/open-agent-live-entry.sh';
-const ENTRY_RUNNER = '/run/open-agent-live-runner.sh';
-const ENTRY_PROBE = '/run/open-agent-live-probe.js';
-const ENTRY_UPDATER_LOG = '/run/open-agent-live-updater.log';
-const ENTRY_DONE = '/run/open-agent-live-entry.done';
-/** tries before the proof reports a run cron's own tick kept from the updater */
-const ENTRY_ATTEMPTS = 3;
-const LOCK_WAIT_SECONDS = 120;
-/** records, as the updater process ends, which script ran and how it exited */
-const PROBE = `process.on('exit', (code) => require('node:fs').appendFileSync('${ENTRY_UPDATER_LOG}', process.argv[1] + ' ' + code + '\\n'));`;
-/** runs the entry line with the probe loaded, then records its exit status */
-const RUNNER = [
-  '#!/bin/sh',
-  `NODE_OPTIONS=--require=${ENTRY_PROBE} /bin/sh ${ENTRY_SCRIPT}`,
-  `echo $? > ${ENTRY_DONE}.new`,
-  `mv -f ${ENTRY_DONE}.new ${ENTRY_DONE}`,
-  '',
-].join('\n');
 
 /** how long a detached root script may run before the proof gives up on it */
 const DETACHED_TIMEOUT_MS = 10 * 60_000;
 const DETACHED_POLL_MS = 3_000;
 // enough of a failed script's output to name the failure
 const DETACHED_OUTPUT_CHARS = 2000;
+const LOCK_WAIT_SECONDS = 120;
 /** a dotted release version, one word of a version probe's output */
 const DOTTED_VERSION = /^\d+\.\d+\.\d+$/;
 /** picks the highest plain release below `latest`: it prints `<older> <latest>` */
@@ -205,6 +157,8 @@ const OLDER_RELEASE = [
 ].join('\n');
 /** the session process a harness session runs from its release, beside its launchers */
 const NATIVE_HARNESS = '/vendor/';
+/** how long a harness session may take to start */
+const SESSION_TIMEOUT_MS = 10 * 60_000;
 
 /** the release a component was moved back to and the release it came from */
 export interface OlderRelease {
@@ -225,25 +179,26 @@ export interface HarnessProcess {
 }
 
 /**
- * reads the update intervals the stored profile records, straight from the guest
+ * reads the update intervals the guest records, straight from the guest
  * @param provider selected provider
  * @param name exact workstation name
- * @returns the recorded intervals
+ * @returns the stored profile's due interval and the schedule's
  */
 export async function readStoredIntervals(
   provider: LiveProvider,
   name: string,
 ): Promise<StoredIntervals> {
-  const manifest = JSON.parse(
-    await provider.execute(name, `cat ${MANIFEST_PATH}`),
-  ) as { profile: { options: StoredIntervals } };
-  const { updateDueIntervalDays } = manifest.profile.options;
+  const { profile, schedule } = await readEnvironment(provider, name);
 
-  return { updateDueIntervalDays };
+  return {
+    updateDueIntervalDays: profile.options.updateDueIntervalDays,
+    scheduleDueDays: schedule.dueDays,
+  };
 }
 
 /**
- * rewrites when the manifest says the last update succeeded
+ * rewrites when the updater says the last update succeeded, as root, whose
+ * file it is
  * @param provider selected provider
  * @param name exact workstation name
  * @param at the time to record
@@ -253,13 +208,16 @@ export async function setLastSuccessfulUpdate(
   name: string,
   at: Date,
 ): Promise<void> {
-  const edit = [
-    "const fs = require('node:fs');",
-    `const manifest = JSON.parse(fs.readFileSync('${MANIFEST_PATH}', 'utf8'));`,
-    `manifest.lastSuccessfulUpdate = '${at.toISOString()}';`,
-    `fs.writeFileSync('${MANIFEST_PATH}', JSON.stringify(manifest, null, 2) + '\\n');`,
-  ].join(' ');
-  await provider.execute(name, `set -e; ${NODE} -e "${edit}"`);
+  await asRoot(
+    provider,
+    name,
+    [
+      'set -e',
+      `/usr/local/bin/jq --arg at '${at.toISOString()}' '.lastSuccess = $at' ${UPDATE_STATUS_PATH} > ${UPDATE_STATUS_PATH}.live`,
+      `chmod 0644 ${UPDATE_STATUS_PATH}.live`,
+      `mv -f ${UPDATE_STATUS_PATH}.live ${UPDATE_STATUS_PATH}`,
+    ].join('\n'),
+  );
 }
 
 /**
@@ -281,118 +239,79 @@ export async function asRoot(
 }
 
 /**
- * runs the entry cron holds, without --force, and waits for it to end: it
- * waits for cron's lock to be free, then runs the very line cron runs with a
- * probe that records every updater process it starts, so an update that was
- * not due is told apart from an entry that never reached the updater
+ * runs the update gate's line cron holds, without --force, and waits for it
+ * to end: it waits for the update lock to be free, runs the very line cron
+ * runs, then waits for the lock again, since cron's own tick may have taken
+ * it between the wait and the run and updated in the entry's stead
  * @param provider selected provider
  * @param name exact workstation name
- * @returns the entry's exit status and the updater runs
+ * @returns the entry's exit status and whether an update ran
  */
 export async function runScheduledEntry(
   provider: LiveProvider,
   name: string,
 ): Promise<ScheduledRun> {
-  const encode = (text: string): string =>
-    Buffer.from(text, 'utf8').toString('base64');
-  await asRoot(
-    provider,
-    name,
-    [
-      'set -e',
-      `entry=$(sed -n 's/^0 \\* \\* \\* \\* root //p' ${CRON_ENTRY_PATH})`,
-      'test -n "$entry"',
-      `printf '%s\\n' "$entry" > ${ENTRY_SCRIPT}`,
-      `echo ${encode(PROBE)} | base64 -d > ${ENTRY_PROBE}`,
-      `echo ${encode(RUNNER)} | base64 -d > ${ENTRY_RUNNER}`,
-    ].join('\n'),
+  const before = await readUpdateRecord(provider, name);
+  await waitForUpdateLock(provider, name);
+  const exitStatus = Number(
+    (
+      await asRootDetached(
+        provider,
+        name,
+        [
+          'set -e',
+          // the line under the job's comment, without its schedule and account
+          `entry=$(sed -n '/^# ${UPDATE_JOB.name}$/{n;s/^[^ ]* [^ ]* [^ ]* [^ ]* [^ ]* root //p;}' ${CRON_ENTRY_PATH})`,
+          'test -n "$entry"',
+          'status=0',
+          '/bin/sh -c "$entry" || status=$?',
+          'echo "$status"',
+        ].join('\n'),
+      )
+    ).trim(),
   );
+  await waitForUpdateLock(provider, name);
+  const after = await readUpdateRecord(provider, name);
 
-  let run: ScheduledRun | undefined;
-  for (let attempt = 0; attempt < ENTRY_ATTEMPTS; attempt += 1) {
-    run = await attemptScheduledEntry(provider, name);
-    // cron's own tick can take the lock between the wait and the run, and the
-    // entry then ends without an updater; a skipped check still starts one
-    if (run.updaterRuns.length > 0) {
-      break;
-    }
-  }
-
-  return run!;
+  return { exitStatus, updated: after.startedAt !== before.startedAt };
 }
 
 /**
- * starts the entry once and waits for it to end
- * @param provider selected provider
- * @param name exact workstation name
- * @returns what the run did
- */
-async function attemptScheduledEntry(
-  provider: LiveProvider,
-  name: string,
-): Promise<ScheduledRun> {
-  await asRoot(
-    provider,
-    name,
-    [
-      'set -e',
-      // cron holds the same lock while its own tick runs the entry
-      'waited=0',
-      `until /usr/bin/flock -n ${UPDATE_LOCK_PATH} true; do waited=$((waited + 1)); test "$waited" -lt ${String(LOCK_WAIT_SECONDS)}; sleep 1; done`,
-      `rm -f ${ENTRY_DONE} ${ENTRY_UPDATER_LOG}`,
-      // the entry may outlast one provider request, so it runs on its own
-      `setsid nohup /bin/sh ${ENTRY_RUNNER} </dev/null >/dev/null 2>&1 &`,
-    ].join('\n'),
-  );
-  const deadline = Date.now() + ENTRY_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const status = (
-      await asRoot(provider, name, `cat ${ENTRY_DONE} 2>/dev/null || true`)
-    ).trim();
-    if (status !== '') {
-      return {
-        exitStatus: Number(status),
-        updaterRuns: (
-          await asRoot(
-            provider,
-            name,
-            `cat ${ENTRY_UPDATER_LOG} 2>/dev/null || true`,
-          )
-        )
-          .split('\n')
-          .filter((line) => line !== '')
-          .map((line) => {
-            const [script, exitCode] = line.split(' ');
-
-            return { script: script!, exitCode: Number(exitCode) };
-          })
-          .filter(({ script }) => script.endsWith('/updater.sh')),
-      };
-    }
-    await new Promise((resolve) => setTimeout(resolve, ENTRY_POLL_MS));
-  }
-  throw new Error('The scheduled update entry did not finish in time');
-}
-
-/**
- * makes one component look out of date both in the manifest and on disk, so an
- * update that skips unchanged components still has to reinstall it
+ * waits for no update run to hold the update lock
  * @param provider selected provider
  * @param name exact workstation name
  */
-export async function makeComponentStale(
+async function waitForUpdateLock(
   provider: LiveProvider,
   name: string,
 ): Promise<void> {
-  const edit = [
-    "const fs = require('node:fs');",
-    `const manifest = JSON.parse(fs.readFileSync('${MANIFEST_PATH}', 'utf8'));`,
-    `manifest.installedVersions['${STALE_COMPONENT}'] = '${STALE_VERSION}';`,
-    `fs.writeFileSync('${MANIFEST_PATH}', JSON.stringify(manifest, null, 2) + '\\n');`,
-  ].join(' ');
-  await provider.execute(
+  await asRootDetached(
+    provider,
     name,
-    `set -e; ${NODE} -e "${edit}"; rm -f ${STALE_BINARY}; ! test -e ${STALE_BINARY}`,
+    [
+      'set -e',
+      // no update ran yet while the lock does not exist
+      `test -e ${UPDATE_LOCK_PATH} || exit 0`,
+      'waited=0',
+      `until /usr/bin/flock -n ${UPDATE_LOCK_PATH} true; do waited=$((waited + 1)); test "$waited" -lt ${String(LOCK_WAIT_SECONDS)}; sleep 1; done`,
+    ].join('\n'),
+  );
+}
+
+/**
+ * removes one tool's link, so an update must repair what is missing and not
+ * only upgrade what is there
+ * @param provider selected provider
+ * @param name exact workstation name
+ */
+export async function removeToolLink(
+  provider: LiveProvider,
+  name: string,
+): Promise<void> {
+  await asRoot(
+    provider,
+    name,
+    `set -e; rm -f ${STALE_BINARY}; ! test -e ${STALE_BINARY}`,
   );
 }
 
@@ -400,7 +319,7 @@ export async function makeComponentStale(
  * runs the stale component's own version probe in the guest
  * @param provider selected provider
  * @param name exact workstation name
- * @returns the probe's output, which only an installed binary can produce
+ * @returns the probe's output, which only a linked binary can produce
  */
 export async function probeStaleComponent(
   provider: LiveProvider,
@@ -410,8 +329,8 @@ export async function probeStaleComponent(
 }
 
 /**
- * lists the guest root, its code trees, its Node trees, its tools, its seeded
- * data files and its update schedule with owner, type and mode, as the guest itself reports them
+ * lists everything under the guest root but the awake directories the agent
+ * writes, and the update schedule, with owner, type and mode, as root reads them
  * @param provider selected provider
  * @param name exact workstation name
  * @returns every entry found
@@ -420,15 +339,13 @@ export async function guestEntries(
   provider: LiveProvider,
   name: string,
 ): Promise<GuestEntry[]> {
-  const listing = await provider.execute(
+  const listing = await asRoot(
+    provider,
     name,
-    `find ${GUEST_ROOT} -maxdepth 0 -printf '%U %y %m %p\\n'; ` +
-      `find ${GUEST_ROOT}/guest ${GUEST_ROOT}/drivers ${GUEST_ROOT}/components.json ${GUEST_ROOT}/harnesses.json ${GUEST_ROOT}/install-outcomes.json -printf '%U %y %m %p\\n'; ` +
-      // the schedule: the cron entry always exists; the lock only once cron
-      // has run
-      `find ${CRON_ENTRY_PATH} -printf '%U %y %m %p\\n'; ` +
-      `find ${UPDATE_LOCK_PATH} -printf '%U %y %m %p\\n' 2>/dev/null; ` +
-      `find ${GUEST_ROOT}/node ${GUEST_ROOT}/node-v* ${TOOLS} -maxdepth 2 -printf '%U %y %m %p\\n'`,
+    `find ${GUEST_ROOT} -path ${GUEST_ROOT}/run -prune -o -printf '%U %y %m %p\\n'; ` +
+      // the schedule: the cron entry always exists, as does the lock once
+      // an update ran
+      `find ${CRON_ENTRY_PATH} -printf '%U %y %m %p\\n'`,
   );
 
   return listing
@@ -447,28 +364,27 @@ export async function guestEntries(
 }
 
 /**
- * lists the entries that are not root-owned, are links the manager does not
- * create, or can be written by another account
+ * lists the entries that are not root-owned, are links, or can be written
+ * by another account
  * @param entries guest root entries
  * @returns the offending entries
  */
 export function exposedEntries(entries: readonly GuestEntry[]): GuestEntry[] {
   const writableByOthers = 0o022;
 
-  return entries.filter(({ uid, type, mode, path }) =>
-    type === 'l'
-      ? uid !== 0 || !MANAGED_LINKS.some((managed) => managed.test(path))
-      : uid !== 0 || (mode & writableByOthers) !== 0,
+  return entries.filter(
+    ({ uid, type, mode }) =>
+      uid !== 0 || type === 'l' || (mode & writableByOthers) !== 0,
   );
 }
 
 /**
- * lists the components a workstation of this profile installs and probes, which
- * the manifest records both as installed versions and as outcomes
+ * lists the tools a workstation of this profile installs for its drivers,
+ * beside the base tools every workstation has
  * @param profile selected agent, harnesses and network
- * @returns component keys, sorted
+ * @returns tool names, sorted
  */
-export function expectedComponents(
+export function profileTools(
   profile: Pick<WorkstationProfile, 'agent' | 'harnesses' | 'network'>,
 ): string[] {
   const agent = catalog.agents[profile.agent];
@@ -481,25 +397,14 @@ export function expectedComponents(
     ...agent.tools,
   ];
 
-  return ['node', 'git', 'jj', 'gh', ...tools.map(({ name }) => name)].sort();
-}
-
-/**
- * lists every component an install run records an outcome for
- * @param profile selected agent, harnesses and network
- * @returns outcome keys, sorted
- */
-export function expectedOutcomes(
-  profile: Pick<WorkstationProfile, 'agent' | 'harnesses' | 'network'>,
-): string[] {
-  return [...expectedComponents(profile)].sort();
+  return [...new Set(tools.map(({ name }) => name))].sort();
 }
 
 /**
  * reads the facts that change when an update installs, links or builds anything
  * @param provider selected provider
  * @param name exact workstation name
- * @returns the Node link, a fingerprint of the tools directory, the system links and the npm manifests
+ * @returns a fingerprint of the kegs, the system links and the npm manifests
  */
 export async function readToolState(
   provider: LiveProvider,
@@ -511,16 +416,15 @@ export async function readToolState(
     name,
     [
       'set -e',
-      `echo "link $(readlink ${GUEST_ROOT}/node)"`,
-      `listing="$(find ${TOOLS} -printf '%p %y %i %T@ %s %l\\n' | sort)"`,
-      `echo "tools $(printf '%s\\n' "$listing" | wc -l) $(printf '%s\\n' "$listing" | sha256sum | cut -d' ' -f1)"`,
+      `listing="$(find ${HOMEBREW.prefix}/Cellar -mindepth 2 -maxdepth 2 -printf '%p %i %T@\\n' | sort)"`,
+      `echo "kegs $(printf '%s\\n' "$listing" | wc -l) $(printf '%s\\n' "$listing" | sha256sum | cut -d' ' -f1)"`,
       section(
         'bin',
         `find /usr/local/bin -maxdepth 1 -type l -printf '%p %i %T@ %l\\n'`,
       ),
       section(
         'npm',
-        `find ${AGENT_HOME}/.local/lib/node_modules -mindepth 2 -maxdepth 3 -name package.json -printf '%p %i %T@ %s\\n'`,
+        `find ${NPM_PREFIX}/lib/node_modules -mindepth 2 -maxdepth 3 -name package.json -printf '%p %i %T@ %s\\n'`,
       ),
     ].join('; '),
   );
@@ -534,26 +438,40 @@ export async function readToolState(
       .join('\n');
 
   return {
-    nodeLink: lines.find((line) => line.startsWith('link '))!.slice(5),
-    tools: lines.find((line) => line.startsWith('tools '))!.slice(6),
+    kegs: lines.find((line) => line.startsWith('kegs '))!.slice(5),
     binLinks: between('bin'),
     manifests: between('npm'),
   };
 }
 
 /**
- * reads the install log of the most recent run, which each run starts anew
+ * reads the log of the last update run, which each run starts anew
  * @param provider selected provider
  * @param name exact workstation name
  * @returns the log lines
  */
-export async function readInstallLog(
+export async function readUpdateLog(
   provider: LiveProvider,
   name: string,
 ): Promise<string[]> {
-  return (await provider.execute(name, `cat ${INSTALL_LOG}`))
+  return (await asRoot(provider, name, `cat ${UPDATE_LOG}`))
     .split('\n')
     .filter(Boolean);
+}
+
+/**
+ * reads each tool's outcome as the updater logged it
+ * @param log update log lines
+ * @returns each tool's outcome by its name
+ */
+export function loggedOutcomes(log: readonly string[]): Record<string, string> {
+  return Object.fromEntries(
+    log.flatMap((line) => {
+      const [, tool, , outcome] = LOGGED_OUTCOME.exec(line) ?? [];
+
+      return tool && outcome ? [[tool, outcome]] : [];
+    }),
+  );
 }
 
 /** the tools a workstation pours from Homebrew bottles */
@@ -575,10 +493,8 @@ export interface HomebrewGit {
   owners: string[];
   /** compilers or build tools Homebrew installed */
   brewCompilers: string[];
-  /** compilers, build tools or headers any apt run on the guest installed */
-  aptCompilers: string[];
-  /** the compilers on the agent's PATH, which only the provider's image can have put there */
-  imageCompilers: string[];
+  /** the receipts of kegs Homebrew built rather than poured from a bottle; must be none */
+  unbottledKegs: string[];
 }
 
 /**
@@ -598,11 +514,6 @@ export async function readHomebrewGit(
       .map((line) => line.trim())
       .filter(Boolean);
   const [keg] = await section(`${brew} list --versions git`);
-  // every apt run open-agent makes passes these flags, which set its runs
-  // apart from whatever the provider's image installed when it was built
-  const installedByApt = await section(
-    "zcat -f /var/log/apt/history.log* 2>/dev/null | awk '/^Commandline:/ { ours = index($0, \"--no-upgrade --no-install-recommends\") > 0 } /^Install:/ && ours { sub(/^Install: /, \"\"); print }' | tr ',' '\\n' | sed 's/^ *//; s/[: ].*//'",
-  );
 
   return {
     agentVersion: await readLoginVersion(provider, name, 'git'),
@@ -623,131 +534,12 @@ export async function readHomebrewGit(
       `stat -L -c '%U %G %a %n' ${HOMEBREW.home} ${HOMEBREW.prefix} ${HOMEBREW.brew}`,
     ),
     brewCompilers: (await section(`${brew} list --formula -1`)).filter(
-      isCompiler,
+      (formula) => COMPILERS.has(formula.replace(/@\d+(?:\.\d+)*$/, '')),
     ),
-    aptCompilers: installedByApt.filter(isCompiler),
-    imageCompilers: await section(
-      'for tool in gcc cc g++ make; do command -v $tool; done; true',
+    unbottledKegs: await section(
+      `for receipt in ${HOMEBREW.prefix}/Cellar/*/*/INSTALL_RECEIPT.json; do test -e "$receipt" || continue; grep -q '"poured_from_bottle": *true' "$receipt" || echo "$receipt"; done`,
     ),
   };
-}
-
-/**
- * tells whether a Homebrew formula or a Debian package compiles or builds
- * @param name formula or package name
- * @returns whether it is a compiler, a build tool or development headers
- */
-function isCompiler(name: string): boolean {
-  return (
-    COMPILERS.has(name.replace(/[@-]\d+(?:\.\d+)*$/, '')) ||
-    name.endsWith('-dev')
-  );
-}
-
-/**
- * lists how long each bottled tool's step took in an install log
- * @param log install log lines
- * @returns each tool with its step's milliseconds
- */
-export function brewToolDurations(log: readonly string[]): string {
-  return BREW_TOOLS.map(
-    (tool) => `${tool} ${componentDuration(log, tool)} ms`,
-  ).join(', ');
-}
-
-/**
- * reads how long the run that wrote the log spent on one component
- * @param log install log lines
- * @param component component key
- * @returns the time in milliseconds, or nothing when the log does not say
- */
-export function componentDuration(
-  log: readonly string[],
-  component: string,
-): number | undefined {
-  for (const line of log) {
-    const [, key, ms] = COMPONENT_DURATION.exec(line) ?? [];
-    if (key === component && ms !== undefined) {
-      return Number(ms);
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * picks the log lines of an install: a Node install, a component install, an
- * archive unpacked, a build or a binary put in place
- * @param log install log lines
- * @returns the lines that show something was installed
- */
-export function installActivity(log: readonly string[]): string[] {
-  return log.filter((line) => INSTALL_ACTIVITY.test(line));
-}
-
-/**
- * lists the components a run found current and left alone
- * @param log install log lines
- * @returns component keys in log order
- */
-export function skippedComponents(log: readonly string[]): string[] {
-  return log.flatMap((line) => COMPONENT_CURRENT.exec(line)?.[1] ?? []);
-}
-
-/**
- * reads the Node link and the tree directories beside it
- * @param provider selected provider
- * @param name exact workstation name
- * @returns the link target and every tree name
- */
-export async function readNodeTrees(
-  provider: LiveProvider,
-  name: string,
-): Promise<NodeTrees> {
-  const output = await provider.execute(
-    name,
-    `readlink ${GUEST_ROOT}/node; find ${GUEST_ROOT} -maxdepth 1 -type d -name 'node-v*' -printf '%f\\n' | sort`,
-  );
-  const [link, ...trees] = output.split('\n').filter(Boolean);
-
-  return { link: link!, trees };
-}
-
-/**
- * points the managed Node link at a tree that reports an older version, as a
- * guest does that last updated long ago; the tree runs the real Node
- * @param provider selected provider
- * @param name exact workstation name
- * @returns the name of the older tree and of the tree that was live
- */
-export async function placeOlderNode(
-  provider: LiveProvider,
-  name: string,
-): Promise<{ older: string; live: string }> {
-  const older = `${GUEST_ROOT}/${OLDER_TREE}`;
-  // the exec account is not root, and the updater trusts only root's files, so
-  // the whole swap runs as root
-  const steps = [
-    'set -e',
-    'umask 022',
-    `live="$(readlink ${GUEST_ROOT}/node)"`,
-    `mkdir ${older} ${older}/bin`,
-    // reports an older version and otherwise runs the live tree's Node
-    `printf '%s\\n' '#!/bin/sh' 'if test "$1" = --version; then echo ${OLDER_NODE}; exit 0; fi' 'exec ${GUEST_ROOT}/'"$live"'/bin/node "$@"' >${older}/bin/node`,
-    `chmod 0755 ${older}/bin/node`,
-    `for tool in npm npx; do ln -s "${GUEST_ROOT}/$live/bin/$tool" ${older}/bin/$tool; done`,
-    `ln -s ${OLDER_TREE} ${GUEST_ROOT}/.node-older`,
-    `mv -T ${GUEST_ROOT}/.node-older ${GUEST_ROOT}/node`,
-    'echo "$live"',
-  ];
-  const live = (
-    await provider.execute(
-      name,
-      `sudo -n /bin/sh -s <<'OLDER_NODE'\n${steps.join('\n')}\nOLDER_NODE`,
-    )
-  ).trim();
-
-  return { older: OLDER_TREE, live };
 }
 
 /** who owns the installed awake command and directories, and their modes */
@@ -1172,12 +964,13 @@ async function asRootDetached(
 }
 
 /**
- * runs a command as the agent account with the environment npm needs
+ * runs a command as the agent account with the environment npm needs:
+ * Homebrew's Node and the agent's npm prefix
  * @param command shell command line
  * @returns a root script that runs it
  */
 function asAgentWithNode(command: string): string {
-  return `runuser -u agent -- env HOME=${AGENT_HOME} PATH=${GUEST_ROOT}/node/bin:/usr/bin:/bin ${command}`;
+  return `runuser -u agent -- env HOME=${AGENT_HOME} PATH=${HOMEBREW_NODE}:/usr/bin:/bin NPM_CONFIG_PREFIX=${NPM_PREFIX} ${command}`;
 }
 
 /**
@@ -1199,7 +992,7 @@ export async function installOlderRelease(
     throw new Error(`${tool.name} is not installed from npm`);
   }
   const { package: npmPackage } = source;
-  const npm = `${GUEST_ROOT}/node/bin/npm`;
+  const npm = `${HOMEBREW_NODE}/npm`;
   const picked = await asRootDetached(
     provider,
     name,
@@ -1208,7 +1001,7 @@ export async function installOlderRelease(
       'script=$(mktemp)',
       `echo ${Buffer.from(OLDER_RELEASE).toString('base64')} | base64 -d > "$script"`,
       'chmod 644 "$script"',
-      asAgentWithNode(`${NODE} "$script" ${npm} ${npmPackage}`),
+      asAgentWithNode(`${HOMEBREW_NODE}/node "$script" ${npm} ${npmPackage}`),
       'rm -f "$script"',
     ].join('\n'),
   );
@@ -1220,7 +1013,7 @@ export async function installOlderRelease(
     provider,
     name,
     asAgentWithNode(
-      `${npm} install --global --prefix ${AGENT_HOME}/.local --no-audit --no-fund ${npmPackage}@${older}`,
+      `${npm} install --global --no-audit --no-fund ${npmPackage}@${older}`,
     ),
   );
 
@@ -1266,7 +1059,7 @@ export async function startHarnessSession(
     name,
     `runuser -l agent -c 'setsid nohup sh -c "sleep 1000000 | codex app-server" >/dev/null 2>&1 </dev/null &'`,
   );
-  const deadline = Date.now() + ENTRY_TIMEOUT_MS;
+  const deadline = Date.now() + SESSION_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const processes = await readHarnessSession(provider, name);
     if (

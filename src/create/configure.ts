@@ -45,9 +45,10 @@ interface NewWorkstationConfiguration {
 }
 
 /**
- * installs the workstation through its setup plan, enrols the network, writes
- * the native harness and account configuration, then records the
- * installation as ready
+ * installs the workstation through its setup plan, enrolling the network and
+ * writing the native harness and account configuration before the services
+ * start, since the agent's launcher reads its runtime environment and
+ * committer only as it starts, then records the installation as ready
  * @param provider the provider the workstation runs on
  * @param session the root setup session of the newly created workstation and its progress boundary
  * @param session.connection the root setup session
@@ -62,15 +63,41 @@ export async function configureNewWorkstation(
 ): Promise<GuestChannel> {
   const { connection, interaction } = session;
   const { profile } = configuration;
-  const network = networkDriver(profile.network);
   interaction?.progress({
     stage: 'tools',
     message: 'Installing the guest environment and managed developer tools',
   });
   await traceStage('create.tools', async () =>
-    installWorkstation({ provider, connection, profile, interaction }),
+    installWorkstation({
+      provider,
+      connection,
+      profile,
+      interaction,
+      beforeServices: async (guest) =>
+        enrolAndConfigure(guest, configuration, interaction),
+    }),
   );
   const guest = await connection.guest();
+  await writeWorkstationLabel(guest, configuration.hostname);
+  await markInstallationReady(guest);
+
+  return guest;
+}
+
+/**
+ * enrols the selected network, then writes the native harness and account
+ * configuration
+ * @param guest guest channel of the managed workstation
+ * @param configuration confirmed guest setup values
+ * @param interaction optional progress boundary
+ */
+async function enrolAndConfigure(
+  guest: GuestChannel,
+  configuration: NewWorkstationConfiguration,
+  interaction?: Interaction,
+): Promise<void> {
+  const { profile } = configuration;
+  const network = networkDriver(profile.network);
   if (network.daemon) {
     interaction?.progress({
       stage: 'network',
@@ -94,10 +121,6 @@ export async function configureNewWorkstation(
   await traceStage('create.configuration', async () =>
     configureNative(guest, configuration),
   );
-  await writeWorkstationLabel(guest, configuration.hostname);
-  await markInstallationReady(guest);
-
-  return guest;
 }
 
 /**
