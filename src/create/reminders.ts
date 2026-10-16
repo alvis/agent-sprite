@@ -33,7 +33,7 @@ export function createPreflightSummary(
         : []),
     ],
     reminders: [
-      `Managed maintenance checks every 30 minutes; after seven days it installs the latest tools in place without restarting ${catalog.agents[profile.agent].displayName} or any other service.`,
+      `Managed maintenance checks hourly; once ${dueDays(profile.options.updateDueIntervalDays)} passed since the last update, it installs the latest tools in place without restarting ${catalog.agents[profile.agent].displayName} or any other service.`,
       ...networkReminders(input),
       ...(profile.options.isProxyEnabled
         ? [
@@ -54,6 +54,15 @@ export function createPreflightSummary(
         : []),
     ],
   };
+}
+
+/**
+ * names the update due interval
+ * @param days whole days between updates
+ * @returns the interval with the verb that follows it
+ */
+function dueDays(days: number): string {
+  return days === 1 ? 'a day has' : `${days} days have`;
 }
 
 /**
