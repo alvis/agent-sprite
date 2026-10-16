@@ -22,7 +22,8 @@ OA_REPOSITORIES=$OA_GUEST_ROOT/apt-repositories
 # the services whose vendor units are masked, one init script name a line
 OA_MASKED_SERVICES=/etc/open-agent/masked-services
 OA_POLICY_RC=/usr/sbin/policy-rc.d
-# the first line of the policy-rc.d open-agent writes, which tells it apart from another's
+# the second line of the policy-rc.d open-agent writes, after its shebang,
+# which tells it apart from another's
 OA_POLICY_MARK='# open-agent policy-rc.d'
 
 # runs a command as an account from its home, without a PAM session or a
