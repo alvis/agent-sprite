@@ -170,12 +170,13 @@ oa_idle_process_start() {
 # writes settings.json to the work directory: the provider facts
 # environment.json records, the idle timeout and turn-hold maximum, already
 # capped at the provider's deadline limit by setup, and the notes on what
-# is missing; with no valid provider recorded the defaults apply
+# is missing; with no valid provider recorded the defaults apply. No jq
+# variable is named after a keyword, which Debian 12's jq 1.6 rejects
 oa_idle_settings() {
   if /usr/bin/jq -c "$OA_IDLE_JQ_DEFS"'
-    def minutes($v; $least; $default; $label):
+    def minutes($v; $least; $default; $setting):
       if ($v | count) and $v >= $least then {v: $v}
-      else {v: $default, note: "stored \($label) is missing or invalid; the default of \($default) minutes applies"} end;
+      else {v: $default, note: "stored \($setting) is missing or invalid; the default of \($default) minutes applies"} end;
     (.provider // null) as $p
     | if ($p | type) != "object" or ($p.keepAwakeMode | IN("native-deadline", "governed", "none") | not) then
         error("no provider")
