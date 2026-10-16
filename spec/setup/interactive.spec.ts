@@ -12,8 +12,10 @@ import {
   SCHEMA_LABEL,
   mergeMetadataLabels,
 } from '#drivers/providers/sprite/labels';
-import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
-import { UPDATE_STATUS_PATH } from '#integrations/guest/updates';
+import {
+  ENVIRONMENT_PATH,
+  UPDATE_STATUS_PATH,
+} from '#integrations/guest/layout';
 import { setupWorkstation } from '#setup';
 import { setupPlugins } from '#setup/plugins';
 import { setupTools } from '#setup/tools';

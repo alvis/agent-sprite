@@ -95,7 +95,7 @@ apply-deadline)
   oa_sprite_apply_deadline "${2-}" || exit 1
   ;;
 *)
-  echo 'usage: drivers/providers/sprite/awake.sh apply-deadline <epoch-ms>; a Sprite enters no idle form itself' >&2
+  echo "usage: $OA_GUEST_ROOT/drivers/providers/sprite/awake.sh apply-deadline <epoch-ms>; a Sprite enters no idle form itself" >&2
   exit 64
   ;;
 esac

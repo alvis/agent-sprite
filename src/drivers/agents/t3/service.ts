@@ -1,4 +1,5 @@
 import { guestAsset } from '#integrations/guest/assets';
+import { AGENT_HOME } from '#integrations/guest/layout';
 import { SHARED_MODE } from '#os/contracts';
 
 import type { ServiceDefinition } from '#drivers/guest-channel';
@@ -6,10 +7,14 @@ import type { ServiceDefinition } from '#drivers/guest-channel';
 /** port the provider routes to the T3 service */
 export const T3_HTTP_PORT = 3773;
 
+/** T3's base directory, where it keeps its state and credentials */
+export const T3_HOME = `${AGENT_HOME}/.t3`;
+
 /** the launcher the T3 service runs as the agent, which reads its port and harnesses from environment.json */
 export const T3_LAUNCHER = guestAsset(
   'drivers/agents/t3/launcher.sh',
   SHARED_MODE,
+  { OA_T3_HOME: T3_HOME },
 );
 
 /**

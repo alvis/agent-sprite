@@ -22,11 +22,8 @@ PATH=$OA_SYSTEM_PATH
 LC_ALL=C
 export PATH LC_ALL
 
-# what the gate reads and writes in the guest root: the assets in
-# src/integrations/guest/updates.ts, which this shell cannot import
-OA_GATE_ENVIRONMENT=$OA_ENVIRONMENT_PATH
-OA_GATE_STATUS=$OA_GUEST_ROOT/update-status.json
-OA_GATE_LOG=$OA_GUEST_ROOT/update.log
+# what the gate reads, writes and runs in the guest root: the records come
+# from the header, and every program sits at its path in the guest tree
 OA_GATE_AWAKE=$OA_GUEST_ROOT/governor/awake.sh
 OA_GATE_UPDATER=$OA_GUEST_ROOT/maintenance/updater.sh
 OA_GATE_TOOLS=$OA_GUEST_ROOT/tools
@@ -38,8 +35,6 @@ OA_GATE_DEFAULT_DAYS=1
 OA_GATE_MAX_DAYS=365
 # the source and session the awake hold is recorded under
 OA_GATE_HOLD=update
-# the setup session's lock, in its root-only directory
-OA_GATE_SESSION_LOCK=$OA_SESSION_DIRECTORY/session.lock
 
 # tells whether a directory is root's alone: a real directory root owns that
 # no group or other account can write
@@ -71,7 +66,7 @@ oa_gate_trusted() {
 oa_gate_due() {
   oa_gate_due_verdict=$("$oa_gate_jq" -r --arg last "$1" \
     --argjson fallback "$OA_GATE_DEFAULT_DAYS" --argjson limit "$OA_GATE_MAX_DAYS" \
-    -f /dev/stdin "$OA_GATE_ENVIRONMENT" <<'EOF'
+    -f /dev/stdin "$OA_ENVIRONMENT_PATH" <<'EOF'
 def epoch: try (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) catch null;
 (.schedule.dueDays) as $days
 | (($days | type) == "number" and $days >= 1 and $days <= $limit and $days == ($days | floor)) as $usable
@@ -104,7 +99,7 @@ oa_gate_update() {
   done
   /bin/sh -c '. "$1" && . "$2" && . "$3" && . "$4" && . "$5" && . "$6" && . "$7" &&
     shift 7 && oa_update_run "$@"' oa-updater "$@" \
-    "$OA_GATE_ENVIRONMENT" "$OA_GATE_STATUS" "$oa_gate_jq" "$OA_GATE_AWAKE" "$$"
+    "$OA_ENVIRONMENT_PATH" "$OA_UPDATE_STATUS_PATH" "$oa_gate_jq" "$OA_GATE_AWAKE" "$$"
 }
 
 case $# in
@@ -126,11 +121,11 @@ if test "$(id -u)" != 0; then
   echo 'update-gate.sh is root'"'"'s alone' >&2
   exit 77
 fi
-test -f "$OA_GATE_ENVIRONMENT" || exit 0
+test -f "$OA_ENVIRONMENT_PATH" || exit 0
 
 oa_gate_jq=$OA_GATE_JQ
 test -x "$oa_gate_jq" || {
-  echo "update gate: no $OA_GATE_JQ reads $OA_GATE_ENVIRONMENT" >&2
+  echo "update gate: no $OA_GATE_JQ reads $OA_ENVIRONMENT_PATH" >&2
   exit 1
 }
 
@@ -144,12 +139,12 @@ if test "$oa_gate_force" != 1; then
     echo "update gate: $OA_SESSION_DIRECTORY is not a directory root's alone" >&2
     exit 1
   fi
-  exec 9>>"$OA_GATE_SESSION_LOCK" || exit 1
+  exec 9>>"$OA_SESSION_LOCK" || exit 1
   oa_gate_busy=
   flock -n 9 || oa_gate_busy=1
 fi
 
-oa_gate_last=$("$oa_gate_jq" -r '.lastSuccess | strings' "$OA_GATE_STATUS" 2>/dev/null) ||
+oa_gate_last=$("$oa_gate_jq" -r '.lastSuccess | strings' "$OA_UPDATE_STATUS_PATH" 2>/dev/null) ||
   oa_gate_last=
 if test "$oa_gate_force" != 1; then
   oa_gate_due "$oa_gate_last"
@@ -157,7 +152,7 @@ if test "$oa_gate_force" != 1; then
   0) ;;
   1) exit 0 ;;
   *)
-    echo "update gate: $OA_GATE_ENVIRONMENT cannot be read" >&2
+    echo "update gate: $OA_ENVIRONMENT_PATH cannot be read" >&2
     exit 1
     ;;
   esac
@@ -165,23 +160,23 @@ if test "$oa_gate_force" != 1; then
   # follows the last run's output, which the next run replaces
   if test -n "$oa_gate_busy"; then
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) update gate: a setup session holds the guest; the due update waits for the next hour" \
-      >>"$OA_GATE_LOG"
-    chmod 0600 "$OA_GATE_LOG"
+      >>"$OA_UPDATE_LOG"
+    chmod 0600 "$OA_UPDATE_LOG"
     exit 0
   fi
 fi
 
-oa_gate_family=$("$oa_gate_jq" -r '.os.family | strings' "$OA_GATE_ENVIRONMENT") || oa_gate_family=
+oa_gate_family=$("$oa_gate_jq" -r '.os.family | strings' "$OA_ENVIRONMENT_PATH") || oa_gate_family=
 case $oa_gate_family in
 '' | *[!a-z0-9]*)
-  echo "update gate: $OA_GATE_ENVIRONMENT records no OS family" >&2
+  echo "update gate: $OA_ENVIRONMENT_PATH records no OS family" >&2
   exit 1
   ;;
 esac
 
 # the run's output replaces the last one's, so the log holds one run
-exec >"$OA_GATE_LOG" 2>&1 || exit 1
-chmod 0600 "$OA_GATE_LOG"
+exec >"$OA_UPDATE_LOG" 2>&1 || exit 1
+chmod 0600 "$OA_UPDATE_LOG"
 "$OA_GATE_AWAKE" hold-open --source "$OA_GATE_HOLD" --session "$OA_GATE_HOLD" --pid "$$"
 oa_gate_update "$oa_gate_family"
 oa_gate_status=$?

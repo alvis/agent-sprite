@@ -1,15 +1,11 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { ProviderFault } from '#drivers/failures';
+import { BOOT_ID_PATH } from '#integrations/guest/layout';
 import { runGuest } from '#integrations/guest/run';
 import { isRecord } from '#utilities/guards';
 
-import {
-  BOOT_ID_FILE,
-  BOOT_LOG,
-  BOOT_READY_FILE,
-  BOOT_STATUS,
-} from './boot-layout';
+import { BOOT_LOG, BOOT_READY_FILE, BOOT_STATUS } from './boot-layout';
 
 import type { BootReport } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
@@ -112,7 +108,7 @@ async function readBootState(
   try {
     const result = await api.exec(
       target,
-      ['/bin/cat', BOOT_READY_FILE, BOOT_ID_FILE],
+      ['/bin/cat', BOOT_READY_FILE, BOOT_ID_PATH],
       BOOT_PROBE_SECONDS,
     );
     if ((result.exitCode ?? 0) !== 0) {

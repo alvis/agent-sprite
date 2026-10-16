@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { SESSION_DIRECTORY, SESSION_PATH } from '#integrations/guest/layout';
+import {
+  SECRET_DIRECTORY,
+  SECRET_PREFIX,
+  SESSION_DIRECTORY,
+  SESSION_LOCK,
+  SESSION_PATH,
+} from '#integrations/guest/layout';
 
 import { revealSecret } from './secret';
 
@@ -53,7 +59,7 @@ const SECRET_WRITER_NAME = 'open-agent-secret';
  * path and removes the directory when it ends, whatever ends it
  */
 const SECRET_WRITER = `umask 077
-oa_secret=$(mktemp -d /dev/shm/open-agent.XXXXXXXXXX) || exit ${SECRET_DELIVERY_STATUS}
+oa_secret=$(mktemp -d ${SECRET_PREFIX}XXXXXXXXXX) || exit ${SECRET_DELIVERY_STATUS}
 trap 'rm -rf "$oa_secret"' EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
@@ -159,9 +165,9 @@ for oa_session_command in ${commands}; do
   }
 done
 test -z "$oa_session_missing" || return ${MISSING_COMMANDS_STATUS}
-test -d /dev/shm && test -w /dev/shm || return ${NO_SHM_STATUS}
+test -d ${SECRET_DIRECTORY} && test -w ${SECRET_DIRECTORY} || return ${NO_SHM_STATUS}
 export PATH=${SESSION_PATH}
-export TMPDIR=/dev/shm
+export TMPDIR=${SECRET_DIRECTORY}
 umask 022
 oa_session_pids=${SESSION_DIRECTORY}/session.pids
 test ! -L ${SESSION_DIRECTORY} || return ${SESSION_DIRECTORY_STATUS}
@@ -193,9 +199,9 @@ if test -f "$oa_session_pids"; then
       kill -s KILL -- "-$oa_session_group" 2>/dev/null || :
   fi
 fi
-exec 9>"${SESSION_DIRECTORY}/session.lock" || return ${SESSION_DIRECTORY_STATUS}
+exec 9>"${SESSION_LOCK}" || return ${SESSION_DIRECTORY_STATUS}
 flock -w ${LOCK_WAIT_SECONDS} 9 || return ${LOCK_BUSY_STATUS}
-rm -rf /dev/shm/open-agent.*
+rm -rf ${SECRET_PREFIX}*
 oa_session_record - -
 printf 'pid:%s\\n' "$$"`;
 }

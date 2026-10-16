@@ -1,5 +1,7 @@
-import { HOME, runAsAgent } from '#integrations/guest/account';
+import { runAsAgent } from '#integrations/guest/account';
 import { rememberSecret } from '#utilities/redaction';
+
+import { T3_HOME } from './service';
 
 import type { AgentPairing } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
@@ -14,7 +16,7 @@ export async function pairT3(guest: GuestChannel): Promise<AgentPairing> {
     't3',
     'pair',
     '--base-dir',
-    `${HOME}/.t3`,
+    T3_HOME,
     '--ttl',
     '5m',
     '--label',

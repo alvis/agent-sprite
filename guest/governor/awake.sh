@@ -521,7 +521,7 @@ oa_idle_idle_form_result() {
 # minutes between ticks, and the marker survives only a continuous run
 # arguments: current epoch milliseconds
 oa_idle_read_tick() {
-  oa_idle_read_tick_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) || oa_idle_read_tick_boot=
+  oa_idle_read_tick_boot=$(cat "$OA_BOOT_ID_PATH" 2>/dev/null) || oa_idle_read_tick_boot=
   oa_idle_read_tick_uptime=$(cut -d ' ' -f 1 /proc/uptime 2>/dev/null) || oa_idle_read_tick_uptime=
   : >"$OA_IDLE_WORK/tick-copy"
   if test "$(find "$OA_IDLE_TICK" -maxdepth 0 -type f -links 1 -user 0 2>/dev/null)" = "$OA_IDLE_TICK"; then
@@ -546,7 +546,7 @@ oa_idle_read_tick() {
 # writes the tick record, root's alone, with the boot clock it was taken at
 # arguments: the last tick, the awake time or empty, the idle-form marker or empty
 oa_idle_write_tick() {
-  oa_idle_write_tick_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) || oa_idle_write_tick_boot=
+  oa_idle_write_tick_boot=$(cat "$OA_BOOT_ID_PATH" 2>/dev/null) || oa_idle_write_tick_boot=
   oa_idle_write_tick_uptime=$(cut -d ' ' -f 1 /proc/uptime 2>/dev/null) || oa_idle_write_tick_uptime=
   /usr/bin/jq -nc --argjson last "$1" --arg awake "$2" --arg entering "$3" \
     --arg boot "$oa_idle_write_tick_boot" --arg uptime "$oa_idle_write_tick_uptime" '

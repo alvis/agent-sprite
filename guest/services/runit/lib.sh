@@ -21,9 +21,9 @@ OA_SV_WAIT=30
 # runs. Root runs runit's and tailscaled's Homebrew binaries only because the
 # Homebrew account is locked and root alone writes it, acting as it
 OA_SV_PATH=$OA_SESSION_PATH
-# the PATH an agent service starts with after its own commands: Homebrew's
-# ahead of the system's
-OA_SV_AGENT_PATH=$OA_HOMEBREW_PATH:/usr/local/bin:/usr/bin:/bin
+# the PATH an agent service starts with after its own commands: the account
+# PATH, Homebrew's commands ahead of the tool links and the system's
+OA_SV_AGENT_PATH=$OA_ACCOUNT_PATH
 # a service name, which names its directory, its link and its log
 OA_SV_NAME='^[a-z0-9][a-z0-9._-]*$'
 # whether the last oa_sv_write found something to change, and whether it only

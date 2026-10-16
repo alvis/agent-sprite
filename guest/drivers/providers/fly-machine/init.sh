@@ -22,13 +22,9 @@ PATH=$OA_SYSTEM_PATH
 LC_ALL=C
 export PATH LC_ALL
 
-OA_VOLUME=/data
-OA_VOLUME_ROOT=$OA_VOLUME/open-agent
-OA_RUN=/run/open-agent
-OA_READY=$OA_RUN/boot-ready
-OA_FLY_API=/.fly/api
-# the lock a setup session holds while it runs
-OA_SESSION_LOCK=$OA_SESSION_DIRECTORY/session.lock
+# the volume, the boot's state, the ready file and the Machines API socket
+# come in the header as the OA_FLY_* variables, the session lock as
+# OA_SESSION_LOCK
 # how long a halted boot waits before it stops the machine, and its stop
 # request may take
 OA_HALT_SECONDS=600
@@ -74,35 +70,35 @@ oa_trusted() {
 # writes the ready file the host waits for, naming this boot
 # arguments: ok, or failed when the volume or its guest root is unusable
 oa_ready() {
-  printf '%s %s\n' "$oa_boot_id" "$1" >"$OA_READY.new" && mv -f "$OA_READY.new" "$OA_READY"
+  printf '%s %s\n' "$oa_boot_id" "$1" >"$OA_FLY_BOOT_READY.new" && mv -f "$OA_FLY_BOOT_READY.new" "$OA_FLY_BOOT_READY"
 }
 
 # checks the volume and its guest root and binds the guest root over its root
 # filesystem path, once per boot
 oa_volume() {
-  if ! mountpoint -q "$OA_VOLUME"; then
-    oa_log "no volume is mounted at $OA_VOLUME"
+  if ! mountpoint -q "$OA_FLY_VOLUME"; then
+    oa_log "no volume is mounted at $OA_FLY_VOLUME"
     return 1
   fi
-  if ! oa_root_only "$OA_VOLUME"; then
-    oa_log "$OA_VOLUME is not root's alone"
+  if ! oa_root_only "$OA_FLY_VOLUME"; then
+    oa_log "$OA_FLY_VOLUME is not root's alone"
     return 1
   fi
-  if ! test -e "$OA_VOLUME_ROOT"; then
-    install -d -m 0755 "$OA_VOLUME_ROOT" || return 1
+  if ! test -e "$OA_FLY_VOLUME_ROOT"; then
+    install -d -m 0755 "$OA_FLY_VOLUME_ROOT" || return 1
   fi
-  if ! oa_root_only "$OA_VOLUME_ROOT"; then
-    oa_log "$OA_VOLUME_ROOT is not root's alone"
+  if ! oa_root_only "$OA_FLY_VOLUME_ROOT"; then
+    oa_log "$OA_FLY_VOLUME_ROOT is not root's alone"
     return 1
   fi
-  if test "$(stat -c '%d %i' "$OA_VOLUME_ROOT")" = "$(stat -c '%d %i' "$OA_GUEST_ROOT" 2>/dev/null)"; then
+  if test "$(stat -c '%d %i' "$OA_FLY_VOLUME_ROOT")" = "$(stat -c '%d %i' "$OA_GUEST_ROOT" 2>/dev/null)"; then
     return 0
   fi
   if mountpoint -q "$OA_GUEST_ROOT"; then
-    oa_log "something other than $OA_VOLUME_ROOT is mounted at $OA_GUEST_ROOT"
+    oa_log "something other than $OA_FLY_VOLUME_ROOT is mounted at $OA_GUEST_ROOT"
     return 1
   fi
-  mkdir -p "$OA_GUEST_ROOT" && mount --bind "$OA_VOLUME_ROOT" "$OA_GUEST_ROOT"
+  mkdir -p "$OA_GUEST_ROOT" && mount --bind "$OA_FLY_VOLUME_ROOT" "$OA_GUEST_ROOT"
 }
 
 # asks the Machines API, through the guest-local socket, to stop this machine;
@@ -146,7 +142,7 @@ oa_halt() {
   while :; do
     sleep "$OA_POLL_SECONDS" &
     wait $!
-    if test "${1-}" = repairable && test "$(cat "$OA_READY" 2>/dev/null)" = "$oa_boot_id resumed"; then
+    if test "${1-}" = repairable && test "$(cat "$OA_FLY_BOOT_READY" 2>/dev/null)" = "$oa_boot_id resumed"; then
       oa_log "halt=resumed: setup repaired the guest"
       return 0
     fi
@@ -244,9 +240,9 @@ oa_run() {
 
 oa_hook=${1-}
 case $oa_hook in
-  "$OA_VOLUME_ROOT"/*.sh) ;;
+  "$OA_FLY_VOLUME_ROOT"/*.sh) ;;
   *)
-    oa_log "the boot stub needs the boot hook's path under $OA_VOLUME_ROOT"
+    oa_log "the boot stub needs the boot hook's path under $OA_FLY_VOLUME_ROOT"
     exit 1
     ;;
 esac
@@ -258,8 +254,8 @@ case $oa_hook in
 esac
 
 trap oa_exit INT TERM HUP
-install -d -m 0755 "$OA_RUN"
-oa_boot_id=$(cat /proc/sys/kernel/random/boot_id)
+install -d -m 0755 "$OA_FLY_RUN"
+oa_boot_id=$(cat "$OA_BOOT_ID_PATH")
 oa_log "boot id=$oa_boot_id stub started"
 if ! oa_volume; then
   oa_ready failed
@@ -281,8 +277,8 @@ while :; do
       oa_shutdown
     fi
     if test "$oa_status" = "$OA_HALTED"; then
-      oa_log "handover=none: a critical step of the boot hook failed; see $OA_GUEST_ROOT/boot.log"
-      if test "$(cat "$OA_READY" 2>/dev/null)" = "$oa_boot_id halted"; then
+      oa_log "handover=none: a critical step of the boot hook failed; see $OA_FLY_BOOT_LOG"
+      if test "$(cat "$OA_FLY_BOOT_READY" 2>/dev/null)" = "$oa_boot_id halted"; then
         oa_halt repairable
         # setup repaired the guest, so the hook runs again, changed or not
         oa_ran=

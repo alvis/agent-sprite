@@ -1,17 +1,14 @@
 # open-agent's tool links, sourced as root: every executable environment.json
-# lists for a Homebrew tool gets a link in /usr/local/bin to its keg's opt
+# lists for a Homebrew tool gets a link in the tool links directory to its keg's opt
 # link, unless the system provides a command of that name, which the agent
 # finds in Homebrew's own directories on its PATH instead. A link is only
 # made where none is, or replaced where it points elsewhere into the prefix;
 # anything else there, and every system or agent tool, is left alone. Root
 # reads environment.json with the system's jq alone
 
-# where the links go and the prefix they point into
-OA_LINK_DIRECTORY=/usr/local/bin
-OA_LINK_PREFIX=$OA_HOMEBREW_PREFIX
-# the system's command directories, whose commands no link shadows, separated
-# by blanks
-OA_LINK_SYSTEM=$(printf '%s' "$OA_SYSTEM_PATH" | tr : ' ')
+# the links go in $OA_TOOL_LINKS and point into $OA_HOMEBREW_PREFIX, and no
+# link shadows a command in $OA_SYSTEM_DIRECTORIES, the system's command
+# directories separated by blanks, all from the header
 OA_LINK_JQ=/usr/bin/jq
 
 # refuses a formula, keg directory or executable a link could escape with
@@ -44,7 +41,7 @@ oa_link_names() {
 # tells whether the system provides a command
 # arguments: the command's name
 oa_link_system() {
-  for oa_system_directory in $OA_LINK_SYSTEM; do
+  for oa_system_directory in $OA_SYSTEM_DIRECTORIES; do
     test -e "$oa_system_directory/$1" && return 0
   done
   return 1
@@ -62,7 +59,7 @@ oa_link_tool() {
   for oa_link_executable in $3; do
     oa_link_target=
     for oa_link_directory in $2; do
-      oa_link_candidate=$OA_LINK_PREFIX/opt/$1/$oa_link_directory/$oa_link_executable
+      oa_link_candidate=$OA_HOMEBREW_PREFIX/opt/$1/$oa_link_directory/$oa_link_executable
       if test -f "$oa_link_candidate" && test -x "$oa_link_candidate"; then
         oa_link_target=$oa_link_candidate
         break
@@ -72,11 +69,11 @@ oa_link_tool() {
       echo "$1 has no executable $oa_link_executable in $2" >&2
       return 1
     fi
-    oa_link_path=$OA_LINK_DIRECTORY/$oa_link_executable
+    oa_link_path=$OA_TOOL_LINKS/$oa_link_executable
     if oa_link_system "$oa_link_executable"; then
       test -L "$oa_link_path" || continue
       case $(readlink "$oa_link_path") in
-        "$OA_LINK_PREFIX"/*) ;;
+        "$OA_HOMEBREW_PREFIX"/*) ;;
         *) continue ;;
       esac
       test "$oa_link_mode" = apply || return 1
@@ -87,7 +84,7 @@ oa_link_tool() {
       oa_link_current=$(readlink "$oa_link_path")
       test "$oa_link_current" != "$oa_link_target" || continue
       case $oa_link_current in
-        "$OA_LINK_PREFIX"/*) ;;
+        "$OA_HOMEBREW_PREFIX"/*) ;;
         *)
           echo "Leaving $oa_link_path: it points outside Homebrew, to $oa_link_current" >&2
           continue
@@ -98,7 +95,7 @@ oa_link_tool() {
       continue
     fi
     test "$oa_link_mode" = apply || return 1
-    install -d -m 0755 "$OA_LINK_DIRECTORY" || return 1
+    install -d -m 0755 "$OA_TOOL_LINKS" || return 1
     ln -sfn "$oa_link_target" "$oa_link_path.open-agent-new" &&
       mv -fT "$oa_link_path.open-agent-new" "$oa_link_path" || return 1
   done

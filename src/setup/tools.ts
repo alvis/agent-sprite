@@ -4,7 +4,7 @@ import {
   readUpdateStatus,
 } from '#integrations/guest/environment/store';
 import { markInstallationReady } from '#integrations/guest/install';
-import { GUEST_ROOT } from '#integrations/guest/layout';
+import { UPDATE_LOG } from '#integrations/guest/layout';
 import { UPDATE_GATE_ASSET } from '#integrations/guest/updates';
 import { promptUnavailableDetail } from '#operation';
 
@@ -111,7 +111,7 @@ async function forceUpdate(
   if (exitCode !== 0) {
     throw new CommandFault({
       code: 'PROVIDER',
-      message: `The update gate exited with status ${String(exitCode)}; see ${GUEST_ROOT}/update.log on the guest`,
+      message: `The update gate exited with status ${String(exitCode)}; see ${UPDATE_LOG} on the guest`,
     });
   }
 

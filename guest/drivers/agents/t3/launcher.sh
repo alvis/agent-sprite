@@ -8,9 +8,6 @@
 
 set -u
 
-OA_RUNTIME=$OA_AGENT_HOME/.config/open-agent/runtime-env.json
-OA_COMMITTER=$OA_AGENT_HOME/.config/open-agent/committer.json
-
 # reports why the launcher stopped and exits non-zero
 # arguments: the reason
 oa_fail() {
@@ -19,14 +16,16 @@ oa_fail() {
 }
 
 # prints the export commands of a map of variable names to strings; refuses
-# any other shape, so no name or value is ever read as shell code
+# any other shape, so no name or value is ever read as shell code, and any
+# OA_* name, which would override the launcher's own layout
 # arguments: what the map is, for the error; the map arrives on stdin
 oa_exports() {
   jq -nr 'input | if type == "object" and all(to_entries[];
-        (.key | test("^[A-Z_a-z][0-9A-Z_a-z]*$")) and (.value | type == "string"))
+        (.key | test("^[A-Z_a-z][0-9A-Z_a-z]*$")) and (.key | startswith("OA_") | not) and
+        (.value | type == "string"))
       then to_entries[] | "export \(.key)=\(.value | @sh)"
       else error("malformed") end' 2>/dev/null ||
-    oa_fail "$1 is malformed"
+    oa_fail "$1 is malformed or names an OA_* variable"
 }
 
 test -r "$OA_ENVIRONMENT_PATH" || oa_fail "$OA_ENVIRONMENT_PATH is not readable"
@@ -35,8 +34,8 @@ oa_port=$(jq -er '.agent.port | select(type == "number" and . >= 1 and . <= 6553
 
 # the agent's runtime environment first, so neither HOME nor a harness's
 # environment can be overridden by it
-if test -e "$OA_RUNTIME"; then
-  oa_runtime=$(oa_exports "the agent's runtime environment" <"$OA_RUNTIME") || exit 1
+if test -e "$OA_RUNTIME_ENV_PATH"; then
+  oa_runtime=$(oa_exports "the agent's runtime environment" <"$OA_RUNTIME_ENV_PATH") || exit 1
   eval "$oa_runtime"
 fi
 HOME=$OA_AGENT_HOME
@@ -47,15 +46,15 @@ eval "$oa_harnesses"
 # the agent's PATH: its own commands, then Homebrew's ahead of the system's
 PATH=$OA_AGENT_PATH
 export PATH
-if test -e "$OA_COMMITTER"; then
+if test -e "$OA_COMMITTER_PATH"; then
   oa_committer=$(jq -c 'if type == "object" then
         {GIT_COMMITTER_NAME: .name, GIT_COMMITTER_EMAIL: .email}
           | with_entries(select(.value | type == "string"))
-      else error("malformed") end' "$OA_COMMITTER" 2>/dev/null |
+      else error("malformed") end' "$OA_COMMITTER_PATH" 2>/dev/null |
     oa_exports "the agent's committer") || exit 1
   eval "$oa_committer"
 fi
 
 cd "$OA_AGENT_HOME" || oa_fail "$OA_AGENT_HOME is missing"
 exec "$OA_AGENT_BIN/t3" start --host 0.0.0.0 --port "$oa_port" \
-  --base-dir "$OA_AGENT_HOME/.t3" --no-browser --log-level warn </dev/null >/dev/null 2>&1
+  --base-dir "$OA_T3_HOME" --no-browser --log-level warn </dev/null >/dev/null 2>&1

@@ -9,12 +9,11 @@ import {
   AGENT_HOME,
   ENVIRONMENT_PATH,
   GUEST_ROOT,
-} from '#integrations/guest/layout';
-import {
-  parseUpdateStatus,
-  UPDATE_JOB,
+  SESSION_LOCK,
+  UPDATE_LOG,
   UPDATE_STATUS_PATH,
-} from '#integrations/guest/updates';
+} from '#integrations/guest/layout';
+import { parseUpdateStatus, UPDATE_JOB } from '#integrations/guest/updates';
 
 import {
   AWAKE_DIRECTORY,
@@ -22,7 +21,6 @@ import {
   HOMEBREW,
   MANAGED_AWAKE_DIRECTORY,
   reportedGovernorState,
-  SESSION_LOCK_PATH,
 } from './layout';
 
 import type { WorkstationProfile } from '#core/profile';
@@ -65,8 +63,6 @@ export interface ToolState {
 /** tool whose link the live update removes: a bottled tool no service uses */
 export const STALE_COMPONENT = 'jj';
 const STALE_BINARY = `/usr/local/bin/${STALE_COMPONENT}`;
-/** the log of the last update run, root's alone */
-const UPDATE_LOG = `${GUEST_ROOT}/update.log`;
 const CRON_ENTRY_PATH = '/etc/cron.d/open-agent';
 /** the agent's npm prefix and Homebrew's Node, which the agent's npm tools run on */
 const NPM_PREFIX = `${AGENT_HOME}/.local`;
@@ -294,9 +290,9 @@ async function waitForUpdateLock(
     [
       'set -e',
       // nothing has held the lock while it does not exist
-      `test -e ${SESSION_LOCK_PATH} || exit 0`,
+      `test -e ${SESSION_LOCK} || exit 0`,
       'waited=0',
-      `until /usr/bin/flock -n ${SESSION_LOCK_PATH} true; do waited=$((waited + 1)); test "$waited" -lt ${String(LOCK_WAIT_SECONDS)}; sleep 1; done`,
+      `until /usr/bin/flock -n ${SESSION_LOCK} true; do waited=$((waited + 1)); test "$waited" -lt ${String(LOCK_WAIT_SECONDS)}; sleep 1; done`,
     ].join('\n'),
   );
 }

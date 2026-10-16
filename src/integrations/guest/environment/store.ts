@@ -1,10 +1,13 @@
 import { validateProfile } from '#core/profile';
 import { CommandFault } from '#errors';
-import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
+import {
+  ENVIRONMENT_PATH,
+  UPDATE_STATUS_PATH,
+} from '#integrations/guest/layout';
 
 import { guestFileExists, readGuestFile, writeGuestFile } from '../files';
 
-import { parseUpdateStatus, UPDATE_STATUS_PATH } from '../updates';
+import { parseUpdateStatus } from '../updates';
 
 import {
   ENVIRONMENT_MODE,
