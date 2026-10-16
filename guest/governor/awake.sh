@@ -36,6 +36,9 @@ umask 077
 PATH=$OA_SYSTEM_PATH
 LC_ALL=C
 export PATH LC_ALL
+# find fails when it cannot return to a working directory the account cannot
+# enter, such as another account's home a hook or root's shell left it in
+cd / || exit 1
 
 # what the governor reads and keeps in the guest root
 OA_IDLE_ENVIRONMENT=$OA_ENVIRONMENT_PATH

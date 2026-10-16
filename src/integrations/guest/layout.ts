@@ -79,6 +79,26 @@ export const AGENT_PATH = `${AGENT_BIN}:${ACCOUNT_PATH}`;
 /** the `PATH` every session command, and every root command outside a session, starts from, whatever the transport set: the system's commands first, then the tool links in `/usr/local` */
 export const SESSION_PATH = `${SYSTEM_PATH}:/usr/local/sbin:${TOOL_LINKS}`;
 
+/** the login profile every login shell reads, which puts the managed tools on its PATH */
+export const LOGIN_PROFILE_PATH = '/etc/profile.d/open-agent.sh';
+
+/**
+ * the login profile's text: root's PATH puts the system's commands ahead of
+ * the tool links, and an ordinary account's its own commands, then
+ * Homebrew's, ahead of the system's; the Fly boot hook writes the same text
+ */
+export const LOGIN_PROFILE = [
+  "# open-agent: the system's commands ahead of the tool links for root; its own",
+  "# commands, then Homebrew's, ahead of the system's for an ordinary account",
+  'if test "$(id -u)" = 0; then',
+  `  PATH="${SESSION_PATH}"`,
+  'else',
+  `  PATH="$HOME/.local/bin:${ACCOUNT_PATH}"`,
+  'fi',
+  'export PATH',
+  '',
+].join('\n');
+
 /**
  * root-only directory of the session lock, which the hourly update gate also
  * takes, and the process-group record
