@@ -11,8 +11,10 @@
 # every runsv and its service to exit, short of the machine's stop timeout,
 # kills what remains, flushes the volume and exits. A boot whose volume or
 # hook halts waits ten minutes, for someone to read the log, then stops the
-# machine through the guest-local Machines API. It uses the image's own
-# tools alone
+# machine through the guest-local Machines API, postponing the stop while a
+# setup session is open. A hook that halted with the guest root on the volume
+# leaves the guest for setup to repair: once setup's prepare marks the boot
+# resumed, the stub runs the hook again. It uses the image's own tools alone
 
 set -u
 umask 022
@@ -26,6 +28,8 @@ OA_GUEST_ROOT=/opt/open-agent
 OA_RUN=/run/open-agent
 OA_READY=$OA_RUN/boot-ready
 OA_FLY_API=/.fly/api
+# the lock a setup session holds while it runs
+OA_SESSION_LOCK=/run/open-agent-session/session.lock
 # how long a halted boot waits before it stops the machine, and its stop
 # request may take
 OA_HALT_SECONDS=600
@@ -69,7 +73,7 @@ oa_trusted() {
 }
 
 # writes the ready file the host waits for, naming this boot
-# arguments: ok or failed
+# arguments: ok, or failed when the volume or its guest root is unusable
 oa_ready() {
   printf '%s %s\n' "$oa_boot_id" "$1" >"$OA_READY.new" && mv -f "$OA_READY.new" "$OA_READY"
 }
@@ -127,15 +131,31 @@ oa_stop_machine() {
   ' "$OA_FLY_API" "${FLY_APP_NAME:-}" "${FLY_MACHINE_ID:-}" "$OA_STOP_SECONDS"
 }
 
+# tells whether a setup session holds its lock
+oa_repairing() {
+  test -f "$OA_SESSION_LOCK" && ! flock -n "$OA_SESSION_LOCK" true
+}
+
 # waits, then stops the machine, again and again until it stops: the init
-# never exits, so an idle machine would otherwise run, and bill, for ever
+# never exits, so an idle machine would otherwise run, and bill, for ever. A
+# halt setup may repair returns once setup's prepare marks the boot resumed
+# arguments: repairable, when setup may repair the guest
 oa_halt() {
   trap oa_exit INT TERM HUP
   oa_log "halt=waiting $OA_HALT_SECONDS seconds, then stopping the machine"
+  oa_halt_at=$(($(date +%s) + OA_HALT_SECONDS))
   while :; do
-    sleep "$OA_HALT_SECONDS" &
+    sleep "$OA_POLL_SECONDS" &
     wait $!
-    if oa_stop_machine; then
+    if test "${1-}" = repairable && test "$(cat "$OA_READY" 2>/dev/null)" = "$oa_boot_id resumed"; then
+      oa_log "halt=resumed: setup repaired the guest"
+      return 0
+    fi
+    test "$(date +%s)" -ge "$oa_halt_at" || continue
+    oa_halt_at=$(($(date +%s) + OA_HALT_SECONDS))
+    if oa_repairing; then
+      oa_log "halt=stop postponed $OA_HALT_SECONDS seconds: a setup session is open"
+    elif oa_stop_machine; then
       oa_log "halt=stop requested"
     else
       oa_log "halt=stop failed; retrying after $OA_HALT_SECONDS seconds"
@@ -263,6 +283,12 @@ while :; do
     fi
     if test "$oa_status" = "$OA_HALTED"; then
       oa_log "handover=none: a critical step of the boot hook failed; see $OA_GUEST_ROOT/boot.log"
+      if test "$(cat "$OA_READY" 2>/dev/null)" = "$oa_boot_id halted"; then
+        oa_halt repairable
+        # setup repaired the guest, so the hook runs again, changed or not
+        oa_ran=
+        continue
+      fi
       oa_halt
     fi
     oa_log "the boot hook exited with status $oa_status; waiting for setup to replace it"
