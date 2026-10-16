@@ -56,5 +56,9 @@ if test -e "$OA_COMMITTER_PATH"; then
 fi
 
 cd "$OA_AGENT_HOME" || oa_fail "$OA_AGENT_HOME is missing"
+# runit runs one t3 for this base directory, so a server record found now is
+# one a stop left behind; its process id may name another process after a
+# boot, and t3 would refuse to start beside it
+rm -f "$OA_T3_SERVER_RECORD" || oa_fail "$OA_T3_SERVER_RECORD cannot be removed"
 exec "$OA_AGENT_BIN/t3" start --host 0.0.0.0 --port "$oa_port" \
   --base-dir "$OA_T3_HOME" --no-browser --log-level warn </dev/null >/dev/null 2>&1
