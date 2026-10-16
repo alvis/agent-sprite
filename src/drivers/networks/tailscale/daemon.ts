@@ -48,14 +48,16 @@ export interface TailnetEnrollParams {
 }
 
 /**
- * the program that enrols with the key file the session wrote for it, which
- * the session removes once the command ends; its arguments are the CLI's
+ * the program that enrols with the key file the session wrote for it: it
+ * opens the file, removes it and hands the CLI only the open descriptor, so
+ * the key is never at rest once the CLI starts; its arguments are the CLI's
  */
-const ENROLL_PROGRAM = 'exec "$@" --auth-key="file:$OPEN_AGENT_SECRET_FILE"';
+const ENROLL_PROGRAM =
+  '{ rm -f "$OPEN_AGENT_SECRET_FILE" && exec "$@" --auth-key=file:/dev/fd/3; } 3<"$OPEN_AGENT_SECRET_FILE"';
 
 /**
  * enrolls a guest with its single-use credential, delivered as a private
- * session file that never outlives the command
+ * session file removed before the CLI starts
  * @param guest target guest, running over a setup session
  * @param params enrollment credential, exit-node selector and device name
  */

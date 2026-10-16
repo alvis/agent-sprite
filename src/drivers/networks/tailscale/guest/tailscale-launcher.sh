@@ -17,6 +17,12 @@ OA_ENVIRONMENT=/opt/open-agent/environment.json
 OA_RESOLVER=/etc/resolv.conf
 # ahead of the rules tailscaled installs from 5210 on
 OA_PRIORITY=5200
+# the setup session's root-only directory and lock: SESSION_DIRECTORY in
+# src/integrations/guest/session/framing.ts
+OA_SESSION_DIRECTORY=/run/open-agent-session
+OA_SESSION_LOCK=$OA_SESSION_DIRECTORY/session.lock
+# removes every directory a setup secret, such as an auth key, was delivered in
+OA_SECRETS_SWEEP='rm -rf /dev/shm/open-agent.*'
 # the system's commands ahead of the tool links, which bring Homebrew's
 # tailscaled: the Homebrew account is locked and root alone writes it
 PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin
@@ -28,6 +34,17 @@ umask 022
 oa_fail() {
   echo "tailscale launcher: $1" >&2
   exit 1
+}
+
+# removes what a crash left of setup's secrets in /dev/shm when the service
+# starts, under the setup session's lock and only while no session holds it,
+# so an enrollment in flight keeps its key
+oa_sweep() {
+  if test -d "$OA_SESSION_DIRECTORY"; then
+    flock -n "$OA_SESSION_LOCK" /bin/sh -c "$OA_SECRETS_SWEEP" || :
+  else
+    /bin/sh -c "$OA_SECRETS_SWEEP"
+  fi
 }
 
 # names the files the launcher keeps in the state directory
@@ -197,6 +214,7 @@ case ${1-} in
     oa_prepare
     ;;
   '')
+    oa_sweep
     oa_load
     oa_prepare
     oa_supervise

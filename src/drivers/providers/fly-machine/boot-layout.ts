@@ -43,7 +43,7 @@ export const BOOT_INIT: readonly string[] = [
   BOOT_HOOK_ON_VOLUME,
 ];
 
-/** written once the boot is far enough for setup: the boot's id, then `ok` or `failed` */
+/** written once the boot is far enough for setup: the boot's id, then `ok`, `halted`, `resumed` or `failed` */
 export const BOOT_READY_FILE = '/run/open-agent/boot-ready';
 /** the kernel's id of the current boot, which the ready file must repeat */
 export const BOOT_ID_FILE = '/proc/sys/kernel/random/boot_id';
@@ -53,6 +53,7 @@ export const BOOT_LOG = `${GUEST_ROOT}/boot.log`;
 export const BOOT_STATUS = `${GUEST_ROOT}/boot-status.json`;
 /** the steps every run of the boot hook logs, in order */
 export const BOOT_STEPS = [
+  'secrets',
   'volume',
   'guest-root',
   'libraries',
