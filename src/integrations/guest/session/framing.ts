@@ -71,13 +71,22 @@ exit $?`;
 export const SESSION_PATH = `${SYSTEM_PATH}:/usr/local/sbin:/usr/local/bin`;
 
 /**
- * the helpers every later script of the session calls: the start time of a
- * process, which tells a live process from a reused pid; the record of the
- * shell and its running process group, replaced atomically; and the status
- * line written after a command's output on both streams
+ * the helpers the session's scripts call: the start time of a process, which
+ * tells a live process from a reused pid; whether a recorded process group
+ * still has a member; the record of the shell and its running process group,
+ * replaced atomically; and the status line written after a command's output
+ * on both streams
  */
 export const SESSION_HELPERS = `oa_session_started() {
   sed 's/.*) //' "/proc/$1/stat" 2>/dev/null | cut -d ' ' -f 20
+}
+oa_session_grouped() {
+  oa_session_leader=$(oa_session_started "$1")
+  if test -n "$oa_session_leader"; then
+    test "$oa_session_leader" = "$2"
+  else
+    sed 's/.*) //' /proc/[0-9]*/stat 2>/dev/null | cut -d ' ' -f 3 | grep -qxF -- "$1"
+  fi
 }
 oa_session_record() {
   printf '%s %s %s %s\\n' "$$" "$oa_session_self" "$1" "$2" > "$oa_session_pids.new" &&
@@ -132,7 +141,11 @@ export function inlineScript(
  * renders the body that prepares the session: it checks the commands it
  * needs, fixes `PATH`, `TMPDIR` and the umask, ends an orphaned process group
  * (or the group and shell of a session this one supersedes), takes the
- * root-only lock and reports its shell's pid
+ * root-only lock and reports its shell's pid. The recorded group is ended
+ * while its leader lives with the start time recorded, or, once the leader
+ * died, while any process's stat still names the group (field 5); a leader
+ * that started at another time holds a reused pid, whose group the kernel
+ * only allows once the recorded one has no member left
  * @param params what the session needs and whom it supersedes
  * @param params.sessionCommands programs the session runs
  * @param params.supersedes pid of a lost session of this host that this one replaces
@@ -175,8 +188,7 @@ if test -f "$oa_session_pids"; then
     *[!0-9]* | '') oa_session_group= ;;
   esac
   if test -n "$oa_session_end" && test -n "$oa_session_group" &&
-    test -n "\${oa_session_group_start:-}" &&
-    test "$(oa_session_started "$oa_session_group")" = "$oa_session_group_start"; then
+    oa_session_grouped "$oa_session_group" "\${oa_session_group_start:--}"; then
     kill -s TERM -- "-$oa_session_group" 2>/dev/null || :
   fi
   if test "$oa_session_end" = superseded; then
@@ -184,7 +196,9 @@ if test -f "$oa_session_pids"; then
   fi
   if test -n "$oa_session_end"; then
     sleep ${ORPHAN_GRACE_SECONDS}
-    test -z "$oa_session_group" || kill -s KILL -- "-$oa_session_group" 2>/dev/null || :
+    test -z "$oa_session_group" ||
+      ! oa_session_grouped "$oa_session_group" "\${oa_session_group_start:--}" ||
+      kill -s KILL -- "-$oa_session_group" 2>/dev/null || :
   fi
 fi
 exec 9>"${SESSION_DIRECTORY}/session.lock" || return ${SESSION_DIRECTORY_STATUS}
@@ -210,7 +224,8 @@ export interface CommandFrame {
  * frames one command: it runs in the background as its own session and
  * process group under `timeout -k`, without the lock descriptor, is recorded
  * so a later session can end it if this one is lost, and is waited for; its
- * status line follows its output on both streams
+ * status line follows its output on both streams. `setsid` makes it its
+ * group's leader, so its pid is the group's id that the record keeps
  * @param frame the command, its marker, account prefix and shell
  * @returns the framed script
  * @throws {Error} when the command cannot be framed safely

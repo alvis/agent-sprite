@@ -46,6 +46,7 @@ export const debianFamily: OsFamily = {
     'mktemp',
     'sed',
     'cut',
+    'grep',
     'sleep',
     'rm',
     'mv',
