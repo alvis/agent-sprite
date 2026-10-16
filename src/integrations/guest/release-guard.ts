@@ -1,5 +1,5 @@
 import { CommandFault } from '#errors';
-import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 import {
   compareSemver,

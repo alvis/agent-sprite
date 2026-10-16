@@ -18,7 +18,7 @@ export default preset('open-agent', {
       'lint:check:eslint':
         'eslint --flag v10_config_lookup_from_file --no-cache --cache-location node_modules/.cache/open-agent-lint-check --format stylish --max-warnings 0 --no-error-on-unmatched-pattern --no-warn-ignored {source} {test} bin scripts',
       'lint:check:shell':
-        "find src -name '*.sh' -exec sh -c 'for f; do sh -n \"$f\" || exit 1; done' sh {} + && find src -name '*.sh' -exec shellcheck --shell=sh --severity=style {} +",
+        "find guest -name '*.sh' -exec sh -c 'for f; do sh -n \"$f\" || exit 1; done' sh {} + && find guest -name '*.sh' -exec shellcheck --shell=sh --severity=style {} +",
       'test': 'run-s "test:vitest -- --project=open-agent:UNIT {@:}" --',
       'test:coverage': 'vitest run --project=open-agent:UNIT --coverage',
     },
@@ -26,6 +26,11 @@ export default preset('open-agent', {
       '.gitignore': asset<string[]>((current) => [
         ...(current ?? []),
         '.state/',
+      ]),
+      // guest programs ship as they are, at their install paths
+      '.npmignore': asset<string[]>((current) => [
+        ...(current ?? []),
+        '!/guest/**',
       ]),
       'tsconfig.json': asset<{ exclude?: string[] }>((current) => ({
         ...current,

@@ -1,8 +1,8 @@
 import { catalog } from '#core/catalog';
 import { networkDriver } from '#core/networks';
-import { readAsset } from '#guest/assets';
-import { AGENT_HOME } from '#guest/guest-root';
-import { backendAssets } from '#os/services/backends';
+import { readAsset } from '#integrations/guest/assets';
+import { AGENT_HOME } from '#integrations/guest/layout';
+import { backendAssets } from '#services/backends';
 import {
   HOMEBREW_LIBRARY,
   LINKS_LIBRARY,

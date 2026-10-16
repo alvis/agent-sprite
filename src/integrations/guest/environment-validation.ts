@@ -2,7 +2,7 @@
 // malformed record is reported by the first top-level field that is wrong
 
 import { parseProfile } from '#core/profile';
-import { GUEST_ROOT } from '#guest/guest-root';
+import { GUEST_ROOT } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
 import type { GuestEnvironment } from './environment.js';

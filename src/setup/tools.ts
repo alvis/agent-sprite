@@ -1,10 +1,10 @@
 import { CommandFault } from '#errors';
-import { GUEST_ROOT } from '#guest/guest-root';
 import {
   readGuestEnvironment,
   readUpdateStatus,
 } from '#integrations/guest/environment-store';
 import { markInstallationReady } from '#integrations/guest/install';
+import { GUEST_ROOT } from '#integrations/guest/layout';
 import { UPDATE_GATE_ASSET } from '#integrations/guest/updates';
 import { promptUnavailableDetail } from '#operation';
 

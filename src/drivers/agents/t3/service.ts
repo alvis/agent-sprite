@@ -1,4 +1,4 @@
-import { guestAsset } from '#guest/assets';
+import { guestAsset } from '#integrations/guest/assets';
 import { SHARED_MODE } from '#os/contracts';
 
 import type { ServiceDefinition } from '#drivers/guest-channel';
@@ -8,7 +8,7 @@ export const T3_HTTP_PORT = 3773;
 
 /** the launcher the T3 service runs as the agent, which reads its port and harnesses from environment.json */
 export const T3_LAUNCHER = guestAsset(
-  'drivers/agents/t3/guest/t3-launcher.sh',
+  'drivers/agents/t3/launcher.sh',
   SHARED_MODE,
 );
 

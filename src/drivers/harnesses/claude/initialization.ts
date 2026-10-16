@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import { AGENT_PATH, HOME, isRecord } from '#integrations/native/configuration';
+import { AGENT_BIN } from '#integrations/guest/layout';
+import { AGENT_PATH, isRecord } from '#integrations/native/configuration';
 import { converse, GuestLineProcess } from '#integrations/native/line-process';
 import { checkOperation } from '#operation';
 
@@ -24,7 +25,7 @@ export interface ClaudeInitialization extends HarnessCommandEvidence {
 }
 
 /** the Claude CLI, kept in the agent's npm prefix */
-const CLAUDE = `${HOME}/.local/bin/claude`;
+const CLAUDE = `${AGENT_BIN}/claude`;
 /** longest initialization and the plugin reload may take together */
 const INITIALIZATION_LIMIT_MS = 45_000;
 /** most output Claude may print while initializing */

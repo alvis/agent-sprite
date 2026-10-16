@@ -1,6 +1,6 @@
 import { CommandFault } from '#errors';
 import { publishStatus, traceStage } from '#operation';
-import { installProviderServices } from '#os/services/provider';
+import { installProviderServices } from '#services/provider';
 import { OPEN_AGENT_VERSION } from '#utilities/version';
 
 import {

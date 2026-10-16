@@ -1,3 +1,5 @@
+import { AGENT_BIN } from '#integrations/guest/layout';
+
 import type { ToolSpec } from '#tools/contracts';
 
 /** the Claude Code CLI, installed from npm by the agent with Homebrew's `node` */
@@ -7,7 +9,7 @@ export const claudeTool: ToolSpec = {
   needs: ['node'],
   executables: ['claude'],
   version: {
-    executable: '/home/agent/.local/bin/claude',
+    executable: `${AGENT_BIN}/claude`,
     args: ['--version'],
     account: 'agent',
   },

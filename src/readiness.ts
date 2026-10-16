@@ -2,7 +2,7 @@ import { catalog } from '#core/catalog';
 import { harnessDrivers } from '#core/harnesses';
 import { networkDriver } from '#core/networks';
 import { finding, gatedFinding } from '#drivers/findings';
-import { cronService } from '#os/services/cron';
+import { cronService } from '#services/cron';
 
 import { CommandFault } from './errors.js';
 

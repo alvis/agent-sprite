@@ -1,4 +1,4 @@
-import { LINUXBREW_HOME } from '#tools/accounts';
+import { LINUXBREW_HOME } from '#integrations/guest/layout';
 import {
   HOMEBREW_INSTALLER,
   HOMEBREW_LIBRARY,

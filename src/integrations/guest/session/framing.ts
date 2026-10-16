@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { SYSTEM_PATH } from '#tools/accounts';
+import { SESSION_DIRECTORY, SESSION_PATH } from '#integrations/guest/layout';
 
 import { revealSecret } from './secret.js';
 
@@ -14,12 +14,6 @@ export const KILL_GRACE_SECONDS = 10;
 
 /** names the file a `shm-file` secret is written to */
 export const SECRET_FILE_VARIABLE = 'OPEN_AGENT_SECRET_FILE';
-
-/**
- * root-only directory of the session lock, which the hourly update gate also
- * takes, and the process-group record
- */
-export const SESSION_DIRECTORY = '/run/open-agent-session';
 
 /** seconds a session waits for the lock another session holds */
 export const LOCK_WAIT_SECONDS = 60;
@@ -67,8 +61,6 @@ trap 'exit 143' TERM
 base64 -d > "$oa_secret/secret" || exit ${SECRET_DELIVERY_STATUS}
 ${SECRET_FILE_VARIABLE}="$oa_secret/secret" "$@" </dev/null
 exit $?`;
-/** the `PATH` every session command, and every root command outside a session, starts from, whatever the transport set: the system's commands first, then the tool links in `/usr/local` */
-export const SESSION_PATH = `${SYSTEM_PATH}:/usr/local/sbin:/usr/local/bin`;
 
 /**
  * the helpers the session's scripts call: the start time of a process, which

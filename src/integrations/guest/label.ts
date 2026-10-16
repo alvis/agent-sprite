@@ -1,4 +1,4 @@
-import { GUEST_ROOT } from '#guest/guest-root';
+import { GUEST_ROOT } from '#integrations/guest/layout';
 
 import { guestFileExists, readGuestFile, writeGuestFile } from '../guest.js';
 

@@ -1,4 +1,5 @@
-import { AGENT_PATH, HOME, isRecord } from '#integrations/native/configuration';
+import { AGENT_BIN } from '#integrations/guest/layout';
+import { AGENT_PATH, isRecord } from '#integrations/native/configuration';
 import { converse, GuestLineProcess } from '#integrations/native/line-process';
 
 import { CODEX_HOME } from './paths.js';
@@ -12,7 +13,7 @@ export type CodexRequest = (
 ) => Promise<Record<string, unknown>>;
 
 /** the Codex CLI, kept in the agent's npm prefix */
-const CODEX = `${HOME}/.local/bin/codex`;
+const CODEX = `${AGENT_BIN}/codex`;
 /** longest one conversation with the app server may take */
 const CONVERSATION_LIMIT_MS = 45_000;
 /** most output the app server may print in one conversation */

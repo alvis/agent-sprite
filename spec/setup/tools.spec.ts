@@ -11,7 +11,7 @@ import {
   mergeMetadataLabels,
   SCHEMA_LABEL,
 } from '#drivers/providers/sprite/labels';
-import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import {
   UPDATE_GATE_ASSET,
   UPDATE_STATUS_PATH,

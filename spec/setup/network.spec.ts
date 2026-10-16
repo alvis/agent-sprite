@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { none } from '#drivers/networks/none/index';
-import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import { revealSecret } from '#integrations/guest/session/secret';
 import { setupNetwork } from '#setup/network';
 

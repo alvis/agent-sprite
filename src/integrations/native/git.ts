@@ -5,7 +5,8 @@ import {
 import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
 import { runGuestResult } from '#integrations/guest';
-import { HOMEBREW_GH, HOMEBREW_PATH } from '#tools/accounts';
+import { HOMEBREW_PATH } from '#integrations/guest/layout';
+import { HOMEBREW_GH } from '#tools/accounts';
 import { redactResolved, rememberSecret } from '#utilities/redaction';
 
 import {

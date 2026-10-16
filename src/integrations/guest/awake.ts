@@ -1,4 +1,4 @@
-import { guestAsset } from '#guest/assets';
+import { guestAsset } from '#integrations/guest/assets';
 import { checkOperation } from '#operation';
 import { SHARED_MODE } from '#os/contracts';
 
@@ -19,7 +19,7 @@ import type { SessionAwakeHold, SessionCommand } from './session/contracts.js';
  * harness hooks record awake events with it as the agent, root records
  * managed holds and runs the per-minute tick
  */
-export const AWAKE_ASSET = guestAsset('guest/awake.sh', SHARED_MODE);
+export const AWAKE_ASSET = guestAsset('governor/awake.sh', SHARED_MODE);
 
 /** the awake command harness hooks and managed holds run */
 export const AWAKE_COMMAND = AWAKE_ASSET.installAs;

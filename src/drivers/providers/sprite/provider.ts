@@ -1,7 +1,7 @@
 import { SpritesClient } from '@fly/sprites';
 
 import { ProviderFault } from '#drivers/failures';
-import { guestAsset } from '#guest/assets';
+import { guestAsset } from '#integrations/guest/assets';
 import { checkOperation, currentOperation, runOperation } from '#operation';
 import { SHARED_MODE } from '#os/contracts';
 
@@ -71,7 +71,7 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
   public readonly serviceBackend = 'provider';
   // the governor applies deadlines as the agent, so the agent runs the adapter
   public readonly awakeAsset = guestAsset(
-    'drivers/providers/sprite/guest/sprite-awake.sh',
+    'drivers/providers/sprite/awake.sh',
     SHARED_MODE,
   );
   readonly #session?: SpriteSession;

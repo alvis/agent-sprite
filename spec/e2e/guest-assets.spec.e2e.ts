@@ -10,61 +10,78 @@ import { packageRoot } from '../fixtures/packed-guest.js';
 
 /**
  * lists every guest program in the checkout
- * @returns paths relative to `src`
+ * @returns paths relative to `guest`
  */
 async function sourceAssets(): Promise<string[]> {
   const paths: string[] = [];
-  for await (const path of glob('src/**/*.sh')) {
-    paths.push(relative('src', path));
+  for await (const path of glob('guest/**/*.sh')) {
+    paths.push(relative('guest', path));
   }
 
   return paths.sort();
 }
 
+/**
+ * locates the packed asset module
+ * @param root packed package root
+ * @returns file URL of the module
+ */
+function assetModule(root: string): string {
+  return pathToFileURL(join(root, 'lib', 'integrations', 'guest', 'assets.js'))
+    .href;
+}
+
 describe('packed guest assets', () => {
-  it('should ship every guest program at its mirrored lib path', async () => {
+  it('should ship every guest program at its install path under guest', async () => {
     const root = await packageRoot();
     const assets = await sourceAssets();
 
     expect(assets.length).toBeGreaterThan(0);
     for (const path of assets) {
-      await expect(readFile(join(root, 'lib', path), 'utf8')).resolves.toBe(
-        await readFile(join('src', path), 'utf8'),
+      await expect(readFile(join(root, 'guest', path), 'utf8')).resolves.toBe(
+        await readFile(join('guest', path), 'utf8'),
       );
     }
   });
 
-  it('should read every guest program through the packed asset module', async () => {
+  it('should read every guest program through the packed asset module behind the layout header', async () => {
     const root = await packageRoot();
     const assets = await sourceAssets();
-    const module = pathToFileURL(join(root, 'lib', 'guest', 'assets.js')).href;
 
     const { stdout } = await execa(execPath, [
       '--input-type=module',
       '--eval',
-      `const { readAsset } = await import(${JSON.stringify(module)});
+      `const { readAsset } = await import(${JSON.stringify(assetModule(root))});
 const paths = ${JSON.stringify(assets)};
 const contents = await Promise.all(paths.map((path) => readAsset({ path })));
 process.stdout.write(JSON.stringify(contents));`,
     ]);
+    const contents = JSON.parse(stdout) as string[];
 
-    expect(JSON.parse(stdout)).toEqual(
-      await Promise.all(
-        assets.map(async (path) => readFile(join('src', path), 'utf8')),
-      ),
-    );
+    expect(contents).toHaveLength(assets.length);
+    for (const [index, path] of assets.entries()) {
+      const source = await readFile(join('guest', path), 'utf8');
+      const shebang = /^#!.*\n/.exec(source)?.[0] ?? '';
+
+      expect(contents[index]!.startsWith(shebang)).toBe(true);
+      expect(contents[index]).toContain("\nOA_GUEST_ROOT='/opt/open-agent'\n");
+      expect(
+        contents[index]!.endsWith(
+          `# ---- guest/${path} ----\n${source.slice(shebang.length)}`,
+        ),
+      ).toBe(true);
+    }
   });
 
   it('should refuse an asset path that leaves the package', async () => {
     const root = await packageRoot();
-    const module = pathToFileURL(join(root, 'lib', 'guest', 'assets.js')).href;
 
     const result = await execa(
       execPath,
       [
         '--input-type=module',
         '--eval',
-        `const { readAsset } = await import(${JSON.stringify(module)});
+        `const { readAsset } = await import(${JSON.stringify(assetModule(root))});
 await readAsset({ path: '../package.json' });`,
       ],
       { reject: false },

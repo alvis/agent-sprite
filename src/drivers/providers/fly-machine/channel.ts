@@ -3,10 +3,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { execa } from 'execa';
 
 import { ProviderFault } from '#drivers/failures';
-import { SESSION_PATH } from '#integrations/guest/session/framing';
+import { SESSION_PATH } from '#integrations/guest/layout';
 import { currentOperation, runOperation } from '#operation';
 import { familyOf } from '#os/families';
-import { RunitServiceControl } from '#os/services/runit/backend';
+import { RunitServiceControl } from '#services/runit/backend';
 
 import { flyctlAgent } from './agent.js';
 import { waitForBoot } from './boot.js';

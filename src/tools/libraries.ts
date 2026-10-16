@@ -1,4 +1,4 @@
-import { guestAsset } from '#guest/assets';
+import { guestAsset } from '#integrations/guest/assets';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 
 /** the Homebrew helpers: install Homebrew, and install, upgrade and probe formulae from their bottles */

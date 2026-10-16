@@ -1,5 +1,4 @@
-import { SESSION_PATH } from '#integrations/guest/session/framing';
-import { HOMEBREW_PATH } from '#tools/accounts';
+import { HOMEBREW_PATH, SESSION_PATH } from '#integrations/guest/layout';
 import {
   HOMEBREW_LIBRARY,
   LINKS_LIBRARY,

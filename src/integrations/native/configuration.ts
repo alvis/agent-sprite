@@ -5,13 +5,13 @@ import { guestFileExists, readGuestFile } from '#integrations/guest';
 import {
   USER,
   HOME,
-  AGENT_PATH,
   asAgent,
   runAsAgent,
   ensurePrivateDirectory,
   writeOwnedFile,
   removeOwnedFile,
 } from '#integrations/guest/account';
+import { AGENT_PATH } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
 import type { TomlTable } from 'smol-toml';

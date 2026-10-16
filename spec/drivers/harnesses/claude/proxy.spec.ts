@@ -121,7 +121,7 @@ describe('driver:claude native configuration', () => {
               {
                 type: 'command',
                 command:
-                  '/opt/open-agent/guest/awake.sh hold-open --source claude --session - --budget-ms 8000',
+                  '/opt/open-agent/governor/awake.sh hold-open --source claude --session - --budget-ms 8000',
                 timeout: 10,
               },
             ],

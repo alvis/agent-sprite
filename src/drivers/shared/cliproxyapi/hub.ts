@@ -1,9 +1,9 @@
-import { GUEST_ROOT } from '#guest/guest-root';
 import {
   removeGuestFile,
   runGuestResult,
   writeGuestFile,
 } from '#integrations/guest';
+import { GUEST_ROOT } from '#integrations/guest/layout';
 
 import { resolveProxyEndpoints } from './endpoints.js';
 

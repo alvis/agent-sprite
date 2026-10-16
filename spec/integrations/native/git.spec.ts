@@ -10,6 +10,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { HOMEBREW_PATH } from '#integrations/guest/layout';
 import { Secret } from '#integrations/guest/session/secret';
 
 import {
@@ -17,7 +18,7 @@ import {
   configureGithub,
   configureRuntimeEnv,
 } from '#integrations/native/git';
-import { HOMEBREW_GH, HOMEBREW_PATH } from '#tools/accounts';
+import { HOMEBREW_GH } from '#tools/accounts';
 
 import {
   createFilesystemSprite,

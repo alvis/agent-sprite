@@ -1,4 +1,4 @@
-import { guestAsset } from '#guest/assets';
+import { guestAsset } from '#integrations/guest/assets';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 
 import { PRIVATE_V6_NETWORK, PROXY_V4_NETWORK } from './private-networks.js';
@@ -33,6 +33,6 @@ export const FLY_MACHINE_CAPABILITIES: ProviderCapabilities = {
  * adapter runs as root and is root's alone
  */
 export const FLY_MACHINE_AWAKE: GuestAsset = guestAsset(
-  'drivers/providers/fly-machine/guest/fly-machine-awake.sh',
+  'drivers/providers/fly-machine/awake.sh',
   ROOT_ONLY_MODE,
 );

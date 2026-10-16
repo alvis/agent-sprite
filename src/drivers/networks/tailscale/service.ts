@@ -1,5 +1,5 @@
-import { guestAsset } from '#guest/assets';
-import { GUEST_ROOT } from '#guest/guest-root';
+import { guestAsset } from '#integrations/guest/assets';
+import { GUEST_ROOT } from '#integrations/guest/layout';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 
 import type { ServiceDefinition } from '#drivers/guest-channel';
@@ -19,10 +19,7 @@ const TAILSCALE_SOCKET = '/var/run/tailscale/tailscaled.sock';
  * tunnel, hands tailscaled a resolver it may rewrite, then runs tailscaled
  */
 export const tailscaleLauncher: NetworkLauncher = {
-  asset: guestAsset(
-    'drivers/networks/tailscale/guest/tailscale-launcher.sh',
-    ROOT_ONLY_MODE,
-  ),
+  asset: guestAsset('drivers/networks/tailscale/launcher.sh', ROOT_ONLY_MODE),
   stateDirectory: TAILSCALE_STATE_DIRECTORY,
   socket: TAILSCALE_SOCKET,
   tun: 'tailscale0',
