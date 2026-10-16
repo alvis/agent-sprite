@@ -1,9 +1,7 @@
 import { WebSocket } from 'ws';
 
-import { GUEST_ROOT } from '#guest/guest-root';
-
 import { asRoot } from './guest.js';
-import { AWAKE_DIRECTORY, GOVERNOR_STATE_FILE } from './layout.js';
+import { GOVERNOR_REPORT, reportedGovernorState } from './layout.js';
 
 import type { LiveProvider, RunState } from './providers.js';
 
@@ -118,12 +116,8 @@ export async function readGovernor(
   provider: LiveProvider,
   name: string,
 ): Promise<GovernorState> {
-  const state = JSON.parse(
-    await asRoot(
-      provider,
-      name,
-      `cat ${GUEST_ROOT}/${AWAKE_DIRECTORY}/${GOVERNOR_STATE_FILE}`,
-    ),
+  const state = reportedGovernorState(
+    await asRoot(provider, name, GOVERNOR_REPORT),
   ) as Partial<GovernorState> & {
     holds?: Array<GovernorHold & { session?: string }>;
   };
@@ -278,7 +272,7 @@ export async function startAwakeLog(
   name: string,
 ): Promise<void> {
   const tasks = `runuser -u agent -- curl -s --max-time 2 --unix-socket ${SPRITE_SOCKET} http://sprite/v1/tasks | tr -d "\\n"`;
-  const governor = `tr -d "\\n" < ${GUEST_ROOT}/${AWAKE_DIRECTORY}/${GOVERNOR_STATE_FILE}`;
+  const governor = `${GOVERNOR_REPORT} | tr -d "\\n"`;
 
   await asRoot(
     provider,
@@ -322,7 +316,9 @@ export async function stopAwakeLog(
     const task = parseJson<{
       tasks?: Array<{ name: string; expires_at: string }>;
     }>(tasks)?.tasks?.find((entry) => entry.name === AWAKE_TASK);
-    const state = parseJson<Partial<GovernorState>>(governor);
+    const state = parseJson<{ state?: Partial<GovernorState> }>(
+      governor,
+    )?.state;
 
     return [
       {

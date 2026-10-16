@@ -185,20 +185,20 @@ Use an existing driver of the same kind as your template: `src/drivers/networks/
 
 ## 🗄️ Guest State
 
-| Path                                             | Contents                                                                                                                 |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `/opt/open-agent`                                | The guest root: the `sh` programs setup installed (`guest/`, `os/`, `tools/`, `drivers/`), all root-owned                |
-| `/opt/open-agent/environment.json`               | The one record setup leaves: version, setup state, OS family, resolved tools, update schedule, governor and launch facts |
-| `/opt/open-agent/update-status.json`             | The updater's last run: each tool's outcome and versions, and the last success (`update.log` beside it is its log)       |
-| `/opt/open-agent/lock/update.lock`               | The update lock; the setup session takes its own root-only lock                                                          |
-| `/opt/open-agent/run/awake`, `run/awake-root`    | The idle governor's state (`governor.json`) and the agent and managed holds                                              |
-| `/opt/open-agent/state/tailscale`                | Tailscale's node identity and resolver files, root-only                                                                  |
-| `/home/linuxbrew/.linuxbrew`                     | Homebrew, owned by the `linuxbrew` account; bottles only                                                                 |
-| `/usr/local/bin`                                 | Links to the executables of Homebrew tools, made by `links.sh` and restored at boot when missing                         |
-| `/etc/sv`, `/etc/service`, `/var/log/open-agent` | runit service directories, their enabling links and logs (Fly Machine)                                                   |
-| `/etc/cron.d/open-agent`                         | The hourly `update-gate` job and, on a governed provider, the per-minute `governor-tick`                                 |
-| `/opt/open-agent/boot.log`, `boot-status.json`   | Fly Machine only: each boot's steps and the last boot's result                                                           |
-| `/data`                                          | Fly Machine only: the volume holding `open-agent/`, `home/agent`, `home/linuxbrew` and the `apt/` cache                  |
+| Path                                             | Contents                                                                                                                                                       |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/opt/open-agent`                                | The guest root: the `sh` programs setup installed (`guest/`, `os/`, `tools/`, `drivers/`), all root-owned                                                      |
+| `/opt/open-agent/environment.json`               | The one record setup leaves: version, setup state, OS family, resolved tools, update schedule, governor and launch facts                                       |
+| `/opt/open-agent/update-status.json`             | The updater's last run: each tool's outcome and versions, and the last success (`update.log` beside it is its log)                                             |
+| `/opt/open-agent/lock/update.lock`               | The update lock; the setup session takes its own root-only lock                                                                                                |
+| `/opt/open-agent/run/awake`, `run/awake-root`    | The agent's holds (sticky, root:agent 1770) and root's managed holds (root:agent 2750), each with its account's record of the governor state (`governor.json`) |
+| `/opt/open-agent/state/tailscale`                | Tailscale's node identity and resolver files, root-only                                                                                                        |
+| `/home/linuxbrew/.linuxbrew`                     | Homebrew, owned by the `linuxbrew` account; bottles only                                                                                                       |
+| `/usr/local/bin`                                 | Links to the executables of Homebrew tools, made by `links.sh` and restored at boot when missing                                                               |
+| `/etc/sv`, `/etc/service`, `/var/log/open-agent` | runit service directories, their enabling links and logs (Fly Machine)                                                                                         |
+| `/etc/cron.d/open-agent`                         | The hourly `update-gate` job and, on a governed provider, the per-minute `governor-tick`                                                                       |
+| `/opt/open-agent/boot.log`, `boot-status.json`   | Fly Machine only: each boot's steps and the last boot's result                                                                                                 |
+| `/data`                                          | Fly Machine only: the volume holding `open-agent/`, `home/agent`, `home/linuxbrew` and the `apt/` cache                                                        |
 
 Live facts, such as name, id, organization and URL, come from the provider; the setup state is a provider label or metadata entry (`open-agent-setup-ready` or `open-agent-setup-incomplete` on a Sprite). There is no local registry of workstations ([ADR-3](docs/architecture/decisions/workstation/adr-3-live-workstation-metadata.md)).
 

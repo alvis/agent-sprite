@@ -427,18 +427,23 @@ oa_account_create() {
     --shell "$oa_account_shell" "$oa_account_name"
 }
 
-# creates the missing home of the account oa_account_ensure was given
+# creates the missing home of the account oa_account_ensure was given; a
+# user's is filled from the skeleton while it is still root's and out of
+# reach, then handed over and moved into place, so root never writes into a
+# directory the account owns
 oa_account_home_create() {
   oa_account_group_id=$(id -g "$oa_account_name") || return 1
   if test "$oa_account_kind" = system; then
     install -d -o "$oa_account_name" -g "$oa_account_group_id" -m 0755 "$oa_account_home"
     return
   fi
-  install -d -o "$oa_account_name" -g "$oa_account_group_id" -m 0700 "$oa_account_home" || return 1
+  rm -rf "$oa_account_home.open-agent-new" &&
+    install -d -m 0700 "$oa_account_home.open-agent-new" || return 1
   if test -d /etc/skel; then
-    cp -R /etc/skel/. "$oa_account_home" &&
-      chown -R "$oa_account_name:$oa_account_group_id" "$oa_account_home"
+    cp -R /etc/skel/. "$oa_account_home.open-agent-new" || return 1
   fi
+  chown -R "$oa_account_name:$oa_account_group_id" "$oa_account_home.open-agent-new" &&
+    mv -T "$oa_account_home.open-agent-new" "$oa_account_home"
 }
 
 # sets a kernel parameter now and on every later boot when the kernel lets

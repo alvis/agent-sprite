@@ -1,5 +1,7 @@
 import { GUEST_ROOT } from '#guest/guest-root';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { HOMEBREW_PREFIX, LINUXBREW_HOME } from '#tools/accounts';
+import { isRecord } from '#utilities/guards';
 
 // where a live check finds what setup left on the guest
 
@@ -17,8 +19,22 @@ export const AWAKE_DIRECTORY = 'run/awake';
 /** root's awake directory, relative to the guest root */
 export const MANAGED_AWAKE_DIRECTORY = 'run/awake-root';
 
-/** the governor state record within the awake directory */
-export const GOVERNOR_STATE_FILE = 'governor.json';
+/**
+ * root's command that prints the newer of the governor states root and the
+ * agent each record in their own awake directory, as `{recorded, state}`
+ */
+export const GOVERNOR_REPORT = `${AWAKE_COMMAND} report`;
 
 /** the lock every update run holds */
 export const UPDATE_LOCK_PATH = `${GUEST_ROOT}/lock/update.lock`;
+
+/**
+ * takes the recorded state out of a governor report
+ * @param report the report's text
+ * @returns the recorded state, or an empty record when none is recorded
+ */
+export function reportedGovernorState(report: string): unknown {
+  const parsed: unknown = JSON.parse(report);
+
+  return isRecord(parsed) && isRecord(parsed.state) ? parsed.state : {};
+}

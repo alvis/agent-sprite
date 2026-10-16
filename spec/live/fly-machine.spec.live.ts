@@ -59,7 +59,7 @@ import {
   stopFlyMachine,
 } from './fly.js';
 import { createLiveHarness } from './harness.js';
-import { HOMEBREW } from './layout.js';
+import { GOVERNOR_REPORT, HOMEBREW, reportedGovernorState } from './layout.js';
 
 import type { HarnessId } from '#core/catalog';
 import type { WorkstationProfile } from '#core/profile';
@@ -132,7 +132,6 @@ const HOLD_SOURCE = 'flyprobe';
 const HOLD_SESSION = 'fly07';
 /** the ACP agent's unauthenticated environment answer */
 const AGENT_PATH = '/.well-known/t3/environment';
-const GOVERNOR_STATE = `${GUEST_ROOT}/run/awake/governor.json`;
 // connects to the guest-local Machines API and reports how it went
 const SOCKET_PROBE =
   "require('net').connect('/.fly/api').on('connect',()=>{console.log('connected');process.exit(0)}).on('error',(e)=>{console.log(e.code);process.exit(0)})";
@@ -758,9 +757,7 @@ async function holdAwake(
 async function readGovernor(
   channel: GuestChannel,
 ): Promise<Record<string, unknown>> {
-  const state: unknown = JSON.parse(
-    await asRoot(channel, `cat ${GOVERNOR_STATE}`),
-  );
+  const state = reportedGovernorState(await asRoot(channel, GOVERNOR_REPORT));
 
   return isRecord(state) ? state : {};
 }
