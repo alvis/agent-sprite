@@ -2,7 +2,7 @@ import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { HOMEBREW_PREFIX, LINUXBREW_HOME } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
-// where a live check finds what setup left on the guest
+// where a machine spec finds what setup left on the guest
 
 /** the Homebrew account, its home, prefix and command */
 export const HOMEBREW = {

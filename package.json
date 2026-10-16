@@ -30,13 +30,11 @@
     "lint": "run lint --",
     "postlint": "eslint --max-warnings 0 bin && run lint:check:shell",
     "lint:check": "run lint:check",
-    "local": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts run",
+    "local": "sh -c '[ \"${1-}\" != -- ] || shift\n  d=$(mktemp -d) || exit\n  trap \"rm -rf \\\"$d\\\"\" EXIT; trap \"exit 130\" INT; trap \"exit 143\" TERM\n  pnpm -s run build >&2 &&\n  pnpm pack --out \"$d/oa.tgz\" >&2 &&\n  npm install --prefix \"$d\" --no-audit --no-fund --package-lock=false \"$d/oa.tgz\" >&2 &&\n  \"$d/node_modules/.bin/open-agent\" \"$@\"' sh",
     "prepare": "run prepare",
     "test": "run test",
     "test:coverage": "run test:coverage --",
-    "test:e2e": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:e2e",
-    "test:live": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:live",
-    "test:live:fly": "node --import ./scripts/source-hooks.ts scripts/packed-cli.ts test:live:fly",
+    "test:e2e": "run test:e2e --",
     "typecheck": "run typecheck"
   },
   "dependencies": {

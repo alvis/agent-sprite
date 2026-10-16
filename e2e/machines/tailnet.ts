@@ -22,7 +22,7 @@ export interface Tailnet {
   deleteDevice(id: string): Promise<void>;
 }
 
-/** management API credential and tailnet identity from the live dotenv file */
+/** management API credential and tailnet identity of the e2e run */
 export interface TailnetAccess {
   /** Tailscale management API key */
   apiKey: string;
@@ -40,7 +40,7 @@ const NOT_FOUND_STATUS = 404;
 const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/iu;
 
 /**
- * connects to the tailnet named in the live dotenv file
+ * connects to the tailnet the e2e run names
  * @param access management credential and tailnet identity
  * @returns tailnet operations that never print the credential
  */

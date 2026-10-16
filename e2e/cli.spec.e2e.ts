@@ -16,13 +16,13 @@ import { execPath } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
 import { execa } from 'execa';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, inject, it } from 'vitest';
 
-import { runOffline } from '../fixtures/network-block';
+import { runOffline } from './fixtures/network-block';
 
 import type { Readable } from 'node:stream';
 
-const packedBin = process.env.OPEN_AGENT_PACKED_BIN;
+const packedBin = inject('packedBin');
 const STAGE_TIMEOUT_MS = 15_000;
 const pendingConnection =
   'data:text/javascript,' +
@@ -144,9 +144,8 @@ describe('workflow:installed CLI', () => {
   )(
     'should reject conflicting $flag polarity in either order before authentication: $args',
     async ({ args }) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, ['create', '--json', ...args], {
+        execa(packedBin, ['create', '--json', ...args], {
           cwd,
           env,
           extendEnv: false,
@@ -180,9 +179,8 @@ describe('workflow:installed CLI', () => {
   ])(
     'should reject obsolete or double-negated %s before authentication',
     async (flag) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, ['create', '--json', flag], {
+        execa(packedBin, ['create', '--json', flag], {
           cwd,
           env,
           extendEnv: false,
@@ -213,9 +211,8 @@ describe('workflow:installed CLI', () => {
   )(
     'should accept explicit pairing through $flag on $command before missing-token INPUT',
     async ({ command, flag }) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, [command, '--json', flag, '--no-local-credentials'], {
+        execa(packedBin, [command, '--json', flag, '--no-local-credentials'], {
           cwd,
           env,
           extendEnv: false,
@@ -242,10 +239,9 @@ describe('workflow:installed CLI', () => {
   ])(
     'should reject an invalid $command name before opening a selected env file',
     async ({ command, args }) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
         execa(
-          packedBin!,
+          packedBin,
           [command, ...args, '--json', '--env-file', join(cwd, 'missing.env')],
           { cwd, env, extendEnv: false, reject: false },
         ),
@@ -264,9 +260,8 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should require exact termination consent before env-file access when process mode disables prompts', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
-      execa(packedBin!, ['terminate', '--env-file', join(cwd, 'missing.env')], {
+      execa(packedBin, ['terminate', '--env-file', join(cwd, 'missing.env')], {
         cwd,
         env: { ...env, CI: 'true' },
         extendEnv: false,
@@ -287,10 +282,9 @@ describe('workflow:installed CLI', () => {
   ])(
     'should require both target and consent before selected env access for %s',
     async (...args) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
         execa(
-          packedBin!,
+          packedBin,
           [...args, '--json', '--env-file', join(cwd, 'missing.env')],
           {
             cwd,
@@ -314,9 +308,8 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should report every local token route when no provider credential is available', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
-      execa(packedBin!, ['list', '--json', '--no-local-credentials'], {
+      execa(packedBin, ['list', '--json', '--no-local-credentials'], {
         cwd,
         env,
         extendEnv: false,
@@ -355,7 +348,6 @@ describe('workflow:installed CLI', () => {
   ])(
     'should identify an $mode selected $source source without exposing file contents',
     async ({ source, value, mode }) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) => {
         if (source === 'file' && mode === 'empty') {
           await writeFile(join(cwd, value), '\n');
@@ -364,7 +356,7 @@ describe('workflow:installed CLI', () => {
           source === 'file' ? `file:${join(cwd, value)}` : `env:${value}`;
 
         return execa(
-          packedBin!,
+          packedBin,
           [
             'list',
             '--json',
@@ -397,10 +389,9 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should identify an unreadable selected env file without exposing its raw read failure', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(
-        packedBin!,
+        packedBin,
         [
           'list',
           '--json',
@@ -425,26 +416,25 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should print the installed manifest version and bare help on stdout', async () => {
-    expect(packedBin).toBeDefined();
-    const packageRoot = dirname(dirname(await realpath(packedBin!)));
+    const packageRoot = dirname(dirname(await realpath(packedBin)));
     const manifest = JSON.parse(
       await readFile(join(packageRoot, 'package.json'), 'utf8'),
     ) as { version: string };
     const outputs = await withIsolatedCli(async (cwd, env) =>
       Promise.all([
-        execa(packedBin!, ['--version'], {
+        execa(packedBin, ['--version'], {
           cwd,
           env,
           extendEnv: false,
           reject: false,
         }),
-        execa(packedBin!, ['-v'], {
+        execa(packedBin, ['-v'], {
           cwd,
           env,
           extendEnv: false,
           reject: false,
         }),
-        execa(packedBin!, [], { cwd, env, extendEnv: false, reject: false }),
+        execa(packedBin, [], { cwd, env, extendEnv: false, reject: false }),
       ]),
     );
 
@@ -461,9 +451,8 @@ describe('workflow:installed CLI', () => {
   it.each(['--help', '--version', '-v'])(
     'should reject JSON combined with %s as one usage result',
     async (flag) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, ['--json', flag], {
+        execa(packedBin, ['--json', flag], {
           cwd,
           env,
           extendEnv: false,
@@ -486,16 +475,15 @@ describe('workflow:installed CLI', () => {
   it.each(['list', 'show', 'doctor'])(
     'should reject --yes on %s in both human and JSON modes',
     async (command) => {
-      expect(packedBin).toBeDefined();
       const [human, json] = await withIsolatedCli(async (cwd, env) =>
         Promise.all([
-          execa(packedBin!, [command, '--yes'], {
+          execa(packedBin, [command, '--yes'], {
             cwd,
             env,
             extendEnv: false,
             reject: false,
           }),
-          execa(packedBin!, [command, '--yes', '--json'], {
+          execa(packedBin, [command, '--yes', '--json'], {
             cwd,
             env,
             extendEnv: false,
@@ -520,14 +508,13 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should keep verbose stage facts on stderr and one JSON result on stdout', async () => {
-    expect(packedBin).toBeDefined();
     const privateValue = 'saf07-private-env-value';
     const result = await withIsolatedCli(async (cwd, env) => {
       const envPath = join(cwd, 'selected.env');
       await writeFile(envPath, `UNRELATED_PRIVATE_VALUE=${privateValue}\n`);
 
       return execa(
-        packedBin!,
+        packedBin,
         [
           'list',
           '--json',
@@ -557,10 +544,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should report a nested preflight stage for create without provisioning', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(
-        packedBin!,
+        packedBin,
         [
           'create',
           '--json',
@@ -628,9 +614,8 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should record the provider request an installed command makes under the network hook', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
-      runOffline(packedBin!, ['list', '--json', '--no-local-credentials'], {
+      runOffline(packedBin, ['list', '--json', '--no-local-credentials'], {
         cwd,
         env: { ...env, SPRITES_TOKEN: 'offline-placeholder' },
       }),
@@ -643,10 +628,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should aggregate a missing provider credential into one message before any provider call', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         ['create', '--name', 'missing-credential', ...OFFLINE_CREATE_FLAGS],
         { cwd, env },
       ),
@@ -679,10 +663,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should refuse a wrong-scope provider token offline before any provider call', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         ['create', '--name', 'wrong-scope', ...OFFLINE_CREATE_FLAGS],
         {
           cwd,
@@ -707,10 +690,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should pass the offline prerequisite check and call the provider with the same flags and a valid-shaped token', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         ['create', '--name', 'valid-shape', ...OFFLINE_CREATE_FLAGS],
         {
           cwd,
@@ -791,7 +773,7 @@ describe('workflow:installed CLI', () => {
         }
 
         return runOffline(
-          packedBin!,
+          packedBin,
           [
             'create',
             '--name',
@@ -824,7 +806,6 @@ describe('workflow:installed CLI', () => {
     }
 
     it('should report a missing flyctl and a missing Fly token together before any provider call', async () => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await createOnFly('fly-missing', {});
 
       expect(result.exitCode).toBe(1);
@@ -841,7 +822,6 @@ describe('workflow:installed CLI', () => {
     });
 
     it('should report a missing flyctl even when the Fly token is set, before any provider call', async () => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await createOnFly('fly-no-flyctl', {
         FLY_API_TOKEN: 'FlyV1 fm2_org-macaroon',
       });
@@ -858,7 +838,6 @@ describe('workflow:installed CLI', () => {
     });
 
     it('should refuse a flyctl older than 0.4.108 before decoding the token or calling the provider', async () => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await createOnFly(
         'fly-old-flyctl',
         { FLY_API_TOKEN: 'FlyV1 fm2_org-macaroon' },
@@ -875,7 +854,6 @@ describe('workflow:installed CLI', () => {
     });
 
     it('should refuse a Fly token flyctl decodes as narrower than an organization before any provider call', async () => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await createOnFly(
         'fly-deploy-token',
         { FLY_API_TOKEN: 'FlyV1 fm2_deploy-macaroon' },
@@ -894,7 +872,6 @@ describe('workflow:installed CLI', () => {
     });
 
     it('should refuse a Sprites token given as the Fly token without decoding it', async () => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await createOnFly(
         'fly-sprites-token',
         { FLY_API_TOKEN: 'control-org/1234/0123abcd/4567ef89' },
@@ -910,7 +887,6 @@ describe('workflow:installed CLI', () => {
     });
 
     it('should pass the offline check with an organization token and only then call the Machines API', async () => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await createOnFly(
         'fly-org-token',
         { FLY_API_TOKEN: 'FlyV1 fm2_org-macaroon' },
@@ -975,10 +951,9 @@ describe('workflow:installed CLI', () => {
   ])(
     'should reject $rule as one aggregated input error before any provider call',
     async ({ env: selection, flags, details }) => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
         runOffline(
-          packedBin!,
+          packedBin,
           ['create', '--name', 'selection', ...OFFLINE_CREATE_FLAGS, ...flags],
           {
             cwd,
@@ -1008,10 +983,9 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should validate selection flags as one usage result before any provider call', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         ['create', '--json', '--network', 'bogus', '--provider', 'absent'],
         { cwd, env },
       ),
@@ -1032,10 +1006,9 @@ describe('workflow:installed CLI', () => {
   it.each([['create'], ['setup']])(
     'should reject an unknown %s release channel flag as one usage result before any provider call',
     async (command) => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
         runOffline(
-          packedBin!,
+          packedBin,
           [command, '--json', '--release', 'weekly', '--provider', 'sprite'],
           { cwd, env },
         ),
@@ -1056,9 +1029,8 @@ describe('workflow:installed CLI', () => {
   it.each([['create'], ['setup']])(
     'should list the release channel flag in %s help',
     async (command) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, [command, '--help'], {
+        execa(packedBin, [command, '--help'], {
           cwd,
           env,
           extendEnv: false,
@@ -1075,9 +1047,8 @@ describe('workflow:installed CLI', () => {
   it.each([['list'], ['show'], ['doctor'], ['terminate']])(
     'should list the provider flag and its token source meaning in %s help',
     async (command) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, [command, '--help'], {
+        execa(packedBin, [command, '--help'], {
           cwd,
           env,
           extendEnv: false,
@@ -1093,10 +1064,9 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should give a list token source to the provider --provider names', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         [
           'list',
           '--json',
@@ -1131,10 +1101,9 @@ describe('workflow:installed CLI', () => {
   it.each([['show'], ['doctor'], ['terminate']])(
     'should reject an unknown %s provider flag as one usage result before any provider call',
     async (command) => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
         runOffline(
-          packedBin!,
+          packedBin,
           [command, 'devbox', '--json', '--provider', 'bogus'],
           {
             cwd,
@@ -1158,10 +1127,9 @@ describe('workflow:installed CLI', () => {
   it.each([['show'], ['doctor'], ['terminate']])(
     'should answer %s from the named provider even when another provider has a ready credential',
     async (command) => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
         runOffline(
-          packedBin!,
+          packedBin,
           [
             command,
             'devbox',
@@ -1200,10 +1168,9 @@ describe('workflow:installed CLI', () => {
   ])(
     'should reject a non-whole %s %s value as one usage result before any provider call',
     async (command, flag) => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
         runOffline(
-          packedBin!,
+          packedBin,
           [command, '--json', flag, '1.5', '--provider', 'sprite'],
           { cwd, env },
         ),
@@ -1224,9 +1191,8 @@ describe('workflow:installed CLI', () => {
   it.each([['create'], ['setup']])(
     'should list the machine size flags in %s help',
     async (command) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, [command, '--help'], {
+        execa(packedBin, [command, '--help'], {
           cwd,
           env,
           extendEnv: false,
@@ -1378,10 +1344,9 @@ describe('workflow:installed CLI', () => {
   ])(
     'should settle create $flags before any provider call',
     async ({ flags, exitCode, error }) => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
         runOffline(
-          packedBin!,
+          packedBin,
           // the selection flags come last so they override the offline network
           ['create', '--name', 'selection', ...OFFLINE_CREATE_FLAGS, ...flags],
           { cwd, env },
@@ -1464,9 +1429,8 @@ describe('workflow:installed CLI', () => {
   ])(
     'should refuse setup $flags before any provider call',
     async ({ flags, exitCode, error }) => {
-      expect(packedBin).toBeDefined();
       const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
-        runOffline(packedBin!, [...OFFLINE_SETUP_ARGUMENTS, ...flags], {
+        runOffline(packedBin, [...OFFLINE_SETUP_ARGUMENTS, ...flags], {
           cwd,
           env: { ...env, SPRITES_TOKEN: 'offline-placeholder' },
         }),
@@ -1483,10 +1447,9 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should accept a zero setup idle timeout and reach the provider lookup', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         [...OFFLINE_SETUP_ARGUMENTS, '--idle-minutes', '0'],
         { cwd, env: { ...env, SPRITES_TOKEN: 'offline-placeholder' } },
       ),
@@ -1505,10 +1468,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should accept an update interval in the tools section and reach the provider lookup', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         [
           'setup',
           'devbox',
@@ -1537,10 +1499,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should refuse an update interval in a section that does not own it before any provider call', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         [
           'setup',
           'devbox',
@@ -1566,10 +1527,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should accept a release channel in the agent section and reach the provider lookup', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         [
           'setup',
           'devbox',
@@ -1598,10 +1558,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should accept a machine size on setup and reach the provider lookup', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         [
           'setup',
           'devbox',
@@ -1632,10 +1591,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should refuse a release channel in a section that does not own it before any provider call', async () => {
-    expect(packedBin).toBeDefined();
     const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
       runOffline(
-        packedBin!,
+        packedBin,
         [
           'setup',
           'devbox',
@@ -1661,9 +1619,8 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should flush output despite a pending network handle', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
-      execa(execPath, ['--import', pendingConnection, packedBin!, '--help'], {
+      execa(execPath, ['--import', pendingConnection, packedBin, '--help'], {
         cwd,
         env,
         extendEnv: false,
@@ -1679,11 +1636,10 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should retain the failure status of invalid JSON arguments', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(
         execPath,
-        ['--import', pendingConnection, packedBin!, '--json', '--help'],
+        ['--import', pendingConnection, packedBin, '--json', '--help'],
         { cwd, env, extendEnv: false, reject: false, timeout: 2_000 },
       ),
     );
@@ -1700,8 +1656,7 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should prepare one JSON fallback with recovery identity for cyclic diagnostic data', async () => {
-    expect(packedBin).toBeDefined();
-    const packageRoot = dirname(dirname(await realpath(packedBin!)));
+    const packageRoot = dirname(dirname(await realpath(packedBin)));
     const executeUrl = pathToFileURL(
       join(packageRoot, 'lib/cli/execute.js'),
     ).href;
@@ -1747,8 +1702,7 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should keep a created machine recoverable when success data cannot be rendered', async () => {
-    expect(packedBin).toBeDefined();
-    const packageRoot = dirname(dirname(await realpath(packedBin!)));
+    const packageRoot = dirname(dirname(await realpath(packedBin)));
     const executeUrl = pathToFileURL(
       join(packageRoot, 'lib/cli/execute.js'),
     ).href;
@@ -1787,8 +1741,7 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should preserve deletion guidance without claiming a retained Sprite after render failure', async () => {
-    expect(packedBin).toBeDefined();
-    const packageRoot = dirname(dirname(await realpath(packedBin!)));
+    const packageRoot = dirname(dirname(await realpath(packedBin)));
     const executeUrl = pathToFileURL(
       join(packageRoot, 'lib/cli/execute.js'),
     ).href;
@@ -1831,8 +1784,7 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should keep local-credential setup and list recovery machine-free', async () => {
-    expect(packedBin).toBeDefined();
-    const packageRoot = dirname(dirname(await realpath(packedBin!)));
+    const packageRoot = dirname(dirname(await realpath(packedBin)));
     const executeUrl = pathToFileURL(
       join(packageRoot, 'lib/cli/execute.js'),
     ).href;
@@ -1874,8 +1826,7 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should own a result after one write attempt to a closed OS stdout pipe', async () => {
-    expect(packedBin).toBeDefined();
-    const packageRoot = dirname(dirname(await realpath(packedBin!)));
+    const packageRoot = dirname(dirname(await realpath(packedBin)));
     const executeUrl = pathToFileURL(
       join(packageRoot, 'lib/cli/execute.js'),
     ).href;
@@ -1920,10 +1871,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should combine two real parser choice errors into one JSON result', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(
-        packedBin!,
+        packedBin,
         [
           'setup',
           '--json',
@@ -1954,8 +1904,7 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should name the missing module and exit non-zero when the isolated packed CLI import is missing', async () => {
-    expect(packedBin).toBeDefined();
-    const sourceRoot = dirname(dirname(await realpath(packedBin!)));
+    const sourceRoot = dirname(dirname(await realpath(packedBin)));
     const result = await withIsolatedCli(async (cwd, env) => {
       const cloneRoot = join(cwd, 'isolated-package');
       await cp(sourceRoot, cloneRoot, { recursive: true });
@@ -1982,8 +1931,7 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should keep parser errors and emission ownership local to repeated CLI invocations', async () => {
-    expect(packedBin).toBeDefined();
-    const packageRoot = dirname(dirname(await realpath(packedBin!)));
+    const packageRoot = dirname(dirname(await realpath(packedBin)));
     const cliUrl = pathToFileURL(
       join(packageRoot, 'lib/cli/application.js'),
     ).href;
@@ -2028,9 +1976,8 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should keep a human parser failure off stdout', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
-      execa(packedBin!, ['show', '--invalid-human-flag'], {
+      execa(packedBin, ['show', '--invalid-human-flag'], {
         cwd,
         env,
         extendEnv: false,
@@ -2045,10 +1992,9 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should separate unknown parser flags from an unreadable selected env file', async () => {
-    expect(packedBin).toBeDefined();
     const [unknownFlag, missingEnv] = await withIsolatedCli(async (cwd, env) =>
       Promise.all([
-        execa(packedBin!, ['show', '--json', '--unknown-flag'], {
+        execa(packedBin, ['show', '--json', '--unknown-flag'], {
           cwd,
           env,
           extendEnv: false,
@@ -2056,7 +2002,7 @@ describe('workflow:installed CLI', () => {
           timeout: 2_000,
         }),
         execa(
-          packedBin!,
+          packedBin,
           ['show', '--json', '--env-file', join(cwd, 'absent.env')],
           {
             cwd,
@@ -2091,9 +2037,8 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should reject the removed --env flag like any unknown flag', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
-      execa(packedBin!, ['show', '--json', '--env', join(cwd, 'absent.env')], {
+      execa(packedBin, ['show', '--json', '--env', join(cwd, 'absent.env')], {
         cwd,
         env,
         extendEnv: false,
@@ -2113,9 +2058,8 @@ describe('workflow:installed CLI', () => {
   });
 
   it('should preserve CLI arguments and shows command-specific help', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
-      execa(packedBin!, ['show', '--help'], {
+      execa(packedBin, ['show', '--help'], {
         cwd,
         env,
         extendEnv: false,
@@ -2133,9 +2077,8 @@ describe('workflow:installed CLI', () => {
   it.each([['create'], ['setup']])(
     'should list the update due interval and no check interval in %s help',
     async (command) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, [command, '--help'], {
+        execa(packedBin, [command, '--help'], {
           cwd,
           env,
           extendEnv: false,
@@ -2150,9 +2093,8 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should show an optional workstation and a parsed value in setup usage', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
-      execa(packedBin!, ['setup', '--help'], {
+      execa(packedBin, ['setup', '--help'], {
         cwd,
         env,
         extendEnv: false,
@@ -2173,9 +2115,8 @@ describe('workflow:installed CLI', () => {
   it.each([['--help'], ['--version']] as const)(
     'should print %s without provider authentication',
     async (flag) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, [flag], {
+        execa(packedBin, [flag], {
           cwd,
           env,
           extendEnv: false,
@@ -2206,16 +2147,15 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should suggest a kebab-case correction in human and JSON errors', async () => {
-    expect(packedBin).toBeDefined();
     const [human, json] = await withIsolatedCli(async (cwd, env) =>
       Promise.all([
-        execa(packedBin!, ['show', '--non-interactve'], {
+        execa(packedBin, ['show', '--non-interactve'], {
           cwd,
           env,
           extendEnv: false,
           reject: false,
         }),
-        execa(packedBin!, ['show', '--non-interactve', '--json'], {
+        execa(packedBin, ['show', '--non-interactve', '--json'], {
           cwd,
           env,
           extendEnv: false,
@@ -2246,9 +2186,8 @@ describe('workflow:installed CLI', () => {
   it.each(['--help', '--version'])(
     'should reject --json with %s as one usage result before authentication',
     async (flag) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) =>
-        execa(packedBin!, ['show', '--json', flag], {
+        execa(packedBin, ['show', '--json', flag], {
           cwd,
           env,
           extendEnv: false,
@@ -2275,14 +2214,13 @@ describe('workflow:installed CLI', () => {
   it.each(['SIGINT', 'SIGTERM'] as const)(
     'should flush one cancellation result for OS %s while a request hangs',
     async (signal) => {
-      expect(packedBin).toBeDefined();
       const result = await withIsolatedCli(async (cwd, env) => {
         const child = execa(
           execPath,
           [
             '--import',
             hangingFetch,
-            packedBin!,
+            packedBin,
             'show',
             'open-agent-review-check',
             '--json',
@@ -2313,7 +2251,6 @@ describe('workflow:installed CLI', () => {
   );
 
   it('should force exit on the second interrupt during final flush', async () => {
-    expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) => {
       const child = execa(
         execPath,
@@ -2322,7 +2259,7 @@ describe('workflow:installed CLI', () => {
           hangingFetch,
           '--import',
           heldFlush,
-          packedBin!,
+          packedBin,
           'show',
           'open-agent-review-check',
           '--json',

@@ -243,7 +243,7 @@ Pass `--env-file FILE` for dotenv input. Explicit flags and credential reference
 
 | Variables                                     | Meaning                                                                                                   |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `OPEN_AGENT_PROVIDER`, `OPEN_AGENT_AGENT`     | Provider and router client (ACP agent) for create; fixed after creation. Other commands take `--provider` |
+| `OPEN_AGENT_PROVIDER`, `OPEN_AGENT_AGENT`     | Provider and router client (ACP agent) for create; fixed after creation. Other commands take `--provider`; `list` reads all |
 | `OPEN_AGENT_HARNESSES`                        | Comma-separated harnesses the router client drives                                                        |
 | `OPEN_AGENT_NETWORK`                          | `none` or `tailscale`; `none` keeps the workstation off any private network                               |
 | `OPEN_AGENT_CPU`, `OPEN_AGENT_MEM`            | Minimum CPUs and minimum memory in GB, whole numbers from `1`; default `2` and `2`                        |
