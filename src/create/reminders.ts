@@ -2,10 +2,10 @@ import { catalog } from '#core/catalog';
 import { harnessLabel } from '#core/harnesses';
 import { networkDriver } from '#core/networks';
 
-import type { NetworkExitNode } from '#drivers/contracts';
+import type { NetworkExitNode } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
 
-import type { CreatePreflight } from './types.js';
+import type { CreatePreflight } from './context.js';
 
 /**
  * distinguishes verified caller checks from readiness requiring the new guest

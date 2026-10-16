@@ -2,7 +2,7 @@ import { networkDriver, networksWithDaemon } from '#core/networks';
 import { defaultProfile } from '#core/profile';
 import { resolveInputs } from '#input';
 import { networkManagement } from '#input/management';
-import { readGuestEnvironment } from '#integrations/guest/environment-store';
+import { readGuestEnvironment } from '#integrations/guest/environment/store';
 import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 
 import { CommandFault, commandError } from './errors.js';
@@ -15,13 +15,12 @@ import type { CommandRequest, Interaction } from '#command/contracts';
 import type { TerminateData } from '#command/data';
 import type { RegisteredNetwork } from '#core/networks';
 import type { WorkstationProfile } from '#core/profile';
+import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
+import type { GuestChannel } from '#drivers/guest-channel';
 import type {
   NetworkCleanup,
   NetworkStatus,
-  ProviderDriver,
-  WorkstationRecord,
-} from '#drivers/contracts';
-import type { GuestChannel } from '#drivers/guest-channel';
+} from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
 
 import type { MachineSummary } from './machine.js';

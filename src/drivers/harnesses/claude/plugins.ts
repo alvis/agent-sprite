@@ -1,12 +1,9 @@
 import { CommandFault } from '#errors';
-import { runGuestResult } from '#integrations/guest';
-import {
-  AGENT_PATH,
-  asAgent,
-  isRecord,
-  runAsAgent,
-} from '#integrations/native/configuration';
+import { asAgent, runAsAgent } from '#integrations/guest/account';
+import { AGENT_PATH } from '#integrations/guest/layout';
+import { runGuestResult } from '#integrations/guest/run';
 import { checkOperation } from '#operation';
+import { isRecord } from '#utilities/guards';
 
 import {
   installedPlugins,

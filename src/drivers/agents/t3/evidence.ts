@@ -1,4 +1,4 @@
-import { runGuestResult } from '#integrations/guest';
+import { runGuestResult } from '#integrations/guest/run';
 import { checkOperation } from '#operation';
 import { isRecord } from '#utilities/guards';
 

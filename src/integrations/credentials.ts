@@ -15,7 +15,7 @@ import { rememberSecret } from '#utilities/redaction';
 export type ManagementCredentialName = string;
 
 /** explicit persistence choice for a local management credential */
-export interface CredentialSaveOptions {
+interface CredentialSaveOptions {
   consent: boolean;
   allowProtectedFileFallback: boolean;
   location?: CredentialStoreLocation;

@@ -12,7 +12,7 @@ export interface TerminalFacts {
 }
 
 /** prompt mode plus the actual terminal constraint, when implicit */
-export interface InteractionMode {
+interface InteractionMode {
   nonInteractive: boolean;
   promptBlocker?: string;
 }
@@ -22,7 +22,7 @@ export interface InteractionMode {
  * @param value environment setting
  * @returns whether the setting requests automation
  */
-export function isTruthyEnvironmentValue(value: string | undefined): boolean {
+function isTruthyEnvironmentValue(value: string | undefined): boolean {
   return /^(1|true|yes|on)$/i.test(value?.trim() ?? '');
 }
 

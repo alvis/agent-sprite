@@ -8,14 +8,14 @@ import { selectedChannel } from '#core/release-channels';
 import { pairAgent } from '#core/services';
 import { CommandFault } from '#errors';
 import { resolveInputs } from '#input';
-import { assertGuestProfile } from '#integrations/guest/environment-store';
+import { assertGuestProfile } from '#integrations/guest/environment/store';
 import { markInstallationReady } from '#integrations/guest/install';
 import { Secret } from '#integrations/guest/session/secret';
 import {
   configureGit,
   configureGithub,
   configureRuntimeEnv,
-} from '#integrations/native';
+} from '#integrations/native/git';
 import { promptUnavailableDetail } from '#operation';
 import { PairingSecret } from '#utilities/pairing-secret';
 

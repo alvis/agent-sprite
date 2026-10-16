@@ -11,7 +11,7 @@ export interface ToolPrerequisite {
 }
 
 /** a credential shape known to belong to another service */
-export interface RefusedCredential {
+interface RefusedCredential {
   /** matches the refused shape without needing a network call */
   pattern: RegExp;
   /** what such a credential is, such as "an API token of another service" */

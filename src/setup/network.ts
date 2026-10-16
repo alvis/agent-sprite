@@ -4,15 +4,15 @@ import {
   assertGuestProfile,
   networkIdentityRecorder,
   readGuestEnvironment,
-} from '#integrations/guest/environment-store';
+} from '#integrations/guest/environment/store';
 import { markInstallationReady } from '#integrations/guest/install';
 
 import { installSetupPlan } from './install.js';
 
 import type { NetworkSetupData } from '#command/data';
 import type { WorkstationProfile } from '#core/profile';
-import type { NetworkExitNode } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { NetworkExitNode } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
 
 import type { SetupContext } from './context.js';

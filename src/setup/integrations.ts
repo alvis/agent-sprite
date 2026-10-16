@@ -4,7 +4,7 @@ import { sectionFields } from '#input/selection';
 import {
   assertGuestProfile,
   writeGuestProfile,
-} from '#integrations/guest/environment-store';
+} from '#integrations/guest/environment/store';
 import { disableNetwork } from '#integrations/guest/network';
 
 import type { SetupSection } from '#command/contracts';
@@ -97,7 +97,7 @@ export function isReleaseChanged(
  * @param recorded selection recorded before this run
  * @returns whether the CPU or memory minimum differs
  */
-export function isMachineChanged(
+function isMachineChanged(
   profile: WorkstationProfile,
   recorded: WorkstationProfile,
 ): boolean {

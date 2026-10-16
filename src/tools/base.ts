@@ -10,7 +10,7 @@ import type {
  * Google's Linux package repository, which serves Chrome; its key is pinned to
  * the primary key of "Google Inc. (Linux Packages Signing Authority)"
  */
-export const GOOGLE_CHROME_REPOSITORY: SystemRepository = {
+const GOOGLE_CHROME_REPOSITORY: SystemRepository = {
   id: 'google-chrome',
   key: {
     url: 'https://dl.google.com/linux/linux_signing_key.pub',

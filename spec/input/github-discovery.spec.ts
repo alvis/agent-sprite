@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { discoverGithubToken } from '#input/github';
+import { discoverGithubToken } from '#input/github-discovery';
 import { redactResolved } from '#utilities/redaction';
 
 describe('fn:discoverGithubToken', () => {

@@ -1,7 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { ProviderFault } from '#drivers/failures';
-import { runGuest } from '#integrations/guest';
+import { runGuest } from '#integrations/guest/run';
 import { isRecord } from '#utilities/guards';
 
 import {

@@ -1,7 +1,5 @@
-import {
-  ensurePrivateDirectory,
-  readTomlObject,
-} from '#integrations/native/configuration';
+import { ensurePrivateDirectory } from '#integrations/guest/account';
+import { readTomlObject } from '#integrations/native/configuration';
 
 import { CODEX_CONFIG, CODEX_HOME } from './paths.js';
 import { configureCodexProxy } from './proxy.js';

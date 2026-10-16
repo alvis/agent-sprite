@@ -1,8 +1,18 @@
-import { InteractionExit } from './navigation/exit.js';
-
 import type { Interaction, InteractionPrompt } from '#command/contracts';
 
-export { InteractionExit } from './navigation/exit.js';
+/** user-requested navigation, distinct from an operation failure */
+export class InteractionExit extends Error {
+  public readonly action: 'back' | 'cancel';
+
+  /**
+   * identifies a navigation request without an operational error message
+   * @param action requested navigation direction
+   */
+  constructor(action: 'back' | 'cancel') {
+    super(action === 'back' ? 'Back requested.' : 'Cancelled by user.');
+    this.action = action;
+  }
+}
 
 /**
  * returns to a parent menu on back while preserving aborts and actual failures

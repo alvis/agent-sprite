@@ -9,7 +9,7 @@ import type {
   CredentialPrerequisite,
   ProviderPrerequisites,
   ProviderPreflightParams,
-} from '#drivers/contracts';
+} from '#drivers/providers/prerequisites';
 
 const credential: CredentialPrerequisite = {
   label: 'Example API token',

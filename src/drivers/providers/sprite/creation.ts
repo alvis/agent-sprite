@@ -17,7 +17,7 @@ import type { WorkstationProfile } from '#core/profile';
 import type { CreationOutcome } from '#drivers/creation';
 
 /** one create request and the client issuing it */
-export interface CreateSpriteParams {
+interface CreateSpriteParams {
   /** authenticated provider client */
   client: SpritesClient;
   /** requested Sprite name */

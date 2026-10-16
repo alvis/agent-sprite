@@ -56,7 +56,7 @@ export interface FlyMachine {
 }
 
 /** the whole configuration of a machine, as read before an update */
-export interface FlyMachineConfig {
+interface FlyMachineConfig {
   /** every configuration key except the guest, untouched */
   config: Record<string, unknown>;
   /** the guest entry, with every key it carries */
@@ -72,7 +72,7 @@ export interface FlyOrgMachine extends FlyMachine {
 }
 
 /** a page of the organization-wide machine listing */
-export interface FlyMachinePage {
+interface FlyMachinePage {
   /** machines on this page */
   machines: FlyOrgMachine[];
   /** cursor of the next page; absent on the last page */
@@ -82,7 +82,7 @@ export interface FlyMachinePage {
 }
 
 /** the kinds of address an app can hold, as flyctl classifies them */
-export type FlyIpType =
+type FlyIpType =
   'v4' | 'v6' | 'shared_v4' | 'private_v6' | 'egress_v4' | 'egress_v6';
 
 /** the addresses that make a workstation reachable from the internet */

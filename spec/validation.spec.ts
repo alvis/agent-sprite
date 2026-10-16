@@ -5,7 +5,7 @@ import {
   validateSetupIntegrationOptions,
 } from '#validation';
 
-import type { CommandOptions } from '#command';
+import type { CommandOptions } from '#command/contracts';
 
 describe('fn:validateCommandRequest', () => {
   it('should infer the plugins section from actions while skip flags select no section', () => {

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { labelFor } from './ResultDetails.js';
 
-import type { ProgressUpdate, StatusUpdate } from '#command';
+import type { ProgressUpdate, StatusUpdate } from '#command/contracts';
 
 const DEFAULT_COLUMNS = 80;
 const NAME_WIDTH = 20;

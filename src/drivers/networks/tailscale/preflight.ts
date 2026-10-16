@@ -12,7 +12,7 @@ import type {
   NetworkManagement,
   NetworkPreflightParams,
   NetworkPreflightResult,
-} from '#drivers/contracts';
+} from '#drivers/networks/contracts';
 
 /**
  * checks the selected exit node and the exact device name before provisioning

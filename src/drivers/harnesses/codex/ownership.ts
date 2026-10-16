@@ -1,6 +1,6 @@
-import { guestFileExists, readGuestFile } from '#integrations/guest';
+import { guestFileExists, readGuestFile } from '#integrations/guest/files';
 
-import { isRecord } from '#integrations/native/configuration';
+import { isRecord } from '#utilities/guards';
 
 import { captureOrRefreshOwnedValue } from '../shared/proxy-ownership.js';
 

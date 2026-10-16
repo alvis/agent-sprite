@@ -10,7 +10,7 @@ import {
 
 import { pluginFlags } from './fixtures/plugin-flags.js';
 
-import type { CommandOptions } from '#command';
+import type { CommandOptions } from '#command/contracts';
 import type { HarnessId } from '#core/catalog';
 import type { HarnessPluginActions } from '#plugins';
 

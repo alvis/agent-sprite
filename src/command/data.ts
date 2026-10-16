@@ -1,21 +1,21 @@
 import type { CommandErrorCode } from '#command/contracts';
 import type { HarnessId, ProviderId } from '#core/catalog';
 import type { WorkstationProfile } from '#core/profile';
-import type { CreatePreflight } from '#create/types';
+import type { CreatePreflight } from '#create/context';
 import type { BootReport } from '#drivers/contracts';
 import type {
   CredentialSaveResult,
   ManagementCredentialName,
 } from '#integrations/credentials';
-import type { GuestEnvironment } from '#integrations/guest/environment';
-import type { GuestInspection } from '#integrations/guest/runtime';
+import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
+import type { GuestInspection } from '#integrations/guest/inspection-types';
 import type { UpdateStatus } from '#integrations/guest/updates';
 import type { MachineSummary } from '#machine';
 import type { ReadinessAssessment } from '#readiness';
 import type { PairingSecret } from '#utilities/pairing-secret';
 
 /** pairing metadata with explicitly marked disclosure material */
-export interface PairingData {
+interface PairingData {
   status: 'created' | 'failed' | 'not requested';
   expiresAt?: string;
   token?: PairingSecret;
@@ -24,13 +24,13 @@ export interface PairingData {
 }
 
 /** current service state without executable arguments */
-export interface ServiceSummary {
+interface ServiceSummary {
   name: string;
   state?: string;
 }
 
 /** successful creation with verified preflight and current guest evidence */
-export interface CreateData {
+interface CreateData {
   retainedCredentials?: Partial<
     Record<ManagementCredentialName, CredentialSaveResult>
   >;
@@ -70,7 +70,7 @@ export interface ListData {
 }
 
 /** selected workstation and explicitly requested inspection or local action */
-export interface ShowData {
+interface ShowData {
   machine: MachineSummary;
   inspection?: GuestInspection & { readiness?: ReadinessAssessment };
   pairing?: PairingData;
@@ -190,7 +190,7 @@ export interface AllSetupData
     ToolsSetupData {}
 
 /** concrete outcomes keyed by the executed guest setup section */
-export interface SetupSectionData {
+interface SetupSectionData {
   all: AllSetupData;
   agent: AgentSetupData;
   network: NetworkSetupData;
@@ -220,7 +220,7 @@ export interface LocalCredentialData {
 }
 
 /** setup can configure one guest or replace the shared local credential */
-export type SetupData =
+type SetupData =
   | (AppliedSetupSection & {
       machine: MachineSummary;
       retainedCredentials?: Partial<
@@ -240,7 +240,7 @@ export interface CommandData {
 }
 
 /** failed creation can still preserve verified preflight facts */
-export interface CreateFailureData {
+interface CreateFailureData {
   preflight: CreatePreflight;
   readiness?: ReadinessAssessment;
   setup?: 'ready';

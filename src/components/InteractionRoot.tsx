@@ -3,7 +3,7 @@ import { useInput } from 'ink';
 import type { ReactElement } from 'react';
 
 /** props for the command-lifetime Ink input owner */
-export type InteractionRootProps = {
+type InteractionRootProps = {
   prompt?: ReactElement;
   activity?: ReactElement;
   onInterrupt: () => void;

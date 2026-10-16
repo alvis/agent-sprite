@@ -6,7 +6,7 @@ import { rememberSecret } from '#utilities/redaction';
  * where the host obtained a credential it hands to the guest; `embedded` is
  * guest file contents that hold one
  */
-export type HostCredentialSource =
+type HostCredentialSource =
   | 'credential-store'
   | 'env-file'
   | 'prompt'

@@ -1,9 +1,10 @@
-import type { BootReport, NetworkStatus } from '#drivers/contracts';
+import type { BootReport } from '#drivers/contracts';
 import type { GuestServiceState } from '#drivers/guest-channel';
+import type { NetworkStatus } from '#drivers/networks/contracts';
 import type { HubStatus } from '#drivers/shared/cliproxyapi/hub';
-import type { NativeConfigurationInspection } from '#integrations/native';
+import type { NativeConfigurationInspection } from '#integrations/native/inspection';
 
-import type { GuestEnvironment } from './environment.js';
+import type { GuestEnvironment } from './environment/contracts.js';
 import type { GovernorReport } from './governor-report.js';
 import type { UpdateStatus } from './updates.js';
 

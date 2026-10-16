@@ -26,10 +26,10 @@ const CLAUDE_PROXY_FIELDS = [
 ] as const;
 
 /** inputs for resolving Claude's optional managed proxy fields */
-export type ClaudeProxyParams = NativeProxyParams<Record<string, unknown>>;
+type ClaudeProxyParams = NativeProxyParams<Record<string, unknown>>;
 
 /** resolved Claude environment and deferred ownership cleanup state */
-export interface ClaudeProxyResult {
+interface ClaudeProxyResult {
   /** environment settings to write */
   env: Record<string, unknown>;
   /** whether the ownership record is removed after the settings write */

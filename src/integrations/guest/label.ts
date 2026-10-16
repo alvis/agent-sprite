@@ -1,6 +1,6 @@
 import { GUEST_ROOT } from '#integrations/guest/layout';
 
-import { guestFileExists, readGuestFile, writeGuestFile } from '../guest.js';
+import { guestFileExists, readGuestFile, writeGuestFile } from './files.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 

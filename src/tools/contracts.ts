@@ -56,7 +56,7 @@ export interface SystemToolSource {
 }
 
 /** an npm package the agent installs with Homebrew's `node` */
-export interface NpmToolSource {
+interface NpmToolSource {
   /** source discriminator */
   kind: 'npm';
   /** registry package name */
@@ -68,7 +68,7 @@ export interface NpmToolSource {
 }
 
 /** a Rust toolchain the agent installs with rustup */
-export interface RustupToolSource {
+interface RustupToolSource {
   /** source discriminator */
   kind: 'rustup';
   /** toolchain, such as `stable` */

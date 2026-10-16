@@ -1,4 +1,4 @@
-import type { NetworkStatus } from '#drivers/contracts';
+import type { NetworkStatus } from '#drivers/networks/contracts';
 
 /** current tailnet identity and exit-route status */
 export interface TailnetStatus extends NetworkStatus {

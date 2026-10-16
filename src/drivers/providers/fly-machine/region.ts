@@ -1,5 +1,5 @@
 /** environment variable selecting the region of new workstations */
-export const REGION_VARIABLE = 'OPEN_AGENT_FLY_REGION';
+const REGION_VARIABLE = 'OPEN_AGENT_FLY_REGION';
 
 /**
  * reads the region new workstations are placed in from the environment

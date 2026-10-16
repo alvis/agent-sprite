@@ -63,9 +63,7 @@ export function isSpriteAbsent(error: unknown): boolean {
  * @param status observed provider HTTP status
  * @returns neutral failure class
  */
-export function statusFailureCode(
-  status: number | undefined,
-): ProviderErrorCode {
+function statusFailureCode(status: number | undefined): ProviderErrorCode {
   switch (status) {
     case UNAUTHENTICATED_STATUS:
     case ACCESS_DENIED_STATUS:

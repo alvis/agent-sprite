@@ -34,8 +34,5 @@ export const HOMEBREW_RELEASE = {
   commit: 'cdc1ca503231b9a96da64526774915d913c3ec9f',
 } as const;
 
-/** the exit status of a Homebrew helper refusing a formula with no bottle for the guest */
-export const NO_BOTTLE_STATUS = 78;
-
 /** the prefix of each line the bottle probe prints for a formula with no bottle for the guest */
 export const NO_BOTTLE_PREFIX = 'no-bottle:';

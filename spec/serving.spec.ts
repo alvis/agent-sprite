@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { inspectUntilServing } from '#serving';
 
-import type { GuestInspection } from '#integrations/guest/runtime';
+import type { GuestInspection } from '#integrations/guest/inspection-types';
 
 const MINUTE = 60_000;
 const FULL_INSPECTION = { governor: {} } as unknown as GuestInspection;

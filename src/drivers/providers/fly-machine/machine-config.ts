@@ -13,7 +13,7 @@ import type { FlyMachineOffer } from './machines.js';
 import type { FlyGuest, FlyServiceRoute } from './wire.js';
 
 /** a file the machine writes to its root filesystem on every boot */
-export interface MachineFile {
+interface MachineFile {
   /** absolute path on the root filesystem */
   guestPath: string;
   /** the file's text */
@@ -47,7 +47,7 @@ export interface MachineSpec {
 }
 
 /** what a new machine needs beyond the fixed shape */
-export interface MachineSpecParams {
+interface MachineSpecParams {
   /** preset the machine runs on */
   machine: FlyMachineOffer;
   /** volume mounted as persistent storage */
@@ -61,7 +61,7 @@ export interface MachineSpecParams {
 }
 
 /** stock Debian; the boot hook restores everything else from the volume */
-export const MACHINE_IMAGE = 'debian:bookworm-slim';
+const MACHINE_IMAGE = 'debian:bookworm-slim';
 /** the OS images a workstation machine is created from */
 export const FLY_MACHINE_IMAGES: readonly [OsImage, ...OsImage[]] = [
   {

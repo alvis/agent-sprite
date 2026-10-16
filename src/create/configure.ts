@@ -5,7 +5,7 @@ import {
   proxyRoute,
 } from '#core/harnesses';
 import { networkDriver } from '#core/networks';
-import { networkIdentityRecorder } from '#integrations/guest/environment-store';
+import { networkIdentityRecorder } from '#integrations/guest/environment/store';
 import {
   installWorkstation,
   markInstallationReady,
@@ -16,7 +16,7 @@ import {
   configureGit,
   configureGithub,
   configureRuntimeEnv,
-} from '#integrations/native';
+} from '#integrations/native/git';
 import { traceStage } from '#operation';
 import { hasActions } from '#plugins';
 

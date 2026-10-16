@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import type { CommandOptions } from '../../src/command.js';
+import type { CommandOptions } from '../../src/command/contracts.js';
 import type { resolveInputs } from '../../src/input.js';
 
 interface ResolverCase {

@@ -1,12 +1,12 @@
+import { HOME } from '#integrations/guest/account';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import {
-  HOME,
-  isRecord,
   readJsonObject,
   readSelectedPlugins,
   readTomlObject,
 } from '#integrations/native/configuration';
 import { checkOperation, runBoundedIO } from '#operation';
+import { isRecord } from '#utilities/guards';
 
 import { hasWorkHooks } from '../shared/hooks.js';
 import {
@@ -30,13 +30,15 @@ import type { TomlTable } from 'smol-toml';
 import type {
   HarnessInspection,
   HarnessReadinessContext,
-  HarnessSkill,
-  HarnessSkillEvidence,
   NativeHarnessInspection,
   ReadinessFinding,
 } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GuestCommandResult } from '#integrations/guest/types';
+import type {
+  HarnessSkill,
+  HarnessSkillEvidence,
+} from '#drivers/harness-evidence';
+import type { GuestCommandResult } from '#integrations/guest/run';
 
 /**
  * reads Codex configuration, plugin inventory and native skills without a model turn

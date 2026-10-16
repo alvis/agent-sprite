@@ -5,7 +5,7 @@ import { HOME } from '#integrations/guest/account';
 import type { GuestChannel, GuestProcess } from '#drivers/guest-channel';
 
 /** bounds of one conversation with a guest program */
-export interface LineProcessLimits {
+interface LineProcessLimits {
   /** longest the whole conversation may take */
   timeoutMs: number;
   /** most output the program may print */

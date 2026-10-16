@@ -13,7 +13,7 @@ import type {
   ProgressUpdate,
   StatusUpdate,
   TextInputPrompt,
-} from '#command';
+} from '#command/contracts';
 
 type PromptCallbacks<T> = {
   onSubmit: (value: T) => void;

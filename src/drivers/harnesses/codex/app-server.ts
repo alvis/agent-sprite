@@ -1,6 +1,6 @@
-import { AGENT_BIN } from '#integrations/guest/layout';
-import { AGENT_PATH, isRecord } from '#integrations/native/configuration';
+import { AGENT_BIN, AGENT_PATH } from '#integrations/guest/layout';
 import { converse, GuestLineProcess } from '#integrations/native/line-process';
+import { isRecord } from '#utilities/guards';
 
 import { CODEX_HOME } from './paths.js';
 

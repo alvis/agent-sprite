@@ -1,11 +1,8 @@
 import { stringify } from 'smol-toml';
 
-import {
-  isRecord,
-  readTomlObject,
-  runAsAgent,
-  writeOwnedFile,
-} from '#integrations/native/configuration';
+import { runAsAgent, writeOwnedFile } from '#integrations/guest/account';
+import { readTomlObject } from '#integrations/native/configuration';
+import { isRecord } from '#utilities/guards';
 
 import {
   installedPlugins,

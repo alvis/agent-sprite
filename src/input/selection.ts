@@ -31,22 +31,14 @@ import type {
 import type { SuppliedSelection } from './selection-supplied.js';
 import type { RequiredInput } from './types.js';
 
-export { suppliedSelectionViolations } from './selection-supplied.js';
-
-export type { Resolved, SelectionContext } from './selection-sources.js';
-export type { SuppliedSelection } from './selection-supplied.js';
-
 /** what an existing workstation's setup run reads before reaching the workstation */
-export interface SetupReadContext extends Omit<
-  SelectionContext,
-  'interaction'
-> {
+interface SetupReadContext extends Omit<SelectionContext, 'interaction'> {
   /** setup area the run targets */
   section: SetupSection;
 }
 
 /** what an existing workstation's setup run may change */
-export interface SetupSelectionContext extends SelectionContext {
+interface SetupSelectionContext extends SelectionContext {
   /** the profile the workstation recorded */
   recorded: WorkstationProfile;
   /** setup area the run targets */

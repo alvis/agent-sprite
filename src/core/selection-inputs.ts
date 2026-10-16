@@ -1,7 +1,7 @@
 import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 
 /** a selection step's flag and the environment variable that mirrors it */
-export interface SelectionInput {
+interface SelectionInput {
   /** command-line flag */
   flag: string;
   /** environment variable read from the process, then the selected env file */

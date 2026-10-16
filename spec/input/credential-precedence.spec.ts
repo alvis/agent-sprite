@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { resolveProviderCredential } from '#input';
 import { resolveBaseInputs } from '#input/base';
+import { resolveProviderCredential } from '#input/provider-credential';
 import {
   readLocalCredential,
   saveLocalCredential,

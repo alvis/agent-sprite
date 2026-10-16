@@ -26,7 +26,7 @@ import type {
 import type { FlyApi } from './api.js';
 
 /** binds a guest channel to one machine */
-export interface FlyGuestChannelParams {
+interface FlyGuestChannelParams {
   /** management API client, for short input-free checks */
   api: FlyApi;
   /** app name */
@@ -299,7 +299,7 @@ export class FlyGuestChannel implements GuestChannel {
  * @param command neutral guest command
  * @returns program followed by its arguments
  */
-export function commandWords(command: GuestCommand): string[] {
+function commandWords(command: GuestCommand): string[] {
   const environment = Object.entries(command.environment ?? {}).map(
     ([name, value]) => `${name}=${value}`,
   );

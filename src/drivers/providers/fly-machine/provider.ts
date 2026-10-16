@@ -28,15 +28,17 @@ import type { WorkstationProfile } from '#core/profile';
 import type {
   ExposureVisibility,
   MachineOffer,
-  PrerequisiteProblem,
   ProfileIncompatibility,
   ProviderBinding,
   ProviderDriver,
-  ProviderPreflightParams,
   WorkstationMetadata,
   WorkstationRecord,
 } from '#drivers/contracts';
 import type { GuestProcess } from '#drivers/guest-channel';
+import type {
+  PrerequisiteProblem,
+  ProviderPreflightParams,
+} from '#drivers/providers/prerequisites';
 
 import type { FlyApp, FlyMachine } from './wire.js';
 
@@ -67,7 +69,7 @@ interface VerifiedWorkstation {
 }
 
 /** Fly Machines as a provider driver: one app, machine and volume per workstation */
-export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
+class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
   public readonly id = 'fly-machine';
   public readonly kind = 'providers';
   public readonly displayName = 'Fly Machine';

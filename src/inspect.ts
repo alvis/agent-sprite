@@ -1,5 +1,5 @@
 import { pairAgent } from '#core/services';
-import { readGuestEnvironment } from '#integrations/guest/environment-store';
+import { readGuestEnvironment } from '#integrations/guest/environment/store';
 import {
   assertSupportedRelease,
   newerMetadataRelease,

@@ -1,4 +1,4 @@
-import { HOME, runAsAgent } from '#integrations/native/configuration';
+import { HOME, runAsAgent } from '#integrations/guest/account';
 import { rememberSecret } from '#utilities/redaction';
 
 import type { AgentPairing } from '#drivers/contracts';

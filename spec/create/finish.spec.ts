@@ -22,9 +22,10 @@ import { environmentOf } from '../fixtures/environment.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 import { guestOf, providerOf } from '../mocks/sprites.js';
 
-import type { CommandOptions, CommandResult } from '#command';
+import type { CommandResult } from '#command';
+import type { CommandOptions } from '#command/contracts';
 import type { CreateContext } from '#create/context';
-import type { GuestInspection } from '#integrations/guest/runtime';
+import type { GuestInspection } from '#integrations/guest/inspection-types';
 
 const services = ['t3-code', 'open-agent-cron'].map((name) => ({
   name,

@@ -101,7 +101,7 @@ export function parseOsProbe(
  * @param lines the file's lines
  * @returns the fields it assigns
  */
-export function parseOsRelease(
+function parseOsRelease(
   lines: readonly string[],
 ): Readonly<Record<string, string>> {
   const fields: Record<string, string> = {};

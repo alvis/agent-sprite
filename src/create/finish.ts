@@ -4,7 +4,7 @@ import { commandError } from '#errors';
 import { SetupConnection } from '#integrations/guest/connection';
 import { sanitizeGuestDiagnostic } from '#integrations/guest/diagnostics';
 import { inspectGuest } from '#integrations/guest/runtime';
-import { inspectAgentEnvironment } from '#integrations/native';
+import { inspectAgentEnvironment } from '#integrations/native/inspection';
 import { requireWorkstationUrl, summarizeMachine } from '#machine';
 import {
   cancellationReason,
@@ -27,7 +27,7 @@ import type {
   CredentialSaveResult,
   ManagementCredentialName,
 } from '#integrations/credentials';
-import type { GuestInspection } from '#integrations/guest/runtime';
+import type { GuestInspection } from '#integrations/guest/inspection-types';
 
 import type { CreateContext, CreatePreflight } from './context.js';
 

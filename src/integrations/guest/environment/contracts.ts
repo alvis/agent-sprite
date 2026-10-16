@@ -5,7 +5,7 @@
 import { CommandFault } from '#errors';
 import { isRecord } from '#utilities/guards';
 
-import { environmentProblem } from './environment-validation.js';
+import { environmentProblem } from './validation.js';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { IdleForm, KeepAwakeMode, WakeMode } from '#drivers/contracts';
@@ -18,7 +18,7 @@ import type { NetworkLauncher } from '#drivers/networks/contracts';
 import type { OsFamilyId, PeriodicJob, ServiceBackendId } from '#os/contracts';
 import type { ToolOwner, ToolSource } from '#tools/contracts';
 
-import type { GuestNetworkIdentity } from './types.js';
+import type { GuestNetworkIdentity } from '../run.js';
 
 /** the record's mode: root writes it, every account reads it */
 export const ENVIRONMENT_MODE = 0o644;
@@ -78,7 +78,7 @@ export interface EnvironmentProvider {
 }
 
 /** a command recorded for a guest program to run */
-export type EnvironmentCommand = Pick<
+type EnvironmentCommand = Pick<
   GuestCommand,
   'program' | 'arguments' | 'account' | 'environment'
 >;
@@ -99,7 +99,7 @@ export interface EnvironmentHarness {
 }
 
 /** the selected ACP agent, as its launcher starts it */
-export interface EnvironmentAgent {
+interface EnvironmentAgent {
   /** agent identifier */
   id: string;
   /** name of the agent's service in `services` */

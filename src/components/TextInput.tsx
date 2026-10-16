@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { isPrintableInput } from '#cli/keystroke';
 
 /** props for one inline text prompt */
-export type TextInputProps = {
+type TextInputProps = {
   label: string;
   description?: string;
   backLabel?: string;

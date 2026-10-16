@@ -2,7 +2,7 @@ import { catalog, DEFAULT_SELECTION } from '#core/catalog';
 import { harnessIds } from '#core/harnesses';
 import { agentIds, providerIds } from '#core/ids';
 import { networksWithInputs, networkDriver, networkIds } from '#core/networks';
-import { isDriverId } from '#core/profile';
+import { isDriverId } from '#core/profile-rules';
 import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 
 import { hasValue } from './selection-sources.js';

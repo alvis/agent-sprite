@@ -4,7 +4,7 @@ import type {
   ProviderPrerequisites,
   ProviderPreflightParams,
   ToolPrerequisite,
-} from '../contracts.js';
+} from '../providers/prerequisites.js';
 
 /** separates a version's dotted digits from the text around it */
 const NON_VERSION = /[^\d.]+/u;
@@ -69,7 +69,7 @@ export function refusedCredential(
  * @param credential declared credential
  * @returns the problem and its fix
  */
-export function missingCredential(
+function missingCredential(
   credential: CredentialPrerequisite,
 ): PrerequisiteProblem {
   return {

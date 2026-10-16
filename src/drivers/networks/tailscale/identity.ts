@@ -4,8 +4,8 @@ import { checkOperation, runBoundedIO } from '#operation';
 import { TAILSCALE_STATE_FILE } from './service.js';
 import { inspectTailscale } from './status.js';
 
-import type { NetworkRecord } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { NetworkRecord } from '#drivers/networks/contracts';
 
 import type { TailnetStatus } from './types.js';
 

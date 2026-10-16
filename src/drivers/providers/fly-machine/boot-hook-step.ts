@@ -8,7 +8,7 @@ import type {
 } from '#integrations/guest/plan/contracts';
 
 /** id of the step that installs the boot hook on the volume and prepares the guest with it */
-export const BOOT_HOOK_STEP = 'boot-hook';
+const BOOT_HOOK_STEP = 'boot-hook';
 
 /** the radix chmod reads a mode in */
 const OCTAL = 8;
@@ -36,7 +36,7 @@ const INSTALL_PROGRAM = [
 ].join(' && ');
 
 /** what the boot hook step is built with */
-export interface BootHookStepParams {
+interface BootHookStepParams {
   /** the boot hook's text, as read from the package */
   hook: string;
   /** ids of steps the boot hook step needs, such as the one installing the guest libraries it calls */
@@ -63,7 +63,7 @@ export async function flyBootHookStep(
  * @param params the hook's text and the steps it needs
  * @returns a critical root step whose check and verify ask whether the hook is current and the guest prepared
  */
-export function bootHookStep(params: BootHookStepParams): SetupStep {
+function bootHookStep(params: BootHookStepParams): SetupStep {
   const { hook, needs = [] } = params;
   const input = { kind: 'text', value: hook } as const;
   const check: StepCommand = {

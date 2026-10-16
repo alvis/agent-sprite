@@ -17,7 +17,7 @@ import { tailscaleDaemon, tailscaleLauncher } from './service.js';
 import { inspectTailscale } from './status.js';
 import { tailscaleTool } from './tools.js';
 
-import type { NetworkDriver } from '#drivers/contracts';
+import type { NetworkDriver } from '#drivers/networks/contracts';
 
 import type { TailnetStatus } from './types.js';
 

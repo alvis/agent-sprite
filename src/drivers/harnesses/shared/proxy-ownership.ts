@@ -1,12 +1,12 @@
 import { CommandFault } from '#errors';
-import { guestFileExists, readGuestFile } from '#integrations/guest';
-import { AGENT_HOME } from '#integrations/guest/layout';
 import {
   ensurePrivateDirectory,
-  isRecord,
   removeOwnedFile,
   writeOwnedFile,
-} from '#integrations/native/configuration';
+} from '#integrations/guest/account';
+import { guestFileExists, readGuestFile } from '#integrations/guest/files';
+import { AGENT_HOME } from '#integrations/guest/layout';
+import { isRecord } from '#utilities/guards';
 
 import type { ProxyRoute } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
@@ -47,7 +47,7 @@ export function proxyOwnershipPath(harness: string): string {
  * @param managedValue value the manager will write
  * @returns ownership evidence for later narrow restoration
  */
-export function captureOwnedValue(
+function captureOwnedValue(
   current: Record<string, unknown>,
   key: string,
   managedValue: unknown,
@@ -68,7 +68,7 @@ export function captureOwnedValue(
  * @param params.managedValue replacement value the manager will write
  * @returns refreshed ownership evidence
  */
-export function refreshOwnedValue(params: {
+function refreshOwnedValue(params: {
   ownership: OwnedConfigurationValue;
   current: Record<string, unknown>;
   key: string;
@@ -172,7 +172,7 @@ export function restoreOwnedValue(
  * @param value candidate ownership field
  * @returns true for complete ownership evidence
  */
-export function isOwnedConfigurationValue(
+function isOwnedConfigurationValue(
   value: unknown,
 ): value is OwnedConfigurationValue {
   return (

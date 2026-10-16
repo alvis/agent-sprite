@@ -32,7 +32,7 @@ const NPM_LIMIT_MS = 900_000;
 const RUSTUP_LIMIT_MS = 1_200_000;
 
 /** what every tool step is built with */
-export interface ToolStepContext {
+interface ToolStepContext {
   /** the guest's OS family, whose shell and library every step uses */
   family: Pick<OsFamily, 'shell' | 'library'>;
   /** id of the step that installs Homebrew, which every formula's step needs */
@@ -46,7 +46,7 @@ export interface ToolStepContext {
  * @param tool the tool's name
  * @returns the name prefixed with `tool:`
  */
-export function toolStepId(tool: string): string {
+function toolStepId(tool: string): string {
   return `tool:${tool}`;
 }
 
@@ -252,7 +252,7 @@ function homebrewProbe(probe: ToolVersionProbe): ToolVersionProbe {
  * @param probe the executable, arguments, account and environment that print the version
  * @returns the command, run as the probe's account
  */
-export function probeCommand(probe: ToolVersionProbe): StepCommand {
+function probeCommand(probe: ToolVersionProbe): StepCommand {
   return {
     argv: [probe.executable, ...probe.args],
     account: probe.account,

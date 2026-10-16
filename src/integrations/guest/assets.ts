@@ -56,7 +56,7 @@ export function guestAsset(path: string, mode: GuestAsset['mode']): GuestAsset {
  * @returns URL of the `.sh` file
  * @throws {Error} when the path is not a plain relative path to a `.sh` file
  */
-export function assetUrl(asset: Pick<GuestAsset, 'path'>): URL {
+function assetUrl(asset: Pick<GuestAsset, 'path'>): URL {
   const { path } = asset;
   if (
     posix.isAbsolute(path) ||

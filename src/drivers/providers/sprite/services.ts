@@ -28,7 +28,7 @@ const REPLACEMENT_STARTUP_WINDOW = '5s';
 const STOP_TIMEOUT = '15s';
 
 /** binds service control to one Sprite */
-export interface SpriteServiceControlParams {
+interface SpriteServiceControlParams {
   /** exact target Sprite */
   sprite: Sprite;
   /**

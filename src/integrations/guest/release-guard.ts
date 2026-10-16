@@ -7,7 +7,7 @@ import {
   OPEN_AGENT_VERSION,
 } from '#utilities/version';
 
-import { runGuestResult } from '../guest.js';
+import { runGuestResult } from './run.js';
 
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 
@@ -25,7 +25,7 @@ const ABSENT_STATUS = 3;
 const READ_LIMIT_MS = 30_000;
 
 /** a workstation a newer open-agent release set up, which this one must not manage */
-export class NewerReleaseFault extends CommandFault {
+class NewerReleaseFault extends CommandFault {
   /** the release the workstation records */
   public readonly recorded: string;
 
@@ -84,7 +84,7 @@ export function newerMetadataRelease(
  * @param recorded release a workstation records
  * @returns true only for a semantic version above this release
  */
-export function isNewerRelease(recorded: string): boolean {
+function isNewerRelease(recorded: string): boolean {
   return isSemver(recorded) && compareSemver(recorded, OPEN_AGENT_VERSION) > 0;
 }
 

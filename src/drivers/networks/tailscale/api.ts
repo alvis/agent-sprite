@@ -2,7 +2,7 @@ import { CommandFault } from '#errors';
 import { operationSignal, checkOperation, runOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
-import type { NetworkExitNode } from '#drivers/contracts';
+import type { NetworkExitNode } from '#drivers/networks/contracts';
 
 interface TailnetDevice {
   id: string;
@@ -320,7 +320,7 @@ async function requestTailnet<T>(
 }
 
 /** observed exit-node identity from the guest's current Tailscale peer status */
-export interface ObservedExitNode {
+interface ObservedExitNode {
   exitNodeIp?: string;
   exitNodeName?: string;
 }

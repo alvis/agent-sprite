@@ -11,7 +11,7 @@ const DIGIT_NINE = 0x39;
 const TRUNCATED_NOTE = '[earlier output truncated]\n';
 
 /** one command's output on one stream and the status that ended it */
-export interface FramedOutput {
+interface FramedOutput {
   /** marker the status line carried */
   marker: string;
   /** output before the status line, without the newline the framing added */

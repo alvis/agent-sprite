@@ -3,24 +3,8 @@ import type { CredentialSaveResult } from '#integrations/credentials';
 import type { CommandName, CommandError } from './command/contracts.js';
 import type { CommandData, CommandFailureData } from './command/data.js';
 
-export type {
-  CommandName,
-  SetupSection,
-  CommandOptions,
-  CommandRequest,
-  InteractionChoice,
-  InteractionPrompt,
-  TextInputPrompt,
-  SecretInputPrompt,
-  ProgressUpdate,
-  StatusUpdate,
-  Interaction,
-  CommandErrorCode,
-  CommandError,
-} from './command/contracts.js';
-
 /** metadata retained beside the action result */
-export interface ResultOutput {
+interface ResultOutput {
   retainedCredential?: CredentialSaveResult;
 }
 
@@ -35,7 +19,7 @@ export type CommandSuccess = {
 }[CommandName];
 
 /** failures retain only the observations meaningful for that command */
-export type CommandFailure =
+type CommandFailure =
   | {
       [Command in CommandName]: {
         command: Command;

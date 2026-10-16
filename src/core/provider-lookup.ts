@@ -11,7 +11,7 @@ export interface BoundProvider {
 }
 
 /** which providers hold a workstation, and which could not be asked */
-export interface ProviderHolders {
+interface ProviderHolders {
   /** providers that hold the named workstation, or any workstation when none is named */
   holders: ProviderId[];
   /** failures of providers that could not be asked, other than not finding the name */

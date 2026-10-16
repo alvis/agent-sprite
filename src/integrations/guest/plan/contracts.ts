@@ -31,7 +31,7 @@ export interface SetupStep {
 }
 
 /** how one step ended */
-export type StepStatus =
+type StepStatus =
   /** the check found the effect in place */
   | 'satisfied'
   /** apply ran and verify, if any, passed */

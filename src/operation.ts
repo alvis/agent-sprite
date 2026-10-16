@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import { InteractionExit } from '#navigation/exit';
+import { InteractionExit } from '#navigation';
 
 import type {
   CommandName,
@@ -9,13 +9,13 @@ import type {
 } from '#command/contracts';
 
 /** exact provider identity observed during one invocation */
-export interface OperationTarget {
+interface OperationTarget {
   name: string;
   id?: string;
 }
 
 /** caller cancellation authority for one host invocation */
-export interface OperationParams {
+interface OperationParams {
   signal: AbortSignal;
   onStage?: (event: StageEvent) => void;
   onStatus?: (update: StatusUpdate) => void;

@@ -1,7 +1,7 @@
 import { CommandFault, providerErrorCode } from '#errors';
 import { checkOperation, runBoundedIO } from '#operation';
 
-import { isRecord } from '#utilities/guards';
+import { isRecord, isStringArray } from '#utilities/guards';
 
 import type { Sprite } from '@fly/sprites';
 
@@ -158,17 +158,6 @@ function parseServiceState(
  */
 function isServiceStatus(value: unknown): value is ServiceStatus {
   return SERVICE_STATUSES.some((status) => status === value);
-}
-
-/**
- * validates required provider argument and dependency arrays
- * @param value untrusted registry field
- * @returns whether every member is a string
- */
-function isStringArray(value: unknown): value is string[] {
-  return (
-    Array.isArray(value) && value.every((entry) => typeof entry === 'string')
-  );
 }
 
 /**

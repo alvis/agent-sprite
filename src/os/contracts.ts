@@ -13,7 +13,7 @@ export type OsFamilyId = 'debian';
 export type CpuArch = 'x86_64' | 'aarch64';
 
 /** the C library a guest links against */
-export type Libc = 'glibc' | 'musl';
+type Libc = 'glibc' | 'musl';
 
 /** what a guest reports about its own OS, read from `/etc/os-release`, `uname -m` and its loader */
 export interface OsRelease {

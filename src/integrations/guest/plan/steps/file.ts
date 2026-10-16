@@ -32,7 +32,7 @@ const INSTALL_PROGRAM = [
 ].join(' && ');
 
 /** what a file step is built with */
-export interface FileStepParams {
+interface FileStepParams {
   /** identifier, unique within the plan */
   id: string;
   /** component the step reports */

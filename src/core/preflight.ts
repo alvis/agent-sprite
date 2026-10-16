@@ -9,12 +9,12 @@ import { runLocal } from '#utilities/process';
 
 import { catalog } from './catalog.js';
 
-import type { PrerequisiteProblem } from '#drivers/contracts';
+import type { PrerequisiteProblem } from '#drivers/providers/prerequisites';
 
 import type { ProviderId } from './catalog.js';
 
 /** a provider credential and where it was read from */
-export interface PreflightCredential {
+interface PreflightCredential {
   /** credential resolved from its declared sources, when found */
   token?: string;
   /** where the credential was read from */

@@ -16,7 +16,7 @@ import type { SelectionField } from '#core/selection-inputs';
 import type { Resolved, SelectionContext } from './selection-sources.js';
 
 /** options a caller can select */
-export type SelectableOption = Extract<SelectionField, keyof ProfileOptions>;
+type SelectableOption = Extract<SelectionField, keyof ProfileOptions>;
 
 /** the values a caller's flags and environment supply, before prompts and defaults */
 export interface SuppliedSelection {

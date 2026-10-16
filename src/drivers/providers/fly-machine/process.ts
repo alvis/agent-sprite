@@ -23,7 +23,7 @@ interface GuestProcessEvents {
 }
 
 /** how one SSH session is started once its token is known */
-export interface SshSession {
+interface SshSession {
   /** flyctl arguments, ending with the in-band command line */
   arguments: readonly string[];
   /** marker the in-band status follows */

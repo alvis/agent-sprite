@@ -12,10 +12,10 @@ import type { GuestChannel } from '#drivers/guest-channel';
 import type { HarnessId } from './catalog.js';
 
 /** every registered harness driver */
-export type AnyHarnessDriver = (typeof catalog.harnesses)[HarnessId];
+type AnyHarnessDriver = (typeof catalog.harnesses)[HarnessId];
 
 /** what each selected harness driver observed, keyed by harness identifier */
-export type HarnessInspections = {
+type HarnessInspections = {
   [Id in HarnessId]?: Awaited<
     ReturnType<(typeof catalog.harnesses)[Id]['inspect']>
   >;

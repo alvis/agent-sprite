@@ -12,11 +12,9 @@ import {
   unknownDriverViolations,
 } from './profile-rules.js';
 
-import type { RecordedProfile } from '#drivers/contracts';
+import type { RecordedProfile } from '#drivers/providers/recorded';
 
 import type { AgentId, HarnessId, NetworkId, ProviderId } from './catalog.js';
-
-export { isDriverId } from './profile-rules.js';
 
 /** a workstation's complete driver selection */
 export interface WorkstationProfile {
@@ -85,7 +83,7 @@ export type ProfileField =
   'provider' | 'agent' | 'harnesses' | 'network' | keyof ProfileOptions;
 
 /** class of one profile violation */
-export type ProfileViolationCode =
+type ProfileViolationCode =
   | 'malformed'
   | 'unknown-driver'
   | 'no-harness'
@@ -107,7 +105,7 @@ export interface ProfileViolation {
 }
 
 /** a profile that passed validation */
-export interface ValidProfile {
+interface ValidProfile {
   /** discriminator */
   isValid: true;
   /** the validated profile */
@@ -115,7 +113,7 @@ export interface ValidProfile {
 }
 
 /** a profile rejected with every violation found */
-export interface InvalidProfile {
+interface InvalidProfile {
   /** discriminator */
   isValid: false;
   /** every violation found across drivers */
@@ -123,7 +121,7 @@ export interface InvalidProfile {
 }
 
 /** outcome of profile validation */
-export type ProfileValidation = ValidProfile | InvalidProfile;
+type ProfileValidation = ValidProfile | InvalidProfile;
 
 /** default options reproducing today's workstation */
 export const DEFAULT_PROFILE_OPTIONS: Readonly<ProfileOptions> = {

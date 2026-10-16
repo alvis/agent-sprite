@@ -1,5 +1,5 @@
-import { environmentProblem } from './environment-validation.js';
-import { ENVIRONMENT_SCHEMA } from './environment.js';
+import { ENVIRONMENT_SCHEMA } from './contracts.js';
+import { environmentProblem } from './validation.js';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { AcpAdapterSpec, ProviderDeclaration } from '#drivers/contracts';
@@ -12,6 +12,8 @@ import type {
   ToolSpec,
 } from '#tools/contracts';
 
+import type { GuestNetworkIdentity } from '../run.js';
+
 import type {
   EnvironmentHarness,
   EnvironmentNetwork,
@@ -20,11 +22,10 @@ import type {
   EnvironmentTool,
   GuestEnvironment,
   SkippedTool,
-} from './environment.js';
-import type { GuestNetworkIdentity } from './types.js';
+} from './contracts.js';
 
 /** what {@link buildEnvironment} records */
-export interface EnvironmentParams {
+interface EnvironmentParams {
   /** the running open-agent version */
   version: string;
   /** when setup finished, as an ISO 8601 timestamp */

@@ -1,17 +1,17 @@
 import { OS_FAMILIES } from '#os/families';
 
+import { sessionGuest } from './session/channel.js';
 import { openWorkstationSession } from './session/open.js';
-import { sessionGuest } from './session-guest.js';
 
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 import type { GuestExecResult } from '#drivers/guest-channel';
 import type { OsRelease } from '#os/contracts';
 
+import type { SessionGuest } from './session/channel.js';
 import type { GuestSession, SessionCommand } from './session/contracts.js';
-import type { SessionGuest } from './session-guest.js';
 
 /** the provider facts a setup connection opens sessions with */
-export type ConnectionProvider = Pick<
+type ConnectionProvider = Pick<
   ProviderDriver,
   | 'images'
   | 'awaitGuestReady'

@@ -1,8 +1,8 @@
 import {
   ensurePrivateDirectory,
-  readJsonObject,
   writeOwnedFile,
-} from '#integrations/native/configuration';
+} from '#integrations/guest/account';
+import { readJsonObject } from '#integrations/native/configuration';
 
 import {
   HOOK_TIMEOUT_SECONDS,

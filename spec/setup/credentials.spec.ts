@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { retainManagementCredential } from '#input';
+import { retainManagementCredential } from '#input/prompts';
 import { readLocalCredential } from '#integrations/credentials';
 import { setupLocalCredential } from '#setup/credentials';
 

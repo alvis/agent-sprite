@@ -6,7 +6,7 @@ import { harnessDrivers, harnessIds } from '#core/harnesses';
 import type { FC, ReactElement } from 'react';
 
 /** props for a grouped, already redacted command result */
-export type ResultDetailsProps = {
+type ResultDetailsProps = {
   title: string;
   value: unknown;
 };
@@ -32,7 +32,6 @@ const FIELD_LABELS: Record<string, string> = {
   'gh': 'GitHub CLI',
   'jj': 'Jujutsu',
   'node': 'Node.js',
-  'guest-node': 'open-agent Node.js',
   'python3': 'Python',
   'httpie': 'HTTPie',
   'rust': 'Rust',

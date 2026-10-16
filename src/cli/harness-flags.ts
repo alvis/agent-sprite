@@ -36,17 +36,11 @@ type PluginChangeFlagKey =
   | `uninstall${Embedded}Plugin`;
 
 /** per-harness plugin selection flags, named from each harness id */
-export type HarnessPluginFlags = Record<
-  `${HarnessId}Plugins`,
-  PairedBooleanFlag
-> &
+type HarnessPluginFlags = Record<`${HarnessId}Plugins`, PairedBooleanFlag> &
   Record<RepeatablePluginFlagKey, RepeatableFlag>;
 
 /** setup-only per-harness plugin change flags, named from each harness id */
-export type HarnessPluginChangeFlags = Record<
-  PluginChangeFlagKey,
-  RepeatableFlag
->;
+type HarnessPluginChangeFlags = Record<PluginChangeFlagKey, RepeatableFlag>;
 
 /** parsed values of the per-harness plugin selection flags */
 export type HarnessPluginSelectionValues = Partial<

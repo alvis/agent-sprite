@@ -20,7 +20,7 @@ const DEFAULT_ATTEMPTS = 3;
 const REASON_LENGTH = 500;
 
 /** what a plan runs with */
-export interface PlanParams {
+interface PlanParams {
   /** the steps, in any order their needs allow */
   steps: readonly SetupStep[];
   /**
@@ -163,7 +163,7 @@ class SessionSlot {
  * @returns the steps in run order
  * @throws {Error} when an id repeats, a need names no step, or needs form a cycle
  */
-export function orderSteps(steps: readonly SetupStep[]): SetupStep[] {
+function orderSteps(steps: readonly SetupStep[]): SetupStep[] {
   const ids = new Set<string>();
   for (const step of steps) {
     if (ids.has(step.id)) {

@@ -25,7 +25,7 @@ export const HOMEBREW_STEP = 'homebrew';
  * as systemd-sysusers and `useradd --system` do and from 100 up as `adduser
  * --system` does, so the bootstrap packages leave them free
  */
-export const HOMEBREW_ACCOUNT_IDS = { uid: 900, gid: 900 } as const;
+const HOMEBREW_ACCOUNT_IDS = { uid: 900, gid: 900 } as const;
 
 /** longest one command of the Homebrew step may take: the installer clones Homebrew */
 const HOMEBREW_LIMIT_MS = 1_200_000;
@@ -33,7 +33,7 @@ const HOMEBREW_LIMIT_MS = 1_200_000;
 const BOTTLE_PROBE_LIMIT_MS = 600_000;
 
 /** what the Homebrew step is built with */
-export interface HomebrewStepParams {
+interface HomebrewStepParams {
   /** the guest's OS family, whose shell and library the step uses */
   family: Pick<OsFamily, 'shell' | 'library'>;
   /** system packages Homebrew needs first, as the family reported them */

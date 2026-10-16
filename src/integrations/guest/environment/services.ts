@@ -1,14 +1,14 @@
 import { cronService } from '#services/cron';
 
-import { governorJobs } from './awake.js';
-import { UPDATE_JOB } from './updates.js';
+import { governorJobs } from '../awake.js';
+import { UPDATE_JOB } from '../updates.js';
 
 import type { ProviderCapabilities } from '#drivers/contracts';
 import type { ServiceDefinition } from '#drivers/guest-channel';
 import type { NetworkDriver } from '#drivers/networks/contracts';
 import type { PeriodicJob } from '#os/contracts';
 
-import type { EnvironmentNetwork } from './environment.js';
+import type { EnvironmentNetwork } from './contracts.js';
 
 /**
  * lists the services environment.json records for the backend to run: cron,

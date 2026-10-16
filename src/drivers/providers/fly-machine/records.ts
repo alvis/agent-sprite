@@ -12,7 +12,7 @@ import type { FlyMachine } from './wire.js';
  * @param app name of the workstation app
  * @returns absolute https URL
  */
-export function appUrl(app: string): string {
+function appUrl(app: string): string {
   return `https://${app}.fly.dev`;
 }
 

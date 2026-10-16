@@ -9,13 +9,13 @@ import {
 import { ensureTailnetDaemon } from './daemon.js';
 import { inspectTailscale } from './status.js';
 
+import type { GuestChannel } from '#drivers/guest-channel';
 import type {
   NetworkCleanup,
   NetworkCleanupParams,
   NetworkStaleDeviceParams,
   NetworkTargetParams,
-} from '#drivers/contracts';
-import type { GuestChannel } from '#drivers/guest-channel';
+} from '#drivers/networks/contracts';
 
 import type { TailnetStatus } from './types.js';
 

@@ -23,7 +23,7 @@ import { SpriteGuestChannel } from '#drivers/providers/sprite/channel';
 import { SpriteProvider } from '#drivers/providers/sprite/provider';
 import { toRecord } from '#drivers/providers/sprite/records';
 import { SetupConnection } from '#integrations/guest/connection';
-import { sessionGuest } from '#integrations/guest/session-guest';
+import { sessionGuest } from '#integrations/guest/session/channel';
 import { HOMEBREW_GH } from '#tools/accounts';
 
 import { standInSession } from './session.js';
@@ -35,7 +35,7 @@ import type {
 } from '@fly/sprites';
 
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
-import type { SessionGuest } from '#integrations/guest/session-guest';
+import type { SessionGuest } from '#integrations/guest/session/channel';
 
 // the agent services core lets a provider stop and restore, as core binds them
 const restorableServices = Object.values(catalog.agents).map(

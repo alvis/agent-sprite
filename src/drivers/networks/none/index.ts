@@ -1,9 +1,9 @@
+import type { ReadinessFinding } from '#drivers/contracts';
 import type {
   NetworkCleanup,
   NetworkDriver,
   NetworkStatus,
-  ReadinessFinding,
-} from '#drivers/contracts';
+} from '#drivers/networks/contracts';
 
 /** why the workstation reports no network, and why it cannot use one */
 const NOT_SELECTED = 'No private network is selected';

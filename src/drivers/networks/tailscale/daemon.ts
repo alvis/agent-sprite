@@ -1,4 +1,5 @@
-import { guestFileExists, runGuest } from '#integrations/guest';
+import { guestFileExists } from '#integrations/guest/files';
+import { runGuest } from '#integrations/guest/run';
 
 import {
   tailscaleCommand,
@@ -38,7 +39,7 @@ export async function restoreTailnetDns(guest: GuestChannel): Promise<void> {
 }
 
 /** credential, exit-node selector and device name for one enrollment */
-export interface TailnetEnrollParams {
+interface TailnetEnrollParams {
   /** single-use enrollment credential */
   authKey: Secret;
   /** requested exit-node selector */
