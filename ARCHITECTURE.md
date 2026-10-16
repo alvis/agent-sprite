@@ -53,10 +53,10 @@ flowchart LR
    - a **network** enrolls the guest in a private network and cleans it up (`none`, `tailscale`).
 4. **Host-driven setup** ([ADR-15](docs/architecture/decisions/workstation/adr-15-host-driven-guest-setup.md)): the host sets a guest up by sending checked commands over the provider's guest channel. It is built from three layers:
    - the **provider** (`src/drivers/providers/`): provisioning, the guest channel, its OS `images`, its `serviceBackend`, `openRootShell`, `awaitGuestReady` and an optional boot hook;
-   - the **OS family** (`src/os/`): `debian/lib.sh` (packages, repositories, accounts, replay) and the service backends (`runit`, `cron`, `provider`);
+   - the **OS family** (`src/os/`, `guest/os/`): `debian/lib.sh` (packages, repositories, accounts, replay), and beside it the service backends (`src/services/`: `runit`, `cron`, `provider`);
    - the **tool contract** (`src/tools/`): one `ToolSpec` per tool, with its `brew`, `system`, `npm` or `rustup` sources in preference order.
 
-   The guest keeps only small POSIX `sh` programs for self-maintenance (`src/guest/`, the OS and tool layers, and the drivers' own `guest/` folders).
+   The guest keeps only small POSIX `sh` programs for self-maintenance (the top-level `guest/` tree).
 
 A provider differs from another only by the data in its `ProviderCapabilities` (`src/drivers/contracts.ts`): how core reaches the guest (`guestChannel`), who decides when it sleeps (`keepAwakeMode`), whether a resize restarts it, and so on. Its `images` and `serviceBackend` are declared beside them on the driver. Core code branches on those, never on a provider's name. [ADR-9](docs/architecture/decisions/workstation/adr-9-typed-driver-catalog.md) records why.
 
@@ -64,32 +64,32 @@ A provider differs from another only by the data in its `ProviderCapabilities` (
 
 ## 📂 Directory Map
 
-| Path                             | What lives there                                                                                                                                                                                         |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bin/cli.mjs`                    | The installed executable; runs the compiled entry `lib/cli/index.js`, reports an unhandled failure generically, then sets the exit status and exits                                                      |
-| `src/cli/`                       | Stricli commands (`commands.ts`), flags (`flags.ts`), argument rewriting (`parser.ts`), execution and cancellation (`execute.ts`), output, JSON serialization and the Ink interaction bridge             |
-| `src/components/`                | Every React/Ink view and prompt; components render and collect input but never call a provider                                                                                                           |
-| `src/core/`                      | The driver catalog, ids, the profile and its rules, selection inputs (`selection-inputs.ts`), provider binding and lookup, preflight and derived service names                                           |
-| `src/drivers/<kind>/<id>/`       | One folder per driver: its `index.ts`, host code and, when it runs anything on the guest, `guest/`                                                                                                       |
-| `src/drivers/<kind>/<id>/guest/` | The driver's guest `sh` programs: launchers, awake adapters and, on Fly Machines, the boot stub and boot hook                                                                                            |
-| `src/drivers/shared/`            | Profile-level options several drivers use, such as `cliproxyapi/` (the proxy hub client and its guest probe) and shared prerequisite checks                                                              |
-| `src/guest/`                     | Guest `sh` programs every provider shares: `awake.sh` (idle governor), `update-gate.sh` and `updater.sh`, plus `assets.ts` (how a program is read from the package) and `guest-root.ts`                  |
-| `src/os/`                        | OS families and service backends: `debian/` (`lib.sh`, `update-system.sh`) and `services/` (`runit/`, `cron`, `provider`)                                                                                |
-| `src/tools/`                     | The tool contract: `ToolSpec`, the base tool set, the source resolver, Homebrew's account and `links.sh`, and the `homebrew`, `npm` and `rustup` helper libraries                                        |
-| `src/input/`                     | Input resolution: credential sources, dotenv, process environment, saved profile, prompts and driver selection (`selection*.ts`)                                                                         |
-| `src/create/`                    | The create workflow's steps: preflight, configuration, the create hold, readiness, exposure, pairing and failure recovery                                                                                |
-| `src/setup/`                     | The setup workflow's sections (`sections.ts`, `all.ts`, `network.ts`, `plugins.ts`, `resize.ts`) and incomplete-setup recovery                                                                           |
-| `src/integrations/`              | Narrow boundaries to the outside: local credentials and the clipboard, the guest (`guest/`: session, setup plan, `environment.json`, updates, inspection) and native Claude/Codex/GitHub/Git (`native/`) |
-| `src/workstation/`               | Shared configuration order, provider location and the action menu                                                                                                                                        |
-| `src/*.ts`                       | Root workflows and contracts: `workstation.ts` (dispatch), `create.ts`, `setup.ts`, `inspect.ts`, `terminate.ts`, `operation.ts`, `errors.ts`, `validation.ts`, `readiness.ts`                           |
-| `scripts/`                       | `packed-cli.ts`, which builds, packs and installs the package to run it (`pnpm run local`, `pnpm test:e2e`, `pnpm test:live`); `source-hooks.ts` and `process-group.ts` support it                       |
-| `spec/`                          | Unit specs mirroring `src/`, `spec/e2e/` for the packed CLI and guest programs, `spec/live/` for real providers, plus `fixtures/` and `mocks/`                                                           |
-| `docs/architecture/`             | The runtime reference ([workstation.md](docs/architecture/workstation.md)) and the ADRs                                                                                                                  |
+| Path                       | What lives there                                                                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bin/cli.mjs`              | The installed executable; runs the compiled entry `lib/cli/index.js`, reports an unhandled failure generically, then sets the exit status and exits                                                                                        |
+| `src/cli/`                 | Stricli commands (`commands.ts`), flags (`flags.ts`), argument rewriting (`parser.ts`), execution and cancellation (`execute.ts`), output, JSON serialization and the Ink interaction bridge                                               |
+| `src/components/`          | Every React/Ink view and prompt; components render and collect input but never call a provider                                                                                                                                             |
+| `src/core/`                | The driver catalog, ids, the profile and its rules, selection inputs (`selection-inputs.ts`), provider binding and lookup, preflight and derived service names                                                                             |
+| `src/drivers/<kind>/<id>/` | One folder per driver: its `index.ts` and host code. Its guest `sh` programs live under `guest/drivers/<kind>/<id>/`                                                                                                                       |
+| `src/drivers/shared/`      | Profile-level options several drivers use, such as `cliproxyapi/` (the proxy hub client and its guest probe) and shared prerequisite checks                                                                                                |
+| `guest/`                   | Every guest `sh` program, at the path it installs to under `/opt/open-agent` and shipped as it is: `governor/`, `maintenance/`, `services/`, `accounts/`, `os/`, `tools/` and `drivers/<kind>/<id>/`                                       |
+| `src/os/`                  | OS families: the contracts, the families setup supports and `debian/family.ts`                                                                                                                                                             |
+| `src/services/`            | Service backends: `runit/`, `cron` and `provider`                                                                                                                                                                                          |
+| `src/tools/`               | The tool contract: `ToolSpec`, the base tool set, the source resolver, Homebrew's account and the declarations of the helper libraries under `guest/tools/`                                                                                |
+| `src/input/`               | Input resolution: credential sources, dotenv, process environment, saved profile, prompts and driver selection (`selection*.ts`)                                                                                                           |
+| `src/create/`              | The create workflow's steps: preflight, configuration, the create hold, readiness, exposure, pairing and failure recovery                                                                                                                  |
+| `src/setup/`               | The setup workflow's sections (`sections.ts`, `all.ts`, `network.ts`, `plugins.ts`, `resize.ts`) and incomplete-setup recovery                                                                                                             |
+| `src/integrations/`        | Narrow boundaries to the outside: local credentials and the clipboard, the guest (`guest/`: session, setup plan, `environment.json`, updates, inspection, plus `layout.ts` and `assets.ts`) and native Claude/Codex/GitHub/Git (`native/`) |
+| `src/workstation/`         | Shared configuration order, provider location and the action menu                                                                                                                                                                          |
+| `src/*.ts`                 | Root workflows and contracts: `workstation.ts` (dispatch), `create.ts`, `setup.ts`, `inspect.ts`, `terminate.ts`, `operation.ts`, `errors.ts`, `validation.ts`, `readiness.ts`                                                             |
+| `spec/`                    | Unit specs mirroring `src/`, plus `fixtures/` and `mocks/`                                                                                                                                                                                 |
+| `e2e/`                     | End-to-end specs (`*.spec.e2e.ts`) that drive the packed CLI, `setup.ts` (build, pack, install, sweeps) and `machines/`, the helpers the machine specs share                                                                               |
+| `docs/architecture/`       | The runtime reference ([workstation.md](docs/architecture/workstation.md)) and the ADRs                                                                                                                                                    |
 
 Two rules keep the folders honest ([ADR-9](docs/architecture/decisions/workstation/adr-9-typed-driver-catalog.md), [ADR-11](docs/architecture/decisions/workstation/adr-11-workflow-and-selection-layout.md), [ADR-15](docs/architecture/decisions/workstation/adr-15-host-driven-guest-setup.md)):
 
 - **Driver isolation**: a concrete driver name appears only in its own folder and `src/core/catalog.ts`. Drivers make only type imports from core.
-- **Guest boundary**: a guest program is a `.sh` file the host reads as an asset (`guestAsset` in `src/guest/assets.ts`) and sends to the guest; no host module runs one. A few constants, such as the guest root and the Fly boot paths, appear in both and are kept in step by review.
+- **Guest boundary**: a guest program is a `.sh` file under `guest/` that the host reads as an asset (`guestAsset` in `src/integrations/guest/assets.ts`) and sends to the guest; no host module runs one. Guest paths, such as the guest root and the agent's home, are defined once in `src/integrations/guest/layout.ts`, and `readAsset` hands them to every program as `OA_*` variables after its shebang, so no program spells a path itself.
 
 No lint rule enforces these; reviewers check them by repository search.
 
@@ -103,9 +103,11 @@ No lint rule enforces these; reviewers check them by repository search.
 | Input resolution, credential sources and the saved provider token                   | The tools Homebrew, apt, npm and rustup installed, and the agent service (`t3-code`)                       |
 | Provider management: the Sprites SDK, or the Fly Machines API and `fly ssh console` | `tailscaled` when selected, `cron` as `open-agent-cron`, and on a Fly Machine `runit` and the boot hook    |
 | The `GuestSession` and the setup plan, which drive every guest change               | `/opt/open-agent/environment.json` and `update-status.json`, the records the guest programs read and write |
-| Tailscale management: device lookup, key minting, deletion                          | The provider's boot stub on a Fly Machine, and on a Sprite the provider's own services                     |
+| Tailscale management: device lookup, key minting, deletion                          | The init stub (`init.sh`) on a Fly Machine, and on a Sprite the provider's own services                    |
 | Preflight, readiness assessment and the decision to expose the agent                |                                                                                                            |
-| Live run cleanup and the `oa-live-*` sweep                                          |                                                                                                            |
+| End-to-end run cleanup and the `oa-e2e-*` sweep                                     |                                                                                                            |
+
+Inputs resolve in one order: flags, then credential references (`env:`, `file:`, `keychain:`), then the `--env-file` dotenv file, then the process environment, then the saved profile, prompts and defaults. The provider, the selected network, the CLIProxyAPI gateway (base URL and API key), the GitHub token and the Git identity each declare the inputs they need, and a command checks the ones it uses, setup included, before it changes anything. Every absent input is reported at once with its fix, in one wording: "Set X or pass --env-file FILE containing X; use --flag; or run in a TTY to enter it when prompted."
 
 Management credentials (`SPRITES_TOKEN`, `FLY_API_TOKEN`, `TAILSCALE_API_KEY`) never leave your computer. A Tailscale enrollment key reaches the guest only as a step input, and never touches a disk. GitHub and CLIProxyAPI client credentials are the exception: they are stored on purpose in protected native configuration on the guest.
 
@@ -123,7 +125,7 @@ The **setup plan** (`src/integrations/guest/plan/`) is a list of typed `SetupSte
 
 `createWorkstation` in `src/create.ts` runs four traced stages:
 
-1. **Preflight** (`create.preflight`, `src/create/preflight.ts`): resolve inputs, validate the profile, check provider prerequisites and network facts, resolve every tool against the provider's declared image, and report every fixable problem in one `INPUT` error before anything is provisioned. A required tool with no usable source is refused here.
+1. **Preflight** (`create.preflight`, `src/create/preflight.ts`): resolve inputs, validate the profile, check the declared prerequisites of the provider, network and gateway and the network's facts, resolve every tool against the provider's declared image, and report every fixable problem in one `INPUT` error before anything is provisioned. A required tool with no usable source is refused here.
 2. **Provision** (`create.provider`): the provider creates a private machine sized by `pickMachine` (`src/drivers/machine-sizes.ts`), the smallest offer meeting the minimums.
 3. **Configure** (`src/create/configure.ts`): open a `GuestSession`, check the guest's OS family against the provider's declaration, then run the plan: guest libraries, boot hook, accounts, packages, Homebrew, one step per tool, the governor's directories and `environment.json` (state `incomplete`), network enrolment, native harness and account configuration, then the agent and maintenance services. A managed `create` hold (`src/create/hold.ts`) keeps the machine awake throughout.
 4. **Finish** (`src/create/finish.ts`): wait until the agent serves, expose it publicly, mark `environment.json` ready and set the provider's `ready` label, and only then mint a pairing code when `--with-pair-code` asked for one.
@@ -132,7 +134,7 @@ A failure after provisioning keeps the machine, marks it incomplete and reports 
 
 ### Setup
 
-`setup` finds the workstation, checks the management labels, refuses one a newer open-agent set up, reads the recorded profile from `/opt/open-agent/environment.json` (`src/setup/recorded.ts`) and runs only the selected sections in `src/setup/sections.ts`, each as plan steps in a session. The provider and agent are fixed; `--section all` may change harnesses, network, release channel and options. `--cpu`/`--mem` resize through `src/setup/resize.ts`, which asks first when the provider declares `resizeRestarts`. A targeted section never marks the workstation ready; only a full setup does.
+`setup` finds the workstation, checks the management labels, refuses one a newer open-agent set up, reads the recorded profile from `/opt/open-agent/environment.json` (`src/setup/recorded.ts`) and runs only the selected sections in `src/setup/sections.ts`, each as plan steps in a session. The provider and agent are fixed; `--section all` may change harnesses, network, release channel and options. `--cpu`/`--mem` resize through `src/setup/resize.ts`, which asks first when the provider declares `resizeRestarts`. A targeted section never marks the workstation ready; only a full setup does. `--section env` writes a runtime environment file to the guest: without `--env-file` it asks for a path in a terminal, and without a terminal it skips the section, reports it as `skipped` and exits 0.
 
 ### Downgrade refusal
 
@@ -149,14 +151,14 @@ Maintenance installs in place and never touches a service ([ADR-12](docs/archite
 
 ### Idle
 
-One idle governor (`src/guest/awake.sh`) decides when the workstation may sleep ([ADR-13](docs/architecture/decisions/workstation/adr-13-idle-governor.md), now in `sh`). Harness hooks run `/opt/open-agent/guest/awake.sh`: a prompt opens a turn hold, each tool call is a heartbeat, the end of a turn closes it. Managed work, including a setup session, opens managed holds. The deadline is the later of the last heartbeat plus `idleTimeoutMinutes` and the latest open hold, and no hold outlives `holdMaxMinutes`. The provider's awake adapter applies it:
+One idle governor (`guest/governor/awake.sh`) decides when the workstation may sleep ([ADR-13](docs/architecture/decisions/workstation/adr-13-idle-governor.md), now in `sh`). Harness hooks run `/opt/open-agent/guest/awake.sh`: a prompt opens a turn hold, each tool call is a heartbeat, the end of a turn closes it. Managed work, including a setup session, opens managed holds. The deadline is the later of the last heartbeat plus `idleTimeoutMinutes` and the latest open hold, and no hold outlives `holdMaxMinutes`. The provider's awake adapter applies it:
 
-- **Sprite** (`native-deadline`): `sprite-awake.sh`, run as the agent account, mirrors the deadline into a Sprite task, so the idle and hold limits are capped at 60 minutes.
-- **Fly Machine** (`governed`): cron runs the governor's `tick` as root every minute; once the deadline passes, `fly-machine-awake.sh` suspends the machine through the `/.fly/api` socket, or stops it when a suspend is ruled out or refused.
+- **Sprite** (`native-deadline`): `guest/drivers/providers/sprite/awake.sh`, run as the agent account, mirrors the deadline into a Sprite task, so the idle and hold limits are capped at 60 minutes.
+- **Fly Machine** (`governed`): cron runs the governor's `tick` as root every minute; once the deadline passes, `guest/drivers/providers/fly-machine/awake.sh` suspends the machine through the `/.fly/api` socket, or stops it when a suspend is ruled out or refused.
 
 ### Cold boot (Fly Machine)
 
-A Fly Machine is created from `debian:bookworm-slim` with `persist_rootfs: "always"`, so its root filesystem survives a restart and a normal cold boot installs nothing ([ADR-15](docs/architecture/decisions/workstation/adr-15-host-driven-guest-setup.md)). The machine configuration holds only a stub, `/usr/local/sbin/open-agent-boot` (`src/drivers/providers/fly-machine/guest/boot-stub.sh`), which runs the boot hook on the volume, `boot.sh`, so setup can update the hook without a restart. On every boot the hook:
+A Fly Machine is created from `debian:bookworm-slim` with `persist_rootfs: "always"`, so its root filesystem survives a restart and a normal cold boot installs nothing ([ADR-15](docs/architecture/decisions/workstation/adr-15-host-driven-guest-setup.md)). The machine configuration holds only the machine's init, `/usr/local/sbin/open-agent-boot` (`guest/drivers/providers/fly-machine/init.sh`), which runs the boot hook on the volume, `boot.sh`, so setup can update the hook without a restart. On every boot the hook:
 
 1. checks the `/data` volume and binds `/data/open-agent`, `/data/home/agent`, `/data/home/linuxbrew` and `/data/apt` over `/opt/open-agent`, `/home/agent`, `/home/linuxbrew` and apt's lists;
 2. recreates the `agent` and `linuxbrew` accounts under their original ids;
@@ -174,12 +176,12 @@ Use an existing driver of the same kind as your template: `src/drivers/networks/
 
 1. **Create the folder** `src/drivers/<kind>/<id>/` with an `index.ts` that exports a driver typed by its kind's contract, such as `NetworkDriver<'<id>'>` or `ProviderDriver<'<id>'>` from `src/drivers/contracts.ts`. Keep every reference to the driver's name inside this folder.
 2. **Declare capabilities as data.** A provider fills `ProviderCapabilities`, its `machines` offers and its `prerequisites` (host tools and the credential's environment name, as in `src/drivers/providers/sprite/prerequisites.ts`). It also declares its OS `images` (family, release, architectures), its `serviceBackend`, `openRootShell`, `awaitGuestReady` and, if the machine resets something on boot, a `bootHook`. If core would need an `if (provider === …)`, add a capability instead and record it in an ADR.
-3. **Add tools and guest programs, if any.** A harness, agent or network describes what it installs as `ToolSpec`s (`src/tools/contracts.ts`) with `sources` in preference order, so it reuses an OS family and needs no installer. A launcher, hook or adapter is a POSIX `sh` file under the driver's `guest/` folder, declared with `guestAsset(path, mode)` (`src/guest/assets.ts`). It reads JSON with `jq`, passes `shellcheck` in `lint:check` with no suppression and is installed root-owned.
+3. **Add tools and guest programs, if any.** A harness, agent or network describes what it installs as `ToolSpec`s (`src/tools/contracts.ts`) with `sources` in preference order, so it reuses an OS family and needs no installer. A launcher, hook or adapter is a POSIX `sh` file at `guest/drivers/<kind>/<id>/`, declared with `guestAsset(path, mode)` (`src/integrations/guest/assets.ts`), where `path` is relative to `guest/`. It reads JSON with `jq`, uses the `OA_*` variables for every guest path, passes `shellcheck` in `lint:check` with no suppression and is installed root-owned.
 4. **Register the driver** in `src/core/catalog.ts`: import it, give it a typed constant, and add it to its kind's record. The `satisfies` checks fail to compile until the catalog holds the ids. Flag choices and help text then pick it up.
 5. **Wire inputs** a new option needs into `src/core/selection-inputs.ts` and `src/input/`; credentials use the `env:`, `file:` and `keychain:` source references.
-6. **Test it**: unit specs in `spec/drivers/<kind>/<id>/` mirroring the source, the packed guest-program checks in `spec/e2e/guest-assets.spec.e2e.ts` and `guest-programs.spec.e2e.ts`, and a live run before you call it done.
-7. **Add an OS family or service backend instead, if that is what is new.** A family adds its `lib.sh` and updater fragment under `src/os/<family>/` and a `system` source on each tool Homebrew cannot provide there. A backend adds its service and job installer under `src/os/services/`.
-8. **Document it**: the README's support matrix, prerequisites and environment table, and `.env.example`.
+6. **Test it**: unit specs in `spec/drivers/<kind>/<id>/` mirroring the source, and, for a provider, an end-to-end spec in `e2e/` that runs the shared machine suite; run it before you call the driver done.
+7. **Add an OS family or service backend instead, if that is what is new.** A family adds its `family.ts` under `src/os/<family>/`, its `lib.sh` and updater fragment under `guest/os/<family>/`, and a `system` source on each tool Homebrew cannot provide there. A backend adds its service and job installer under `src/services/`.
+8. **Document it**: the README's support matrix, prerequisites and environment table, `.env.example`, and `.env.test.example` for any credential the end-to-end suite needs.
 
 ---
 
@@ -187,7 +189,7 @@ Use an existing driver of the same kind as your template: `src/drivers/networks/
 
 | Path                                             | Contents                                                                                                                                                       |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/opt/open-agent`                                | The guest root: the `sh` programs setup installed (`guest/`, `os/`, `tools/`, `drivers/`), all root-owned                                                      |
+| `/opt/open-agent`                                | The guest root: the `sh` programs setup installed, mirroring the package's `guest/` tree, all root-owned                                                       |
 | `/opt/open-agent/environment.json`               | The one record setup leaves: version, setup state, OS family, resolved tools, update schedule, governor and launch facts                                       |
 | `/opt/open-agent/update-status.json`             | The updater's last run: each tool's outcome and versions, and the last success (`update.log` beside it is its log)                                             |
 | `/run/open-agent-session/session.lock`           | The setup session's lock, root-only, which the hourly update gate also takes                                                                                   |
@@ -206,20 +208,22 @@ Live facts, such as name, id, organization and URL, come from the provider; the 
 
 ## 🧪 Testing
 
-| Command              | Project               | What it proves                                                                                                     |
-| -------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `pnpm test`          | `open-agent:UNIT`     | Specs under `spec/` mirroring `src/`; only `@fly/sprites` and the Fly Machines API (through `fetch`) are replaced  |
-| `pnpm test:e2e`      | `open-agent:E2E`      | Builds, packs and installs the package, then drives the installed CLI in a real PTY and runs the guest programs    |
-| `pnpm test:live`     | `open-agent:LIVE`     | Creates, configures and terminates real workstations on the provider `OPEN_AGENT_LIVE_PROVIDER` (default `sprite`) |
-| `pnpm test:live:fly` | `open-agent:LIVE-FLY` | The Fly Machine probe: creates, serves, suspends, resumes, cold-boots, updates and deletes real machines           |
+| Command                                              | Project           | What it proves                                                                                                                                                                                          |
+| ---------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test`                                          | `open-agent:UNIT` | Specs under `spec/` mirroring `src/`; only `@fly/sprites` and the Fly Machines API (through `fetch`) are replaced                                                                                       |
+| `pnpm test:e2e [cli\|automation-progress]`           | `open-agent:E2E`  | The installed CLI, driven with no terminal and no credentials: parsing, output, exit codes and cancellation                                                                                             |
+| `pnpm test:e2e sprite` / `pnpm test:e2e fly-machine` | `open-agent:E2E`  | One real machine type: the shared suite creates, configures, runs and terminates real workstations, plus each provider's own probe (the Sprite awake task; Fly's suspend, resume, cold boot and update) |
 
-Unit specs never mock native file merging, parsers, processes or Ink; they use real temporary files. The guest `sh` programs have no unit specs: `lint:check` runs `sh -n` and `shellcheck`, `spec/e2e` checks that the packed programs match the source and exercises them, and live runs prove the rest. The vitest projects are generated by Presetter from `presetter.config.ts`.
+Unit specs never mock native file merging, parsers, processes or Ink; they use real temporary files. The guest `sh` programs have no unit specs: `lint:check` runs `sh -n` and `shellcheck` over `guest/`, and the machine specs run them on a real guest. The vitest projects come from Presetter's configuration unchanged, plus the committed `vitest.config.e2e.ts`; an argument to `pnpm test:e2e` picks a spec file by name.
 
-Live runs spend real money and touch real accounts; run them only with the owner's approval. They read `.env`, or the file `OPEN_AGENT_LIVE_ENV` names, and refuse to start without the needed credential (`FLY_API_TOKEN` for the Fly probe). Cleanup rules:
+`e2e/setup.ts` runs once per run: it loads `.env.test`, builds, packs and installs the package into a temporary run home exactly as a user installs it, and then sweeps. Every spec drives that installed CLI, never the checkout.
 
-- **Run prefix**: each run gets an id `oa-live-<8 hex digits>`, and every workstation it creates carries it. Cleanup only ever touches names inside that prefix.
-- **Guaranteed removal**: each workstation is terminated through the CLI, deleted directly if that fails, and then proven absent from the provider and the tailnet (`spec/live/cleanup.ts`).
-- **Sweep**: a run that does not finish cleanly is swept again automatically. If that sweep fails too, rerun it yourself with `OPEN_AGENT_LIVE_RUN_ID=oa-live-<id> OPEN_AGENT_LIVE_SWEEP=1 pnpm test:live` (or `test:live:fly`), and check the provider console before leaving.
+End-to-end machine runs spend real money and touch real accounts; run them only with the owner's approval.
+
+- **Credentials**: they live in `.env.test`, which is gitignored; `.env.test.example` documents every `TEST_*` variable. Values already in the environment win over the file. The CLI receives each `TEST_X` as `X`, in a minimal environment of its own (`PATH`, an isolated `HOME` and the credentials), so specs pass no `--env-file` for credentials. A machine spec without its provider token fails with the CLI's own preflight message.
+- **Run prefix**: each run gets an id `oa-e2e-<8 hex digits>`, and every workstation it creates carries it. Each run keeps its flyctl configuration in its own directory under the run home, which is removed at the end.
+- **Start sweep**: whenever any provider token is set, a run first removes every `oa-e2e-*` workstation and tailnet device its credentials reach, whichever run left it. Use an account whose `oa-e2e-*` workstations all belong to the suite.
+- **Cleanup**: at the end of a run, or on an interrupt, cleanup is best effort. It sends every delete request once, then prints either `cleanup successful` or the workstations to check by hand. Rerunning `pnpm test:e2e cli` with the same credentials sweeps what remains.
 
 ---
 
@@ -227,23 +231,25 @@ Live runs spend real money and touch real accounts; run them only with the owner
 
 ### Common Tasks
 
-- **Run the CLI from the checkout**: `pnpm run local -- <command> --help`. It always runs the packed, installed package, so source and package aliases never mix ([ADR-8](docs/architecture/decisions/workstation/adr-8-source-and-packed-import-aliases.md)).
+- **Run the CLI from the checkout**: `pnpm run local -- <command> --help`. The `local` script builds, packs and installs the package into a temporary directory, runs the installed bin with your arguments and removes the directory. It always runs the packed package, so source and package aliases never mix.
+- **Import with the aliases**: `#*` maps to `src/*.ts` and `#components/*` to `src/components/*.tsx` in the checkout; `publishConfig.imports` maps the same keys to `lib/*.js` and `lib/components/*.js` in the tarball. Relative and `#*` imports carry no extension; the build adds `.js`. The checkout's compiled bin cannot run, so tests exercise the packed publication (`e2e/setup.ts` builds, packs and installs it) and never rewrite aliases.
 - **Change tooling configuration**: edit `presetter.config.ts`; `eslint.config.ts`, `vitest.config.ts` and the tsconfig files are generated from it.
 - **Add a managed developer tool**: add a `ToolSpec` to the base set in `src/tools/base.ts`, with a `brew` source first and a `system` source where Homebrew has no bottle. The boot hook needs no change because it restores the links `environment.json` records.
-- **Change a guest program**: setup reads each `.sh` from the installed package and writes it to the guest, so the next `setup` from a rebuilt package deploys the change. A change to the Fly boot hook reaches a machine on its next `setup` and takes effect at the next boot; the boot stub is written into the machine configuration at creation, so a change to it reaches only machines created afterwards.
-- **Check before a pull request**: `pnpm typecheck`, `pnpm lint:check`, `pnpm build`, `pnpm test` and `pnpm test:e2e`.
+- **Change a guest program**: setup reads each `.sh` from the package's `guest/` directory, which ships as it is, and writes it to the guest, so the next `setup` from a rebuilt package deploys the change. A change to the Fly boot hook reaches a machine on its next `setup` and takes effect at the next boot; `init.sh` is written into the machine configuration at creation, so a change to it reaches only machines created afterwards.
+- **Check before a pull request**: `pnpm typecheck`, `pnpm lint:check`, `pnpm build`, `pnpm test` and `pnpm test:e2e cli`.
 
 ### Pitfalls
 
 - **Never build from source on a guest.** Tools come from Homebrew bottles, distro packages, npm or rustup; a tool without a bottle for the platform falls through to its next source, is skipped when optional, and is refused at preflight when required. It is never compiled. Do not add a build step or a compiler-driven fallback.
 - **Do not add lint suppressions.** Fix the code instead. The single existing exception, a documented Fly routing fact in `src/drivers/providers/fly-machine/private-networks.ts`, is not a precedent.
 - **open-agent is greenfield.** There is no compatibility code, migration or alias for agent-sprite workstations, labels, paths or credentials. Rename and remove cleanly instead of adding a shim.
-- **Keep guest programs POSIX `sh`.** They run under `dash` on Debian, read JSON with `jq` and carry no `shellcheck` suppression. Do not use bashisms, and do not assume a program can import a constant from the host: repeat it and keep the copies in step.
+- **Keep guest programs POSIX `sh`.** They run under `dash` on Debian, read JSON with `jq` and carry no `shellcheck` suppression. Do not use bashisms, and never spell a guest path in a program: use the `OA_*` variable `readAsset` assigns from `src/integrations/guest/layout.ts`.
 - **Keep the `--` in `bin/cli.mjs`.** Its shebang is `#!/usr/bin/env -S node --`. Node 24 scans the whole command line for its own `--env-file` option, even after the script name, and exits 9 when the path is missing, before the CLI runs. Never remove the `--`, and never launch the CLI as `node bin/cli.mjs …`; use `node -- bin/cli.mjs …`.
 - **The updater never restarts services.** Do not add a stop, start or restart to the update path; release-channel changes restart the agent through `setup`.
 - **Secrets stay in step input.** A `Secret` is piped on standard input or written to a 0600 file in a private directory under `/dev/shm` that a trap removes; a consumer that opens it once should remove it first and read the open descriptor, as Tailscale's enrollment does. Never put one in argv or on a disk path.
+- **Declare the inputs an adapter needs.** A credential or option a provider, network, gateway or setup section requires is declared and checked in preflight with `missingInput` (`src/drivers/shared/prerequisites.ts`), so the command fails before it changes anything and says what to set. Never report a bare `Missing: X`.
 - **Do not downgrade.** A command must pass the release guard before it acts on an existing workstation; a new command that does not use it can overwrite a newer workstation's state.
-- **Root never runs code the agent account can write.** Every program under `/opt/open-agent` is root-owned, 0700 or 0755 (0755 only when another account runs it); keep it that way when adding programs. The locked `linuxbrew` account is written only by root acting as it, so root may run Homebrew's executables, but every root `PATH` lists `/usr/sbin:/usr/bin:/sbin:/bin` before `/usr/local`, and root reads JSON with `/usr/bin/jq`, which is 1.6 on Debian 12; a packaged e2e proof reads the shipped programs for what jq 1.6 rejects.
+- **Root never runs code the agent account can write.** Every program under `/opt/open-agent` is root-owned, 0700 or 0755 (0755 only when another account runs it); keep it that way when adding programs. The locked `linuxbrew` account is written only by root acting as it, so root may run Homebrew's executables, but every root `PATH` lists `/usr/sbin:/usr/bin:/sbin:/bin` before `/usr/local`, and root reads JSON with `/usr/bin/jq`, which is 1.6 on Debian 12, so keep root's jq programs to what 1.6 accepts (no keyword as a variable name, no `if` without `else`, no later builtin).
 
 ---
 

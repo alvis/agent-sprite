@@ -29,8 +29,8 @@ ADR-9 confines concrete drivers to their folders, but some code is neither a dri
 
 **Guest-leaf registry.**
 
-- The registry, `src/core/guest-leaves.ts`, is part of catalog registration.
-- It imports only the drivers' guest leaves, which breaks the catalog ↔ payload-pipeline cycle.
+- The registry, `src/core/catalog.ts`, is part of catalog registration.
+- It imports only the drivers' `index.ts` entry points, which breaks the catalog ↔ payload-pipeline cycle.
 - The catalog's identifier unions are checked against its keys at compile time.
 
 ## 🔀 Alternatives considered
@@ -40,8 +40,8 @@ ADR-9 confines concrete drivers to their folders, but some code is neither a dri
 
 ## 🤝 Accepted Trade Offs
 
-- The repository search for concrete driver names exempts `src/drivers/shared/` imports, `src/core/catalog.ts` and `src/core/guest-leaves.ts`.
+- The repository search for concrete driver names exempts `src/drivers/shared/` imports and `src/core/catalog.ts`.
 
 ## ⚖️ Consequences
 
-Each module has one home and one allowed import direction. The isolation check fails if a concrete provider, harness, agent or network name appears anywhere other than its driver folder, the catalog or the guest-leaf registry.
+Each module has one home and one allowed import direction. The isolation check fails if a concrete provider, harness, agent or network name appears anywhere other than its driver folder or the catalog.

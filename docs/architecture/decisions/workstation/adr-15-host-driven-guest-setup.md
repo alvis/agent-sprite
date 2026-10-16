@@ -10,8 +10,7 @@ The host sets a workstation up by sending commands over the provider's guest cha
   - ADR-10 (guest code colocated per driver, the guest kernel, the deployed mirror and the guest-leaf registry);
   - ADR-9's `servicesMode` axis and its exception for the leaf registry;
   - ADR-12's schedule, skip rule, Node swap and release installers (its no-restart rule stands);
-  - ADR-14's boot install step, supervisor and REST/SSH transport split;
-  - ADR-8's payload closure where it names compiled guest modules.
+  - ADR-14's boot install step, supervisor and REST/SSH transport split.
 
   ADR-13's governor rules stand; only their implementation language changes.
 
@@ -109,7 +108,8 @@ Adding a provider reuses an existing family and every tool. Adding a family mean
 
 - **Programs.**
   - All guest programs are POSIX `sh`, read JSON with `jq`, and pass `shellcheck` in `lint:check`.
-  - Each is a `.sh` file beside the provider, family, backend or driver that owns it. Each is installed root-owned: 0755, or 0700 when only root runs it.
+  - Each is a `.sh` file under the top-level `guest/` directory, at the path it installs to under `/opt/open-agent`. The provider, family, backend or driver that owns it names it through `guestAsset`, and the build does not copy it. Each is installed root-owned: 0755, or 0700 when only root runs it.
+  - Guest paths (`/opt/open-agent`, `/home/agent` and the rest) are defined once, in `src/integrations/guest/layout.ts`. `readAsset` prepends them to every program as `OA_*` variables, so no program spells a path itself.
   - Root never runs a file the agent account can write; the linuxbrew account is locked and written only by root acting as it.
   - The agent account gets no sudo rule.
 - **Supervision.**
@@ -137,7 +137,7 @@ Adding a provider reuses an existing family and every tool. Adding a family mean
   - `runit` falls back to apt where no bottle exists.
 - **Root's PATH.** Every root `PATH` lists `/usr/local/sbin:/usr/local/bin` after `/usr/sbin:/usr/bin:/sbin:/bin`, and links skip an executable the system already provides, so root's commands resolve to the system's.
 - **Boot.**
-  - The machine config holds only a root-checked stub that runs the volume's boot hook, so setup can update the hook without a restart.
+  - The machine config holds only a root-checked init stub, `init.sh`, that runs the volume's boot hook, so setup can update the hook without a restart.
   - Before replay, the hook uses only base-image tools and tools on the volume.
 - **Persistence.** The machine sets `persist_rootfs: "always"`. A marker on the root filesystem detects a wipe; after one, the hook replays the apt set from the volume cache and restores links. A normal cold boot installs nothing.
 
