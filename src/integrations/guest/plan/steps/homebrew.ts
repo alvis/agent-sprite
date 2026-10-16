@@ -19,8 +19,13 @@ import type { LibraryCall } from './library.js';
 /** id of the step that installs Homebrew */
 export const HOMEBREW_STEP = 'homebrew';
 
-/** the Homebrew account's ids where the provider keeps none of its own: system ids */
-export const HOMEBREW_ACCOUNT_IDS = { uid: 999, gid: 999 } as const;
+/**
+ * the Homebrew account's ids where the provider keeps none of its own: system
+ * ids midway through the range packages allocate theirs from, from 999 down
+ * as systemd-sysusers and `useradd --system` do and from 100 up as `adduser
+ * --system` does, so the bootstrap packages leave them free
+ */
+export const HOMEBREW_ACCOUNT_IDS = { uid: 900, gid: 900 } as const;
 
 /** longest one command of the Homebrew step may take: the installer clones Homebrew */
 const HOMEBREW_LIMIT_MS = 1_200_000;
