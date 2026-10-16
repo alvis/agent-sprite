@@ -1,13 +1,13 @@
 import { CommandFault, commandError } from '#errors';
 import { checkOperation, runBoundedIO } from '#operation';
 
-import { TAILSCALE_STATE_FILE } from './service.js';
-import { inspectTailscale } from './status.js';
+import { TAILSCALE_STATE_FILE } from './service';
+import { inspectTailscale } from './status';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { NetworkRecord } from '#drivers/networks/contracts';
 
-import type { TailnetStatus } from './types.js';
+import type { TailnetStatus } from './types';
 
 /**
  * captures enrolled identity without requiring a completed installation

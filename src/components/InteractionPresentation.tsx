@@ -1,8 +1,8 @@
-import { ConfirmInput, Select } from './Choices.js';
-import { StatusMessage, TaskProgress } from './Display.js';
-import { InteractionRoot } from './InteractionRoot.js';
-import { MultiSelect } from './MultiSelect.js';
-import { SecretInput, TextInput } from './TextInput.js';
+import { ConfirmInput, Select } from './Choices';
+import { StatusMessage, TaskProgress } from './Display';
+import { InteractionRoot } from './InteractionRoot';
+import { MultiSelect } from './MultiSelect';
+import { SecretInput, TextInput } from './TextInput';
 
 import type { ReactElement } from 'react';
 

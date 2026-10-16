@@ -2,7 +2,7 @@ import type { GuestExecResult } from '#drivers/guest-channel';
 import type { OsFamily, OsRelease } from '#os/contracts';
 import type { ToolOwner } from '#tools/contracts';
 
-import type { Secret } from './secret.js';
+import type { Secret } from './secret';
 
 /** standard input of one session command; absent means `/dev/null` */
 export type StepInput =

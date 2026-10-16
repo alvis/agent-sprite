@@ -29,15 +29,15 @@ import { OPEN_AGENT_VERSION } from '#utilities/version';
 import { runCommand } from '#workstation';
 import { chooseWorkstationAction } from '#workstation/actions';
 
-import { environmentOf } from './fixtures/environment.js';
-import { driveInk } from './fixtures/ink.js';
-import { profileWith } from './fixtures/profile.js';
+import { environmentOf } from './fixtures/environment';
+import { driveInk } from './fixtures/ink';
+import { profileWith } from './fixtures/profile';
 import {
   createFilesystemSprite,
   providerOf,
   serveServiceRegistry,
   writtenPaths,
-} from './mocks/sprites.js';
+} from './mocks/sprites';
 
 import type { Sprite } from '@fly/sprites';
 
@@ -45,12 +45,12 @@ import type { Mock } from 'vitest';
 
 import type { WorkHooks } from '#drivers/harnesses/shared/hooks';
 
-import type { GuestExecute } from './mocks/sprites.js';
+import type { GuestExecute } from './mocks/sprites';
 
 // setup's root session is a framed guest shell only the live specs open
 vi.mock(
   '#integrations/guest/session/open',
-  async () => import('./mocks/session.js'),
+  async () => import('./mocks/session'),
 );
 
 /** the profile the installed workstation recorded */

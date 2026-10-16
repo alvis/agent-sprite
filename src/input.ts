@@ -4,28 +4,28 @@ import { proxyUrlProblems } from '#drivers/shared/cliproxyapi/endpoints';
 import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
 
-import { resolveBaseInputs } from './input/base.js';
-import { discoverGithubToken } from './input/github-discovery.js';
-import { resolveGitIdentity, selectGithubToken } from './input/github.js';
-import { resolveInteractiveInputs } from './input/prompts.js';
-import { suppliedSelectionViolations } from './input/selection-supplied.js';
+import { resolveBaseInputs } from './input/base';
+import { resolveGitIdentity, selectGithubToken } from './input/github';
+import { discoverGithubToken } from './input/github-discovery';
+import { resolveInteractiveInputs } from './input/prompts';
 import {
   resolveCreateSelection,
   selectionRequirements,
-} from './input/selection.js';
-import { readInputSources } from './input/sources.js';
+} from './input/selection';
+import { suppliedSelectionViolations } from './input/selection-supplied';
+import { readInputSources } from './input/sources';
 
 import type { CommandOptions, Interaction } from '#command/contracts';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { CredentialStoreLocation } from '#integrations/credentials';
 
-import type { GithubTokenCandidate } from './input/github.js';
-import type { Resolved } from './input/selection-sources.js';
-import type { SuppliedSelection } from './input/selection-supplied.js';
-import type { SelectionResolution } from './input/selection.js';
-import type { InputSources } from './input/sources.js';
-import type { ResolvedInputs, RequiredInput } from './input/types.js';
+import type { GithubTokenCandidate } from './input/github';
+import type { SelectionResolution } from './input/selection';
+import type { Resolved } from './input/selection-sources';
+import type { SuppliedSelection } from './input/selection-supplied';
+import type { InputSources } from './input/sources';
+import type { ResolvedInputs, RequiredInput } from './input/types';
 
 const BASE_CREATE_INPUTS: readonly RequiredInput[] = [
   'name',

@@ -1,9 +1,9 @@
 import { runGuest, runGuestResult } from '#integrations/guest/run';
 import { isRecord } from '#utilities/guards';
 
-import { ensureTailnetDaemon, enrollTailnet } from './daemon.js';
-import { tailscaleCommand } from './service.js';
-import { inspectTailscale } from './status.js';
+import { ensureTailnetDaemon, enrollTailnet } from './daemon';
+import { tailscaleCommand } from './service';
+import { inspectTailscale } from './status';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type {
@@ -11,7 +11,7 @@ import type {
   NetworkExitNode,
 } from '#drivers/networks/contracts';
 
-import type { TailnetStatus } from './types.js';
+import type { TailnetStatus } from './types';
 
 /**
  * starts the persistent Tailscale daemon and enrols through a session key file

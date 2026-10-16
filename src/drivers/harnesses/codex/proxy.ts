@@ -13,15 +13,11 @@ import {
   restoreOwnedValue,
   sameValue,
   writeOwnershipRecord,
-} from '../shared/proxy-ownership.js';
+} from '../shared/proxy-ownership';
 
-import {
-  captureCodexOwnership,
-  isTomlTable,
-  isTomlValue,
-} from './ownership.js';
-import { CODEX_CONFIG, CODEX_TOKEN } from './paths.js';
-import { CODEX_PROXY_FIELDS } from './types.js';
+import { captureCodexOwnership, isTomlTable, isTomlValue } from './ownership';
+import { CODEX_CONFIG, CODEX_TOKEN } from './paths';
+import { CODEX_PROXY_FIELDS } from './types';
 
 import type { TomlTable } from 'smol-toml';
 
@@ -30,9 +26,9 @@ import type { ProxyRoute } from '#drivers/contracts';
 import type {
   OwnedConfigurationValue,
   NativeProxyParams,
-} from '../shared/proxy-ownership.js';
+} from '../shared/proxy-ownership';
 
-import type { CodexManagedValues, CodexOwnership } from './types.js';
+import type { CodexManagedValues, CodexOwnership } from './types';
 
 const CODEX_PROXY_OWNERSHIP = proxyOwnershipPath('codex');
 

@@ -1,7 +1,7 @@
 import type { CredentialSaveResult } from '#integrations/credentials';
 
-import type { CommandName, CommandError } from './command/contracts.js';
-import type { CommandData, CommandFailureData } from './command/data.js';
+import type { CommandName, CommandError } from './command/contracts';
+import type { CommandData, CommandFailureData } from './command/data';
 
 /** metadata retained beside the action result */
 interface ResultOutput {

@@ -1,4 +1,4 @@
-import type { MachineOffer, MachineRequirement } from './contracts.js';
+import type { MachineOffer, MachineRequirement } from './contracts';
 
 /**
  * picks the smallest machine that meets a requirement

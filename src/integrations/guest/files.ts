@@ -3,13 +3,13 @@ import { posix } from 'node:path';
 import { runBoundedIO } from '#operation';
 import { holdsResolvedSecret } from '#utilities/redaction';
 
-import { runGuest } from './run.js';
+import { runGuest } from './run';
 
-import { Secret } from './session/secret.js';
+import { Secret } from './session/secret';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { GuestFileParams, GuestRunOptions } from './run.js';
+import type { GuestFileParams, GuestRunOptions } from './run';
 
 /** the radix chmod reads a mode in */
 const OCTAL = 8;

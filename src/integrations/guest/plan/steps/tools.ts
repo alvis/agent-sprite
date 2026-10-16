@@ -6,7 +6,7 @@ import {
   RUSTUP_LIBRARY,
 } from '#tools/libraries';
 
-import { libraryCommand } from './library.js';
+import { libraryCommand } from './library';
 
 import type { GuestAsset, OsFamily } from '#os/contracts';
 import type {
@@ -18,9 +18,9 @@ import type {
   ToolVersionProbe,
 } from '#tools/contracts';
 
-import type { SetupStep, StepCommand } from '../contracts.js';
+import type { SetupStep, StepCommand } from '../contracts';
 
-import type { LibraryCall } from './library.js';
+import type { LibraryCall } from './library';
 
 /** longest one command of a formula's step may take: a large formula pours many bottles */
 const BREW_LIMIT_MS = 1_800_000;

@@ -1,6 +1,6 @@
 import { isRecord } from '#utilities/guards';
 
-import type { TailnetStatus } from './types.js';
+import type { TailnetStatus } from './types';
 
 /**
  * interprets native status and current network probes as one tailnet view

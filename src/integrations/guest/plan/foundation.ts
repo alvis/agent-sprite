@@ -10,19 +10,19 @@ import {
   RUSTUP_LIBRARY,
 } from '#tools/libraries';
 
-import { AWAKE_ASSET } from '../awake.js';
-import { UPDATE_GATE_ASSET, UPDATER_ASSET } from '../updates.js';
+import { AWAKE_ASSET } from '../awake';
+import { UPDATE_GATE_ASSET, UPDATER_ASSET } from '../updates';
 
-import { assetStep, assetStepId } from './steps/file.js';
-import { homebrewStep } from './steps/homebrew.js';
-import { libraryCommand } from './steps/library.js';
+import { assetStep, assetStepId } from './steps/file';
+import { homebrewStep } from './steps/homebrew';
+import { libraryCommand } from './steps/library';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { ProviderDriver } from '#drivers/contracts';
 import type { GuestAsset, OsFamily, OsRelease } from '#os/contracts';
 import type { Resolution, ToolSpec } from '#tools/contracts';
 
-import type { SetupStep } from './contracts.js';
+import type { SetupStep } from './contracts';
 
 /** id of the step that creates the agent account */
 const ACCOUNTS_STEP = 'accounts';

@@ -1,6 +1,6 @@
-import { catalog } from './catalog.js';
+import { catalog } from './catalog';
 
-import type { AgentId, ProviderId } from './catalog.js';
+import type { AgentId, ProviderId } from './catalog';
 
 /**
  * lists every registered provider id in catalog order

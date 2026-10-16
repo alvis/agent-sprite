@@ -19,7 +19,7 @@ import {
   createFilesystemSprite,
   createNativeCommandExecutor,
   guestOf,
-} from '../../../mocks/sprites.js';
+} from '../../../mocks/sprites';
 
 import type { ProxyRoute } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';

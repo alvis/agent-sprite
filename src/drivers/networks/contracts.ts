@@ -2,12 +2,12 @@ import type { Secret } from '#integrations/guest/session/secret';
 import type { GuestAsset } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
-import type { DriverDescriptor, ReadinessFinding } from '../contracts.js';
+import type { DriverDescriptor, ReadinessFinding } from '../contracts';
 import type {
   GuestChannel,
   GuestServiceState,
   ServiceDefinition,
-} from '../guest-channel.js';
+} from '../guest-channel';
 
 /** the program that prepares the guest for the network daemon and runs it, and where the daemon keeps its state */
 export interface NetworkLauncher {

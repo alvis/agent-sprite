@@ -5,19 +5,19 @@ import { guestAsset } from '#integrations/guest/assets';
 import { checkOperation, currentOperation, runOperation } from '#operation';
 import { SHARED_MODE } from '#os/contracts';
 
-import { SPRITE_CAPABILITIES } from './capabilities.js';
-import { SpriteGuestChannel } from './channel.js';
-import { createManagedSprite } from './creation.js';
-import { callSprites, toProviderFailure } from './failures.js';
-import { mergeMetadataLabels } from './labels.js';
-import { SPRITE_MACHINE } from './machines.js';
-import { preflightSprite, SPRITE_PREREQUISITES } from './prerequisites.js';
+import { SPRITE_CAPABILITIES } from './capabilities';
+import { SpriteGuestChannel } from './channel';
+import { createManagedSprite } from './creation';
+import { callSprites, toProviderFailure } from './failures';
+import { mergeMetadataLabels } from './labels';
+import { SPRITE_MACHINE } from './machines';
+import { preflightSprite, SPRITE_PREREQUISITES } from './prerequisites';
 import {
   assertManaged,
   assertVerifiedWorkstation,
   isManaged,
   toRecord,
-} from './records.js';
+} from './records';
 
 import type { Sprite } from '@fly/sprites';
 

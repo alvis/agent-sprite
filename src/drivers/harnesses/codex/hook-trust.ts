@@ -2,12 +2,12 @@ import { CommandFault } from '#errors';
 import { HOME } from '#integrations/guest/account';
 import { isRecord } from '#utilities/guards';
 
-import { withCodexAppServer } from './app-server.js';
-import { CODEX_HOOKS } from './paths.js';
+import { withCodexAppServer } from './app-server';
+import { CODEX_HOOKS } from './paths';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { CodexRequest } from './app-server.js';
+import type { CodexRequest } from './app-server';
 
 /** exact native hook identity used for trust and verification */
 interface OwnedHook {

@@ -5,7 +5,7 @@ import { pickMachine } from '#drivers/machine-sizes';
 import { publishStatus } from '#operation';
 import { hasActions } from '#plugins';
 
-import { describePluginSelections } from './plugins.js';
+import { describePluginSelections } from './plugins';
 
 import type { CommandRequest, Interaction } from '#command/contracts';
 import type { WorkstationProfile } from '#core/profile';
@@ -13,7 +13,7 @@ import type { NetworkExitNode } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
 import type { HarnessPluginActions } from '#plugins';
 
-import type { CreatePreflight } from './context.js';
+import type { CreatePreflight } from './context';
 
 /** values every create run must have once inputs are resolved */
 export interface RequiredCreateValues {

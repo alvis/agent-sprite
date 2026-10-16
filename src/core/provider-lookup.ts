@@ -1,6 +1,6 @@
 import type { ProviderDriver } from '#drivers/contracts';
 
-import type { ProviderId } from './catalog.js';
+import type { ProviderId } from './catalog';
 
 /** a provider bound to its management credential */
 export interface BoundProvider {

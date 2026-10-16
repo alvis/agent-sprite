@@ -9,14 +9,14 @@ import type {
   GuestProcess,
   GuestServiceState,
   ServiceDefinition,
-} from './guest-channel.js';
-import type { HarnessPluginEvidence } from './harness-evidence.js';
+} from './guest-channel';
+import type { HarnessPluginEvidence } from './harness-evidence';
 import type {
   PrerequisiteProblem,
   ProviderPreflightParams,
   ProviderPrerequisites,
-} from './providers/prerequisites.js';
-import type { RecordedProfile } from './providers/recorded.js';
+} from './providers/prerequisites';
+import type { RecordedProfile } from './providers/recorded';
 
 /** the four dimensions a workstation selects drivers from */
 export type DriverKind = 'providers' | 'harnesses' | 'agents' | 'networks';

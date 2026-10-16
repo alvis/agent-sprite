@@ -4,7 +4,7 @@ import type {
   InteractionChoice,
 } from '#command/contracts';
 
-import type { InputSources } from './sources.js';
+import type { InputSources } from './sources';
 
 /** what a selection is resolved from */
 export interface SelectionContext {

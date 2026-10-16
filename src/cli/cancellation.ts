@@ -1,8 +1,8 @@
 import { cancellationReason } from '#operation';
 
-import { flushOutput } from './streams.js';
+import { flushOutput } from './streams';
 
-import type { InteractionCancellationPort } from './interaction.js';
+import type { InteractionCancellationPort } from './interaction';
 
 /** command-owned signal listeners and physical interruption counter */
 export interface CommandCancellation extends InteractionCancellationPort {

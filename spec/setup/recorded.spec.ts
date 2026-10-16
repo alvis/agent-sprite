@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { isNetworkEnrolled } from '#setup/recorded';
 
-import { environmentOf } from '../fixtures/environment.js';
-import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+import { environmentOf } from '../fixtures/environment';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { NetworkStatus } from '#drivers/networks/contracts';

@@ -1,18 +1,18 @@
 import { largestMachine, pickMachine } from '#drivers/machine-sizes';
 
-import { catalog } from './catalog.js';
-import { selectionLabel } from './selection-inputs.js';
+import { catalog } from './catalog';
+import { selectionLabel } from './selection-inputs';
 
 import type { DriverKind } from '#drivers/contracts';
 
-import type { AgentId, DriverId, HarnessId, ProviderId } from './catalog.js';
+import type { AgentId, DriverId, HarnessId, ProviderId } from './catalog';
 import type {
   ProfileCandidate,
   ProfileField,
   ProfileOptions,
   ProfileValidationOptions,
   ProfileViolation,
-} from './profile.js';
+} from './profile';
 
 /** longest update due interval: one year */
 export const MAX_UPDATE_DUE_DAYS = 365;

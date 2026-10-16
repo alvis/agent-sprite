@@ -9,16 +9,16 @@ import { tailscaleLauncher } from '#drivers/networks/tailscale/service';
 import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import { persistSetupProfile } from '#setup/integrations';
 
-import { environmentOf } from '../fixtures/environment.js';
+import { environmentOf } from '../fixtures/environment';
 import {
   DISABLED_NETWORK_PROFILE,
   TAILSCALE_PROFILE,
-} from '../fixtures/profile.js';
+} from '../fixtures/profile';
 import {
   createFilesystemSprite,
   guestOf,
   serveServiceRegistry,
-} from '../mocks/sprites.js';
+} from '../mocks/sprites';
 
 import type { ServiceWithState, Sprite } from '@fly/sprites';
 

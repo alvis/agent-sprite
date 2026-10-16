@@ -26,7 +26,7 @@ import { SetupConnection } from '#integrations/guest/connection';
 import { sessionGuest } from '#integrations/guest/session/channel';
 import { HOMEBREW_GH } from '#tools/accounts';
 
-import { standInSession } from './session.js';
+import { standInSession } from './session';
 
 import type {
   ExecResult,

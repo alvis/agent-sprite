@@ -1,6 +1,6 @@
 import { AGENT_HOME, GUEST_ROOT } from '#integrations/guest/layout';
 
-import type { PluginInventory } from '../shared/plugin-state.js';
+import type { PluginInventory } from '../shared/plugin-state';
 
 /** Claude Code user settings, including environment and hooks */
 export const CLAUDE_SETTINGS = `${AGENT_HOME}/.claude/settings.json`;

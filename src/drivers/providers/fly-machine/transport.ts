@@ -3,8 +3,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { ProviderFault } from '#drivers/failures';
 import { operationSignal, runOperation } from '#operation';
 
-import { withExecGate } from './exec-gate.js';
-import { diagnostic, FlyApiFault, statusFailureCode } from './status.js';
+import { withExecGate } from './exec-gate';
+import { diagnostic, FlyApiFault, statusFailureCode } from './status';
 
 /** one Machines API request */
 export interface FlyRequest {

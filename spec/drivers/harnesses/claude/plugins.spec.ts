@@ -11,9 +11,9 @@ import {
   createFilesystemSprite,
   createNativeCommandExecutor,
   guestOf,
-} from '../../../mocks/sprites.js';
+} from '../../../mocks/sprites';
 
-import type { NativeCommandResponse } from '../../../mocks/sprites.js';
+import type { NativeCommandResponse } from '../../../mocks/sprites';
 
 const applyClaudePlugins = claudePlugins.apply;
 const success = { stdout: '{}', stderr: '', exitCode: 0 };

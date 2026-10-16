@@ -1,4 +1,4 @@
-import type { ReadinessFinding } from './contracts.js';
+import type { ReadinessFinding } from './contracts';
 
 /**
  * converts a boolean observation into a finding

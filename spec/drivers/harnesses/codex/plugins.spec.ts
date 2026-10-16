@@ -15,7 +15,7 @@ import {
   createFilesystemSprite,
   createNativeCommandExecutor,
   guestOf,
-} from '../../../mocks/sprites.js';
+} from '../../../mocks/sprites';
 
 const applyCodexPlugins = codexPlugins.apply;
 const success = { stdout: '{}', stderr: '', exitCode: 0 };

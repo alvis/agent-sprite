@@ -23,14 +23,14 @@ import {
   MANAGED_AWAKE_DIRECTORY,
   reportedGovernorState,
   SESSION_LOCK_PATH,
-} from './layout.js';
+} from './layout';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 import type { UpdateStatus } from '#integrations/guest/updates';
 import type { ToolSpec } from '#tools/contracts';
 
-import type { LiveProvider } from './providers.js';
+import type { LiveProvider } from './providers';
 
 /** what one run of the scheduled entry did */
 export interface ScheduledRun {

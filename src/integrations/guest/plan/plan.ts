@@ -1,10 +1,10 @@
 import { checkOperation } from '#operation';
 
-import { isTransportFault } from '../session/faults.js';
+import { isTransportFault } from '../session/faults';
 
 import type { GuestExecResult } from '#drivers/guest-channel';
 
-import type { GuestSession, SessionCommand } from '../session/contracts.js';
+import type { GuestSession, SessionCommand } from '../session/contracts';
 
 import type {
   PlanProgress,
@@ -12,7 +12,7 @@ import type {
   SetupStep,
   StepCommand,
   StepOutcome,
-} from './contracts.js';
+} from './contracts';
 
 /** attempts a step retried on transport faults gets, counting the first */
 const DEFAULT_ATTEMPTS = 3;

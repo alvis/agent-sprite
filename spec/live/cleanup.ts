@@ -1,13 +1,13 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { tail } from './cli.js';
-import { isRunWorkstation } from './ownership.js';
-import { isWorkstationDevice } from './tailnet.js';
+import { tail } from './cli';
+import { isRunWorkstation } from './ownership';
+import { isWorkstationDevice } from './tailnet';
 
-import type { LiveCli } from './cli.js';
-import type { LiveInventory, LiveProvider } from './providers.js';
-import type { Redactor } from './redaction.js';
-import type { Tailnet, TailnetDevice } from './tailnet.js';
+import type { LiveCli } from './cli';
+import type { LiveInventory, LiveProvider } from './providers';
+import type { Redactor } from './redaction';
+import type { Tailnet, TailnetDevice } from './tailnet';
 
 /** guaranteed removal and absence proof for workstations of one live run */
 export interface LiveCleanup {

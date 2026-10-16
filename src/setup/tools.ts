@@ -8,14 +8,14 @@ import { GUEST_ROOT } from '#integrations/guest/layout';
 import { UPDATE_GATE_ASSET } from '#integrations/guest/updates';
 import { promptUnavailableDetail } from '#operation';
 
-import { installSetupPlan } from './install.js';
+import { installSetupPlan } from './install';
 
 import type { Interaction } from '#command/contracts';
 import type { ComponentCounts, ToolsSetupData } from '#command/data';
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { UpdateStatus } from '#integrations/guest/updates';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 /** longest a forced update may take */
 const UPDATE_LIMIT_MS = 3_600_000;

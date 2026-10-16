@@ -4,7 +4,7 @@ import { commandError } from '#errors';
 import { resolveBaseInputs } from '#input/base';
 import { redactResolved } from '#utilities/redaction';
 
-import { profileWith } from '../fixtures/profile.js';
+import { profileWith } from '../fixtures/profile';
 
 const networkOnly = profileWith({
   network: true,

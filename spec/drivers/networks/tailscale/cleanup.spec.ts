@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { removeStaleTailnetDevice } from '#drivers/networks/tailscale/cleanup';
 import { CommandFault } from '#errors';
 
-import { createFilesystemSprite, guestOf } from '../../../mocks/sprites.js';
+import { createFilesystemSprite, guestOf } from '../../../mocks/sprites';
 
 import type { NetworkStaleDeviceParams } from '#drivers/networks/contracts';
 import type { TailnetStatus } from '#drivers/networks/tailscale/types';

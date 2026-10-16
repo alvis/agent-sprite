@@ -9,7 +9,7 @@ import type {
 } from '#command/contracts';
 import type { StageEvent } from '#operation';
 
-import type { InteractionSession } from './interaction.js';
+import type { InteractionSession } from './interaction';
 
 type CurrentSession = () => InteractionSession | undefined;
 

@@ -1,13 +1,13 @@
 import { catalog } from '#core/catalog';
 import { readLocalCredential } from '#integrations/credentials';
 
-import { readEnvironmentSources, resolveSecret } from './sources.js';
+import { readEnvironmentSources, resolveSecret } from './sources';
 
 import type { CommandOptions } from '#command/contracts';
 import type { ProviderId } from '#core/catalog';
 import type { CredentialStoreLocation } from '#integrations/credentials';
 
-import type { InputSources } from './sources.js';
+import type { InputSources } from './sources';
 
 /** a provider credential and the place it was read from */
 export interface ProviderCredential {

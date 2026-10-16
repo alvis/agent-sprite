@@ -1,6 +1,6 @@
 import type { GuestAsset, OsFamily } from '#os/contracts';
 
-import type { SetupStep } from '../contracts.js';
+import type { SetupStep } from '../contracts';
 
 /** the radix chmod and stat read a mode in */
 const OCTAL = 8;

@@ -19,17 +19,17 @@ import { setupPlugins } from '#setup/plugins';
 import { setupTools } from '#setup/tools';
 import { OPEN_AGENT_VERSION } from '#utilities/version';
 
-import { environmentOf } from '../fixtures/environment.js';
-import { driveInk } from '../fixtures/ink.js';
-import { pluginFlags } from '../fixtures/plugin-flags.js';
-import { DISABLED_NETWORK_PROFILE, profileWith } from '../fixtures/profile.js';
+import { environmentOf } from '../fixtures/environment';
+import { driveInk } from '../fixtures/ink';
+import { pluginFlags } from '../fixtures/plugin-flags';
+import { DISABLED_NETWORK_PROFILE, profileWith } from '../fixtures/profile';
 import {
   createFilesystemSprite,
   guestOf,
   providerOf,
   workstationOf,
   writtenPaths,
-} from '../mocks/sprites.js';
+} from '../mocks/sprites';
 
 import type { Sprite } from '@fly/sprites';
 
@@ -38,7 +38,7 @@ import type { SetupContext } from '#setup/context';
 // setup's root session is a framed guest shell only the live specs open
 vi.mock(
   '#integrations/guest/session/open',
-  async () => import('../mocks/session.js'),
+  async () => import('../mocks/session'),
 );
 
 /** the profile the set-up workstation recorded */

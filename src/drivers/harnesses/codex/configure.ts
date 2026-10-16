@@ -1,8 +1,8 @@
 import { ensurePrivateDirectory } from '#integrations/guest/account';
 import { readTomlObject } from '#integrations/native/configuration';
 
-import { CODEX_CONFIG, CODEX_HOME } from './paths.js';
-import { configureCodexProxy } from './proxy.js';
+import { CODEX_CONFIG, CODEX_HOME } from './paths';
+import { configureCodexProxy } from './proxy';
 
 import type { HarnessConfigureParams } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';

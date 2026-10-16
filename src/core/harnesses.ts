@@ -4,12 +4,12 @@ import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { recordOf } from '#utilities/records';
 import { rememberSecret } from '#utilities/redaction';
 
-import { catalog, DEFAULT_SELECTION } from './catalog.js';
+import { catalog, DEFAULT_SELECTION } from './catalog';
 
 import type { AwakeHookCommand, ProxyRoute } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { HarnessId } from './catalog.js';
+import type { HarnessId } from './catalog';
 
 /** every registered harness driver */
 type AnyHarnessDriver = (typeof catalog.harnesses)[HarnessId];

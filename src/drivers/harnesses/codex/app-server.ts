@@ -2,7 +2,7 @@ import { AGENT_BIN, AGENT_PATH } from '#integrations/guest/layout';
 import { converse, GuestLineProcess } from '#integrations/native/line-process';
 import { isRecord } from '#utilities/guards';
 
-import { CODEX_HOME } from './paths.js';
+import { CODEX_HOME } from './paths';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 

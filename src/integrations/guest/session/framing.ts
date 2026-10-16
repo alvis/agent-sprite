@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import { SESSION_DIRECTORY, SESSION_PATH } from '#integrations/guest/layout';
 
-import { revealSecret } from './secret.js';
+import { revealSecret } from './secret';
 
-import type { SessionCommand, StepInput } from './contracts.js';
+import type { SessionCommand, StepInput } from './contracts';
 
 /** prefix of the line that follows a command's output and carries its exit status */
 const STATUS_MARKER_PREFIX = '@@open-agent-status:';

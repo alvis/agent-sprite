@@ -5,7 +5,7 @@ import {
   assertTailnetHostnameAvailable,
   createTailscaleAuthKey,
   resolveExitNode,
-} from './api.js';
+} from './api';
 
 import type {
   NetworkExitNode,

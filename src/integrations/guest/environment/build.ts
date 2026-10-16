@@ -1,5 +1,5 @@
-import { ENVIRONMENT_SCHEMA } from './contracts.js';
-import { environmentProblem } from './validation.js';
+import { ENVIRONMENT_SCHEMA } from './contracts';
+import { environmentProblem } from './validation';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { AcpAdapterSpec, ProviderDeclaration } from '#drivers/contracts';
@@ -12,7 +12,7 @@ import type {
   ToolSpec,
 } from '#tools/contracts';
 
-import type { GuestNetworkIdentity } from '../run.js';
+import type { GuestNetworkIdentity } from '../run';
 
 import type {
   EnvironmentHarness,
@@ -22,7 +22,7 @@ import type {
   EnvironmentTool,
   GuestEnvironment,
   SkippedTool,
-} from './contracts.js';
+} from './contracts';
 
 /** what {@link buildEnvironment} records */
 interface EnvironmentParams {

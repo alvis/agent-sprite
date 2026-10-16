@@ -1,11 +1,11 @@
 import { ProviderFault } from '#drivers/failures';
 
-import { describeGuest } from './machines.js';
-import { isManagedMetadata, readMetadata } from './metadata.js';
+import { describeGuest } from './machines';
+import { isManagedMetadata, readMetadata } from './metadata';
 
 import type { WorkstationRecord } from '#drivers/contracts';
 
-import type { FlyMachine } from './wire.js';
+import type { FlyMachine } from './wire';
 
 /**
  * names the public URL the Fly proxy serves an app at

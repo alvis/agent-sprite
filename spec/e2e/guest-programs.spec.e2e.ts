@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { packageRoot } from '../fixtures/packed-guest.js';
+import { packageRoot } from '../fixtures/packed-guest';
 
 // anything that could stop, start, restart, register, signal or delete a
 // supervised service or its process: the management CLI, init and supervisor

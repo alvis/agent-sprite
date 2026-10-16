@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { catalog } from '#core/catalog';
 import { none } from '#drivers/networks/none/index';
 
-import { createFilesystemSprite, guestOf } from '../../../mocks/sprites.js';
+import { createFilesystemSprite, guestOf } from '../../../mocks/sprites';
 
 import type { Sprite } from '@fly/sprites';
 

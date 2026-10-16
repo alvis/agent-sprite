@@ -2,9 +2,9 @@ import { CommandFault } from '#errors';
 import { checkOperation, currentOperation } from '#operation';
 import { redactResolved } from '#utilities/redaction';
 
-import { SessionTransportFault } from './faults.js';
-import { commandScript, KILL_GRACE_SECONDS, newMarker } from './framing.js';
-import { StatusStream } from './output.js';
+import { SessionTransportFault } from './faults';
+import { commandScript, KILL_GRACE_SECONDS, newMarker } from './framing';
+import { StatusStream } from './output';
 
 import type { GuestExecResult, GuestProcess } from '#drivers/guest-channel';
 import type { OsRelease } from '#os/contracts';
@@ -14,7 +14,7 @@ import type {
   SessionAwakeHold,
   SessionCommand,
   SessionFamily,
-} from './contracts.js';
+} from './contracts';
 
 const MILLISECONDS_PER_SECOND = 1000;
 /** time the transport may add to a command's own limit before the session is lost */

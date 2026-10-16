@@ -8,8 +8,8 @@ import { isRecord } from '#utilities/guards';
 import {
   hasNoClaudePendingInteractions,
   isClaudeHookNotification,
-} from './init-notifications.js';
-import { CLAUDE_CONFIG_DIR } from './paths.js';
+} from './init-notifications';
+import { CLAUDE_CONFIG_DIR } from './paths';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { HarnessCommandEvidence } from '#drivers/harness-evidence';

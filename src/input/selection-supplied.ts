@@ -3,7 +3,7 @@ import { agentIds, providerIds } from '#core/ids';
 import { DEFAULT_PROFILE_OPTIONS, validateProfile } from '#core/profile';
 import { SELECTION_INPUTS } from '#core/selection-inputs';
 
-import { environmentReader } from './selection-sources.js';
+import { environmentReader } from './selection-sources';
 
 import type {
   ProfileField,
@@ -13,7 +13,7 @@ import type {
 } from '#core/profile';
 import type { SelectionField } from '#core/selection-inputs';
 
-import type { Resolved, SelectionContext } from './selection-sources.js';
+import type { Resolved, SelectionContext } from './selection-sources';
 
 /** options a caller can select */
 type SelectableOption = Extract<SelectionField, keyof ProfileOptions>;

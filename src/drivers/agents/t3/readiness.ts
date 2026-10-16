@@ -1,13 +1,13 @@
 import { finding } from '#drivers/findings';
 
-import { t3Service } from './service.js';
+import { t3Service } from './service';
 
 import type {
   AgentReadiness,
   AgentReadinessEvidence,
 } from '#drivers/contracts';
 
-import type { T3Environment } from './evidence.js';
+import type { T3Environment } from './evidence';
 
 /**
  * derives T3 service and environment endpoint findings from gathered evidence

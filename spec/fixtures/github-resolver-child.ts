@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import type { CommandOptions } from '../../src/command/contracts.js';
-import type { resolveInputs } from '../../src/input.js';
+import type { CommandOptions } from '../../src/command/contracts';
+import type { resolveInputs } from '../../src/input';
 
 interface ResolverCase {
   options: CommandOptions;
@@ -12,13 +12,16 @@ interface ResolverCase {
 }
 
 // Run the real TypeScript source graph in a separate Node process. Source
-// relative imports use emitted .js names, so resolve those names to .ts here.
+// relative imports carry no extension, so resolve them to their .ts, .tsx or
+// directory index file here.
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith('.') && specifier.endsWith('.js')) {
-      const source = new URL(specifier.slice(0, -3) + '.ts', context.parentURL);
-      if (existsSync(fileURLToPath(source))) {
-        return nextResolve(source.href, context);
+    if (specifier.startsWith('.') && !/\.[cm]?[jt]sx?$/.test(specifier)) {
+      for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
+        const source = new URL(specifier + suffix, context.parentURL);
+        if (existsSync(fileURLToPath(source))) {
+          return nextResolve(source.href, context);
+        }
       }
     }
 
@@ -39,10 +42,9 @@ if (
 ) {
   throw new Error('Source-resolver scenario must contain cases');
 }
-const { resolveInputs: resolveSourceInputs } =
-  await import('../../src/input.js');
-const { selectGithubToken } = await import('../../src/input/github.js');
-const { commandError } = await import('../../src/errors.js');
+const { resolveInputs: resolveSourceInputs } = await import('../../src/input');
+const { selectGithubToken } = await import('../../src/input/github');
+const { commandError } = await import('../../src/errors');
 
 async function resolveCase(entry: ResolverCase) {
   try {

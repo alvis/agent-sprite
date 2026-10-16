@@ -1,14 +1,14 @@
-import { inspectT3Environment } from './evidence.js';
-import { pairT3 } from './pairing.js';
-import { t3Readiness } from './readiness.js';
-import { T3_LAUNCHER, t3Service } from './service.js';
-import { verifyT3Startup } from './startup.js';
-import { T3_TOOLS } from './tools.js';
+import { inspectT3Environment } from './evidence';
+import { pairT3 } from './pairing';
+import { t3Readiness } from './readiness';
+import { T3_LAUNCHER, t3Service } from './service';
+import { verifyT3Startup } from './startup';
+import { T3_TOOLS } from './tools';
 
 import type { HarnessId } from '#core/catalog';
 import type { AgentDriver } from '#drivers/contracts';
 
-import type { T3Environment } from './evidence.js';
+import type { T3Environment } from './evidence';
 
 /**
  * how T3 names each harness it supports in its provider list, keyed by

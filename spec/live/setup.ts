@@ -2,8 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createLiveHarness, readLiveRunConfiguration } from './harness.js';
-import { FLY_LIVE_PROJECT } from './identity.js';
+import { createLiveHarness, readLiveRunConfiguration } from './harness';
+import { FLY_LIVE_PROJECT } from './identity';
 
 import type { TestProject } from 'vitest/node';
 

@@ -3,8 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { jqIncompatibilities, quotedSpans } from '../fixtures/jq-programs.js';
-import { packageRoot } from '../fixtures/packed-guest.js';
+import { jqIncompatibilities, quotedSpans } from '../fixtures/jq-programs';
+import { packageRoot } from '../fixtures/packed-guest';
 
 describe('packed guest jq programs', () => {
   it('should run on the jq 1.6 Debian 12 ships', async () => {

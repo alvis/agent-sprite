@@ -9,14 +9,14 @@ import {
   installedPlugins,
   reconcileMarketplaces,
   recordSelectedPlugins,
-} from '../shared/plugin-state.js';
+} from '../shared/plugin-state';
 
-import { CLAUDE_INVENTORY, CLAUDE_PLUGIN_STATE } from './paths.js';
+import { CLAUDE_INVENTORY, CLAUDE_PLUGIN_STATE } from './paths';
 
 import type { HarnessPluginControl, PluginActions } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { InstalledPlugin, PluginHarness } from '../shared/plugin-state.js';
+import type { InstalledPlugin, PluginHarness } from '../shared/plugin-state';
 
 const CLAUDE_PLUGINS: PluginHarness = {
   inventory: CLAUDE_INVENTORY,

@@ -8,22 +8,19 @@ import {
 import { checkOperation, runBoundedIO } from '#operation';
 import { isRecord } from '#utilities/guards';
 
-import { hasWorkHooks } from '../shared/hooks.js';
-import {
-  enabledSelections,
-  listNativePlugins,
-} from '../shared/plugin-state.js';
-import { awakeHooksReadiness, proxyReadiness } from '../shared/readiness.js';
+import { hasWorkHooks } from '../shared/hooks';
+import { enabledSelections, listNativePlugins } from '../shared/plugin-state';
+import { awakeHooksReadiness, proxyReadiness } from '../shared/readiness';
 
-import { withCodexAppServer } from './app-server.js';
-import { CODEX_WORK_HOOKS } from './hooks.js';
+import { withCodexAppServer } from './app-server';
+import { CODEX_WORK_HOOKS } from './hooks';
 import {
   CODEX_CONFIG,
   CODEX_HOME,
   CODEX_HOOKS,
   CODEX_INVENTORY,
   CODEX_PLUGIN_STATE,
-} from './paths.js';
+} from './paths';
 
 import type { TomlTable } from 'smol-toml';
 

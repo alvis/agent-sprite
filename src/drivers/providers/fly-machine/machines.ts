@@ -1,6 +1,6 @@
 import type { MachineOffer } from '#drivers/contracts';
 
-import type { FlyGuest } from './wire.js';
+import type { FlyGuest } from './wire';
 
 /** one Fly machine preset a workstation can run on */
 export interface FlyMachineOffer extends MachineOffer {

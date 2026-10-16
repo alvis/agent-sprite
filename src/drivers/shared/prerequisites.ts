@@ -4,7 +4,7 @@ import type {
   ProviderPrerequisites,
   ProviderPreflightParams,
   ToolPrerequisite,
-} from '../providers/prerequisites.js';
+} from '../providers/prerequisites';
 
 /** separates a version's dotted digits from the text around it */
 const NON_VERSION = /[^\d.]+/u;

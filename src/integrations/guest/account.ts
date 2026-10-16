@@ -4,12 +4,12 @@ import { guestAsset, readAsset } from '#integrations/guest/assets';
 import { AGENT_HOME, AGENT_PATH } from '#integrations/guest/layout';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 
-import { contentsInput } from './files.js';
-import { runGuest } from './run.js';
+import { contentsInput } from './files';
+import { runGuest } from './run';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { GuestRunResult } from './run.js';
+import type { GuestRunResult } from './run';
 
 /** a non-root guest account and the provider shell accounts it may be one of */
 interface NativeAccountOwner {

@@ -9,8 +9,8 @@ import { resolveSecret } from '#input/sources';
 import { PairingSecret } from '#utilities/pairing-secret';
 import { rememberSecret } from '#utilities/redaction';
 
-import { environmentOf } from '../fixtures/environment.js';
-import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+import { environmentOf } from '../fixtures/environment';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile';
 
 import type { CommandResult } from '#command';
 import type { CommandOptions } from '#command/contracts';

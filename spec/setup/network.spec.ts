@@ -9,13 +9,13 @@ import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import { revealSecret } from '#integrations/guest/session/secret';
 import { setupNetwork } from '#setup/network';
 
-import { environmentOf } from '../fixtures/environment.js';
-import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+import { environmentOf } from '../fixtures/environment';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile';
 import {
   createFilesystemSprite,
   guestOf,
   workstationOf,
-} from '../mocks/sprites.js';
+} from '../mocks/sprites';
 
 import type { Sprite } from '@fly/sprites';
 

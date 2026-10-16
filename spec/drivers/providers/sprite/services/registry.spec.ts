@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { writeResult } from '#cli/output';
 import { CommandFault, commandError } from '#errors';
 
-import { createFilesystemSprite, guestOf } from '../../../../mocks/sprites.js';
+import { createFilesystemSprite, guestOf } from '../../../../mocks/sprites';
 
 import type { ServiceWithState } from '@fly/sprites';
 

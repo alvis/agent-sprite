@@ -3,13 +3,13 @@ import { isHarnessId } from '#core/harnesses';
 import { isNetworkId } from '#core/networks';
 import { machineViolations, isDriverId } from '#core/profile-rules';
 
-import { releaseChoices } from './selection-choices.js';
+import { releaseChoices } from './selection-choices';
 
 import type { ProfileOptions } from '#core/profile';
 import type { SelectionField } from '#core/selection-inputs';
 
-import type { Prompts } from './selection-sources.js';
-import type { SuppliedSelection } from './selection-supplied.js';
+import type { Prompts } from './selection-sources';
+import type { SuppliedSelection } from './selection-supplied';
 
 /** facts the option steps depend on */
 interface OptionContext {

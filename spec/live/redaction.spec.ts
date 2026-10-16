@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createRedactor } from './redaction.js';
+import { createRedactor } from './redaction';
 
 describe('fn:createRedactor', () => {
   it('should replace every dotenv value by its variable name', () => {

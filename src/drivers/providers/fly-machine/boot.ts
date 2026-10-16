@@ -9,13 +9,13 @@ import {
   BOOT_LOG,
   BOOT_READY_FILE,
   BOOT_STATUS,
-} from './boot-layout.js';
+} from './boot-layout';
 
 import type { BootReport } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { FlyApi, FlyMachineTarget } from './api.js';
-import type { FlyMachine } from './wire.js';
+import type { FlyApi, FlyMachineTarget } from './api';
+import type { FlyMachine } from './wire';
 
 /**
  * what the ready file says about the current boot: `halted` is a boot a

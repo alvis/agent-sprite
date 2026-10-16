@@ -5,13 +5,13 @@ import { networksWithInputs, networkDriver, networkIds } from '#core/networks';
 import { isDriverId } from '#core/profile-rules';
 import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 
-import { hasValue } from './selection-sources.js';
+import { hasValue } from './selection-sources';
 
 import type { CommandOptions, InteractionChoice } from '#command/contracts';
 import type { AgentId, HarnessId, NetworkId, ProviderId } from '#core/catalog';
 import type { ReleaseChannels } from '#drivers/contracts';
 
-import type { InputSources } from './sources.js';
+import type { InputSources } from './sources';
 
 /**
  * offers every registered provider

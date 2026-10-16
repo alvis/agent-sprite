@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { prepareCreate } from '#create/preflight';
 
-import { driveInk } from '../fixtures/ink.js';
+import { driveInk } from '../fixtures/ink';
 
 import type { Sprite } from '@fly/sprites';
 

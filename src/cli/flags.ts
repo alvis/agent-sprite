@@ -4,8 +4,8 @@ import { harnessIds } from '#core/harnesses';
 import { agentIds, providerIds, releaseChannelIds } from '#core/ids';
 import { networkIds } from '#core/networks';
 
-import { machineFlags } from './machine-flags.js';
-import { parseWholeNumber } from './whole-number.js';
+import { machineFlags } from './machine-flags';
+import { parseWholeNumber } from './whole-number';
 
 /** local provider credential selection shared by every operation */
 export const providerCredentialFlags = {

@@ -1,7 +1,7 @@
 import { ProviderFault } from '#drivers/failures';
 
-import { isNotFound } from './status.js';
-import { flyRequest } from './transport.js';
+import { isNotFound } from './status';
+import { flyRequest } from './transport';
 
 import {
   parseApp,
@@ -16,10 +16,10 @@ import {
   parseVolumeId,
   wireGuest,
   wireMachineConfig,
-} from './wire.js';
+} from './wire';
 
-import type { MachineSpec } from './machine-config.js';
-import type { FlyRequest } from './transport.js';
+import type { MachineSpec } from './machine-config';
+import type { FlyRequest } from './transport';
 import type {
   FlyApp,
   FlyExecResult,
@@ -27,7 +27,7 @@ import type {
   FlyIpAssignment,
   FlyMachine,
   FlyOrgMachine,
-} from './wire.js';
+} from './wire';
 
 /** one machine of one app */
 export interface FlyMachineTarget {

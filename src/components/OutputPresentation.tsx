@@ -1,5 +1,5 @@
-import { MachineTable } from './Display.js';
-import { ResultDetails } from './ResultDetails.js';
+import { MachineTable } from './Display';
+import { ResultDetails } from './ResultDetails';
 
 import type { ReactElement } from 'react';
 

@@ -1,12 +1,12 @@
 import { CommandFault } from '#errors';
 import { cronService } from '#services/cron';
 
-import { catalog } from './catalog.js';
+import { catalog } from './catalog';
 
 import type { AgentPairing } from '#drivers/contracts';
 import type { GuestChannel, ServiceDefinition } from '#drivers/guest-channel';
 
-import type { AgentId, NetworkId } from './catalog.js';
+import type { AgentId, NetworkId } from './catalog';
 
 /** how human output names the maintenance service */
 const MAINTENANCE_LABEL = 'Maintenance scheduler';

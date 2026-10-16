@@ -1,8 +1,4 @@
-import {
-  redactForPairing,
-  redactResolved,
-  rememberSecret,
-} from './redaction.js';
+import { redactForPairing, redactResolved, rememberSecret } from './redaction';
 
 /** native pairing material and optional provider connection URL */
 interface PairingSecretParams {

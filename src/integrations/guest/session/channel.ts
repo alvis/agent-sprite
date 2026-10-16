@@ -9,7 +9,7 @@ import type {
   GuestServiceControl,
 } from '#drivers/guest-channel';
 
-import type { GuestSession, StepInput } from './contracts.js';
+import type { GuestSession, StepInput } from './contracts';
 
 /** limit of a channel command run over the session without one of its own */
 const DEFAULT_LIMIT_MS = 600_000;

@@ -5,11 +5,11 @@ import {
 import { readJsonObject } from '#integrations/native/configuration';
 import { isRecord } from '#utilities/guards';
 
-import { assertMergeableHooks } from '../shared/hooks.js';
+import { assertMergeableHooks } from '../shared/hooks';
 
-import { CLAUDE_WORK_HOOKS } from './hooks.js';
-import { CLAUDE_CONFIG_DIR, CLAUDE_SETTINGS } from './paths.js';
-import { removeClaudeProxyOwnership, resolveClaudeProxy } from './proxy.js';
+import { CLAUDE_WORK_HOOKS } from './hooks';
+import { CLAUDE_CONFIG_DIR, CLAUDE_SETTINGS } from './paths';
+import { removeClaudeProxyOwnership, resolveClaudeProxy } from './proxy';
 
 import type { HarnessConfigureParams } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';

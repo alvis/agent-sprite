@@ -7,19 +7,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { setupAgent } from '#setup/sections';
 import { PairingSecret } from '#utilities/pairing-secret';
 
-import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile';
 import {
   createFilesystemSprite,
   holdServices,
   workstationOf,
-} from '../mocks/sprites.js';
+} from '../mocks/sprites';
 
 import type { SetupContext } from '#setup/context';
 
 // setup's root session is a framed guest shell only the live specs open
 vi.mock(
   '#integrations/guest/session/open',
-  async () => import('../mocks/session.js'),
+  async () => import('../mocks/session'),
 );
 // Codex trusts its hooks through its app server, a guest process only the live specs run
 vi.mock('#drivers/harnesses/codex/hook-trust', () => ({

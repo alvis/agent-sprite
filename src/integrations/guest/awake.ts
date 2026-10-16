@@ -2,16 +2,16 @@ import { guestAsset } from '#integrations/guest/assets';
 import { checkOperation } from '#operation';
 import { SHARED_MODE } from '#os/contracts';
 
-import { isGovernorReport } from './governor-report.js';
-import { runGuestResult } from './run.js';
+import { isGovernorReport } from './governor-report';
+import { runGuestResult } from './run';
 
 import type { ProviderCapabilities } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { PeriodicJob, ServiceStepContext } from '#os/contracts';
 
-import type { GovernorReport } from './governor-report.js';
-import type { SetupStep, StepCommand } from './plan/contracts.js';
-import type { SessionAwakeHold, SessionCommand } from './session/contracts.js';
+import type { GovernorReport } from './governor-report';
+import type { SetupStep, StepCommand } from './plan/contracts';
+import type { SessionAwakeHold, SessionCommand } from './session/contracts';
 
 /**
  * the idle governor and awake command, root's file every account runs:

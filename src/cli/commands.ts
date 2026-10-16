@@ -7,8 +7,8 @@ import {
   setupDocumentation,
   showDocumentation,
   terminateDocumentation,
-} from './documentation.js';
-import { execute } from './execute.js';
+} from './documentation';
+import { execute } from './execute';
 import {
   commonFlags,
   consentFlags,
@@ -23,12 +23,12 @@ import {
   providerFlags,
   selectionFlags,
   setupFlags,
-} from './flags.js';
+} from './flags';
 import {
   harnessPluginChangeFlags,
   harnessPluginFlags,
   harnessPluginOptions,
-} from './harness-flags.js';
+} from './harness-flags';
 
 import type { Command } from '@stricli/core';
 
@@ -37,8 +37,8 @@ import type { CommandOptions } from '#command/contracts';
 import type {
   HarnessPluginFlagValues,
   HarnessPluginSelectionValues,
-} from './harness-flags.js';
-import type { InvocationContext } from './parser.js';
+} from './harness-flags';
+import type { InvocationContext } from './parser';
 
 type BooleanKeys<T> = {
   [K in keyof T]-?: NonNullable<T[K]> extends boolean ? K : never;

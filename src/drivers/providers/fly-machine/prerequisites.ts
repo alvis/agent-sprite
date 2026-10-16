@@ -1,7 +1,7 @@
 import { checkDeclaredPrerequisites } from '#drivers/shared/prerequisites';
 
-import { decodeToken, FLYCTL } from './flyctl.js';
-import { tokenScopeProblem } from './token-scope.js';
+import { decodeToken, FLYCTL } from './flyctl';
+import { tokenScopeProblem } from './token-scope';
 
 import type {
   PrerequisiteProblem,

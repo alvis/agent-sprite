@@ -6,24 +6,24 @@ import { OPEN_AGENT_VERSION } from '#utilities/version';
 import {
   readGuestEnvironment,
   writeGuestEnvironment,
-} from './environment/store.js';
-import { assemblePlan } from './plan/assemble.js';
-import { runPlan } from './plan/plan.js';
+} from './environment/store';
+import { assemblePlan } from './plan/assemble';
+import { runPlan } from './plan/plan';
 import {
   bottleProbe,
   HOMEBREW_STEP,
   refusedBottles,
-} from './plan/steps/homebrew.js';
+} from './plan/steps/homebrew';
 
 import type { Interaction } from '#command/contracts';
 import type { WorkstationProfile } from '#core/profile';
 import type { ProviderDriver } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { SetupConnection } from './connection.js';
-import type { GuestEnvironment } from './environment/contracts.js';
-import type { AssemblyParams, SetupAssembly } from './plan/assemble.js';
-import type { PlanProgress, SetupStep } from './plan/contracts.js';
+import type { SetupConnection } from './connection';
+import type { GuestEnvironment } from './environment/contracts';
+import type { AssemblyParams, SetupAssembly } from './plan/assemble';
+import type { PlanProgress, SetupStep } from './plan/contracts';
 
 /** longest the bottle probe runs when it names no limit of its own */
 const PROBE_LIMIT_MS = 300_000;

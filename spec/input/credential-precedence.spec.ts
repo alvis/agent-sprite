@@ -12,7 +12,7 @@ import {
 } from '#integrations/credentials';
 import { redactResolved } from '#utilities/redaction';
 
-import { TAILSCALE_PROFILE } from '../fixtures/profile.js';
+import { TAILSCALE_PROFILE } from '../fixtures/profile';
 
 import type { CredentialStoreLocation } from '#integrations/credentials';
 

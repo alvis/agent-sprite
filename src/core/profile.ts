@@ -1,6 +1,6 @@
 import { isRecord } from '#utilities/guards';
 
-import { catalog, DEFAULT_SELECTION } from './catalog.js';
+import { catalog, DEFAULT_SELECTION } from './catalog';
 import {
   agentViolations,
   harnessSetViolations,
@@ -10,11 +10,11 @@ import {
   providerViolations,
   releaseViolations,
   unknownDriverViolations,
-} from './profile-rules.js';
+} from './profile-rules';
 
 import type { RecordedProfile } from '#drivers/providers/recorded';
 
-import type { AgentId, HarnessId, NetworkId, ProviderId } from './catalog.js';
+import type { AgentId, HarnessId, NetworkId, ProviderId } from './catalog';
 
 /** a workstation's complete driver selection */
 export interface WorkstationProfile {

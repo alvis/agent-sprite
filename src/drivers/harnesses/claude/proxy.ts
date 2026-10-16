@@ -8,14 +8,14 @@ import {
   removeOwnershipRecord,
   restoreOwnedValue,
   writeOwnershipRecord,
-} from '../shared/proxy-ownership.js';
+} from '../shared/proxy-ownership';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
 import type {
   NativeProxyParams,
   OwnedConfigurationValue,
-} from '../shared/proxy-ownership.js';
+} from '../shared/proxy-ownership';
 
 const CLAUDE_PROXY_OWNERSHIP = proxyOwnershipPath('claude');
 

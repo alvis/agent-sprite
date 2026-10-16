@@ -5,10 +5,10 @@ import { networkManagement } from '#input/management';
 import { readGuestEnvironment } from '#integrations/guest/environment/store';
 import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 
-import { CommandFault, commandError } from './errors.js';
-import { selectManagedMachine } from './inspect.js';
-import { summarizeMachine } from './machine.js';
-import { runBoundedIO, traceStage } from './operation.js';
+import { CommandFault, commandError } from './errors';
+import { selectManagedMachine } from './inspect';
+import { summarizeMachine } from './machine';
+import { runBoundedIO, traceStage } from './operation';
 
 import type { CommandResult } from '#command';
 import type { CommandRequest, Interaction } from '#command/contracts';
@@ -23,7 +23,7 @@ import type {
 } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
 
-import type { MachineSummary } from './machine.js';
+import type { MachineSummary } from './machine';
 
 interface CleanupContext {
   workstation: WorkstationRecord;

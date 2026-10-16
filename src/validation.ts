@@ -1,20 +1,20 @@
 import { harnessIds } from '#core/harnesses';
 
-import { CommandFault, ensureError } from './errors.js';
-import { validateMachineName } from './machine.js';
-import { promptUnavailableDetail } from './operation.js';
+import { CommandFault, ensureError } from './errors';
+import { validateMachineName } from './machine';
+import { promptUnavailableDetail } from './operation';
 import {
   hasActions,
   hasExplicitPluginActions,
   normalizePluginOptions,
   resolvePluginActions,
-} from './plugins.js';
+} from './plugins';
 
 import type { CommandOptions, CommandRequest } from '#command/contracts';
 
 import type { NormalizedPluginOptions, HarnessPluginActions } from '#plugins';
 
-import type { CommandFaultParams } from './errors.js';
+import type { CommandFaultParams } from './errors';
 
 /** input failure that can be reported before provider access */
 export class CommandValidationError extends CommandFault {

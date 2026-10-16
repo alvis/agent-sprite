@@ -4,9 +4,9 @@ import type { NetworkStatus } from '#drivers/networks/contracts';
 import type { HubStatus } from '#drivers/shared/cliproxyapi/hub';
 import type { NativeConfigurationInspection } from '#integrations/native/inspection';
 
-import type { GuestEnvironment } from './environment/contracts.js';
-import type { GovernorReport } from './governor-report.js';
-import type { UpdateStatus } from './updates.js';
+import type { GuestEnvironment } from './environment/contracts';
+import type { GovernorReport } from './governor-report';
+import type { UpdateStatus } from './updates';
 
 /** current explicit guest inspection result */
 export interface GuestInspection {

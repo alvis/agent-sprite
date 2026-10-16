@@ -1,12 +1,9 @@
-import { configureCodex } from './configure.js';
-import { codexHooks } from './hooks.js';
-import { codexReadiness, inspectCodex } from './inspect.js';
-import {
-  CODEX_RESERVED_ENVIRONMENT,
-  CODEX_SPAWN_ENVIRONMENT,
-} from './paths.js';
-import { codexPlugins } from './plugins.js';
-import { codexTool } from './tools.js';
+import { configureCodex } from './configure';
+import { codexHooks } from './hooks';
+import { codexReadiness, inspectCodex } from './inspect';
+import { CODEX_RESERVED_ENVIRONMENT, CODEX_SPAWN_ENVIRONMENT } from './paths';
+import { codexPlugins } from './plugins';
+import { codexTool } from './tools';
 
 import type { HarnessDriver } from '#drivers/contracts';
 import type { HarnessSkillEvidence } from '#drivers/harness-evidence';

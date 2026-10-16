@@ -15,7 +15,7 @@ import {
   createFilesystemSprite,
   executeNativeConfiguration,
   guestOf,
-} from '../../mocks/sprites.js';
+} from '../../mocks/sprites';
 
 describe('fn:runAsAgent', () => {
   it('should start native commands in the runtime home instead of the provider shell directory', async () => {

@@ -6,7 +6,7 @@ import type { ProfileSummary } from '#core/profile';
 import type { WorkstationRecord } from '#drivers/contracts';
 import type { RecordedProfile } from '#drivers/providers/recorded';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 /**
  * records setup readiness, the persisted profile summary and the open-agent

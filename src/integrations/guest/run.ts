@@ -2,14 +2,14 @@ import { posix } from 'node:path';
 
 import { CommandFault } from '#errors';
 
-import { sanitizeGuestDiagnostic } from './diagnostics.js';
-import { runSessionCommand } from './session/channel.js';
+import { sanitizeGuestDiagnostic } from './diagnostics';
+import { runSessionCommand } from './session/channel';
 
 import type { NetworkId } from '#core/catalog';
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { NetworkIdentity } from '#drivers/networks/contracts';
 
-import type { Secret } from './session/secret.js';
+import type { Secret } from './session/secret';
 
 /** retained non-secret network device identity for authorised cleanup */
 export interface GuestNetworkIdentity extends NetworkIdentity {

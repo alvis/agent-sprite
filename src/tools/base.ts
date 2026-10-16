@@ -4,7 +4,7 @@ import type {
   SystemToolSource,
   ToolSpec,
   ToolVersionProbe,
-} from './contracts.js';
+} from './contracts';
 
 /**
  * Google's Linux package repository, which serves Chrome; its key is pinned to

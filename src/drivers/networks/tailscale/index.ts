@@ -1,4 +1,4 @@
 /** Tailscale network driver */
-export { tailscale } from './network.js';
+export { tailscale } from './network';
 /** current tailnet identity and exit-route status */
-export type { TailnetStatus } from './types.js';
+export type { TailnetStatus } from './types';

@@ -8,11 +8,11 @@ import { inspectGuest } from '#integrations/guest/runtime';
 
 import { PairingSecret } from '#utilities/pairing-secret';
 
-import { CommandFault, commandError } from './errors.js';
+import { CommandFault, commandError } from './errors';
 
-import { summarizeMachine } from './machine.js';
-import { promptUnavailableDetail } from './operation.js';
-import { assessReadiness } from './readiness.js';
+import { summarizeMachine } from './machine';
+import { promptUnavailableDetail } from './operation';
+import { assessReadiness } from './readiness';
 
 import type { CommandResult } from '#command';
 import type {

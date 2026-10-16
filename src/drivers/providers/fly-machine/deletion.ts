@@ -3,7 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { ProviderFault } from '#drivers/failures';
 import { runOperation } from '#operation';
 
-import type { FlyApi } from './api.js';
+import type { FlyApi } from './api';
 
 const DELETE_TIMEOUT_MS = 120_000;
 const DELETE_POLL_MS = 2_000;

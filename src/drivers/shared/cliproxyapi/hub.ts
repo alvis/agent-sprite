@@ -2,7 +2,7 @@ import { removeGuestFile, writeGuestFile } from '#integrations/guest/files';
 import { GUEST_ROOT } from '#integrations/guest/layout';
 import { runGuestResult } from '#integrations/guest/run';
 
-import { resolveProxyEndpoints } from './endpoints.js';
+import { resolveProxyEndpoints } from './endpoints';
 
 import type { ProxyRoute } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';

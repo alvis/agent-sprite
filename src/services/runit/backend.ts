@@ -6,7 +6,7 @@ import { ROOT_ONLY_MODE } from '#os/contracts';
 import { familyOf } from '#os/families';
 import { isRecord } from '#utilities/guards';
 
-import { jobsStep } from '../cron.js';
+import { jobsStep } from '../cron';
 
 import type {
   GuestExecResult,

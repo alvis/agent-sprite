@@ -8,7 +8,7 @@ import { ProviderFault } from '#drivers/failures';
 import { currentOperation, runOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
-import { macaroonLocations, PERMISSION_LOCATION } from './token-scope.js';
+import { macaroonLocations, PERMISSION_LOCATION } from './token-scope';
 
 /** a Fly macaroon caveat, as flyctl encodes it */
 interface Caveat {

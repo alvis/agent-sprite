@@ -11,7 +11,7 @@ import {
   createFilesystemSprite,
   guestOf,
   sessionGuestOf,
-} from '../../../mocks/sprites.js';
+} from '../../../mocks/sprites';
 
 const RECORD = '/opt/open-agent/cliproxyapi.curl';
 

@@ -15,8 +15,8 @@ import {
   SESSION_DIRECTORY,
   SESSION_PATH,
   SYSTEM_PATH,
-} from './layout.js';
-import { quoteWord } from './session/framing.js';
+} from './layout';
+import { quoteWord } from './session/framing';
 
 import type { GuestAsset } from '#os/contracts';
 

@@ -1,4 +1,4 @@
-import type { ProviderErrorCode, ProviderFailure } from './contracts.js';
+import type { ProviderErrorCode, ProviderFailure } from './contracts';
 
 /** neutral failure class and the provider's own diagnostic */
 export interface ProviderFaultParams extends ErrorOptions {

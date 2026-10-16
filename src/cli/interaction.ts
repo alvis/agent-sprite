@@ -14,13 +14,13 @@ import {
 import { InteractionExit } from '#navigation';
 import { redactResolved } from '#utilities/redaction';
 
-import { createActivityController } from './activity.js';
+import { createActivityController } from './activity';
 
 import type { ReactElement } from 'react';
 
 import type { Interaction, ProgressUpdate } from '#command/contracts';
 
-import type { ActivityOptions } from './activity.js';
+import type { ActivityOptions } from './activity';
 
 /** Ink streams used by the interaction boundary */
 interface InteractionIO {

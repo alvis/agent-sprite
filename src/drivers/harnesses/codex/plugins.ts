@@ -8,14 +8,14 @@ import {
   installedPlugins,
   reconcileMarketplaces,
   recordSelectedPlugins,
-} from '../shared/plugin-state.js';
+} from '../shared/plugin-state';
 
-import { CODEX_CONFIG, CODEX_INVENTORY, CODEX_PLUGIN_STATE } from './paths.js';
+import { CODEX_CONFIG, CODEX_INVENTORY, CODEX_PLUGIN_STATE } from './paths';
 
 import type { HarnessPluginControl, PluginActions } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { PluginHarness } from '../shared/plugin-state.js';
+import type { PluginHarness } from '../shared/plugin-state';
 
 const CODEX_PLUGINS: PluginHarness = {
   inventory: CODEX_INVENTORY,

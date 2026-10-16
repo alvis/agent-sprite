@@ -8,7 +8,7 @@ import type { CommandResult } from '#command';
 import type { SetupSection } from '#command/contracts';
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 
-import type { SetupProgress } from './context.js';
+import type { SetupProgress } from './context';
 
 interface SetupFailureParams {
   provider: ProviderDriver;

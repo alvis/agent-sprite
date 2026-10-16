@@ -11,7 +11,7 @@ import { pairingAgentIds } from '#core/ids';
 import { commandError, ensureError } from '#errors';
 import { redactResolved } from '#utilities/redaction';
 
-import { harnessPluginToggleNames } from './harness-flags.js';
+import { harnessPluginToggleNames } from './harness-flags';
 
 import type {
   Application,

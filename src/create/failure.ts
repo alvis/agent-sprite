@@ -11,8 +11,8 @@ import { OPEN_AGENT_VERSION } from '#utilities/version';
 import type { CommandResult } from '#command';
 import type { WorkstationRecord } from '#drivers/contracts';
 
-import type { CreateContext, CreatePreflight } from './context.js';
-import type { CreatePreparation } from './preflight.js';
+import type { CreateContext, CreatePreflight } from './context';
+import type { CreatePreparation } from './preflight';
 
 const PROVIDER_CAUSE_LIMIT = 512;
 

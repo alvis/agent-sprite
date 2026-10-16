@@ -5,7 +5,7 @@ import {
   tailscaleCommand,
   tailscaleDaemon,
   tailscaleLauncher,
-} from './service.js';
+} from './service';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { Secret } from '#integrations/guest/session/secret';

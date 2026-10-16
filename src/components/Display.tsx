@@ -1,7 +1,7 @@
 import { Box, Text } from 'ink';
 import { useEffect, useState } from 'react';
 
-import { labelFor } from './ResultDetails.js';
+import { labelFor } from './ResultDetails';
 
 import type { ProgressUpdate, StatusUpdate } from '#command/contracts';
 

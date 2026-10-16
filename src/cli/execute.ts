@@ -14,12 +14,12 @@ import { readInputFile } from '#utilities/input-file';
 import { validateCommandRequest } from '#validation';
 import { runCommand } from '#workstation';
 
-import { createCommandCancellation } from './cancellation.js';
-import { createInteraction } from './interaction.js';
-import { resolveProcessExecutionOptions } from './mode.js';
-import { prepareResult, writePreparedResult } from './output.js';
-import { createStageReporter, createStatusReporter } from './reporting.js';
-import { flushOutput } from './streams.js';
+import { createCommandCancellation } from './cancellation';
+import { createInteraction } from './interaction';
+import { resolveProcessExecutionOptions } from './mode';
+import { prepareResult, writePreparedResult } from './output';
+import { createStageReporter, createStatusReporter } from './reporting';
+import { flushOutput } from './streams';
 
 import type { CommandResult, CommandSuccess } from '#command';
 import type {
@@ -28,10 +28,10 @@ import type {
   CommandRequest,
 } from '#command/contracts';
 
-import type { CommandCancellation } from './cancellation.js';
-import type { InteractionSession } from './interaction.js';
-import type { PreparedResult } from './output.js';
-import type { ExecutionState } from './parser.js';
+import type { CommandCancellation } from './cancellation';
+import type { InteractionSession } from './interaction';
+import type { PreparedResult } from './output';
+import type { ExecutionState } from './parser';
 
 const RENDER_FAILURE_MESSAGE =
   'The command result could not be rendered safely.';

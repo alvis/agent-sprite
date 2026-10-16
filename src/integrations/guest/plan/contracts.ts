@@ -1,6 +1,6 @@
 import type { ToolOwner } from '#tools/contracts';
 
-import type { SessionCommand } from '../session/contracts.js';
+import type { SessionCommand } from '../session/contracts';
 
 /** a step command; the account and timeout default to the step's */
 export type StepCommand = Omit<SessionCommand, 'account' | 'timeoutMs'> &

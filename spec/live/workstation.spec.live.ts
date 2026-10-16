@@ -5,7 +5,7 @@ import { codexTool } from '#drivers/harnesses/codex/tools';
 import { tailscaleDaemon } from '#drivers/networks/tailscale/service';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 
-import { successData, tail } from './cli.js';
+import { successData, tail } from './cli';
 import {
   BREW_TOOLS,
   checkManagedHold,
@@ -36,8 +36,8 @@ import {
   STALE_COMPONENT,
   updateOutcomes,
   watchHolders,
-} from './guest.js';
-import { createLiveHarness } from './harness.js';
+} from './guest';
+import { createLiveHarness } from './harness';
 import {
   crashHarnessTurn,
   isAsleep,
@@ -51,16 +51,16 @@ import {
   waitForToolCall,
   waitForTurnEnd,
   watchRunStates,
-} from './idle.js';
-import { HOMEBREW } from './layout.js';
-import { foreignIdentifiers } from './ownership.js';
+} from './idle';
+import { HOMEBREW } from './layout';
+import { foreignIdentifiers } from './ownership';
 
 import type { UpdateToolOutcome } from '#integrations/guest/updates';
 
-import type { TerminalStep } from '../fixtures/terminal.js';
+import type { TerminalStep } from '../fixtures/terminal';
 
-import type { UpdateRecord } from './guest.js';
-import type { RunSample } from './idle.js';
+import type { UpdateRecord } from './guest';
+import type { RunSample } from './idle';
 
 // budgets sum below the project testTimeout so a slow step fails before vitest
 // abandons the test body; observed baseline lifecycles finish in about 3 minutes

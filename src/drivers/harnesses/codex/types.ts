@@ -1,4 +1,4 @@
-import type { OwnedConfigurationValue } from '../shared/proxy-ownership.js';
+import type { OwnedConfigurationValue } from '../shared/proxy-ownership';
 
 /** Codex configuration fields whose ownership open-agent tracks */
 export const CODEX_PROXY_FIELDS = [

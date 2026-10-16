@@ -8,10 +8,10 @@ import {
   mergeWorkHooks,
   TURN_WORK_HOOKS,
   workHookCommands,
-} from '../shared/hooks.js';
+} from '../shared/hooks';
 
-import { trustCodexHooks } from './hook-trust.js';
-import { CODEX_HOME, CODEX_HOOKS } from './paths.js';
+import { trustCodexHooks } from './hook-trust';
+import { CODEX_HOME, CODEX_HOOKS } from './paths';
 
 import type {
   AwakeHookCommand,
@@ -19,7 +19,7 @@ import type {
 } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { WorkHooks } from '../shared/hooks.js';
+import type { WorkHooks } from '../shared/hooks';
 
 /**
  * longest Codex waits on a `SessionEnd` or `Interrupt` hook, in seconds:

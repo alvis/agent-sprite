@@ -8,7 +8,7 @@ import {
   resolveSetupSelection,
 } from '#input/selection';
 
-import { driveInk } from '../fixtures/ink.js';
+import { driveInk } from '../fixtures/ink';
 
 describe('workflow:input source resolution', () => {
   it('should preserve the recorded and default selections under --yes without inventing features', async () => {

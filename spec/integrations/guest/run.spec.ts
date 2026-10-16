@@ -5,7 +5,7 @@ import { runGuest, runGuestResult } from '#integrations/guest/run';
 import { OperationContext, withOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
-import { guestOf } from '../../mocks/sprites.js';
+import { guestOf } from '../../mocks/sprites';
 
 describe('fn:runGuest', () => {
   it('should report only the sanitized final stderr tail and semantic step on nonzero exit', async () => {

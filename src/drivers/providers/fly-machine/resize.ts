@@ -1,11 +1,11 @@
 import { ProviderFault } from '#drivers/failures';
 
-import { FLY_MACHINES, guestOf } from './machines.js';
+import { FLY_MACHINES, guestOf } from './machines';
 
 import type { MachineOffer } from '#drivers/contracts';
 
-import type { FlyApi } from './api.js';
-import type { FlyMachine } from './wire.js';
+import type { FlyApi } from './api';
+import type { FlyMachine } from './wire';
 
 /** one machine and the size it moves to */
 interface ResizeParams {
