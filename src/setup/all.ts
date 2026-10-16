@@ -1,5 +1,6 @@
 import { catalog } from '#core/catalog';
 import { markInstallationReady } from '#integrations/guest/install';
+import { writeWorkstationLabel } from '#integrations/guest/label';
 import { traceStage } from '#operation';
 
 import { installSetupPlan } from './install.js';
@@ -22,8 +23,9 @@ import type { SetupContext } from './context.js';
 
 /**
  * reconciles every managed guest section: the setup plan installs the tools,
- * then the network, accounts, gateway, runtime environment and plugins are
- * configured before the plan installs and starts the services and jobs, the
+ * then the guest is named after its workstation and the network, accounts,
+ * gateway, runtime environment and plugins are configured before the plan
+ * installs and starts the services and jobs, the
  * agent is verified to serve and exposed, and only then is the installation
  * recorded ready
  * @param guest guest channel of the managed workstation
@@ -45,6 +47,8 @@ export async function setupAll(
   }
   const sections: { configured?: Omit<AllSetupData, 'tools'> } = {};
   await installSetupPlan(context, async () => {
+    // a workstation whose create stopped short has no name recorded yet
+    await writeWorkstationLabel(guest, context.workstation.name);
     sections.configured = await traceStage(
       'setup.native.configuration',
       async () => configureSections(guest, context),
