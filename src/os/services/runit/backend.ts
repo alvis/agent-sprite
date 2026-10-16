@@ -1,6 +1,7 @@
 import { guestAsset } from '#guest/assets';
 import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { libraryCommand } from '#integrations/guest/plan/steps/library';
+import { quoteWord } from '#integrations/guest/session/framing';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 import { familyOf } from '#os/families';
 import { isRecord } from '#utilities/guards';
@@ -146,16 +147,27 @@ export class RunitServiceControl implements GuestServiceControl {
   }
 
   /**
-   * reads every one of open-agent's services and its state
+   * reads every one of open-agent's services and its state; a guest setup
+   * has not yet given the runit library has none
    * @returns the services
    * @throws {Error} when the listing fails or is malformed
    */
   public async list(): Promise<GuestServiceState[]> {
-    const { stdout } = await this.#call(
-      'listing the services',
-      ['oa_sv_list'],
+    const library = quoteWord(RUNIT_LIBRARY.installAs);
+    const result = await this.#run(
+      [
+        this.#shell,
+        '-c',
+        `if test -e ${library}; then . ${library} && oa_sv_list; else echo '[]'; fi`,
+      ],
       LIST_LIMIT_MS,
     );
+    if (result.exitCode !== 0) {
+      const reason = result.stderr.trim() || `exit ${result.exitCode}`;
+
+      throw new Error(`Failed listing the services: ${reason}`);
+    }
+    const { stdout } = result;
     const states: unknown = JSON.parse(stdout);
     if (!Array.isArray(states) || !states.every(isServiceState)) {
       throw new Error('The guest reported a malformed service listing');
