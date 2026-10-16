@@ -1,5 +1,5 @@
 import { guestAsset } from '#guest/assets';
-import { ENVIRONMENT_PATH } from '#integrations/guest/environment';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { libraryCommand } from '#integrations/guest/plan/steps/library';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 import { familyOf } from '#os/families';

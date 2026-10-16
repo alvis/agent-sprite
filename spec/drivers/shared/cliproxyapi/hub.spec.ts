@@ -1,43 +1,55 @@
-import {
-  mkdir,
-  mkdtempDisposable,
-  readFile,
-  stat,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdtempDisposable, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { inspectHub, recordHub } from '#drivers/shared/cliproxyapi/hub';
+import { rememberSecret } from '#utilities/redaction';
 
-import { createFilesystemSprite, guestOf } from '../../../mocks/sprites.js';
+import {
+  createFilesystemSprite,
+  guestOf,
+  sessionGuestOf,
+} from '../../../mocks/sprites.js';
 
-const RECORD = '/opt/open-agent/cliproxyapi.json';
-const PROBE = '/opt/open-agent/drivers/shared/cliproxyapi/guest/hub-probe.js';
+const RECORD = '/opt/open-agent/cliproxyapi.curl';
 
 describe('fn:recordHub', () => {
-  it('should record the model catalogue endpoint and client key for root only', async () => {
+  it('should record the model catalogue endpoint and client key for root only, as a secret input', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-hub-record-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
+    rememberSecret('hub-client-key');
 
-    await recordHub(guestOf(sprite), {
+    await recordHub(sessionGuestOf(sprite), {
       url: 'https://proxy.example/base',
-      apiKey: 'client-key',
+      apiKey: 'hub-client-key',
     });
 
-    const record: unknown = JSON.parse(
-      await readFile(join(directory.path, RECORD), 'utf8'),
-    );
     const { mode } = await stat(join(directory.path, RECORD));
-    expect(record).toEqual({
-      models: 'https://proxy.example/base/v1/models',
-      apiKey: 'client-key',
-    });
+    expect(await readFile(join(directory.path, RECORD), 'utf8')).toBe(
+      'url = "https://proxy.example/base/v1/models"\n' +
+        'header = "Authorization: Bearer hub-client-key"\n',
+    );
     expect(mode & 0o777).toBe(0o600);
+  });
+
+  it('should refuse to write the client key outside a setup session', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-hub-record-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    rememberSecret('hub-session-key');
+
+    await expect(
+      recordHub(guestOf(sprite), {
+        url: 'https://proxy.example',
+        apiKey: 'hub-session-key',
+      }),
+    ).rejects.toThrow(/needs a setup session/);
+    expect(sprite.execFileHTTP).not.toHaveBeenCalled();
   });
 
   it('should forget the record when no gateway is routed', async () => {
@@ -57,17 +69,12 @@ describe('fn:recordHub', () => {
 });
 
 describe('fn:inspectHub', () => {
-  it('should run the probe as root against the recorded gateway', async () => {
+  it('should ask the recorded gateway as root and report its status', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-hub-inspect-'),
     );
-    await mkdir(join(directory.path, dirname(PROBE)), { recursive: true });
-    await writeFile(join(directory.path, PROBE), 'probe installed');
     const execute = vi.fn(async () => ({
-      stdout: JSON.stringify({
-        reachable: false,
-        reason: 'gateway record missing',
-      }),
+      stdout: '200',
       stderr: '',
       exitCode: 0,
     }));
@@ -75,33 +82,54 @@ describe('fn:inspectHub', () => {
 
     const status = await inspectHub(guestOf(sprite));
 
-    expect(status).toEqual({
-      reachable: false,
-      skipped: false,
-      status: undefined,
-      reason: 'gateway record missing',
-    });
+    expect(status).toEqual({ reachable: true, skipped: false, status: 200 });
     expect(execute).toHaveBeenCalledWith(
       '/usr/bin/sudo',
-      ['-n', '-E', '--', '/opt/open-agent/node/bin/node', PROBE, RECORD],
+      [
+        '-n',
+        '-E',
+        '--',
+        '/bin/sh',
+        '-c',
+        expect.stringContaining('curl'),
+        'oa-hub',
+        RECORD,
+      ],
       expect.anything(),
     );
   });
 
-  it('should report a probe that is not installed without running it', async () => {
+  it.each([
+    [64, 'gateway record missing'],
+    [7, 'gateway request failed'],
+  ])(
+    'should report a probe exiting with %i as unreachable',
+    async (exitCode, reason) => {
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-hub-inspect-'),
+      );
+      const execute = vi.fn(async () => ({ stdout: '', stderr: '', exitCode }));
+      const sprite = createFilesystemSprite({ root: directory.path, execute });
+
+      await expect(inspectHub(guestOf(sprite))).resolves.toEqual({
+        reachable: false,
+        skipped: false,
+        reason,
+      });
+    },
+  );
+
+  it('should reject a status that is not a number', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-hub-inspect-'),
     );
-    const execute = vi.fn();
+    const execute = vi.fn(async () => ({
+      stdout: 'not-a-status',
+      stderr: '',
+      exitCode: 0,
+    }));
     const sprite = createFilesystemSprite({ root: directory.path, execute });
 
-    const status = await inspectHub(guestOf(sprite));
-
-    expect(status).toEqual({
-      reachable: false,
-      skipped: false,
-      reason: 'gateway probe is not installed',
-    });
-    expect(execute).not.toHaveBeenCalled();
+    await expect(inspectHub(guestOf(sprite))).rejects.toThrow(/malformed/);
   });
 });

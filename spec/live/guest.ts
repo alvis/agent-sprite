@@ -3,12 +3,9 @@ import { harnessDrivers } from '#core/harnesses';
 import { networkDriver } from '#core/networks';
 import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
 import { CODEX_HOOKS } from '#drivers/harnesses/codex/paths';
-import { AGENT_HOME, GUEST_ROOT } from '#guest/guest-root';
+import { AGENT_HOME, ENVIRONMENT_PATH, GUEST_ROOT } from '#guest/guest-root';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import {
-  ENVIRONMENT_PATH,
-  parseEnvironment,
-} from '#integrations/guest/environment';
+import { parseEnvironment } from '#integrations/guest/environment';
 import {
   parseUpdateStatus,
   UPDATE_JOB,

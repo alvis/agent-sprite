@@ -41,9 +41,8 @@ import {
 } from '#drivers/providers/fly-machine/flyctl';
 import { tokenScopeProblem } from '#drivers/providers/fly-machine/token-scope';
 import { summarizeProfile } from '#drivers/providers/recorded';
-import { GUEST_ROOT } from '#guest/guest-root';
+import { ENVIRONMENT_PATH, GUEST_ROOT } from '#guest/guest-root';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import { ENVIRONMENT_PATH } from '#integrations/guest/environment';
 import { isRecord } from '#utilities/guards';
 
 import { createLiveCli, successData } from './cli.js';

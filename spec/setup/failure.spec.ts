@@ -5,6 +5,7 @@ import { prepareResult } from '#cli/output';
 import {
   MANAGED_LABEL,
   SETUP_INCOMPLETE_LABEL,
+  VERSION_LABEL_PREFIX,
 } from '#drivers/providers/sprite/labels';
 import { CommandFault } from '#errors';
 import { resolveSecret } from '#input/sources';
@@ -61,10 +62,12 @@ describe('fn:setupFailure', () => {
         setupIncomplete: true,
       },
     });
+    // the stopped run also records the release that last touched the guest
     expect(sprite.labels).toEqual([
       MANAGED_LABEL,
       'unrelated',
       SETUP_INCOMPLETE_LABEL,
+      expect.stringMatching(new RegExp(`^${VERSION_LABEL_PREFIX}`, 'u')),
     ]);
     expect(update).toHaveBeenCalledOnce();
     expect(prepareResult(result, {}).text).toContain(

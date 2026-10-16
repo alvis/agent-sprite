@@ -5,7 +5,10 @@ import { dirname, join } from 'node:path';
 import { SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
-import { TAILSCALE_STATE_FILE } from '#drivers/networks/tailscale/service';
+import {
+  TAILSCALE_STATE_FILE,
+  tailscaleCommand,
+} from '#drivers/networks/tailscale/service';
 import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { InteractionExit } from '#navigation';
 import { terminateWorkstation } from '#terminate';
@@ -18,22 +21,27 @@ import {
 import { createFilesystemSprite, providerOf } from './mocks/sprites.js';
 
 import type { Sprite } from '@fly/sprites';
+import type { Mock } from 'vitest';
 
 import type { CommandRequest } from '#command';
+
+import type { GuestExecute } from './mocks/sprites.js';
 
 const environment = environmentOf(TAILSCALE_PROFILE);
 
 /**
  * creates a verified provider target with actual isolated guest files
  * @param root disposable directory for guest and local inputs
- * @returns exact-target request and SDK-only provider boundary
+ * @returns exact-target request, SDK-only provider boundary and the guest's
+ * answer to every command other than a file program
  */
 async function createTerminationBoundary(root: string): Promise<{
   sprite: Sprite;
+  execute: Mock<GuestExecute>;
   client: SpritesClient;
   request: CommandRequest;
 }> {
-  const execute = vi.fn<Sprite['execFile']>(async () => ({
+  const execute = vi.fn<GuestExecute>(async () => ({
     stdout: '',
     stderr: 'native status unavailable',
     exitCode: 1,
@@ -65,7 +73,7 @@ async function createTerminationBoundary(root: string): Promise<{
     },
   } satisfies CommandRequest;
 
-  return { sprite, client, request };
+  return { sprite, execute, client, request };
 }
 
 describe('fn:terminateWorkstation', () => {
@@ -103,9 +111,8 @@ describe('fn:terminateWorkstation', () => {
       await using directory = await mkdtempDisposable(
         join(tmpdir(), 'open-agent-terminate-incomplete-'),
       );
-      const { sprite, client, request } = await createTerminationBoundary(
-        directory.path,
-      );
+      const { sprite, execute, client, request } =
+        await createTerminationBoundary(directory.path);
       if (hasManifest) {
         await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
         await sprite
@@ -124,7 +131,7 @@ describe('fn:terminateWorkstation', () => {
         },
       });
       expect(client.deleteSprite).toHaveBeenCalledExactlyOnceWith(sprite.name);
-      expect(sprite.execFile).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
     }
   });
 
@@ -132,9 +139,8 @@ describe('fn:terminateWorkstation', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-terminate-none-'),
     );
-    const { sprite, client, request } = await createTerminationBoundary(
-      directory.path,
-    );
+    const { sprite, execute, client, request } =
+      await createTerminationBoundary(directory.path);
     await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
     await sprite.filesystem().writeJSON('/opt/open-agent/environment.json', {
       ...environment,
@@ -152,16 +158,15 @@ describe('fn:terminateWorkstation', () => {
       },
     });
     expect(client.deleteSprite).toHaveBeenCalledExactlyOnceWith(sprite.name);
-    expect(sprite.execFile).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it('should preserve disabled recorded identity and report required cleanup after Sprite deletion without an API token', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-terminate-disabled-'),
     );
-    const { sprite, client, request } = await createTerminationBoundary(
-      directory.path,
-    );
+    const { sprite, execute, client, request } =
+      await createTerminationBoundary(directory.path);
     const filesystem = sprite.filesystem();
     await filesystem.mkdir('/opt/open-agent', { recursive: true });
     await filesystem.mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
@@ -193,9 +198,9 @@ describe('fn:terminateWorkstation', () => {
     });
     expect(client.deleteSprite).toHaveBeenCalledExactlyOnceWith(sprite.name);
     // the stopped daemon cannot report, so the recorded identity stands
-    expect(sprite.execFile).toHaveBeenCalledExactlyOnceWith(
+    expect(execute).toHaveBeenCalledExactlyOnceWith(
       '/usr/bin/sudo',
-      ['-n', '-E', '--', '/opt/open-agent/tools/tailscale', 'status', '--json'],
+      ['-n', '-E', '--', ...tailscaleCommand('status', '--json')],
       expect.any(Object),
     );
   });
@@ -247,9 +252,8 @@ describe('fn:terminateWorkstation', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-terminate-identity-'),
     );
-    const { sprite, client, request } = await createTerminationBoundary(
-      directory.path,
-    );
+    const { sprite, execute, client, request } =
+      await createTerminationBoundary(directory.path);
     await sprite
       .filesystem()
       .mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
@@ -260,9 +264,9 @@ describe('fn:terminateWorkstation', () => {
     ).rejects.toEqual(expect.objectContaining({ code: 'PREFLIGHT' }));
 
     expect(client.deleteSprite).not.toHaveBeenCalled();
-    expect(sprite.execFile).toHaveBeenCalledExactlyOnceWith(
+    expect(execute).toHaveBeenCalledExactlyOnceWith(
       '/usr/bin/sudo',
-      ['-n', '-E', '--', '/opt/open-agent/tools/tailscale', 'status', '--json'],
+      ['-n', '-E', '--', ...tailscaleCommand('status', '--json')],
       expect.any(Object),
     );
   });
@@ -333,14 +337,13 @@ describe('fn:terminateWorkstation', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-terminate-probe-'),
     );
-    const { sprite, client, request } = await createTerminationBoundary(
-      directory.path,
-    );
+    const { sprite, execute, client, request } =
+      await createTerminationBoundary(directory.path);
     await sprite
       .filesystem()
       .mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
     await sprite.filesystem().writeFile(TAILSCALE_STATE_FILE, 'enrolled');
-    vi.mocked(sprite.execFile).mockResolvedValueOnce({
+    execute.mockResolvedValueOnce({
       stdout: '{private-body',
       stderr: '',
       exitCode: 0,
@@ -362,15 +365,14 @@ describe('fn:terminateWorkstation', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-terminate-cancel-'),
     );
-    const { sprite, client, request } = await createTerminationBoundary(
-      directory.path,
-    );
+    const { sprite, execute, client, request } =
+      await createTerminationBoundary(directory.path);
     await sprite
       .filesystem()
       .mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
     await sprite.filesystem().writeFile(TAILSCALE_STATE_FILE, 'enrolled');
     const cancelled = new InteractionExit('cancel');
-    vi.mocked(sprite.execFile).mockRejectedValueOnce(cancelled);
+    execute.mockRejectedValueOnce(cancelled);
 
     await expect(
       terminateWorkstation(request, providerOf(client)),

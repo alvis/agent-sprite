@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 
-import { Sprite, SpritesClient } from '@fly/sprites';
+import { SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
 import { writeResult } from '#cli/output';
@@ -14,107 +14,127 @@ import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
 import { CODEX_WORK_HOOKS } from '#drivers/harnesses/codex/hooks';
 import { CODEX_HOOKS } from '#drivers/harnesses/codex/paths';
 import { mergeWorkHooks } from '#drivers/harnesses/shared/hooks';
-import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
+import { summarizeProfile } from '#drivers/providers/recorded';
+import {
+  MANAGED_LABEL,
+  SCHEMA_LABEL,
+  mergeMetadataLabels,
+} from '#drivers/providers/sprite/labels';
 import { resultExitCode } from '#errors';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { doctorWorkstation, showWorkstation } from '#inspect';
 import { OperationContext } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
+import { OPEN_AGENT_VERSION } from '#utilities/version';
 import { runCommand } from '#workstation';
 import { chooseWorkstationAction } from '#workstation/actions';
 
+import { environmentOf } from '../fixtures/environment.js';
 import { driveInk } from '../fixtures/ink.js';
 import { profileWith } from '../fixtures/profile.js';
 import {
   createFilesystemSprite,
   providerOf,
   serveServiceRegistry,
+  writtenPaths,
 } from '../mocks/sprites.js';
 
+import type { Sprite } from '@fly/sprites';
+
+import type { Mock } from 'vitest';
+
 import type { WorkHooks } from '#drivers/harnesses/shared/hooks';
+
+import type { GuestExecute } from '../mocks/sprites.js';
+
+// setup's root session is a framed guest shell only the live specs open
+vi.mock(
+  '#integrations/guest/session/open',
+  async () => import('../mocks/session.js'),
+);
+
+/** the profile the installed workstation recorded */
+const PROFILE = profileWith({
+  network: false,
+  exitNode: false,
+  cliproxyapi: false,
+});
 
 /**
  * creates a managed SDK boundary with one installed disposable workstation
  * @param root isolated guest filesystem root
- * @returns provider client and managed Sprite
+ * @returns provider client, managed Sprite and the guest's answer to every
+ * command other than a file program
  */
 async function installedSprite(root: string): Promise<{
   client: SpritesClient;
   sprite: Sprite;
-  fixtureWriteCalls: number;
+  execute: Mock<GuestExecute>;
 }> {
   const client = new SpritesClient('test-org/1/0abc/0def');
-  const sprite = Object.assign(
-    createFilesystemSprite({
-      root,
-      execute: async () => ({ stdout: '[]', stderr: '', exitCode: 0 }),
+  const execute = vi.fn<GuestExecute>(async () => ({
+    stdout: '[]',
+    stderr: '',
+    exitCode: 0,
+  }));
+  const sprite = Object.assign(createFilesystemSprite({ root, execute }), {
+    id: 'sprite-temporary',
+    organizationName: 'test-org',
+    // set up by this release, so a section run leaves its labels as they are
+    labels: mergeMetadataLabels([MANAGED_LABEL, SCHEMA_LABEL], {
+      setup: 'ready',
+      profile: summarizeProfile(PROFILE),
+      version: OPEN_AGENT_VERSION,
     }),
-    {
-      id: 'sprite-temporary',
-      organizationName: 'test-org',
-      labels: [MANAGED_LABEL, SCHEMA_LABEL],
-      url: 'https://temporary.sprites.app',
-      status: 'running',
-      listServices: vi.fn<Sprite['listServices']>(async () => []),
-    },
-  );
+    url: 'https://temporary.sprites.app',
+    status: 'running',
+    listServices: vi.fn<Sprite['listServices']>(async () => []),
+  });
   serveServiceRegistry(sprite);
   vi.spyOn(client, 'listAllSprites').mockResolvedValue([sprite]);
   vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
   vi.spyOn(client, 'deleteSprite').mockResolvedValue(undefined);
-  await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
-  await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
-    schema: 1,
-    createdAt: '2026-10-01T12:00:00Z',
-    installedVersions: { node: '24.9.0' },
-    profile: profileWith({
-      network: false,
-      exitNode: false,
-      cliproxyapi: false,
-    }),
-  });
-  const fixtureWriteCalls = vi.mocked(sprite.filesystem().writeFile).mock.calls
-    .length;
+  await sprite
+    .filesystem()
+    .writeFile(ENVIRONMENT_PATH, JSON.stringify(environmentOf(PROFILE)));
 
-  return { client, sprite, fixtureWriteCalls };
+  return { client, sprite, execute };
 }
 
-function managedSprite(pairingCode: string): {
-  client: SpritesClient;
-  sprite: Sprite;
-} {
+/**
+ * creates a managed SDK boundary whose guest mints one pairing code
+ * @param root isolated guest filesystem root
+ * @param pairingCode the code the agent's pairing command prints
+ * @returns provider client and the guest's answer to every command other
+ * than a file program
+ */
+async function managedSprite(
+  root: string,
+  pairingCode: string,
+): Promise<{ client: SpritesClient; execute: Mock<GuestExecute> }> {
   const client = new SpritesClient('test-org/1/0abc/0def');
-  const sprite = Object.assign(new Sprite('primary', client), {
-    id: 'sprite-primary',
-    organizationName: 'test-org',
-    labels: [MANAGED_LABEL, SCHEMA_LABEL],
-    url: 'https://primary.sprites.app',
-    status: 'running',
-    execFile: vi.fn<Sprite['execFile']>(async () => ({
-      stdout: `Token: ${pairingCode}\nExpires: 2099-01-01T00:00:00Z\n`,
-      stderr: '',
-      exitCode: 0,
-    })),
-  });
-  vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
-  // pairing reads the recorded agent from the guest manifest
-  const manifest = JSON.stringify({
-    schema: 1,
-    createdAt: '2026-10-01T12:00:00Z',
-    installedVersions: {},
-    profile: profileWith({
-      network: false,
-      exitNode: false,
-      cliproxyapi: false,
-    }),
-  });
-  const filesystem = sprite.filesystem();
-  vi.spyOn(sprite, 'filesystem').mockReturnValue(
-    Object.assign(filesystem, {
-      readFile: vi.fn(async () => manifest),
-    }),
+  const execute = vi.fn<GuestExecute>(async () => ({
+    stdout: `Token: ${pairingCode}\nExpires: 2099-01-01T00:00:00Z\n`,
+    stderr: '',
+    exitCode: 0,
+  }));
+  const sprite = Object.assign(
+    createFilesystemSprite({ root, name: 'primary', execute }),
+    {
+      id: 'sprite-primary',
+      organizationName: 'test-org',
+      labels: [MANAGED_LABEL, SCHEMA_LABEL],
+      url: 'https://primary.sprites.app',
+      status: 'running',
+    },
   );
+  vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
+  // pairing reads the recorded agent from the guest environment
+  await sprite
+    .filesystem()
+    .writeFile(ENVIRONMENT_PATH, JSON.stringify(environmentOf(PROFILE)));
 
-  return { client, sprite };
+  return { client, execute };
 }
 
 describe('cmd:show', () => {
@@ -211,13 +231,7 @@ describe('cmd:show', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-doctor-ready-'),
     );
-    const { client, sprite } = await installedSprite(directory.path);
-    await sprite
-      .filesystem()
-      .writeFile(
-        '/opt/open-agent/drivers/agents/t3/guest/t3-environment-probe.js',
-        'probe installed',
-      );
+    const { client, sprite, execute } = await installedSprite(directory.path);
     const hooks = (owned: WorkHooks): Record<string, unknown> =>
       mergeWorkHooks({}, { owned, command: AWAKE_HOOK_COMMAND });
     await sprite.filesystem().mkdir('/home/agent/.claude', { recursive: true });
@@ -255,11 +269,10 @@ describe('cmd:show', () => {
       serverVersion: '0.0.46-nightly.20261014.3118',
       orchestrationProtocolVersion: 2,
     };
-    vi.mocked(sprite.execFile).mockImplementation(async (_file, args) => ({
-      stdout: args?.includes(
-        '/opt/open-agent/drivers/agents/t3/guest/t3-environment-probe.js',
-      )
-        ? JSON.stringify(environment)
+    // the endpoint probe prints the body, then the status on its own line
+    execute.mockImplementation(async (_file, args) => ({
+      stdout: args?.includes('/usr/bin/curl')
+        ? `${JSON.stringify(environment)}\n200`
         : '[]',
       stderr: '',
       exitCode: 0,
@@ -403,8 +416,8 @@ describe('cmd:show', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-show-probe-failure-'),
     );
-    const { client, sprite } = await installedSprite(directory.path);
-    vi.mocked(sprite.execFile).mockImplementation(async (_file, args) => {
+    const { client, execute } = await installedSprite(directory.path);
+    execute.mockImplementation(async (_file, args) => {
       if (args?.includes('plugin') && args.includes('list')) {
         throw new Error('native SDK probe unavailable');
       }
@@ -478,7 +491,7 @@ describe('cmd:show', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-show-terminate-'),
     );
-    const { client, sprite } = await installedSprite(directory.path);
+    const { client, execute } = await installedSprite(directory.path);
 
     const observed = await driveInk(
       async (interaction) =>
@@ -503,16 +516,14 @@ describe('cmd:show', () => {
       error: { code: 'CANCELLED' },
     });
     expect(client.deleteSprite).not.toHaveBeenCalled();
-    expect(sprite.execFile).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
   }, 15_000);
 
   it('should not carry show consent into setup tools, and still navigates real sections', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-show-setup-'),
     );
-    const { client, sprite, fixtureWriteCalls } = await installedSprite(
-      directory.path,
-    );
+    const { client, sprite, execute } = await installedSprite(directory.path);
     const observed = await driveInk(
       async (interaction) =>
         chooseWorkstationAction(
@@ -551,10 +562,8 @@ describe('cmd:show', () => {
       ok: true,
       data: { section: 'tools', tools: 'unchanged' },
     });
-    expect(sprite.filesystem().writeFile).toHaveBeenCalledTimes(
-      fixtureWriteCalls,
-    );
-    expect(sprite.execFile).not.toHaveBeenCalled();
+    expect(writtenPaths(sprite)).toEqual([]);
+    expect(execute).not.toHaveBeenCalled();
     expect(sprite.listServices).not.toHaveBeenCalled();
     expect(client.deleteSprite).not.toHaveBeenCalled();
   }, 15_000);
@@ -563,7 +572,7 @@ describe('cmd:show', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-show-inspect-'),
     );
-    const { client, sprite } = await installedSprite(directory.path);
+    const { client, sprite, execute } = await installedSprite(directory.path);
     const details = await driveInk(
       async (interaction) =>
         chooseWorkstationAction(
@@ -586,7 +595,7 @@ describe('cmd:show', () => {
     expect(details.result.data).not.toHaveProperty('inspection');
     expect(details.result.data).not.toHaveProperty('pairing');
     expect(sprite.listServices).not.toHaveBeenCalled();
-    expect(sprite.execFile).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
 
     const inspection = await driveInk(
       async (interaction) =>
@@ -637,8 +646,14 @@ describe('cmd:show', () => {
     expect(client.deleteSprite).not.toHaveBeenCalled();
   }, 15_000);
   it('should disclose one pairing URL, code and expiry after a real menu choice without leaking the SDK token', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-show-pairing-'),
+    );
     const pairingCode = 'menu-pairing-code-' + 'abc123'.repeat(24);
-    const { client, sprite } = managedSprite(pairingCode);
+    const { client, execute } = await managedSprite(
+      directory.path,
+      pairingCode,
+    );
     const observed = await driveInk(
       async (interaction) =>
         chooseWorkstationAction(
@@ -689,12 +704,18 @@ describe('cmd:show', () => {
     expect(human).not.toContain('test-org/1/0abc/0def');
     expect(diagnostic).toBe('');
     expect(observed.output).not.toContain('test-org/1/0abc/0def');
-    expect(sprite.execFile).toHaveBeenCalledOnce();
+    expect(execute).toHaveBeenCalledOnce();
   });
 
   it('should create pairing only when explicitly requested', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-show-pairing-'),
+    );
     const pairingCode = 'direct-pairing-code-' + 'abc123'.repeat(24);
-    const { client, sprite } = managedSprite(pairingCode);
+    const { client, execute } = await managedSprite(
+      directory.path,
+      pairingCode,
+    );
 
     const result = await showWorkstation(
       {
@@ -714,11 +735,17 @@ describe('cmd:show', () => {
         pairing: { token: pairingCode, expiresAt: '2099-01-01T00:00:00Z' },
       },
     });
-    expect(sprite.execFile).toHaveBeenCalledOnce();
+    expect(execute).toHaveBeenCalledOnce();
   });
 
   it('should show the ordinary URL without opening the guest or minting pairing', async () => {
-    const { client, sprite } = managedSprite('unused-pairing-code');
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-show-pairing-'),
+    );
+    const { client, execute } = await managedSprite(
+      directory.path,
+      'unused-pairing-code',
+    );
 
     const result = await showWorkstation(
       {
@@ -734,7 +761,7 @@ describe('cmd:show', () => {
       data: { machine: { agentUrl: 'https://primary.sprites.app' } },
     });
     expect(result.data).not.toHaveProperty('pairing');
-    expect(sprite.execFile).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
   });
 });
 

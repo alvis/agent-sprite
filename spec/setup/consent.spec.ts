@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import { UPDATE_GATE_ASSET } from '#integrations/guest/updates';
 import { setupPlugins } from '#setup/plugins';
 import { setupTools } from '#setup/tools';
 
@@ -12,12 +14,25 @@ import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 import {
   createFilesystemSprite,
   guestOf,
+  holdServices,
   workstationOf,
 } from '../mocks/sprites.js';
 
 import type { Sprite } from '@fly/sprites';
 
 import type { SetupContext } from '#setup/context';
+
+import type { GuestExecute } from '../mocks/sprites.js';
+
+// setup's root session is a framed guest shell only the live specs open
+vi.mock(
+  '#integrations/guest/session/open',
+  async () => import('../mocks/session.js'),
+);
+// Codex trusts its hooks through its app server, a guest process only the live specs run
+vi.mock('#drivers/harnesses/codex/hook-trust', () => ({
+  trustCodexHooks: vi.fn(async () => undefined),
+}));
 
 function setupContext(
   sprite: Sprite,
@@ -63,23 +78,24 @@ describe('fn:setupTools consent', () => {
     expect(sprite.execFile).not.toHaveBeenCalled();
   });
 
-  it('should apply the selected guest update under --yes without host updater execution', async () => {
+  it('should apply the selected guest update under --yes', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-tools-yes-'),
     );
-    await mkdir(join(directory.path, 'opt/open-agent'), { recursive: true });
-    const sprite = createFilesystemSprite({
-      root: directory.path,
-      execute: vi.fn<Sprite['execFile']>(async () => ({
-        stdout: 'test-version\n',
-        stderr: '',
-        exitCode: 0,
-      })),
-    });
+    const execute = vi.fn<GuestExecute>(async () => ({
+      stdout: 'test-version\n',
+      stderr: '',
+      exitCode: 0,
+    }));
+    const sprite = createFilesystemSprite({ root: directory.path, execute });
+    holdServices(sprite);
     const context = setupContext(sprite, { yes: true });
     const observed = await driveInk(
       async (interaction) =>
-        setupTools(guestOf(sprite), { ...context, interaction }),
+        setupTools(await context.connection.guest(), {
+          ...context,
+          interaction,
+        }),
       [
         { waitFor: 'Managed tools', input: 'Update tools now' },
         { waitFor: 'Search: Update tools now', input: '\r' },
@@ -89,16 +105,13 @@ describe('fn:setupTools consent', () => {
     expect(observed.matchedSteps, observed.output).toBe(2);
     expect(observed.result).toEqual({ tools: 'updated' });
     expect(context.mutation.started).toBe(true);
-    expect(sprite.spawn).toHaveBeenCalledWith(
+    // the update gate upgrades every recorded tool once the plan has run
+    expect(execute).toHaveBeenCalledWith(
       '/usr/bin/sudo',
-      expect.arrayContaining(['open-agent-transaction', '1']),
-      { tty: false },
+      ['-n', '-E', '--', UPDATE_GATE_ASSET.installAs, '--force'],
+      expect.anything(),
     );
-    expect(
-      await sprite
-        .filesystem()
-        .exists('/opt/open-agent/guest/install-tools.js'),
-    ).toBe(true);
+    expect(await sprite.filesystem().exists(ENVIRONMENT_PATH)).toBe(true);
   });
 });
 

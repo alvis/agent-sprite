@@ -6,11 +6,20 @@ import { SpritesClient } from '@fly/sprites';
 import { parse } from 'smol-toml';
 import { describe, expect, it, vi } from 'vitest';
 
-import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
+import { summarizeProfile } from '#drivers/providers/recorded';
+import {
+  MANAGED_LABEL,
+  SCHEMA_LABEL,
+  mergeMetadataLabels,
+} from '#drivers/providers/sprite/labels';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import { UPDATE_STATUS_PATH } from '#integrations/guest/updates';
 import { setupWorkstation } from '#setup';
 import { setupPlugins } from '#setup/plugins';
 import { setupTools } from '#setup/tools';
+import { OPEN_AGENT_VERSION } from '#utilities/version';
 
+import { environmentOf } from '../fixtures/environment.js';
 import { driveInk } from '../fixtures/ink.js';
 import { pluginFlags } from '../fixtures/plugin-flags.js';
 import { DISABLED_NETWORK_PROFILE, profileWith } from '../fixtures/profile.js';
@@ -19,26 +28,56 @@ import {
   guestOf,
   providerOf,
   workstationOf,
+  writtenPaths,
 } from '../mocks/sprites.js';
+
+import type { Sprite } from '@fly/sprites';
 
 import type { SetupContext } from '#setup/context';
 
-const integrations = { network: false, exitNode: false, cliproxyapi: false };
+// setup's root session is a framed guest shell only the live specs open
+vi.mock(
+  '#integrations/guest/session/open',
+  async () => import('../mocks/session.js'),
+);
+
+/** the profile the set-up workstation recorded */
+const PROFILE = profileWith({
+  network: false,
+  exitNode: false,
+  cliproxyapi: false,
+});
+
+/**
+ * records the environment of a set-up workstation
+ * @param sprite sprite of the workstation
+ */
+async function recordEnvironment(sprite: Sprite): Promise<void> {
+  await sprite
+    .filesystem()
+    .writeFile(ENVIRONMENT_PATH, JSON.stringify(environmentOf(PROFILE)));
+}
 
 describe('workflow:scoped setup', () => {
   it('should view recorded tool versions and declines an update without guest mutation', async () => {
     const root = await mkdtemp(join(tmpdir(), 'open-agent-setup-'));
     try {
       const sprite = createFilesystemSprite({ root });
-      await mkdir(join(root, 'opt/open-agent'), { recursive: true });
-      await writeFile(
-        join(root, 'opt/open-agent/manifest.json'),
+      await recordEnvironment(sprite);
+      await sprite.filesystem().writeFile(
+        UPDATE_STATUS_PATH,
         JSON.stringify({
-          schema: 1,
-          createdAt: '2026-10-01',
-          installedVersions: { node: '24.9.0' },
-          lastSuccessfulUpdate: '2026-10-01T00:00:00Z',
-          profile: profileWith(integrations),
+          finishedAt: '2026-10-01T00:00:00Z',
+          lastSuccess: '2026-10-01T00:00:00Z',
+          tools: [
+            {
+              name: 'node',
+              manager: 'brew',
+              required: true,
+              outcome: 'installed',
+              to: '24.9.0',
+            },
+          ],
         }),
       );
       const context: SetupContext = {
@@ -76,11 +115,11 @@ describe('workflow:scoped setup', () => {
       expect(observed.result.versions).toMatchObject({
         tools: {
           status: 'recorded versions',
-          installedVersions: { node: '24.9.0' },
+          lastUpdate: { tools: [{ name: 'node', to: '24.9.0' }] },
         },
       });
       expect(observed.result.declined).toEqual({ tools: 'unchanged' });
-      expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
+      expect(writtenPaths(sprite)).toEqual([]);
       expect(context.mutation.started).toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -94,20 +133,16 @@ describe('workflow:scoped setup', () => {
       const sprite = Object.assign(createFilesystemSprite({ root }), {
         id: 'sprite-temporary',
         organizationName: 'test',
-        labels: [MANAGED_LABEL, SCHEMA_LABEL],
+        // set up by this release, so a section run leaves its labels as they are
+        labels: mergeMetadataLabels([MANAGED_LABEL, SCHEMA_LABEL], {
+          setup: 'ready',
+          profile: summarizeProfile(PROFILE),
+          version: OPEN_AGENT_VERSION,
+        }),
       });
       const client = new SpritesClient('test-token');
       vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
-      await mkdir(join(root, 'opt/open-agent'), { recursive: true });
-      await writeFile(
-        join(root, 'opt/open-agent/manifest.json'),
-        JSON.stringify({
-          schema: 1,
-          createdAt: '2026-10-01',
-          installedVersions: {},
-          profile: profileWith(integrations),
-        }),
-      );
+      await recordEnvironment(sprite);
       const observed = await driveInk(
         async (interaction) =>
           setupWorkstation(
@@ -139,7 +174,7 @@ describe('workflow:scoped setup', () => {
         ok: true,
         data: { section: 'git', gitIdentity: 'preserved' },
       });
-      expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
+      expect(writtenPaths(sprite)).toEqual([]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -227,20 +262,16 @@ describe('workflow:scoped setup', () => {
       const sprite = Object.assign(createFilesystemSprite({ root }), {
         id: 'sprite-temporary',
         organizationName: 'test',
-        labels: [MANAGED_LABEL, SCHEMA_LABEL],
+        // set up by this release, so a section run leaves its labels as they are
+        labels: mergeMetadataLabels([MANAGED_LABEL, SCHEMA_LABEL], {
+          setup: 'ready',
+          profile: summarizeProfile(PROFILE),
+          version: OPEN_AGENT_VERSION,
+        }),
       });
       const client = new SpritesClient('test-token');
       vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
-      await mkdir(join(root, 'opt/open-agent'), { recursive: true });
-      await writeFile(
-        join(root, 'opt/open-agent/manifest.json'),
-        JSON.stringify({
-          schema: 1,
-          createdAt: '2026-10-01',
-          installedVersions: {},
-          profile: profileWith(integrations),
-        }),
-      );
+      await recordEnvironment(sprite);
 
       const result = await setupWorkstation(
         {
@@ -260,7 +291,7 @@ describe('workflow:scoped setup', () => {
         ok: true,
         data: { section: 'git', gitIdentity: 'preserved' },
       });
-      expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
+      expect(writtenPaths(sprite)).toEqual([]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

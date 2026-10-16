@@ -1,9 +1,4 @@
-import {
-  mkdir,
-  mkdtempDisposable,
-  readFile,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdtempDisposable, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,26 +11,48 @@ import {
   mergeMetadataLabels,
   SCHEMA_LABEL,
 } from '#drivers/providers/sprite/labels';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import {
+  UPDATE_GATE_ASSET,
+  UPDATE_STATUS_PATH,
+} from '#integrations/guest/updates';
 import { setupWorkstation } from '#setup';
 import {
   persistSetupProfile,
   profileUpdateSelected,
 } from '#setup/integrations';
 import { setupTools } from '#setup/tools';
+import { OPEN_AGENT_VERSION } from '#utilities/version';
 
+import { environmentOf } from '../fixtures/environment.js';
 import { driveInk } from '../fixtures/ink.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 import {
   createFilesystemSprite,
   guestOf,
+  holdServices,
   providerOf,
   workstationOf,
+  writtenPaths,
 } from '../mocks/sprites.js';
 
 import type { Sprite } from '@fly/sprites';
 
 import type { WorkstationProfile } from '#core/profile';
+import type { GuestEnvironment } from '#integrations/guest/environment';
 import type { SetupContext } from '#setup/context';
+
+import type { GuestExecute } from '../mocks/sprites.js';
+
+// setup's root session is a framed guest shell only the live specs open
+vi.mock(
+  '#integrations/guest/session/open',
+  async () => import('../mocks/session.js'),
+);
+// Codex trusts its hooks through its app server, a guest process only the live specs run
+vi.mock('#drivers/harnesses/codex/hook-trust', () => ({
+  trustCodexHooks: vi.fn(async () => undefined),
+}));
 
 /**
  * builds the disabled-network profile with a chosen due interval
@@ -81,21 +98,16 @@ function toolsContext(
 }
 
 /**
- * records the installation manifest of a set-up workstation
- * @param root directory standing for the guest filesystem
+ * records the environment of a set-up workstation
+ * @param sprite sprite of the workstation
  */
-async function writeManifest(root: string): Promise<void> {
-  await mkdir(join(root, 'opt/open-agent'), { recursive: true });
-  await writeFile(
-    join(root, 'opt/open-agent/manifest.json'),
-    JSON.stringify({
-      schema: 1,
-      createdAt: '2026-10-01',
-      installedVersions: { node: '24.9.0' },
-      lastSuccessfulUpdate: '2026-10-01T00:00:00Z',
-      profile: DISABLED_NETWORK_PROFILE,
-    }),
-  );
+async function writeEnvironment(sprite: Sprite): Promise<void> {
+  await sprite
+    .filesystem()
+    .writeFile(
+      ENVIRONMENT_PATH,
+      JSON.stringify(environmentOf(DISABLED_NETWORK_PROFILE)),
+    );
 }
 
 /**
@@ -114,6 +126,7 @@ async function toolsWorkstation(root: string): Promise<{
     labels: mergeMetadataLabels([MANAGED_LABEL, SCHEMA_LABEL], {
       setup: 'ready',
       profile: summarizeProfile(DISABLED_NETWORK_PROFILE),
+      version: OPEN_AGENT_VERSION,
     }),
   });
   const client = new SpritesClient('test-token');
@@ -121,7 +134,7 @@ async function toolsWorkstation(root: string): Promise<{
   const metadata = vi
     .spyOn(sprite, 'update')
     .mockImplementation(async (options) => Object.assign(sprite, options));
-  await writeManifest(root);
+  await writeEnvironment(sprite);
 
   return { sprite, client, metadata };
 }
@@ -139,16 +152,16 @@ function toolsRequest(): Parameters<typeof setupWorkstation>[0] {
 }
 
 /**
- * reads the due interval the guest's manifest stores
+ * reads the due interval the guest's environment stores
  * @param root directory standing for the guest filesystem
  * @returns the stored days
  */
 async function readDueDays(root: string): Promise<number> {
-  const manifest = JSON.parse(
-    await readFile(join(root, 'opt/open-agent/manifest.json'), 'utf8'),
-  ) as { profile: WorkstationProfile };
+  const environment = JSON.parse(
+    await readFile(join(root, ENVIRONMENT_PATH), 'utf8'),
+  ) as GuestEnvironment;
 
-  return manifest.profile.options.updateDueIntervalDays;
+  return environment.profile.options.updateDueIntervalDays;
 }
 
 describe('fn:setupTools --update', () => {
@@ -156,29 +169,48 @@ describe('fn:setupTools --update', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-tools-counts-'),
     );
-    // the managed Node is already there, so the gate reports it as current
-    await mkdir(join(directory.path, 'opt/open-agent/node/bin'), {
-      recursive: true,
-    });
-    await writeFile(join(directory.path, 'opt/open-agent/node/bin/node'), '');
-    const sprite = createFilesystemSprite({
-      root: directory.path,
-      execute: vi.fn<Sprite['execFile']>(async (_file, args = []) => {
-        if (args.includes('/opt/open-agent/guest/install-tools.js')) {
-          await writeFile(
-            join(directory.path, 'opt/open-agent/install-outcomes.json'),
-            JSON.stringify({
-              node: { status: 'skipped', version: '24.1.0' },
-              git: { status: 'skipped', version: '2.51.0' },
-              jj: { status: 'installed', version: '0.31.0' },
-              claude: { status: 'skipped', version: '2.0.1' },
-            }),
-          );
-        }
+    // the gate records each tool's upgrade once the plan has run
+    const execute = vi.fn<GuestExecute>(async (_file, args = []) => {
+      if (args.includes(UPDATE_GATE_ASSET.installAs)) {
+        await writeFile(
+          join(directory.path, UPDATE_STATUS_PATH),
+          JSON.stringify({
+            startedAt: '2026-10-14T00:00:00Z',
+            finishedAt: '2026-10-14T00:05:00Z',
+            tools: [
+              {
+                name: 'node',
+                manager: 'brew',
+                required: true,
+                outcome: 'skipped',
+              },
+              {
+                name: 'git',
+                manager: 'brew',
+                required: true,
+                outcome: 'skipped',
+              },
+              {
+                name: 'jj',
+                manager: 'brew',
+                required: false,
+                outcome: 'installed',
+              },
+              {
+                name: 'claude',
+                manager: 'npm',
+                required: false,
+                outcome: 'skipped',
+              },
+            ],
+          }),
+        );
+      }
 
-        return { stdout: 'test-version\n', stderr: '', exitCode: 0 };
-      }),
+      return { stdout: 'test-version\n', stderr: '', exitCode: 0 };
     });
+    const sprite = createFilesystemSprite({ root: directory.path, execute });
+    holdServices(sprite);
     const context: SetupContext = {
       ...workstationOf(sprite),
       options: { update: true },
@@ -195,9 +227,11 @@ describe('fn:setupTools --update', () => {
       mutation: { started: false },
     };
 
-    await expect(setupTools(guestOf(sprite), context)).resolves.toEqual({
+    await expect(
+      setupTools(await context.connection.guest(), context),
+    ).resolves.toEqual({
       tools: 'updated',
-      components: { installed: 1, skipped: 3 },
+      components: { installed: 1, skipped: 3, failed: 0 },
     });
   });
 });
@@ -213,7 +247,7 @@ describe('fn:setupTools schedule', () => {
       setupTools(guestOf(sprite), toolsContext(sprite, { persists: true })),
     ).resolves.toEqual({ tools: 'scheduled' });
 
-    expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
+    expect(writtenPaths(sprite)).toEqual([]);
   });
 
   it('should keep its usage error when no interval changed and no update was asked for', async () => {
@@ -236,7 +270,7 @@ describe('fn:persistSetupProfile tools section', () => {
     const sprite = createFilesystemSprite({ root: directory.path });
     const listServices = vi.spyOn(sprite, 'listServices');
     const createService = vi.spyOn(sprite, 'createService');
-    await writeManifest(directory.path);
+    await writeEnvironment(sprite);
     const mutation = { started: false };
 
     await persistSetupProfile(guestOf(sprite), withDueDays(3), {
@@ -297,7 +331,7 @@ describe('workflow:tools section with a due interval from the environment', () =
     const result = await setupWorkstation(toolsRequest(), providerOf(client));
 
     expect(result).toMatchObject({ ok: false, error: { code: 'USAGE' } });
-    expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
+    expect(writtenPaths(sprite)).toEqual([]);
   });
 
   it('should store the interval once and report it when the environment changes it', async () => {
@@ -316,7 +350,7 @@ describe('workflow:tools section with a due interval from the environment', () =
     expect(await readDueDays(directory.path)).toBe(3);
     // the metadata summary names no interval, so there is nothing to record
     expect(metadata).not.toHaveBeenCalled();
-    expect(sprite.filesystem().writeFile).toHaveBeenCalled();
+    expect(writtenPaths(sprite)).toEqual([ENVIRONMENT_PATH]);
   });
 
   it.each([

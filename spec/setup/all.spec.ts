@@ -9,13 +9,19 @@ import { CODEX_CONFIG } from '#drivers/harnesses/codex/paths';
 import { setupAll } from '#setup/all';
 
 import { profileWith } from '../fixtures/profile.js';
-import {
-  createFilesystemSprite,
-  guestOf,
-  workstationOf,
-} from '../mocks/sprites.js';
+import { createFilesystemSprite, workstationOf } from '../mocks/sprites.js';
 
 import type { SetupContext } from '#setup/context';
+
+// setup's root session is a framed guest shell only the live specs open
+vi.mock(
+  '#integrations/guest/session/open',
+  async () => import('../mocks/session.js'),
+);
+// Codex trusts its hooks through its app server, a guest process only the live specs run
+vi.mock('#drivers/harnesses/codex/hook-trust', () => ({
+  trustCodexHooks: vi.fn(async () => undefined),
+}));
 
 describe('fn:setupAll', () => {
   it('should apply native proxy settings before rejecting a restricted env file and before services or exposure', async () => {
@@ -59,15 +65,10 @@ describe('fn:setupAll', () => {
       networkEnrolled: false,
       mutation: { started: false },
     };
-    await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
-    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
-      schema: 1,
-      createdAt: '2026-10-09T00:00:00Z',
-      installedVersions: {},
-      profile: profileWith(integrations),
-    });
 
-    await expect(setupAll(guestOf(sprite), context)).rejects.toMatchObject({
+    await expect(
+      setupAll(await context.connection.guest(), context),
+    ).rejects.toMatchObject({
       code: 'INPUT',
     });
 

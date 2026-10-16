@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { parse, stringify } from 'smol-toml';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { configureHarnesses } from '#core/harnesses';
 import { codex } from '#drivers/harnesses/codex/index';
@@ -23,6 +23,11 @@ import {
 
 import type { ProxyRoute } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+
+// Codex trusts its hooks through its app server, a guest process only the live specs run
+vi.mock('#drivers/harnesses/codex/hook-trust', () => ({
+  trustCodexHooks: vi.fn(async () => undefined),
+}));
 
 /**
  * applies native configuration and work hooks the way the workstation does

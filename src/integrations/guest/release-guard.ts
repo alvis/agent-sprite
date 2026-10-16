@@ -1,4 +1,5 @@
 import { CommandFault } from '#errors';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { isRecord } from '#utilities/guards';
 import {
   compareSemver,
@@ -7,8 +8,6 @@ import {
 } from '#utilities/version';
 
 import { runGuestResult } from '../guest.js';
-
-import { ENVIRONMENT_PATH } from './environment.js';
 
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 

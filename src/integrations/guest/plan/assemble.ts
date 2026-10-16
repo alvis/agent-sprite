@@ -3,6 +3,7 @@ import { harnessDrivers } from '#core/harnesses';
 import { networkDriver } from '#core/networks';
 import { selectedChannel } from '#core/release-channels';
 import { agentService } from '#core/services';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { familyOf } from '#os/families';
 import { backendSteps, backendTools } from '#os/services/backends';
 import { BASE_TOOLS } from '#tools/base';
@@ -15,11 +16,7 @@ import {
   guestJobs,
   guestServices,
 } from '../environment-services.js';
-import {
-  ENVIRONMENT_MODE,
-  ENVIRONMENT_PATH,
-  serializeEnvironment,
-} from '../environment.js';
+import { ENVIRONMENT_MODE, serializeEnvironment } from '../environment.js';
 
 import { BOOTSTRAP_STEP, foundationSteps } from './foundation.js';
 import { fileStep } from './steps/file.js';
