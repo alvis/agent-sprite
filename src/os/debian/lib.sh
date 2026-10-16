@@ -329,10 +329,10 @@ oa_replay() {
 
 # creates an account with the given ids unless it exists; an existing one
 # keeps its ids. Ids another account or group holds are refused, a system
-# account takes system ids only and a locked password, and no account is ever
-# left in an administrative group or given a sudo rule. A missing home is
-# created, owned by the account: a user's from the skeleton, private, and a
-# system account's bare and readable
+# account takes system ids only and a locked password, an account in any
+# group but its own and users is refused, and none is given a sudo rule. A
+# missing home is created, owned by the account: a user's from the skeleton,
+# private, and a system account's bare and readable
 # arguments: name, uid, gid, home, login shell, kind (`user` or `system`)
 oa_account_ensure() {
   if test "$#" -ne 6; then
@@ -377,10 +377,14 @@ oa_account_ensure() {
   if ! getent passwd "$oa_account_name" >/dev/null; then
     oa_account_create || return 1
   fi
+  # the account's own group and the shared users group are the only ones it
+  # may be in: another, such as sudo, disk, docker or shadow, can grant root's
+  # powers, so it is refused rather than listed
   for oa_account_group in $(id -nG "$oa_account_name"); do
     case $oa_account_group in
-      sudo | admin | wheel | root)
-        echo "Refusing $oa_account_name: it is in the administrative group $oa_account_group" >&2
+      "$oa_account_name" | users) ;;
+      *)
+        echo "Refusing $oa_account_name: it is in the group $oa_account_group; only its own group and users are allowed" >&2
         return 1
         ;;
     esac

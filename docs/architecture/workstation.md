@@ -215,7 +215,7 @@ A Fly Machine's workstation is one app, one machine and one volume, created from
 
 ## Privilege and credentials
 
-Root installation operations use trusted managed paths. Every guest program is installed root-owned and unwritable by other accounts, 0700 for root-only programs and 0755 for those other accounts run. Agent tools and native probes execute through the unprivileged account, and the agent account has no sudo rule. Recursive ownership/configuration work refuses symlinks instead of following them into unrelated paths. Setup runs one session at a time under its lock, and the hourly update gate takes the same lock without waiting, so an update never runs beside a session.
+Root installation operations use trusted managed paths. Every guest program is installed root-owned and unwritable by other accounts, 0700 for root-only programs and 0755 for those other accounts run. Agent tools and native probes execute through the unprivileged account, and the agent account has no sudo rule. Setup refuses an `agent` or `linuxbrew` account that is in any group but its own and `users`. Recursive ownership/configuration work refuses symlinks instead of following them into unrelated paths. Setup runs one session at a time under its lock, and the hourly update gate takes the same lock without waiting, so an update never runs beside a session.
 
 Sprites, Fly and Tailscale management tokens remain local. Enrollment uses a transient private secret that never touches a disk. Selected GitHub and proxy client credentials intentionally persist in protected native guest configuration. Native GitHub authentication configures separate `agent` and provider-shell `sprite` accounts.
 
