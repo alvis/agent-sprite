@@ -71,9 +71,10 @@ OA_BOOT_SERVICES=/etc/service
 OA_BOOT_POLICY_MARK='# open-agent policy-rc.d'
 OA_BOOT_HOLD_MARK='# open-agent: no service starts while the packages are reinstalled'
 # the agent's and Homebrew's accounts, and the ids the agent's takes when its
-# home on the volume is new
+# home on the volume is new: AGENT_IDS in
+# src/integrations/guest/plan/foundation.ts
 OA_BOOT_AGENT_HOME=/home/agent
-OA_BOOT_AGENT_IDS=1000
+OA_BOOT_AGENT_IDS=2000
 OA_BOOT_BREW_HOME=/home/linuxbrew
 # the system's jq, which the hook reads JSON with, never a tool link
 OA_BOOT_JQ=/usr/bin/jq
