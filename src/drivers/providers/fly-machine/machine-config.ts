@@ -1,5 +1,6 @@
 import {
   BOOT_INIT,
+  BOOT_STOP_SECONDS,
   BOOT_STUB_MODE,
   BOOT_STUB_PATH,
   VOLUME_PATH,
@@ -31,6 +32,8 @@ export interface MachineSpec {
   init: readonly string[];
   /** files written to the root filesystem before the init runs */
   files: readonly MachineFile[];
+  /** seconds a stop gives the init before Fly kills the machine */
+  stopSeconds: number;
   /** whether the root filesystem outlives a stop: `always` keeps what setup installed there across restarts */
   rootfs: 'always';
   /** volume mounted as persistent storage */
@@ -97,6 +100,7 @@ export function machineSpec(params: MachineSpecParams): MachineSpec {
         mode: BOOT_STUB_MODE,
       },
     ],
+    stopSeconds: BOOT_STOP_SECONDS,
     rootfs: 'always',
     volume: params.volume,
     mountPath: VOLUME_PATH,

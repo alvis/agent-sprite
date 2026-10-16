@@ -34,6 +34,8 @@ export const BOOT_HOOK: GuestAsset = guestAsset(
 );
 /** the boot hook's path on the volume, where the stub looks for it before the guest root is bound */
 export const BOOT_HOOK_ON_VOLUME = `${VOLUME_LAYOUT.guestRoot}/${BOOT_HOOK.path}`;
+/** how long a stop gives the boot stub before Fly kills the machine; the stub waits at most 20 seconds of it for runit's services */
+export const BOOT_STOP_SECONDS = 30;
 /** the machine's init: the stub, read by the shell so its mode never decides whether the machine boots, given the hook to run */
 export const BOOT_INIT: readonly string[] = [
   '/bin/sh',

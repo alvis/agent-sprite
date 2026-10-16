@@ -7,7 +7,9 @@
 # alone. Until then, and after a hook that exited unexpectedly until setup
 # replaces it, it reports the boot ready so setup can reach the machine to
 # repair it. The hook replaces itself with runsvdir, to which the stub hands
-# a stop as a hangup, so runit stops every service. A boot whose volume or
+# a stop as a hangup, so runit stops every service; the stub then waits for
+# every runsv and its service to exit, short of the machine's stop timeout,
+# kills what remains, flushes the volume and exits. A boot whose volume or
 # hook halts waits ten minutes, for someone to read the log, then stops the
 # machine through the guest-local Machines API. It uses the image's own
 # tools alone
@@ -30,6 +32,9 @@ OA_HALT_SECONDS=600
 OA_STOP_SECONDS=30
 # how often the stub looks for a hook it may run
 OA_POLL_SECONDS=5
+# how long a stop waits for runit's services, short of the 30 seconds the
+# machine configuration gives a stop before Fly kills the machine
+OA_SHUTDOWN_SECONDS=20
 # the exit of a hook a critical step halted
 OA_HALTED=3
 
@@ -125,7 +130,7 @@ oa_stop_machine() {
 # waits, then stops the machine, again and again until it stops: the init
 # never exits, so an idle machine would otherwise run, and bill, for ever
 oa_halt() {
-  trap 'exit 0' INT TERM HUP
+  trap oa_exit INT TERM HUP
   oa_log "halt=waiting $OA_HALT_SECONDS seconds, then stopping the machine"
   while :; do
     sleep "$OA_HALT_SECONDS" &
@@ -138,11 +143,69 @@ oa_halt() {
   done
 }
 
+# flushes the volume and exits, on a stop that finds no service running
+oa_exit() {
+  sync
+  exit 0
+}
+
+# reads a process's session into oa_session, from the fields of its stat
+# after the command name, which may itself hold spaces and parentheses
+# arguments: the process's /proc directory
+oa_session_of() {
+  oa_stat=$(cat "$1/stat" 2>/dev/null) || return 1
+  read -r _ _ _ oa_session _ <<EOF
+${oa_stat##*) }
+EOF
+  test -n "$oa_session"
+}
+
+# lists the sessions runsv leads: runsvdir -P starts each runsv as a session
+# leader, so a session holds a runsv and the service it runs
+oa_runit_sessions() {
+  for oa_proc in /proc/[0-9]*; do
+    oa_comm=$(cat "$oa_proc/comm" 2>/dev/null) || continue
+    test "$oa_comm" = runsv || continue
+    oa_session_of "$oa_proc" && printf ' %s' "$oa_session"
+  done
+}
+
+# lists the processes left in the sessions given, one a line
+# arguments: the sessions, each preceded by a space
+oa_session_members() {
+  for oa_proc in /proc/[0-9]*; do
+    oa_session_of "$oa_proc" || continue
+    case "$1 " in
+      *" $oa_session "*) echo "${oa_proc#/proc/}" ;;
+    esac
+  done
+}
+
 # hands a stop to the hook, or to the runsvdir it became, as a hangup, on
-# which runsvdir stops every service before it exits
+# which runsvdir stops every runsv, and each runsv its service; the sessions
+# runsv leads are noted first, while runsvdir still supervises them
 oa_forward() {
   oa_stopping=1
+  oa_sessions=$(oa_runit_sessions)
   kill -HUP "$oa_child" 2>/dev/null || :
+}
+
+# waits for every process in runit's sessions to exit, kills those left at
+# the deadline, flushes the volume and exits
+oa_shutdown() {
+  oa_deadline=$(($(date +%s) + OA_SHUTDOWN_SECONDS))
+  while oa_left=$(oa_session_members "$oa_sessions") && test -n "$oa_left"; do
+    if test "$(date +%s)" -ge "$oa_deadline"; then
+      oa_log "stop: killing the $(echo "$oa_left" | wc -l) processes runit left after $OA_SHUTDOWN_SECONDS seconds"
+      echo "$oa_left" | while read -r oa_pid; do
+        kill -KILL "$oa_pid" 2>/dev/null || :
+      done
+      break
+    fi
+    sleep 1
+  done
+  oa_log "stop: flushing the volume"
+  oa_exit
 }
 
 # runs the hook and waits for it to exit, forwarding a stop
@@ -156,7 +219,7 @@ oa_run() {
     oa_status=$?
     kill -0 "$oa_child" 2>/dev/null || break
   done
-  trap 'exit 0' INT TERM HUP
+  trap oa_exit INT TERM HUP
   return "$oa_status"
 }
 
@@ -175,7 +238,7 @@ case $oa_hook in
     ;;
 esac
 
-trap 'exit 0' INT TERM HUP
+trap oa_exit INT TERM HUP
 install -d -m 0755 "$OA_RUN"
 oa_boot_id=$(cat /proc/sys/kernel/random/boot_id)
 oa_log "boot id=$oa_boot_id stub started"
@@ -196,7 +259,7 @@ while :; do
     oa_run
     oa_status=$?
     if test -n "$oa_stopping"; then
-      exit 0
+      oa_shutdown
     fi
     if test "$oa_status" = "$OA_HALTED"; then
       oa_log "handover=none: a critical step of the boot hook failed; see $OA_GUEST_ROOT/boot.log"
