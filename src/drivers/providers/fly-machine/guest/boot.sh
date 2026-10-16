@@ -12,8 +12,10 @@
 # machine label and ping's group range. Every run logs its steps to
 # boot.log; a boot also writes boot-status.json and the ready file, then
 # replaces itself with runsvdir once runit is installed, while a boot a
-# critical step halted exits 3 for the stub to stop the machine. `check`
-# tells whether a prepare would change nothing setup needs, and apt runs
+# critical step halted exits 3 for the stub to stop the machine, unless a
+# prepare repairs the guest first: the ready file then says `resumed`, and
+# the stub runs the boot again. `check` tells whether a prepare would change
+# nothing setup needs, which a halted boot never allows, and apt runs
 # `record-packages` after every dpkg call to record each package installed
 # beyond the image's own. Until the packages are back it runs the image's
 # tools and the volume's alone, and it calls a guest library only once the
@@ -83,6 +85,8 @@ OA_BOOT_LOG_KEPT=262144
 OA_BOOT_HALTED=3
 # how often a boot looks for runit, which setup installs after the hook
 OA_BOOT_POLL_SECONDS=5
+# seconds between the attempts to reinstall the recorded packages
+OA_BOOT_REPLAY_DELAYS='5 15'
 
 # lists the packages dpkg has installed, one name a line, sorted
 oa_boot_installed() {
@@ -379,8 +383,15 @@ EOF
   fi
   oa_boot_hold || return 1
   echo "Reinstalling $*"
-  oa_boot_call "$OA_BOOT_FAMILY" oa_replay "$@"
-  oa_boot_replayed=$?
+  for oa_boot_delay in $OA_BOOT_REPLAY_DELAYS ''; do
+    oa_boot_call "$OA_BOOT_FAMILY" oa_replay "$@"
+    oa_boot_replayed=$?
+    if test "$oa_boot_replayed" = 0 || test -z "$oa_boot_delay"; then
+      break
+    fi
+    echo "Reinstalling failed; retrying in $oa_boot_delay seconds"
+    sleep "$oa_boot_delay"
+  done
   oa_boot_release || return 1
   return "$oa_boot_replayed"
 }
@@ -482,12 +493,18 @@ oa_boot_holds() {
     oa_boot_owner "$1" "$(stat -c %u "$2")" "$(stat -c %g "$2")" >/dev/null
 }
 
-# tells whether a prepare would change nothing setup needs: the volume's
-# directories are bound, the accounts hold their homes' ids, and apt and the
+# tells whether this boot's ready file says a critical step halted it
+oa_boot_halted_boot() {
+  test "$(cat "$OA_BOOT_READY" 2>/dev/null)" = "$(cat /proc/sys/kernel/random/boot_id) halted"
+}
+
+# tells whether a prepare would change nothing setup needs: the boot did not
+# halt, the volume's directories are bound, the accounts hold their homes' ids, and apt and the
 # login profile are as the hook writes them. Packages a boot failed to
 # reinstall are left to setup's own steps, which fetch them, and to the next
 # boot, which marks the root filesystem restored
 oa_boot_check() {
+  ! oa_boot_halted_boot || return 1
   oa_boot_same "$OA_BOOT_VOLUME_ROOT" "$OA_BOOT_GUEST_ROOT" || return 1
   oa_boot_same "$OA_BOOT_HOMES/agent" "$OA_BOOT_AGENT_HOME" || return 1
   oa_boot_holds agent "$OA_BOOT_HOMES/agent" || return 1
@@ -608,14 +625,16 @@ oa_boot_keep_log() {
 }
 
 # writes the ready file the host waits for, naming this boot
-# arguments: ok or failed
+# arguments: ok; halted, when a critical step failed with the guest root on
+# the volume, so setup may repair it; failed, when the guest root is not;
+# or resumed, when a prepare repaired a halted boot
 oa_boot_ready() {
   printf '%s %s\n' "$oa_boot_id" "$1" >"$OA_BOOT_READY.new" &&
     mv -f "$OA_BOOT_READY.new" "$OA_BOOT_READY"
 }
 
 # writes the boot's result and every step's for doctor
-# arguments: ok or failed
+# arguments: ok, failed or halted
 oa_boot_report() {
   printf '{"bootId":"%s","startedAt":"%s","status":"%s","durationMs":%s,"steps":{%s}}\n' \
     "$oa_boot_id" "$oa_boot_started" "$1" "$oa_boot_duration" "$oa_boot_steps" \
@@ -678,7 +697,9 @@ fi
 oa_boot_log "$oa_boot_mode id=$oa_boot_id started"
 oa_boot_restore
 oa_boot_result=ok
-if test "$oa_boot_failed" = 1; then
+if test "$oa_boot_halted" = 1; then
+  oa_boot_result=halted
+elif test "$oa_boot_failed" = 1; then
   oa_boot_result=failed
 fi
 oa_boot_duration=$(($(oa_boot_now) - oa_boot_began))
@@ -689,15 +710,26 @@ if test "$oa_boot_mode" = prepare; then
   if test "$oa_boot_failed" = 1; then
     echo "The boot hook failed a step; see $oa_boot_sink" >&2
   fi
-  test "$oa_boot_halted" = 0
-  exit
+  test "$oa_boot_halted" = 0 || exit 1
+  # a repaired boot the stub has halted runs again, through to runsvdir
+  if oa_boot_halted_boot; then
+    oa_boot_log "prepare repaired the halted boot; the stub runs it again"
+    oa_boot_ready resumed || exit 1
+  fi
+  exit 0
 fi
 if test "$oa_boot_sink" = "$OA_BOOT_LOG"; then
   oa_boot_report "$oa_boot_result" || oa_boot_log "could not write $OA_BOOT_STATUS"
 fi
 if test "$oa_boot_halted" = 1; then
-  oa_boot_ready failed
-  oa_boot_log "handover=none: a critical step failed; see $oa_boot_sink"
+  # setup may repair the guest only while its root is the volume's
+  if oa_boot_same "$OA_BOOT_VOLUME_ROOT" "$OA_BOOT_GUEST_ROOT"; then
+    oa_boot_ready halted
+    oa_boot_log "handover=none: a critical step failed; setup can repair the guest before the stub stops the machine; see $oa_boot_sink"
+  else
+    oa_boot_ready failed
+    oa_boot_log "handover=none: a critical step failed; see $oa_boot_sink"
+  fi
   exit "$OA_BOOT_HALTED"
 fi
 oa_boot_ready ok

@@ -735,7 +735,25 @@ describe('cl:FlyMachineProvider', () => {
       }).toEqual({ refusals: [], execs: 3 });
     });
 
-    it('should refuse a guest whose boot script failed to restore the root filesystem', async () => {
+    it('should open a guest whose boot a critical step halted, for setup to repair', async () => {
+      const app = heldApp({
+        metadata: MANAGED_METADATA,
+        services: [AGENT_SERVICE],
+      });
+      const api = new FakeMachinesApi({
+        alpha: {
+          ...app,
+          machines: app.machines.map((held) => ({ ...held, boot: 'halted' })),
+        },
+      });
+      const provider = bound(api);
+
+      const result = provider.openGuest(await provider.get('alpha'));
+
+      await expect(result).resolves.toBeDefined();
+    });
+
+    it('should refuse a guest whose boot could not bind its volume', async () => {
       const app = heldApp({
         metadata: MANAGED_METADATA,
         services: [AGENT_SERVICE],
@@ -754,7 +772,7 @@ describe('cl:FlyMachineProvider', () => {
         new ProviderFault({
           code: 'failed',
           message:
-            'The Fly Machine machine-1 failed to restore its root filesystem from the volume; see /opt/open-agent/boot.log on the machine, or fly logs when the volume is not mounted',
+            "The Fly Machine machine-1 could not bind its volume's guest root; see fly logs",
         }),
       );
     });

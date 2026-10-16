@@ -17,8 +17,12 @@ import type { GuestChannel } from '#drivers/guest-channel';
 import type { FlyApi, FlyMachineTarget } from './api.js';
 import type { FlyMachine } from './wire.js';
 
-/** what the ready file says about the current boot */
-type BootState = 'pending' | 'ok' | 'failed';
+/**
+ * what the ready file says about the current boot: `halted` is a boot a
+ * critical step stopped with the guest root on the volume, which setup
+ * repairs; `failed` one whose volume or guest root is unusable
+ */
+type BootState = 'pending' | 'ok' | 'halted' | 'failed';
 
 /** a boot restores accounts and packages from the volume within seconds; the first create's apt work is the slowest */
 const BOOT_WAIT_MS = 180_000;
@@ -26,6 +30,12 @@ const BOOT_POLL_MS = 1_000;
 const MILLISECONDS_PER_SECOND = 1_000;
 const BOOT_PROBE_SECONDS = 10;
 const START_WAIT_SECONDS = 60;
+/** the current boot's state by the ready file's word; a boot a prepare resumed runs again through to runsvdir, and any other word is a failure */
+const READY_STATES: ReadonlyMap<string, BootState> = new Map([
+  ['ok', 'ok'],
+  ['resumed', 'ok'],
+  ['halted', 'halted'],
+]);
 
 /**
  * starts a stopped or suspended machine, then waits for its boot script; a
@@ -56,7 +66,9 @@ export async function startAndBoot(
 /**
  * waits until the boot script has rebuilt the root filesystem in the
  * machine's current boot, so nothing reaches the guest before its accounts,
- * bind mounts and packages are back
+ * bind mounts and packages are back; a halted boot is reachable too, so
+ * doctor can report it and setup's boot hook step can repair it before the
+ * boot stub stops the machine
  * @param api Machines API client
  * @param target app and machine
  */
@@ -67,13 +79,13 @@ export async function waitForBoot(
   const deadline = Date.now() + BOOT_WAIT_MS;
   for (;;) {
     const state = await readBootState(api, target);
-    if (state === 'ok') {
+    if (state === 'ok' || state === 'halted') {
       return;
     }
     if (state === 'failed') {
       throw new ProviderFault({
         code: 'failed',
-        message: `The Fly Machine ${target.machine} failed to restore its root filesystem from the volume; see ${BOOT_LOG} on the machine, or fly logs when the volume is not mounted`,
+        message: `The Fly Machine ${target.machine} could not bind its volume's guest root; see fly logs`,
       });
     }
     if (Date.now() >= deadline) {
@@ -112,7 +124,7 @@ async function readBootState(
       return 'pending';
     }
 
-    return status === 'ok' ? 'ok' : 'failed';
+    return READY_STATES.get(status ?? '') ?? 'failed';
   } catch (exception) {
     if ((exception as ProviderFault).code === 'authentication') {
       throw exception;
@@ -195,7 +207,9 @@ function parseBootStatus(text: string): Omit<BootReport, 'log'> {
   const steps = isRecord(value.steps) ? value.steps : {};
 
   return {
-    ...(value.status === 'ok' || value.status === 'failed'
+    ...(value.status === 'ok' ||
+    value.status === 'failed' ||
+    value.status === 'halted'
       ? { status: value.status }
       : {}),
     ...(typeof value.startedAt === 'string'
