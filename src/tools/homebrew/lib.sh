@@ -1,7 +1,8 @@
 # open-agent's Homebrew library, sourced as root after the OS family's
 # library, whose oa_as it runs brew with: Homebrew lives at the default
 # prefix, the only one bottles pour at, owned by the linuxbrew system account,
-# and every formula is poured from its bottle, never built from source
+# runs the release setup pins, and every formula is poured from its bottle,
+# never built from source
 
 # the prefix's account, home and brew: LINUXBREW_HOME and HOMEBREW_PREFIX in
 # src/tools/accounts.ts, which this shell cannot import
@@ -9,13 +10,16 @@ OA_BREW_ACCOUNT=linuxbrew
 OA_BREW_HOME=/home/linuxbrew
 OA_BREW_PREFIX=$OA_BREW_HOME/.linuxbrew
 OA_BREW=$OA_BREW_PREFIX/bin/brew
+# the git checkout Homebrew runs from
+OA_BREW_REPOSITORY=$OA_BREW_PREFIX/Homebrew
 # the status a brew function returns when a formula has no bottle for the guest
 OA_NO_BOTTLE_STATUS=78
 
-# runs brew as the prefix's account in a fixed environment: it never updates
-# itself unasked, never reports analytics and never builds a missing bottle
-# arguments: brew's arguments
-oa_brew() {
+# runs a command as the prefix's account in brew's fixed environment: brew
+# never updates itself unasked, never reports analytics and never builds a
+# missing bottle
+# arguments: further variables as NAME=VALUE, then the command
+oa_brew_as() {
   oa_as "$OA_BREW_ACCOUNT" env -i \
     HOME="$OA_BREW_HOME" USER="$OA_BREW_ACCOUNT" LOGNAME="$OA_BREW_ACCOUNT" \
     LANG=C.UTF-8 \
@@ -24,7 +28,19 @@ oa_brew() {
     HOMEBREW_NO_ANALYTICS=1 \
     HOMEBREW_NO_ENV_HINTS=1 \
     HOMEBREW_NO_BOTTLE_SOURCE_FALLBACK=1 \
-    "$OA_BREW" "$@"
+    "$@"
+}
+
+# runs brew as the prefix's account in its fixed environment
+# arguments: brew's arguments
+oa_brew() {
+  oa_brew_as "$OA_BREW" "$@"
+}
+
+# runs the system's git in Homebrew's checkout as the prefix's account
+# arguments: git's arguments
+oa_brew_git() {
+  oa_brew_as /usr/bin/git -C "$OA_BREW_REPOSITORY" "$@"
 }
 
 # tells whether Homebrew is installed at its prefix, owned by its account
@@ -72,6 +88,44 @@ oa_homebrew_run() {
     LANG=C.UTF-8 PATH=/usr/bin:/bin:/usr/sbin:/sbin \
     NONINTERACTIVE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_AUTO_UPDATE=1 \
     /bin/bash "$1/install.sh"
+}
+
+# tells whether Homebrew runs a release: its checkout is at the release's
+# commit
+# arguments: the release's commit
+oa_homebrew_pinned() {
+  test "$(oa_brew_git rev-parse --verify --quiet 'HEAD^{commit}' 2>/dev/null)" = "$1"
+}
+
+# checks out a Homebrew release in place of the newest one the installer
+# leaves, or an earlier release, once its tag, fetched afresh, names the
+# release's commit; nothing but this moves Homebrew's own code
+# arguments: the release's tag, its commit
+oa_homebrew_pin() {
+  case $1 in
+    '' | [!0-9]* | *[!0-9.]*)
+      echo "Refusing the Homebrew release $1" >&2
+      return 1
+      ;;
+  esac
+  case $2 in
+    *[!0-9a-f]*)
+      echo "Refusing the Homebrew commit $2" >&2
+      return 1
+      ;;
+  esac
+  test "${#2}" -eq 40 || {
+    echo "Refusing the Homebrew commit $2" >&2
+    return 1
+  }
+  ! oa_homebrew_pinned "$2" || return 0
+  oa_brew_git fetch --quiet --force --no-tags origin "+refs/tags/$1:refs/tags/$1" || return 1
+  if test "$(oa_brew_git rev-parse --verify --quiet "refs/tags/$1^{commit}")" != "$2"; then
+    echo "Refusing Homebrew $1: its tag does not name the pinned commit $2" >&2
+    return 1
+  fi
+  oa_brew_git checkout --quiet --force -B stable "$2" || return 1
+  oa_homebrew_pinned "$2"
 }
 
 # refuses a formula or tap name brew could read as an option
@@ -160,9 +214,12 @@ oa_brew_install() {
   oa_brew install --formula "$1"
 }
 
-# refreshes Homebrew and its formulae
-oa_brew_update() {
-  oa_brew update --quiet
+# refreshes Homebrew's formula data from its API, leaving its own code at
+# the pinned release: `brew update` would move that to the newest tag, so it
+# never runs, and an `outdated` run fetches the data in its stead, which it
+# does even with automatic updates off when asked to
+oa_brew_refresh() {
+  oa_brew_as HOMEBREW_FORCE_API_AUTO_UPDATE=1 "$OA_BREW" outdated --formula --quiet >/dev/null
 }
 
 # upgrades installed formulae from their bottles; one whose new version has no

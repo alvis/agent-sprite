@@ -103,14 +103,15 @@ $oa_updater_system_tools
 EOF
 }
 
-# refreshes Homebrew once, then upgrades each formula from its bottle; one
-# whose new version has no bottle keeps its own and counts as skipped
+# refreshes Homebrew's formula data once, never its own code, then upgrades
+# each formula from its bottle; one whose new version has no bottle keeps its
+# own and counts as skipped
 oa_updater_brew() {
   oa_updater_brew_tools=$(oa_updater_tools brew) || return 1
   test -n "$oa_updater_brew_tools" || return 0
   oa_updater_hold
   oa_updater_brew_refreshed=0
-  if oa_brew_update; then
+  if oa_brew_refresh; then
     oa_updater_brew_refreshed=1
   fi
   while IFS="$(printf '\t')" read -r oa_updater_name oa_updater_required oa_updater_formula _ <&3; do
