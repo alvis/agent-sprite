@@ -24,7 +24,7 @@ vi.mock('#drivers/harnesses/codex/hook-trust', () => ({
 }));
 
 describe('fn:setupAll', () => {
-  it('should apply native proxy settings before rejecting a restricted env file and before services or exposure', async () => {
+  it('should name the guest and apply native proxy settings before rejecting a restricted env file and before services or exposure', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-setup-order-'),
     );
@@ -72,6 +72,9 @@ describe('fn:setupAll', () => {
       code: 'INPUT',
     });
 
+    expect(
+      await sprite.filesystem().exists('/opt/open-agent/workstation-name'),
+    ).toBe(true);
     expect(await sprite.filesystem().exists(CLAUDE_SETTINGS)).toBe(true);
     expect(await sprite.filesystem().exists(CODEX_CONFIG)).toBe(true);
     expect(
