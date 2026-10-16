@@ -77,10 +77,15 @@ async function recordNetwork(
 
 /** a network with caller-side inputs whose enrolment and stale-device removal are observed */
 const OBSERVED_INPUTS: NonNullable<NetworkDriver['inputs']> = {
-  account: { environment: 'NET_ACCOUNT', prompt: 'Account' },
-  management: { environment: 'NET_KEY', prompt: 'Key', store: 'net' },
-  enrollment: { environment: 'NET_AUTH_KEY' },
-  exitNode: { environment: 'NET_EXIT', prompt: 'Exit' },
+  account: { environment: 'NET_ACCOUNT', prompt: 'Account', flag: '--account' },
+  management: {
+    environment: 'NET_KEY',
+    prompt: 'Key',
+    flag: '--key',
+    store: 'net',
+  },
+  enrollment: { environment: 'NET_AUTH_KEY', flag: '--auth-key' },
+  exitNode: { environment: 'NET_EXIT', prompt: 'Exit', flag: '--exit' },
 };
 
 /**

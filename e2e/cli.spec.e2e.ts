@@ -44,7 +44,11 @@ const heldFlush =
     };
   `);
 const HANGING_FETCH_MARKER = '[SAF05:FETCH_HANGING]';
-/** a preloaded module whose network fetch stays pending, then fails like a dropped connection */
+const ABORTED_FETCH_MARKER = '[SAF05:FETCH_ABORTED]';
+/**
+ * a preloaded module whose network fetch stays pending, holding the process open
+ * like an unanswered socket, until its signal aborts it
+ */
 const hangingFetch =
   'data:text/javascript,' +
   encodeURIComponent(`
@@ -53,8 +57,13 @@ const hangingFetch =
       const url = new URL(input?.url ?? String(input));
       if (['data:', 'blob:', 'file:'].includes(url.protocol)) return fetchLocal(input, init);
       process.stderr.write('${HANGING_FETCH_MARKER}\\n');
+      const socket = setInterval(() => undefined, 60_000);
       return new Promise((_, reject) =>
-        setTimeout(() => reject(new TypeError('fetch failed')), 1000),
+        init?.signal?.addEventListener('abort', () => {
+          clearInterval(socket);
+          process.stderr.write('${ABORTED_FETCH_MARKER}\\n');
+          reject(init.signal.reason);
+        }, { once: true }),
       );
     };
   `);
@@ -685,6 +694,45 @@ describe('workflow:installed CLI', () => {
       },
     });
     expect(result.stdout).not.toContain('generated-macaroon');
+    expect(result.stderr).not.toContain('stage=create.provider');
+    expect(attempts).toEqual([]);
+  });
+
+  it('should name every source of a missing harness gateway credential before any provider call', async () => {
+    const { result, attempts } = await withIsolatedCli(async (cwd, env) =>
+      runOffline(
+        packedBin,
+        [
+          'create',
+          '--name',
+          'missing-gateway',
+          ...OFFLINE_CREATE_FLAGS.filter((flag) => flag !== '--no-proxy'),
+          '--proxy',
+        ],
+        {
+          cwd,
+          env: { ...env, SPRITES_TOKEN: 'control-org/1234/0123abcd/4567ef89' },
+        },
+      ),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'create',
+      ok: false,
+      error: {
+        code: 'INPUT',
+        message: 'Required provisioning inputs are missing',
+        details: expect.arrayContaining([
+          expect.stringMatching(
+            /^CLIProxyAPI base URL is not set\. Set CLIPROXYAPI_BASE_URL or pass --env-file FILE containing CLIPROXYAPI_BASE_URL; use --proxy-url URL; or run in a TTY/u,
+          ),
+          expect.stringContaining(
+            'Set CLIPROXYAPI_API_KEY or pass --env-file FILE containing CLIPROXYAPI_API_KEY',
+          ),
+        ]),
+      },
+    });
     expect(result.stderr).not.toContain('stage=create.provider');
     expect(attempts).toEqual([]);
   });
@@ -2212,7 +2260,7 @@ describe('workflow:installed CLI', () => {
   );
 
   it.each(['SIGINT', 'SIGTERM'] as const)(
-    'should flush one cancellation result for OS %s while a request hangs',
+    'should end a hung request at once and flush one cancellation result for OS %s',
     async (signal) => {
       const result = await withIsolatedCli(async (cwd, env) => {
         const child = execa(
@@ -2234,18 +2282,26 @@ describe('workflow:installed CLI', () => {
           },
         );
         await waitForOutput(child.stderr, HANGING_FETCH_MARKER);
+        const interrupted = performance.now();
         child.kill(signal);
+        const exit = await child;
 
-        return child;
+        return { exit, elapsedMs: performance.now() - interrupted };
       });
 
-      expect(result.exitCode).toBe(130);
-      expect(result.stdout.trim().split('\n')).toHaveLength(1);
-      expect(JSON.parse(result.stdout)).toMatchObject({
+      expect(result.exit.exitCode).toBe(130);
+      expect(result.elapsedMs).toBeLessThan(2_000);
+      expect(result.exit.stderr).toContain(ABORTED_FETCH_MARKER);
+      expect(result.exit.stdout.trim().split('\n')).toHaveLength(1);
+      expect(JSON.parse(result.exit.stdout)).toMatchObject({
         schemaVersion: 1,
         command: 'show',
         ok: false,
-        error: { code: 'CANCELLED', machine: 'open-agent-review-check' },
+        error: {
+          code: 'CANCELLED',
+          message: 'Cancelled by user.',
+          machine: 'open-agent-review-check',
+        },
       });
     },
   );

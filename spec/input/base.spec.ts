@@ -47,7 +47,7 @@ describe('fn:resolveBaseInputs', () => {
     });
   });
 
-  it('should resolve flag, process, dotenv, and profile precedence without forwarding credentials', async () => {
+  it('should resolve flag, dotenv, process, and profile precedence without forwarding credentials', async () => {
     const resolved = await resolveBaseInputs(
       {
         name: 'chosen',
@@ -80,22 +80,22 @@ describe('fn:resolveBaseInputs', () => {
     expect(resolved).toEqual({
       input: {
         name: 'chosen',
-        providerToken: 'process-management-token',
+        providerToken: 'file-management-token',
         networkKey: 'process-tailnet-token',
         enrollmentKey: undefined,
         networkAccount: 'flag-tailnet',
         exitNode: 'file-exit',
-        proxyUrl: 'https://process.example.test',
+        proxyUrl: 'https://file.example.test',
         proxyApiKey: undefined,
         profile: networkOnly,
         runtimeEnv: { APP_TOKEN: 'runtime-secret-value' },
         sources: {
-          SPRITES_TOKEN: 'SPRITES_TOKEN in the process environment',
+          SPRITES_TOKEN: 'SPRITES_TOKEN in selected.env',
           TAILSCALE_API_KEY: 'process environment',
           GH_TOKEN: 'process environment',
           TAILSCALE_TAILNET: 'flag',
           TAILSCALE_EXIT_NODE: 'selected.env',
-          CLIPROXYAPI_BASE_URL: 'process environment',
+          CLIPROXYAPI_BASE_URL: 'selected.env',
         },
         missing: [],
       },
@@ -103,7 +103,7 @@ describe('fn:resolveBaseInputs', () => {
     });
     expect(
       redactResolved(
-        'process-management-token process-tailnet-token process-github-token runtime-secret-value',
+        'file-management-token process-tailnet-token process-github-token runtime-secret-value',
       ),
     ).toBe('[REDACTED] [REDACTED] [REDACTED] [REDACTED]');
   });

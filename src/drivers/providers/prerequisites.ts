@@ -44,6 +44,16 @@ export interface ProviderPrerequisites {
   documentation: readonly string[];
 }
 
+/** a caller-side input an adapter requires: where it is read from and asked for */
+export interface InputPrerequisite {
+  /** environment variable read from the process or the selected env file */
+  environment: string;
+  /** what the input is, also the prompt shown when an interactive run lacks it */
+  prompt: string;
+  /** the flag that supplies it explicitly, with its placeholder */
+  flag: string;
+}
+
 /** one missing or misconfigured prerequisite and how to fix it */
 export interface PrerequisiteProblem {
   /** the tool or credential concerned */

@@ -16,10 +16,10 @@ import {
   configureGithub,
   configureRuntimeEnv,
 } from '#integrations/native/git';
-import { promptUnavailableDetail } from '#operation';
 import { PairingSecret } from '#utilities/pairing-secret';
 
 import { installSetupPlan } from './install';
+import { missingSetupInputs } from './prepare';
 import { exposeWhenServing } from './serving';
 
 import type {
@@ -169,10 +169,7 @@ export async function setupGit(
     return { gitIdentity: 'preserved' };
   }
   if (input.missing.length || !input.gitIdentity) {
-    throw new CommandFault({
-      code: 'INPUT',
-      message: `Missing: ${input.missing.join(', ')}`,
-    });
+    throw missingSetupInputs(input.missing);
   }
   mutation.started = true;
   await configureGit(guest, input.gitIdentity);
@@ -216,10 +213,12 @@ export async function setupProxy(
 }
 
 /**
- * loads and write a selected runtime environment file
+ * loads and writes a selected runtime environment file, asking for its path
+ * in a terminal and skipping the section when no file is selected and no
+ * prompt can ask for one
  * @param guest guest channel of the managed workstation
  * @param context environment choice, prompts, and redaction values
- * @returns names of configured runtime variables
+ * @returns names of configured runtime variables, or the skipped section
  */
 export async function setupEnvironment(
   guest: GuestChannel,
@@ -235,15 +234,7 @@ export async function setupEnvironment(
         })
       : undefined);
   if (!envPath) {
-    throw new CommandFault({
-      code: 'INPUT',
-      message: [
-        'Runtime env setup requires --env-file',
-        promptUnavailableDetail(),
-      ]
-        .filter(Boolean)
-        .join('. '),
-    });
+    return { runtimeEnvironment: { status: 'skipped' } };
   }
   const input = await resolveInputs(
     { ...options, envFile: envPath },

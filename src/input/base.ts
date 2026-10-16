@@ -118,7 +118,7 @@ function declaredNames(profile: WorkstationProfile): DeclaredNames {
 }
 
 /**
- * selects non-secret values in explicit, process, dotenv, profile order
+ * selects non-secret values in explicit, dotenv, process, profile order
  * @param options parsed selected dotenv path
  * @param sources process, dotenv, and profile values
  * @param names output map of selected source descriptions
@@ -132,11 +132,11 @@ function sourceReader(
   return (name, explicit) => {
     const ordered = [
       { value: explicit, description: 'flag' },
-      { value: sources.processEnv[name], description: 'process environment' },
       {
         value: sources.fileEnv[name],
         description: options.envFile ?? 'env file',
       },
+      { value: sources.processEnv[name], description: 'process environment' },
       { value: sources.profile[name], description: 'saved profile' },
     ];
     const selected = ordered.find((entry) => Boolean(entry.value));

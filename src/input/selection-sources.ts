@@ -32,7 +32,7 @@ interface StepSources {
   environment?: string;
 }
 
-/** precedence-aware reader of flag, process environment and env file values */
+/** precedence-aware reader of flag, env file and process environment values */
 interface EnvironmentReader {
   /**
    * reads one driver id
@@ -69,7 +69,7 @@ interface EnvironmentReader {
 }
 
 /**
- * reads flag, process environment, then env file values in that order
+ * reads flag, env file, then process environment values in that order
  * @param sources process and env file values
  * @param scope whether environment values apply to this run
  * @param scope.isEnabled false when only flags apply
@@ -81,7 +81,7 @@ export function environmentReader(
 ): EnvironmentReader {
   const raw = (environment: string | undefined): string | undefined =>
     scope.isEnabled && environment !== undefined
-      ? [sources.processEnv[environment], sources.fileEnv[environment]]
+      ? [sources.fileEnv[environment], sources.processEnv[environment]]
           .map((value) => value?.trim())
           .find((value) => Boolean(value))
       : undefined;

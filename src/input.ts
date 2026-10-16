@@ -1,7 +1,9 @@
 import { networkDriver } from '#core/networks';
+import { prerequisiteDetails } from '#core/preflight';
 import { validateProfile } from '#core/profile';
 import { proxyUrlProblems } from '#drivers/shared/cliproxyapi/endpoints';
-import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
+import { preflightCliproxyapi } from '#drivers/shared/cliproxyapi/preflight';
+import { missingInput } from '#drivers/shared/prerequisites';
 import { CommandFault } from '#errors';
 
 import { resolveBaseInputs } from './input/base';
@@ -18,6 +20,10 @@ import { readInputSources } from './input/sources';
 import type { CommandOptions, Interaction } from '#command/contracts';
 
 import type { WorkstationProfile } from '#core/profile';
+import type {
+  InputPrerequisite,
+  PrerequisiteProblem,
+} from '#drivers/providers/prerequisites';
 import type { CredentialStoreLocation } from '#integrations/credentials';
 
 import type { GithubTokenCandidate } from './input/github';
@@ -42,7 +48,7 @@ interface ResolveInputsOptions {
 }
 
 /**
- * resolves explicit arguments, process environment, selected dotenv, profile, then prompts
+ * resolves explicit arguments, selected dotenv, process environment, profile, then prompts
  * @param options parsed flags and explicit secret sources
  * @param interaction optional inline prompts
  * @param requirementSelection inputs or extended resolution settings
@@ -89,7 +95,7 @@ export async function resolveInputs(
         !githubCandidate &&
         required.includes('gitIdentity') &&
         options.gitIdentity !== false
-          ? ['Git author and committer name/email']
+          ? MISSING_GIT_IDENTITY
           : []),
       ],
     };
@@ -210,50 +216,82 @@ function isResolveInputsOptions(
   return !Array.isArray(value);
 }
 
+/** the GitHub token guest setup authenticates with, as a declared input */
+const GITHUB_TOKEN_INPUT: InputPrerequisite = {
+  environment: 'GH_TOKEN',
+  prompt: 'GitHub token',
+  flag: '--github-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT',
+};
+
+/** the Git author identity commits are made with, as a declared input */
+const GIT_IDENTITY_INPUT: InputPrerequisite = {
+  environment: 'GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL',
+  prompt: 'Git author identity',
+  flag: '--git-name NAME and --git-email EMAIL',
+};
+
+/** what an absent Git identity needs, in the missingInput wording */
+const MISSING_GIT_IDENTITY = prerequisiteDetails([
+  missingInput(
+    GIT_IDENTITY_INPUT,
+    'Or pass --no-git-identity to leave it unset.',
+  ),
+]);
+
+/** what an absent GitHub token needs, in the missingInput wording */
+const MISSING_GITHUB_TOKEN = prerequisiteDetails([
+  missingInput(
+    GITHUB_TOKEN_INPUT,
+    'Or pass --no-github to skip GitHub authentication.',
+  ),
+]);
+
 /**
- * enumerates all provisioning values absent before remote account discovery
+ * enumerates all provisioning values absent before remote account discovery,
+ * each with every place it is read from
  * @param input values resolved from explicit and local sources
  * @param required inputs needed by the selected workflow
- * @returns missing user-facing input names
+ * @returns one actionable line per missing input
  */
 function missingProvisioningInputs(
   input: ResolvedInputs,
   required: readonly RequiredInput[],
 ): string[] {
   const network = networkDriver(input.profile.network).inputs;
-  const networkChecks: Array<[RequiredInput, boolean, string]> = network
-    ? [
-        [
-          'networkEnrollment',
-          Boolean(input.networkKey ?? input.enrollmentKey),
-          `${network.management.environment} or ${network.enrollment.environment}`,
-        ],
-        [
-          'networkAccount',
-          Boolean(input.networkAccount),
-          network.account.environment,
-        ],
-        ['exitNode', Boolean(input.exitNode), network.exitNode.environment],
-      ]
+  const networkChecks: Array<[RequiredInput, boolean, PrerequisiteProblem]> =
+    network
+      ? [
+          [
+            'networkEnrollment',
+            Boolean(input.networkKey ?? input.enrollmentKey),
+            missingInput(
+              network.management,
+              `Or set ${network.enrollment.environment} (${network.enrollment.flag}) to enrol with a single-use key.`,
+            ),
+          ],
+          [
+            'networkAccount',
+            Boolean(input.networkAccount),
+            missingInput(network.account),
+          ],
+          ['exitNode', Boolean(input.exitNode), missingInput(network.exitNode)],
+        ]
+      : [];
+  const isProxyRequired =
+    required.includes('proxyUrl') || required.includes('proxyApiKey');
+  const gateway = isProxyRequired
+    ? preflightCliproxyapi({ url: input.proxyUrl, apiKey: input.proxyApiKey })
     : [];
-  const checks: Array<[RequiredInput, boolean, string]> = [
-    ['name', Boolean(input.name), 'workstation name (--name)'],
-    ...networkChecks,
-    [
-      'proxyUrl',
-      Boolean(input.proxyUrl),
-      CLIPROXYAPI_INPUTS.baseUrl.environment,
-    ],
-    [
-      'proxyApiKey',
-      Boolean(input.proxyApiKey),
-      CLIPROXYAPI_INPUTS.apiKey.environment,
-    ],
-  ];
-
-  return checks
+  const absent = networkChecks
     .filter(([name, present]) => required.includes(name) && !present)
-    .map(([, , description]) => description);
+    .map(([, , problem]) => problem);
+
+  return [
+    ...(required.includes('name') && !input.name
+      ? ['workstation name (--name)']
+      : []),
+    ...prerequisiteDetails([...absent, ...gateway]),
+  ];
 }
 
 interface AccountResolutionContext {
@@ -318,12 +356,12 @@ async function completeAccountInputs(
       options.gitIdentity !== false &&
       (!interaction || options.nonInteractive) &&
       !input.gitIdentity
-        ? ['Git author and committer name/email']
+        ? MISSING_GIT_IDENTITY
         : []),
       ...(required.includes('githubToken') &&
       options.github !== false &&
       !input.githubToken
-        ? ['GitHub token']
+        ? MISSING_GITHUB_TOKEN
         : []),
     ],
   };

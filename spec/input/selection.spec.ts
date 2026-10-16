@@ -155,7 +155,7 @@ describe('fn:resolveCreateSelection', () => {
     expect(candidate.options.idleTimeoutMinutes).toBe(0);
   });
 
-  it('should take the flag over the process environment over the env file', async () => {
+  it('should take the flag over the env file over the process environment', async () => {
     const sources: InputSources = {
       processEnv: { OPEN_AGENT_IDLE_MINUTES: '15' },
       fileEnv: { OPEN_AGENT_IDLE_MINUTES: '45', OPEN_AGENT_NETWORK: 'none' },
@@ -171,7 +171,7 @@ describe('fn:resolveCreateSelection', () => {
       sources,
     });
 
-    expect(fromEnvironment.candidate.options.idleTimeoutMinutes).toBe(15);
+    expect(fromEnvironment.candidate.options.idleTimeoutMinutes).toBe(45);
     expect(fromEnvironment.candidate.network).toBe('none');
     expect(fromFlag.candidate.options.idleTimeoutMinutes).toBe(0);
   });
@@ -191,7 +191,7 @@ describe('fn:resolveCreateSelection', () => {
     ]);
   });
 
-  it('should take the update due interval from the flag, then the process environment, then the env file, then the default, without prompting', async () => {
+  it('should take the update due interval from the flag, then the env file, then the process environment, then the default, without prompting', async () => {
     const { interaction, asked } = recordingInteraction();
     const sources: InputSources = {
       processEnv: { OPEN_AGENT_UPDATE_DUE_DAYS: '3' },
@@ -218,7 +218,7 @@ describe('fn:resolveCreateSelection', () => {
       [fromSources, fromFlags, fromDefaults].map(
         ({ candidate: { options } }) => options.updateDueIntervalDays,
       ),
-    ).toEqual([3, 2, 1]);
+    ).toEqual([9, 2, 1]);
   });
 
   it('should report an unreadable update interval instead of guessing', async () => {

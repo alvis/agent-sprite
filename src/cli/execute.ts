@@ -336,7 +336,7 @@ function forcedCancellation(
  * reads the explicitly selected env file before choosing interaction mode
  * @param options command options
  * @param operation captured invocation before the workflow scope
- * @returns merged mode facts with process environment precedence
+ * @returns merged mode facts, the selected env file taking precedence
  */
 async function readModeEnvironment(
   options: CommandOptions,
@@ -347,7 +347,7 @@ async function readModeEnvironment(
       ? parse(await readInputFile(options.envFile, operation))
       : {};
 
-    return { ...selectedEnv, ...process.env };
+    return { ...process.env, ...selectedEnv };
   } catch (cause) {
     checkOperation(operation);
     throw new CommandFault({

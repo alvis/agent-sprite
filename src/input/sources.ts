@@ -156,7 +156,7 @@ export async function readInputSources(
 /**
  * reads credential environment sources without unrelated integration profiles
  * @param options explicitly selected dotenv file
- * @returns process and file values in credential precedence order
+ * @returns process and file values; the file takes precedence
  */
 export async function readEnvironmentSources(
   options: CommandOptions,

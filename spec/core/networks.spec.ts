@@ -14,14 +14,26 @@ import type { NetworkInputs } from '#drivers/networks/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
 const inputs: NetworkInputs = {
-  account: { environment: 'PARTIAL_ACCOUNT', prompt: 'Account' },
+  account: {
+    environment: 'PARTIAL_ACCOUNT',
+    prompt: 'Account',
+    flag: '--network-account ACCOUNT',
+  },
   management: {
     environment: 'PARTIAL_MANAGEMENT_KEY',
     prompt: 'Management key',
+    flag: '--network-key-source SOURCE',
     store: 'partial',
   },
-  enrollment: { environment: 'PARTIAL_ENROLLMENT_KEY' },
-  exitNode: { environment: 'PARTIAL_EXIT_NODE', prompt: 'Exit node' },
+  enrollment: {
+    environment: 'PARTIAL_ENROLLMENT_KEY',
+    flag: '--network-auth-key-source SOURCE',
+  },
+  exitNode: {
+    environment: 'PARTIAL_EXIT_NODE',
+    prompt: 'Exit node',
+    flag: '--exit-node NODE',
+  },
 };
 
 const daemon: ServiceDefinition = {

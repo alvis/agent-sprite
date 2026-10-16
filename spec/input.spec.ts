@@ -10,7 +10,7 @@ import { resolveProviderCredential } from '#input/provider-credential';
 import { profileWith } from './fixtures/profile';
 
 describe('fn:resolveInputs', () => {
-  it('should aggregate all missing selection inputs before account discovery', async () => {
+  it('should aggregate all missing selection inputs, each naming every source, before account discovery', async () => {
     const input = await resolveInputs(
       {
         nonInteractive: true,
@@ -54,11 +54,21 @@ describe('fn:resolveInputs', () => {
     expect([input.missing, defaults.missing]).toEqual([
       [
         expect.stringContaining('--name'),
-        expect.stringContaining('TAILSCALE_API_KEY'),
-        expect.stringContaining('TAILSCALE_TAILNET'),
-        expect.stringContaining('TAILSCALE_EXIT_NODE'),
-        expect.stringContaining('CLIPROXYAPI_BASE_URL'),
-        expect.stringContaining('CLIPROXYAPI_API_KEY'),
+        'Tailscale management API key is not set. Set TAILSCALE_API_KEY or pass --env-file FILE containing TAILSCALE_API_KEY; ' +
+          'use --network-key-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; or run in a TTY to enter it when prompted. ' +
+          'Or set TAILSCALE_AUTH_KEY (--network-auth-key-source SOURCE) to enrol with a single-use key.',
+        expect.stringMatching(
+          /^Tailscale tailnet .* is not set\. Set TAILSCALE_TAILNET or pass --env-file FILE containing TAILSCALE_TAILNET; use --network-account ACCOUNT;/u,
+        ),
+        expect.stringContaining(
+          'Set TAILSCALE_EXIT_NODE or pass --env-file FILE containing TAILSCALE_EXIT_NODE; use --exit-node NODE;',
+        ),
+        expect.stringContaining(
+          'Set CLIPROXYAPI_BASE_URL or pass --env-file FILE containing CLIPROXYAPI_BASE_URL; use --proxy-url URL;',
+        ),
+        expect.stringContaining(
+          'Set CLIPROXYAPI_API_KEY or pass --env-file FILE containing CLIPROXYAPI_API_KEY;',
+        ),
       ],
       [expect.stringContaining('--name')],
     ]);
@@ -76,8 +86,12 @@ describe('fn:resolveInputs', () => {
       },
       undefined,
       {
-        sources: { processEnv: {}, fileEnv: {}, profile: {} },
-        required: ['proxyUrl'],
+        sources: {
+          processEnv: {},
+          fileEnv: { CLIPROXYAPI_API_KEY: 'client-key' },
+          profile: {},
+        },
+        required: ['proxyUrl', 'proxyApiKey'],
       },
     );
 
@@ -118,8 +132,8 @@ describe('fn:resolveInputs', () => {
     expect({ identity: input.gitIdentity, missing: input.missing }).toEqual({
       identity: {
         authorName: 'Flag Author',
-        authorEmail: 'process-author@example.test',
-        committerName: 'Process Committer',
+        authorEmail: 'file-author@example.test',
+        committerName: 'File Committer',
         committerEmail: 'flag-committer@example.test',
       },
       missing: [],
