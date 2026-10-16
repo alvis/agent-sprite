@@ -119,8 +119,8 @@ export const BASE_TOOLS: readonly ToolSpec[] = [
     sources: [{ ...apt('cron'), vendorServices: ['cron.service'] }],
   },
   {
-    // Homebrew's installer clones its own repository with the system git;
-    // the agent's git is Homebrew's, so this one is never linked
+    // Homebrew's installer clones its own repository with the system git,
+    // which root's commands run
     name: 'git-bootstrap',
     required: false,
     executables: [],
@@ -157,9 +157,11 @@ export const BASE_TOOLS: readonly ToolSpec[] = [
     sources: [brew('jq'), apt('jq')],
   },
   {
+    // the agent's git, found through Homebrew's directories on its PATH; it
+    // is never linked over the system's
     name: 'git',
     required: true,
-    executables: ['git'],
+    executables: [],
     version: probe('git', '--version'),
     sources: [brew('git')],
   },

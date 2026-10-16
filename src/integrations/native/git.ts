@@ -5,7 +5,7 @@ import {
 import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
 import { runGuestResult } from '#integrations/guest';
-import { HOMEBREW_GH } from '#tools/accounts';
+import { HOMEBREW_GH, HOMEBREW_PATH } from '#tools/accounts';
 import { redactResolved, rememberSecret } from '#utilities/redaction';
 
 import {
@@ -190,7 +190,7 @@ async function runGithubCommand(params: {
       '/usr/bin/env',
       `--chdir=/home/${user}`,
       `HOME=/home/${user}`,
-      'PATH=/usr/local/bin:/usr/bin:/bin',
+      `PATH=${HOMEBREW_PATH}:/usr/local/bin:/usr/bin:/bin`,
       // the bottle's keg, which only the Homebrew account can change
       HOMEBREW_GH,
       ...args,

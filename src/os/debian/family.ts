@@ -24,8 +24,8 @@ const HOMEBREW_PREREQUISITES = [
   'procps',
 ];
 
-/** system packages every setup installs before any tool: TLS roots, the downloader and the schedule's cron */
-const BOOTSTRAP_PACKAGES = ['ca-certificates', 'curl', 'cron'];
+/** system packages every setup installs before any tool: TLS roots, the downloader, the schedule's cron and the jq root's programs read JSON with */
+const BOOTSTRAP_PACKAGES = ['ca-certificates', 'curl', 'cron', 'jq'];
 
 /**
  * the Debian family: Debian itself and every distribution that names it in

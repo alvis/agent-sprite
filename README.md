@@ -490,7 +490,7 @@ The agent works with these tools on the machine. They are supporting equipment f
 
 ### Installed tools
 
-Every workstation gets these tools for the `agent` account. Homebrew tools are linked in `/usr/local/bin`:
+Every workstation gets these tools for the `agent` account. Homebrew's directories come first on the agent's `PATH`, and Homebrew executables the system lacks are also linked in `/usr/local/bin`:
 
 | Tool                 | Commands                                                        | Source                                     |
 | -------------------- | --------------------------------------------------------------- | ------------------------------------------ |

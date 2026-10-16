@@ -226,15 +226,16 @@ describe('live workstation lifecycle', () => {
           readiness: { ready: true, failures: [] },
           pairing: { status: 'not requested' },
         });
-        // Git, jj and gh are Homebrew's bottles at the default prefix, linked where every
-        // caller finds it; the agent runs it but can change nothing under the
-        // prefix, and Homebrew poured every keg and installed no compiler
+        // Git, jj and gh are Homebrew's bottles at the default prefix, which
+        // the agent's PATH searches first; the agent runs them but can change
+        // nothing under the prefix, and Homebrew poured every keg and
+        // installed no compiler
         const homebrewGit = await readHomebrewGit(provider, name);
 
         await annotate(`Git ${homebrewGit.kegVersion} from Homebrew`);
         expect(homebrewGit).toEqual({
           agentVersion: homebrewGit.kegVersion,
-          agentGit: '/usr/local/bin/git',
+          agentGit: `${HOMEBREW.prefix}/bin/git`,
           kegVersion: expect.stringMatching(/^\d+\.\d+\.\d+$/),
           links: Object.fromEntries(
             BREW_TOOLS.map((tool) => [

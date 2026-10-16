@@ -1,13 +1,15 @@
 # open-agent's periodic jobs: each job environment.json records is one line of
 # a root-owned file in /etc/cron.d, which the cron service, under whichever
 # backend runs the services, runs as the job's account. Setup and the boot
-# hook source it as root; it needs jq on PATH. Every function is safe to
-# rerun, reports why it failed on stderr and returns non-zero
+# hook source it as root; it reads JSON with the system's jq, /usr/bin/jq.
+# Every function is safe to rerun, reports why it failed on stderr and
+# returns non-zero
 
 # the jobs' file; cron ignores a name with a dot, such as its temporary copy
 OA_CRON_FILE=/etc/cron.d/open-agent
-# the PATH every job starts with
-OA_CRON_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# the PATH every job starts with: the system's commands ahead of the tool
+# links in /usr/local, so no link shadows one a root job runs
+OA_CRON_PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin
 
 # prints the crontab of the jobs environment.json records, or nothing when it
 # records none; a job runs every whole number of minutes that divides an
@@ -15,7 +17,7 @@ OA_CRON_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # command is quoted and its `%` escaped, so cron reads none of it
 # arguments: path of environment.json
 oa_cron_render() {
-  jq -r --arg path "$OA_CRON_PATH" '
+  /usr/bin/jq -r --arg path "$OA_CRON_PATH" '
     def schedule:
       if . >= 1 and . < 60 and 60 % . == 0 then
         if . == 1 then "* * * * *" else "*/\(.) * * * *" end

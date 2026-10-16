@@ -10,12 +10,11 @@
 # upgrades the system tools environment.json records
 # arguments: path of environment.json
 oa_update_system() {
-  oa_update_jq=$(command -v jq 2>/dev/null || printf '%s' /home/linuxbrew/.linuxbrew/bin/jq)
-  if ! test -x "$oa_update_jq"; then
-    echo "The updater needs jq to read $1" >&2
+  if ! test -x /usr/bin/jq; then
+    echo "The updater needs the system's jq to read $1" >&2
     return 1
   fi
-  oa_update_packages=$("$oa_update_jq" -r \
+  oa_update_packages=$(/usr/bin/jq -r \
     '[.tools[]? | .source | select(.kind == "system") | .packages[]] | unique | .[]' \
     "$1") || return 1
   set --

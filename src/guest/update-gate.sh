@@ -32,8 +32,8 @@ OA_GATE_LOCK=$OA_GATE_LOCK_DIRECTORY/update.lock
 OA_GATE_AWAKE=$OA_GATE_ROOT/guest/awake.sh
 OA_GATE_UPDATER=$OA_GATE_ROOT/guest/updater.sh
 OA_GATE_TOOLS=$OA_GATE_ROOT/tools
-# Homebrew's jq, which a Homebrew-first guest reads JSON with
-OA_GATE_BREW_JQ=/home/linuxbrew/.linuxbrew/opt/jq/bin/jq
+# the system's jq, which root reads JSON with, never a tool link
+OA_GATE_JQ=/usr/bin/jq
 # the due interval's default and limit, in days: updateDueIntervalDays in
 # src/core/profile.ts and MAX_UPDATE_DUE_DAYS in src/core/profile-rules.ts
 OA_GATE_DEFAULT_DAYS=1
@@ -138,9 +138,9 @@ fi
 exec 9>>"$OA_GATE_LOCK" || exit 1
 flock -n 9 || exit 0
 
-oa_gate_jq=$OA_GATE_BREW_JQ
-test -x "$oa_gate_jq" || oa_gate_jq=$(command -v jq) || {
-  echo "update gate: no jq reads $OA_GATE_ENVIRONMENT" >&2
+oa_gate_jq=$OA_GATE_JQ
+test -x "$oa_gate_jq" || {
+  echo "update gate: no $OA_GATE_JQ reads $OA_GATE_ENVIRONMENT" >&2
   exit 1
 }
 oa_gate_last=$("$oa_gate_jq" -r '.lastSuccess | strings' "$OA_GATE_STATUS" 2>/dev/null) ||

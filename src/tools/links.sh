@@ -1,13 +1,18 @@
 # open-agent's tool links, sourced as root: every executable environment.json
 # lists for a Homebrew tool gets a link in /usr/local/bin to its keg's opt
-# link. A link is only made where none is, or replaced where it points
-# elsewhere into the prefix; anything else there, and every system or agent
-# tool, is left alone
+# link, unless the system provides a command of that name, which the agent
+# finds in Homebrew's own directories on its PATH instead. A link is only
+# made where none is, or replaced where it points elsewhere into the prefix;
+# anything else there, and every system or agent tool, is left alone. Root
+# reads environment.json with the system's jq alone
 
 # where the links go and the prefix they point into: TOOL_LINK_DIRECTORY and
 # HOMEBREW_PREFIX in src, which this shell cannot import
 OA_LINK_DIRECTORY=/usr/local/bin
 OA_LINK_PREFIX=/home/linuxbrew/.linuxbrew
+# the system's command directories, whose commands no link shadows
+OA_LINK_SYSTEM='/usr/sbin /usr/bin /sbin /bin'
+OA_LINK_JQ=/usr/bin/jq
 
 # refuses a formula, keg directory or executable a link could escape with
 # arguments: formula, keg directories separated by blanks, executables separated by blanks
@@ -36,8 +41,18 @@ oa_link_names() {
   done
 }
 
+# tells whether the system provides a command
+# arguments: the command's name
+oa_link_system() {
+  for oa_system_directory in $OA_LINK_SYSTEM; do
+    test -e "$oa_system_directory/$1" && return 0
+  done
+  return 1
+}
+
 # links, or with `check` only tells whether it would link, a Homebrew tool's
-# executables; every executable must be in one of the keg directories
+# executables; every executable must be in one of the keg directories. One the
+# system provides is not linked, and its link into the prefix is removed
 # arguments: `apply` or `check`, formula, keg directories separated by
 # blanks, executables separated by blanks
 oa_link_tool() {
@@ -58,6 +73,16 @@ oa_link_tool() {
       return 1
     fi
     oa_link_path=$OA_LINK_DIRECTORY/$oa_link_executable
+    if oa_link_system "$oa_link_executable"; then
+      test -L "$oa_link_path" || continue
+      case $(readlink "$oa_link_path") in
+        "$OA_LINK_PREFIX"/*) ;;
+        *) continue ;;
+      esac
+      test "$oa_link_mode" = apply || return 1
+      rm -f "$oa_link_path" || return 1
+      continue
+    fi
     if test -L "$oa_link_path"; then
       oa_link_current=$(readlink "$oa_link_path")
       test "$oa_link_current" != "$oa_link_target" || continue
@@ -84,12 +109,11 @@ oa_link_tool() {
 # on a rebuilt root filesystem
 # arguments: path of environment.json
 oa_links_restore() {
-  oa_restore_jq=$OA_LINK_PREFIX/opt/jq/bin/jq
-  test -x "$oa_restore_jq" || oa_restore_jq=$(command -v jq) || {
-    echo "Restoring links needs jq to read $1" >&2
+  if ! test -x "$OA_LINK_JQ"; then
+    echo "Restoring links needs $OA_LINK_JQ to read $1" >&2
     return 1
-  }
-  oa_restore_tools=$("$oa_restore_jq" -r '.tools[]?
+  fi
+  oa_restore_tools=$("$OA_LINK_JQ" -r '.tools[]?
     | select(.source.kind == "brew")
     | [.source.formula, ((.source.binDirs // ["bin"]) | join(" ")), (.executables | join(" "))]
     | @tsv' "$1") || return 1
