@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 import { execa } from 'execa';
 
 import { ProviderFault } from '#drivers/failures';
@@ -7,6 +9,7 @@ import { familyOf } from '#os/families';
 import { RunitServiceControl } from '#os/services/runit/backend';
 
 import { flyctlAgent } from './agent.js';
+import { waitForBoot } from './boot.js';
 import { FLYCTL, flyctlEnvironment, prepareFlyctlDirectory } from './flyctl.js';
 import { inBandCommand, splitInBandStatus, verifiedStatus } from './in-band.js';
 import { FLY_MACHINE_IMAGES } from './machine-config.js';
@@ -43,6 +46,14 @@ const KIBIBYTE_BYTES = 1024;
 const MAX_BUFFER_BYTES = KIBIBYTE_BYTES * KIBIBYTE_BYTES;
 const MISSING_PATH_STATUS = 1;
 const TRANSPORT_DIAGNOSTIC_LENGTH = 300;
+/**
+ * a new app's machine boots, and answers the REST endpoint, seconds before
+ * flyctl's agent can dial it: the agent's dial ends at once until the
+ * machine's private address is known, so the first session is retried
+ */
+const SSH_READY_WAIT_MS = 60_000;
+const SSH_READY_POLL_MS = 2_000;
+const SSH_PROBE_TIMEOUT_MS = 30_000;
 /** prefix dropping root privileges to the agent account */
 const AGENT_PREFIX = ['/usr/sbin/runuser', '-u', 'agent', '--'] as const;
 const ENV_PROGRAM = '/usr/bin/env';
@@ -114,6 +125,33 @@ export class FlyGuestChannel implements GuestChannel {
         return this.#params.sshToken();
       },
     });
+  }
+
+  /**
+   * waits until the boot script has rebuilt the root filesystem in the
+   * machine's current boot and an SSH session reaches the guest, retrying a
+   * session the transport ended before the guest reported a status; the
+   * probe runs nothing, so repeating it is safe, while a session a caller
+   * opens may already have started its command when it breaks
+   */
+  public async awaitReady(): Promise<void> {
+    const { api, app, machine } = this.#params;
+    await waitForBoot(api, { app, machine });
+    const deadline = Date.now() + SSH_READY_WAIT_MS;
+    for (;;) {
+      try {
+        await this.#sshExec(['/bin/true'], undefined, SSH_PROBE_TIMEOUT_MS);
+
+        return;
+      } catch (error) {
+        const isUnreached =
+          error instanceof ProviderFault && error.code === 'transient';
+        if (!isUnreached || Date.now() >= deadline) {
+          throw error;
+        }
+      }
+      await runOperation(async () => delay(SSH_READY_POLL_MS));
+    }
   }
 
   /**
