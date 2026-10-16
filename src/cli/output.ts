@@ -35,8 +35,8 @@ interface ResultStreams {
 export interface PreparedResult {
   channel: 'stdout' | 'stderr';
   text: string;
-  /** stderr lines written after the payload, such as unavailable providers beside piped list rows */
-  notice?: string;
+  /** what the main text cannot carry, written to stderr after it so it is never lost */
+  notes?: string;
 }
 
 const DEFAULT_COLUMNS = 80;
@@ -71,12 +71,12 @@ export function prepareResult(
   if (safe.ok && safe.command === 'list' && !streams.stdout.isTTY) {
     const rows = machineRows(safe.data);
     if (rows) {
-      const notice = unavailableProviders(safe.data);
+      const notes = listNotes(safe.data);
 
       return {
         channel: 'stdout',
         text: formatListTsv(rows),
-        ...(notice ? { notice } : {}),
+        ...(notes ? { notes } : {}),
       };
     }
   }
@@ -99,8 +99,8 @@ export function writePreparedResult(
   streams: ResultStreams = DEFAULT_STREAMS,
 ): void {
   streams[prepared.channel].write(prepared.text);
-  if (prepared.notice) {
-    streams.stderr.write(prepared.notice);
+  if (prepared.notes) {
+    streams.stderr.write(prepared.notes);
   }
 }
 
@@ -133,7 +133,7 @@ function humanResult(result: SerializedResult, columns: number): string {
   }
   const machines = machineRows(result.data);
   if (result.command === 'list' && machines) {
-    return `${error}${renderToString(machineTableElement(machines, columns))}\n${unavailableProviders(result.data)}`;
+    return `${error}${renderToString(machineTableElement(machines, columns))}\n${listNotes(result.data)}`;
   }
   if (result.data) {
     const details = renderToString(
@@ -240,20 +240,32 @@ function escapeTsvCell(value: string): string {
 }
 
 /**
- * names providers a list could not query, so an absent workstation is not mistaken for none
+ * names what a list leaves out or cannot manage, so a missing or refused
+ * workstation is not mistaken for an absent or ordinary one
  * @param data list command data
- * @returns one line per unavailable provider
+ * @returns one line per unavailable provider and per workstation a newer open-agent set up
  */
-function unavailableProviders(data: JsonObject | undefined): string {
+function listNotes(data: JsonObject | undefined): string {
   const unavailable = Array.isArray(data?.unavailable) ? data.unavailable : [];
+  const machines = Array.isArray(data?.machines) ? data.machines : [];
 
-  return unavailable
-    .filter(isJsonObject)
-    .map(
-      ({ provider, reason }) =>
-        `Unavailable provider ${typeof provider === 'string' ? provider : 'unknown'}: ${typeof reason === 'string' ? reason : 'not reported'}\n`,
-    )
-    .join('');
+  return [
+    ...unavailable
+      .filter(isJsonObject)
+      .map(
+        ({ provider, reason }) =>
+          `Unavailable provider ${typeof provider === 'string' ? provider : 'unknown'}: ${typeof reason === 'string' ? reason : 'not reported'}\n`,
+      ),
+    ...machines
+      .filter(isJsonObject)
+      .flatMap(({ name, newerRelease }) =>
+        typeof newerRelease === 'string'
+          ? [
+              `Workstation ${typeof name === 'string' ? name : 'unknown'} was set up by open-agent ${newerRelease}; upgrade open-agent to manage it\n`,
+            ]
+          : [],
+      ),
+  ].join('');
 }
 
 /**

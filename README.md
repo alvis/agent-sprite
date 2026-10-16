@@ -329,14 +329,14 @@ Use the interactive CLI to select workstations and configure sections, or pass n
 
 ### CLI Command Surface
 
-| Command              | Behavior                                                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `create --name NAME` | Provision privately, configure the selected drivers, verify readiness and expose the agent; pairing is opt-in |
-| `setup [NAME]`       | Configure one section or explicit actions on a verified managed workstation                                   |
-| `list`               | List managed workstations from every provider; providers that cannot be listed are reported as unavailable    |
-| `show [NAME]`        | Show provider information and the agent URL; inspection and pairing require explicit actions                  |
-| `doctor [NAME]`      | Report current service, native harness, and selected-driver readiness                                         |
-| `terminate [NAME]`   | Permanently delete the exact managed workstation and report network cleanup separately                        |
+| Command              | Behavior                                                                                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create --name NAME` | Provision privately, configure the selected drivers, verify readiness and expose the agent; pairing is opt-in                                                     |
+| `setup [NAME]`       | Configure one section or explicit actions on a verified managed workstation                                                                                       |
+| `list`               | List managed workstations from every provider; providers that cannot be listed are reported as unavailable, and a workstation a newer open-agent set up is marked |
+| `show [NAME]`        | Show provider information and the agent URL; inspection and pairing require explicit actions                                                                      |
+| `doctor [NAME]`      | Report current service, native harness, and selected-driver readiness                                                                                             |
+| `terminate [NAME]`   | Permanently delete the exact managed workstation and report network cleanup separately                                                                            |
 
 Run `open-agent COMMAND --help` for the complete command-specific flag list.
 
@@ -396,7 +396,7 @@ open-agent doctor my-agent --env-file .env --json
 open-agent show my-agent --env-file .env --with-pair-code
 ```
 
-`list` and ordinary `show` do not wake the guest. Add `--inspect` to show for explicit guest checks, or `--json` to the pairing command for structured output. The executable flushes both streams before exiting.
+`list` and ordinary `show` do not wake the guest. A full setup takes about 32 to 40 minutes on Fly and about 7 minutes on a Sprite; without a terminal it streams each step as a status line on stderr. Add `--inspect` to show for explicit guest checks, or `--json` to the pairing command for structured output. The executable flushes both streams before exiting.
 
 ### Example: Configure Native Plugins
 
@@ -452,7 +452,7 @@ The package exposes the `open-agent` executable. It has no importable SDK surfac
 | Progress and verbose diagnostics | stderr; diagnostics redact resolved secrets                                                                     |
 | Piped `list`                     | Headerless TSV, one workstation per line; an empty list emits no text                                           |
 
-TSV column order is `name`, `id`, `state`, `createdAt`, `agentUrl`, `setup`, `organization`, `provider`. Each unavailable provider adds an `Unavailable provider NAME: REASON` line on stderr, and `--json` lists it under `unavailable` with its `provider`, error `code` and `reason`. When every provider fails with the same error code, `list` exits with that code. Missing values are empty. Backslashes, tabs, line feeds, carriage returns, ESC and CSI characters are escaped as `\\`, `\t`, `\n`, `\r`, `\u001b` and `\u009b`, so a field cannot split a record or inject ANSI control sequences. `--json` takes precedence over TSV.
+TSV column order is `name`, `id`, `state`, `createdAt`, `agentUrl`, `setup`, `organization`, `provider`. Each unavailable provider adds an `Unavailable provider NAME: REASON` line on stderr, and each workstation a newer open-agent set up adds `Workstation NAME was set up by open-agent X; upgrade open-agent to manage it`; `--json` lists the providers under `unavailable` with their `provider`, error `code` and `reason`, and marks the workstation with `newerRelease`. Every other command still refuses such a workstation. When every provider fails with the same error code, `list` exits with that code. Missing values are empty. Backslashes, tabs, line feeds, carriage returns, ESC and CSI characters are escaped as `\\`, `\t`, `\n`, `\r`, `\u001b` and `\u009b`, so a field cannot split a record or inject ANSI control sequences. `--json` takes precedence over TSV.
 
 | Exit  | Meaning                                                                    |
 | ----- | -------------------------------------------------------------------------- |
@@ -467,14 +467,14 @@ JSON `error.code` is one of `USAGE`, `INPUT`, `AUTH`, `PREFLIGHT`, `CONFLICT`, `
 
 Successful results use `{ "schemaVersion": 1, "command": "…", "ok": true, "data": { … } }`. Optional fields are omitted when unavailable. A workstation summary contains `id`, `name`, `organization`, `state`, `setup` and `readiness: "not inspected"`, plus optional `createdAt`, `agentUrl`, the recorded `profile` and `machine`, the size the workstation runs on as `{ label, cpus, memoryGb }` (for example `shared-cpu-2x`, 2 CPUs, 2 GB). The minimums a workstation was created or last resized with are `environment.profile.options.minCpus` and `minMemoryGb` in `show --inspect` and `doctor`. Automation keeps the field name `machine` even though the terminal calls it a workstation.
 
-| Command     | Fields in `data`                                                                                                                                                                                                               |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `create`    | `machine`, `preflight`, `integrations`, `readiness`, `network`, `hub`, `services`, `native`, `pairing`; optional `retainedCredentials`                                                                                         |
-| `list`      | `machines`, an array of live workstation summaries each with its `provider`, and `unavailable`, an array of `{ provider, code, reason }` for providers that could not be listed                                                |
-| `show`      | `machine`; optional `inspection`, `pairing`, or interactive `action: "copy"`                                                                                                                                                   |
-| `setup`     | Guest setup: `machine`, `section`, the section fields below, and optional `retainedCredentials`. Local credential replacement: `localCredential` with `status`, `scope`, optional `storage` and `fallbackReason`; no `machine` |
-| `doctor`    | `machine`, `currentReadiness` with readiness findings, `network`, `hub`, `native`, `services`, `environment`, `updates`, `governor` and, where the provider has a boot hook, `boot`                                            |
-| `terminate` | `machine`, `workstation` with `status: "deleted"`, `id` and `name`, and `network` with cleanup `status` and optional `deviceId`/`address`                                                                                      |
+| Command     | Fields in `data`                                                                                                                                                                                                                       |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create`    | `machine`, `preflight`, `integrations`, `readiness`, `network`, `hub`, `services`, `native`, `pairing`; optional `retainedCredentials`                                                                                                 |
+| `list`      | `machines`, an array of live workstation summaries each with its `provider` and, for one a newer open-agent set up, `newerRelease`, and `unavailable`, an array of `{ provider, code, reason }` for providers that could not be listed |
+| `show`      | `machine`; optional `inspection`, `pairing`, or interactive `action: "copy"`                                                                                                                                                           |
+| `setup`     | Guest setup: `machine`, `section`, the section fields below, and optional `retainedCredentials`. Local credential replacement: `localCredential` with `status`, `scope`, optional `storage` and `fallbackReason`; no `machine`         |
+| `doctor`    | `machine`, `currentReadiness` with readiness findings, `network`, `hub`, `native`, `services`, `environment`, `updates`, `governor` and, where the provider has a boot hook, `boot`                                                    |
+| `terminate` | `machine`, `workstation` with `status: "deleted"`, `id` and `name`, and `network` with cleanup `status` and optional `deviceId`/`address`                                                                                              |
 
 Guest setup section fields are `pairing` and optional `service` for `agent`; `network` for `network`; `github` for `github`; `gitIdentity` for `git`; `proxy` for `proxy`; `runtimeEnvironment` with variable **names** for `env`; `plugins` with an independent outcome per harness for `plugins`; and `tools` for `tools`. Section `all` combines the selected section outcomes. Tool results distinguish `updated`, `unchanged`, and recorded version/time details. Services report names and states without executable arguments.
 

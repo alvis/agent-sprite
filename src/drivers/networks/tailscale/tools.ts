@@ -28,11 +28,14 @@ function tailscaleRepository(distribution: string): SystemRepository {
  * Tailscale while a workstation selects it: Homebrew's bottle first; where it
  * has none, Tailscale's signed package, whose own `tailscaled` unit is masked
  * so only open-agent's daemon service runs. The probe finds the tool on the
- * PATH, as the link to the bottle or the package's own `/usr/bin/tailscale`
+ * PATH, as the link to the bottle or the package's own `/usr/bin/tailscale`.
+ * Its launcher and exit-route probe run `ip`, so `iproute2`, optional on its
+ * own, is needed whenever this network is selected
  */
 export const tailscaleTool: ToolSpec = {
   name: 'tailscale',
   required: true,
+  needs: ['iproute2'],
   executables: ['tailscale', 'tailscaled'],
   version: { executable: 'tailscale', args: ['version'], account: 'root' },
   sources: [

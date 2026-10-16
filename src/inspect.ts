@@ -1,6 +1,9 @@
 import { pairAgent } from '#core/services';
 import { readGuestEnvironment } from '#integrations/guest/environment-store';
-import { assertSupportedRelease } from '#integrations/guest/release-guard';
+import {
+  assertSupportedRelease,
+  newerMetadataRelease,
+} from '#integrations/guest/release-guard';
 import { inspectGuest } from '#integrations/guest/runtime';
 
 import { PairingSecret } from '#utilities/pairing-secret';
@@ -155,18 +158,19 @@ async function listProvider(
   }
   try {
     const workstations = await entry.driver.list();
-    // listing never wakes a guest, so only the release metadata records is checked
-    await Promise.all(
-      workstations.map(async (workstation) =>
-        assertSupportedRelease(entry.driver, workstation, 'metadata'),
-      ),
-    );
 
+    // listing never wakes a guest, so only the release metadata records is
+    // read; a newer workstation is marked, and every action on it still refuses
     return {
-      machines: workstations.map((workstation) => ({
-        ...summarizeMachine(workstation),
-        provider: entry.id,
-      })),
+      machines: workstations.map((workstation) => {
+        const newerRelease = newerMetadataRelease(workstation);
+
+        return {
+          ...summarizeMachine(workstation),
+          provider: entry.id,
+          ...(newerRelease ? { newerRelease } : {}),
+        };
+      }),
     };
   } catch (error) {
     const { code, message } = commandError(error);

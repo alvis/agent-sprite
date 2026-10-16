@@ -58,7 +58,13 @@ export interface UnavailableProvider {
 }
 
 export interface ListData {
-  machines: Array<MachineSummary & { provider: ProviderId }>;
+  machines: Array<
+    MachineSummary & {
+      provider: ProviderId;
+      /** the release that set it up, when newer than this open-agent, which then refuses to manage it */
+      newerRelease?: string;
+    }
+  >;
   /** providers that could not be queried, with the reason */
   unavailable: UnavailableProvider[];
 }
