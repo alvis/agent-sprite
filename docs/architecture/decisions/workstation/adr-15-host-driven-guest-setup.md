@@ -110,7 +110,7 @@ Adding a provider reuses an existing family and every tool. Adding a family mean
 - **Programs.**
   - All guest programs are POSIX `sh`, read JSON with `jq`, and pass `shellcheck` in `lint:check`.
   - Each is a `.sh` file beside the provider, family, backend or driver that owns it. Each is installed root-owned: 0755, or 0700 when only root runs it.
-  - Root never runs a file another account can write.
+  - Root never runs a file the agent account can write; the linuxbrew account is locked and written only by root acting as it.
   - The agent account gets no sudo rule.
 - **Supervision.**
   - On `runit` providers, each service, `cron` included, is a `runit` service directory.
@@ -133,6 +133,7 @@ Adding a provider reuses an existing family and every tool. Adding a family mean
   - apt keeps only what Homebrew cannot provide or needs first: `curl`, `git`, `ca-certificates`, `procps`, `file`, `unzip`, `gcc`, `libc6-dev`, `cron`, and Chrome with its libraries.
   - The apt `git` only bootstraps Homebrew and is never linked.
   - `runit` falls back to apt where no bottle exists.
+- **Root's PATH.** Every root `PATH` lists `/usr/local/sbin:/usr/local/bin` after `/usr/sbin:/usr/bin:/sbin:/bin`, and links skip an executable the system already provides, so root's commands resolve to the system's.
 - **Boot.**
   - The machine config holds only a root-checked stub that runs the volume's boot hook, so setup can update the hook without a restart.
   - Before replay, the hook uses only base-image tools and tools on the volume.
