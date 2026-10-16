@@ -3,26 +3,31 @@ import { harnessDrivers } from '#core/harnesses';
 import { networkDriver } from '#core/networks';
 import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
 import { CODEX_HOOKS } from '#drivers/harnesses/codex/paths';
-import {
-  AGENT_HOME,
-  GUEST_KERNEL,
-  GUEST_NODE,
-  GUEST_ROOT,
-} from '#guest/guest-root';
-import { HOMEBREW } from '#guest/homebrew';
+import { AGENT_HOME, GUEST_ROOT } from '#guest/guest-root';
+import { AWAKE_COMMAND } from '#integrations/guest/awake';
+
 import {
   AWAKE_DIRECTORY,
   GOVERNOR_STATE_FILE,
+  HOMEBREW,
   MANAGED_AWAKE_DIRECTORY,
-} from '#guest/idle/state';
-import { UPDATE_LOCK_PATH } from '#guest/update-schedule';
-import { AWAKE_COMMAND } from '#integrations/guest/awake';
+  UPDATE_LOCK_PATH,
+} from './layout.js';
 
 import type { WorkstationProfile } from '#core/profile';
-import type { ComponentOutcome } from '#guest/component-outcome';
 import type { ToolSpec } from '#tools/contracts';
 
 import type { LiveProvider } from './providers.js';
+
+/** the recorded result of one component in one install run */
+export interface ComponentOutcome {
+  /** whether the run installed the component, found it current, or failed it */
+  status: 'installed' | 'skipped' | 'failed';
+  /** bare dotted version the component is at after the run, when known */
+  version?: string;
+  /** safe, fixed reason a component failed */
+  error?: string;
+}
 
 /** what the guest records after an update */
 export interface GuestManifestState {
@@ -166,8 +171,6 @@ const ENTRY_RUNNER = '/run/open-agent-live-runner.sh';
 const ENTRY_PROBE = '/run/open-agent-live-probe.js';
 const ENTRY_UPDATER_LOG = '/run/open-agent-live-updater.log';
 const ENTRY_DONE = '/run/open-agent-live-entry.done';
-const REFRESH_PROBE_GRACE_MS = 60_000;
-const REFRESH_PROBE_POLL_MS = 2_000;
 /** tries before the proof reports a run cron's own tick kept from the updater */
 const ENTRY_ATTEMPTS = 3;
 const LOCK_WAIT_SECONDS = 120;
@@ -363,7 +366,7 @@ async function attemptScheduledEntry(
 
             return { script: script!, exitCode: Number(exitCode) };
           })
-          .filter(({ script }) => script.endsWith('/updater.js')),
+          .filter(({ script }) => script.endsWith('/updater.sh')),
       };
     }
     await new Promise((resolve) => setTimeout(resolve, ENTRY_POLL_MS));
@@ -482,18 +485,14 @@ export function expectedComponents(
 }
 
 /**
- * lists every component an install run records an outcome for: the probed
- * components and the npm packages the agent's guest modules import
+ * lists every component an install run records an outcome for
  * @param profile selected agent, harnesses and network
  * @returns outcome keys, sorted
  */
 export function expectedOutcomes(
   profile: Pick<WorkstationProfile, 'agent' | 'harnesses' | 'network'>,
 ): string[] {
-  return [
-    ...expectedComponents(profile),
-    ...catalog.agents[profile.agent].guestPackages,
-  ].sort();
+  return [...expectedComponents(profile)].sort();
 }
 
 /**
@@ -1119,104 +1118,6 @@ async function sleep(ms: number): Promise<void> {
       setTimeout(resolve, ms);
     });
   }
-}
-
-/**
- * proves a descriptor root holds open does not reach the agent-account child
- * the governor starts: root opens a lock file on descriptor 9 without
- * close-on-exec, as a transaction worker holds its lock, and then runs the
- * guest's own `applyAsAgentAccount` with an entry that reports its user and
- * how many of its descriptors point at that lock file
- * @param provider selected provider
- * @param name exact workstation name
- * @returns what the child reported: `uid=<id> lock-fds=<count>`
- */
-export async function checkLockDescriptorInheritance(
-  provider: LiveProvider,
-  name: string,
-): Promise<string> {
-  const entry = [
-    "import { readdirSync, readlinkSync } from 'node:fs';",
-    "const links = readdirSync('/proc/self/fd').flatMap((fd) => {",
-    "  try { return [readlinkSync('/proc/self/fd/' + fd)]; } catch { return []; }",
-    '});',
-    "const locks = links.filter((link) => link.endsWith('/oa-fd.lock'));",
-    "process.stdout.write(JSON.stringify({ at: new Date().toISOString(), action: 'apply-deadline', result: 'uid=' + process.getuid() + ' lock-fds=' + locks.length }));",
-  ].join('\n');
-  const runner = [
-    `import { applyAsAgentAccount } from '${GUEST_KERNEL}/idle/agent-apply.js';`,
-    "import { execFileSync } from 'node:child_process';",
-    "const id = (flag) => Number(execFileSync('/usr/bin/id', [flag, 'agent']).toString());",
-    `const result = await applyAsAgentAccount({ entry: process.argv[2], account: { uid: id('-u'), gid: id('-g') }, limitMs: 10000, at: new Date().toISOString() });`,
-    'process.stdout.write(result.result ?? result.failure ?? "");',
-  ].join('\n');
-  const output = await asRoot(
-    provider,
-    name,
-    [
-      'set -e',
-      'dir=$(mktemp -d)',
-      'chmod 755 "$dir"',
-      `echo ${Buffer.from(entry).toString('base64')} | base64 -d > "$dir/entry.mjs"`,
-      `echo ${Buffer.from(runner).toString('base64')} | base64 -d > "$dir/runner.mjs"`,
-      'chmod 644 "$dir/entry.mjs" "$dir/runner.mjs"',
-      'exec 9>"$dir/oa-fd.lock"',
-      `${GUEST_NODE} "$dir/runner.mjs" "$dir/entry.mjs"`,
-      'rm -rf "$dir"',
-    ].join('\n'),
-  );
-
-  return output.trim();
-}
-
-/** source name of the hold the refresh probe opens */
-export const REFRESH_PROBE_SOURCE = 'refresh-probe';
-
-/** where the refresh probe leaves its marker once the operation has ended */
-const REFRESH_PROBE_DONE = '/run/oa-refresh-probe.done';
-
-/**
- * runs a managed operation longer than half the hold maximum under the guest's
- * own `withAwakeHold`, as root, so the hold must be refreshed to stay open; the
- * operation runs detached because one command may not outlast the provider's
- * command limit, and this waits for it to leave its marker
- * @param provider selected provider
- * @param name exact workstation name
- * @param operationMs how long the operation lasts, in milliseconds
- */
-export async function runRefreshProbe(
-  provider: LiveProvider,
-  name: string,
-  operationMs: number,
-): Promise<void> {
-  const runner = [
-    `import { withAwakeHold } from '${GUEST_KERNEL}/idle/hold.js';`,
-    `await withAwakeHold({ source: '${REFRESH_PROBE_SOURCE}', session: 'probe' }, async () => new Promise((resolve) => { setTimeout(resolve, ${operationMs}); }));`,
-  ].join('\n');
-  await asRoot(
-    provider,
-    name,
-    [
-      'set -e',
-      `rm -f ${REFRESH_PROBE_DONE}`,
-      'dir=$(mktemp -d)',
-      `echo ${Buffer.from(runner).toString('base64')} | base64 -d > "$dir/probe.mjs"`,
-      `(${GUEST_NODE} "$dir/probe.mjs"; rm -rf "$dir"; touch ${REFRESH_PROBE_DONE}) </dev/null >/dev/null 2>&1 &`,
-    ].join('\n'),
-  );
-  const deadline = Date.now() + operationMs + REFRESH_PROBE_GRACE_MS;
-  while (Date.now() < deadline) {
-    const left = await asRoot(
-      provider,
-      name,
-      `test -e ${REFRESH_PROBE_DONE} && echo done || echo running`,
-    );
-    if (left.trim() === 'done') {
-      return;
-    }
-    await sleep(REFRESH_PROBE_POLL_MS);
-  }
-  throw new Error('The refresh probe did not end in time');
 }
 
 /**

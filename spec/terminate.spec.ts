@@ -1,14 +1,11 @@
 import { mkdtempDisposable, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  TAILSCALE_STATE_DIRECTORY,
-  TAILSCALE_STATE_FILE,
-} from '#drivers/networks/tailscale/guest/tailscale-state';
+import { TAILSCALE_STATE_FILE } from '#drivers/networks/tailscale/service';
 import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { InteractionExit } from '#navigation';
 import { terminateWorkstation } from '#terminate';
@@ -167,7 +164,7 @@ describe('fn:terminateWorkstation', () => {
     );
     const filesystem = sprite.filesystem();
     await filesystem.mkdir('/opt/open-agent', { recursive: true });
-    await filesystem.mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+    await filesystem.mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
     await filesystem.writeFile(TAILSCALE_STATE_FILE, 'enrolled');
     await filesystem.writeJSON('/opt/open-agent/environment.json', {
       ...environment,
@@ -255,7 +252,7 @@ describe('fn:terminateWorkstation', () => {
     );
     await sprite
       .filesystem()
-      .mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+      .mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
     await sprite.filesystem().writeFile(TAILSCALE_STATE_FILE, 'enrolled');
 
     await expect(
@@ -279,7 +276,7 @@ describe('fn:terminateWorkstation', () => {
     );
     const filesystem = sprite.filesystem();
     await filesystem.mkdir('/opt/open-agent', { recursive: true });
-    await filesystem.mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+    await filesystem.mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
     await filesystem.writeFile(TAILSCALE_STATE_FILE, 'enrolled');
     await filesystem.writeJSON('/opt/open-agent/environment.json', {
       ...environment,
@@ -341,7 +338,7 @@ describe('fn:terminateWorkstation', () => {
     );
     await sprite
       .filesystem()
-      .mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+      .mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
     await sprite.filesystem().writeFile(TAILSCALE_STATE_FILE, 'enrolled');
     vi.mocked(sprite.execFile).mockResolvedValueOnce({
       stdout: '{private-body',
@@ -370,7 +367,7 @@ describe('fn:terminateWorkstation', () => {
     );
     await sprite
       .filesystem()
-      .mkdir(TAILSCALE_STATE_DIRECTORY, { recursive: true });
+      .mkdir(dirname(TAILSCALE_STATE_FILE), { recursive: true });
     await sprite.filesystem().writeFile(TAILSCALE_STATE_FILE, 'enrolled');
     const cancelled = new InteractionExit('cancel');
     vi.mocked(sprite.execFile).mockRejectedValueOnce(cancelled);

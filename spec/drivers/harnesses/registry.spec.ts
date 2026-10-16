@@ -25,17 +25,4 @@ describe('harness driver registration', () => {
       { id: 'codex', component: 'codex', environment: ['CODEX_HOME'] },
     ]);
   });
-
-  it('should keep the dependency-free guest leaves identical to what each driver declares', async () => {
-    const { GUEST_LEAVES } = await import('#core/guest-leaves');
-
-    for (const driver of [claude, codex]) {
-      expect(GUEST_LEAVES.harnesses[driver.id]).toEqual({
-        guest: driver.guest,
-        tools: driver.tools,
-        spawnEnvironment: driver.spawnEnvironment,
-        acpAdapter: driver.acpAdapter,
-      });
-    }
-  });
 });

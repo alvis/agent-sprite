@@ -21,8 +21,8 @@ LC_ALL=C
 export PATH LC_ALL
 
 # the guest root and what the gate reads and writes there: GUEST_ROOT in
-# src/guest/guest-root.ts, the lock in src/guest/update-schedule.ts and the
-# assets in src/integrations/guest/updates.ts, which this shell cannot import
+# src/guest/guest-root.ts and the assets in src/integrations/guest/updates.ts,
+# which this shell cannot import
 OA_GATE_ROOT=/opt/open-agent
 OA_GATE_ENVIRONMENT=$OA_GATE_ROOT/environment.json
 OA_GATE_STATUS=$OA_GATE_ROOT/update-status.json
@@ -34,8 +34,8 @@ OA_GATE_UPDATER=$OA_GATE_ROOT/guest/updater.sh
 OA_GATE_TOOLS=$OA_GATE_ROOT/tools
 # Homebrew's jq, which a Homebrew-first guest reads JSON with
 OA_GATE_BREW_JQ=/home/linuxbrew/.linuxbrew/opt/jq/bin/jq
-# the due interval's default and limit, in days: DEFAULT_UPDATE_DUE_DAYS and
-# MAX_UPDATE_DUE_DAYS in src/guest/update-schedule.ts
+# the due interval's default and limit, in days: updateDueIntervalDays in
+# src/core/profile.ts and MAX_UPDATE_DUE_DAYS in src/core/profile-rules.ts
 OA_GATE_DEFAULT_DAYS=1
 OA_GATE_MAX_DAYS=365
 # the source and session the awake hold is recorded under

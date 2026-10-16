@@ -26,7 +26,6 @@ export const none: NetworkDriver<'none'> = {
   kind: 'networks',
   displayName: 'None',
   supportsExitNode: false,
-  guest: [],
   tools: [],
   preflight: async () => Promise.resolve({ problems: [] }),
   verifyExitNode: async () => Promise.reject(new Error(NOT_SELECTED)),

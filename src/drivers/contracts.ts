@@ -4,7 +4,6 @@ import type { GuestAsset, OsImage, ServiceBackendId } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
 import type {
-  GuestAccount,
   GuestChannel,
   GuestCommand,
   GuestProcess,
@@ -21,13 +20,9 @@ import type { RecordedProfile } from './providers/recorded.js';
 
 export type { RecordedProfile };
 
-export type * from './install-sources.js';
-
 export type * from './providers/prerequisites.js';
 
 export type * from './networks/contracts.js';
-
-export type * from './guest-leaves.js';
 
 export type * from './harness-evidence.js';
 
@@ -231,15 +226,6 @@ export interface ProviderDriver<
   Name extends string = string,
 > extends ProviderDeclaration<Name> {
   /**
-   * guest module, in the provider's own guest folder and named `<name>-awake.js`,
-   * whose exports apply the idle governor's decision on this provider: an
-   * `AwakeDeadlineAdapter` for `native-deadline`, an `IdleFormAdapter` for
-   * `governed`; undefined while the provider has none, and the governor then
-   * calls no adapter and records only its state, with a diagnostic that the
-   * provider declares no awake adapter, never an adapter failure
-   */
-  awakeAdapter: GuestPayload | undefined;
-  /**
    * checks every declared prerequisite without a provider call, so a command
    * reports all missing or misconfigured items at once
    * @param params resolved credential and a host tool lookup
@@ -374,14 +360,6 @@ export interface BootReport {
   unsuccessfulSteps: Readonly<Record<string, string>>;
   /** the boot log's latest step and result lines, oldest first */
   log: readonly string[];
-}
-
-/** one compiled guest module a driver contributes to the deployable payload */
-export interface GuestPayload {
-  /** path relative to the compiled guest payload root */
-  module: string;
-  /** account that must be able to execute it */
-  account: GuestAccount;
 }
 
 /** a process that speaks ACP on a harness's behalf */
@@ -520,8 +498,6 @@ export interface HarnessDriver<
   spawnEnvironment: Readonly<Record<string, string>>;
   /** model-gateway variables the harness owns, which a runtime environment must not override */
   reservedEnvironment: readonly string[];
-  /** compiled guest modules the harness contributes to the deployable payload */
-  guest: readonly GuestPayload[];
   /**
    * merges native configuration, preserving unrelated user settings
    * @param guest guest channel
@@ -612,10 +588,6 @@ export interface AgentDriver<
 > extends AgentDeclaration<Name, HarnessName> {
   /** the tools the agent installs: its own CLI, then the runtime it needs */
   tools: readonly ToolSpec[];
-  /** npm packages the agent's guest modules import, installed beside it */
-  guestPackages: readonly string[];
-  /** compiled guest modules the agent contributes to the deployable payload */
-  guest: readonly GuestPayload[];
   /** command, account, public port and dependencies on nothing; core adds the network daemon */
   service: ServiceDefinition;
   /** the launcher the service runs, which reads its launch facts from environment.json */

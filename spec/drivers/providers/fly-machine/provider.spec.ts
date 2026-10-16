@@ -378,7 +378,6 @@ describe('cl:FlyMachineProvider', () => {
       shellAccounts: flyMachine.shellAccounts,
       serviceBackend: flyMachine.serviceBackend,
       images: flyMachine.images,
-      awakeAdapter: flyMachine.awakeAdapter,
     }).toEqual({
       capabilities: {
         guestChannel: 'ssh',
@@ -404,7 +403,6 @@ describe('cl:FlyMachineProvider', () => {
           arch: ['x86_64'],
         },
       ],
-      awakeAdapter: { module: expect.any(String), account: 'root' },
     });
   });
 

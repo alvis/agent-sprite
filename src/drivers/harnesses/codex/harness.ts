@@ -1,9 +1,12 @@
 import { configureCodex } from './configure.js';
-import { codexGuestLeaf } from './guest-leaf.js';
 import { codexHooks } from './hooks.js';
 import { codexReadiness, inspectCodex } from './inspect.js';
-import { CODEX_RESERVED_ENVIRONMENT } from './paths.js';
+import {
+  CODEX_RESERVED_ENVIRONMENT,
+  CODEX_SPAWN_ENVIRONMENT,
+} from './paths.js';
 import { codexPlugins } from './plugins.js';
+import { codexTool } from './tools.js';
 
 import type { HarnessDriver, HarnessSkillEvidence } from '#drivers/contracts';
 
@@ -13,7 +16,8 @@ export const codex: HarnessDriver<'codex', HarnessSkillEvidence | undefined> = {
   kind: 'harnesses',
   displayName: 'Codex',
   supportsProxy: true,
-  ...codexGuestLeaf,
+  tools: [codexTool],
+  spawnEnvironment: CODEX_SPAWN_ENVIRONMENT,
   plugins: codexPlugins,
   hooks: codexHooks,
   reservedEnvironment: CODEX_RESERVED_ENVIRONMENT,

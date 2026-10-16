@@ -1,10 +1,10 @@
 import { inspectT3Environment } from './evidence.js';
-import { t3GuestLeaf } from './guest-leaf.js';
 import { T3_HARNESSES } from './harness-names.js';
 import { pairT3 } from './pairing.js';
 import { t3Readiness } from './readiness.js';
-import { T3_LAUNCHER } from './service.js';
+import { T3_LAUNCHER, t3Service } from './service.js';
 import { verifyT3Startup } from './startup.js';
+import { T3_TOOLS } from './tools.js';
 
 import type { HarnessId } from '#core/catalog';
 import type { AgentDriver } from '#drivers/contracts';
@@ -19,11 +19,16 @@ export const t3: AgentDriver<'t3', HarnessId, T3Environment> = {
   supportedHarnesses: T3_HARNESSES,
   harnessLaunchMode: 'native-cli',
   supportsPairing: true,
-  releaseChannels: t3GuestLeaf.releaseChannels,
-  tools: t3GuestLeaf.tools,
-  guestPackages: t3GuestLeaf.guestPackages,
-  guest: t3GuestLeaf.guest,
-  service: t3GuestLeaf.service,
+  // the stable release follows npm's latest tag; the nightly follows the nightly tag
+  releaseChannels: {
+    channels: [
+      { id: 'stable', distTag: 'latest' },
+      { id: 'nightly', distTag: 'nightly' },
+    ],
+    defaultChannel: 'stable',
+  },
+  tools: T3_TOOLS,
+  service: t3Service,
   launcher: T3_LAUNCHER,
   inspectEnvironment: inspectT3Environment,
   pair: pairT3,

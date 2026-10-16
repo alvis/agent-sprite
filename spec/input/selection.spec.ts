@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { defaultProfile } from '#core/profile';
-import { MAX_UPDATE_DUE_DAYS } from '#guest/update-schedule';
+import { MAX_UPDATE_DUE_DAYS } from '#core/profile-rules';
 import {
   readSetupSelection,
   resolveCreateSelection,

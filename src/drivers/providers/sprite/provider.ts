@@ -1,12 +1,14 @@
 import { SpritesClient } from '@fly/sprites';
 
 import { ProviderFault } from '#drivers/failures';
+import { guestAsset } from '#guest/assets';
 import { checkOperation, currentOperation, runOperation } from '#operation';
+import { SHARED_MODE } from '#os/contracts';
 
+import { SPRITE_CAPABILITIES } from './capabilities.js';
 import { SpriteGuestChannel } from './channel.js';
 import { createManagedSprite } from './creation.js';
 import { callSprites, toProviderFailure } from './failures.js';
-import { spriteGuestLeaf } from './guest-leaf.js';
 import { mergeMetadataLabels } from './labels.js';
 import { SPRITE_MACHINE } from './machines.js';
 import { preflightSprite, SPRITE_PREREQUISITES } from './prerequisites.js';
@@ -54,19 +56,24 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
   public readonly id = 'sprite';
   public readonly kind = 'providers';
   public readonly displayName = 'Fly Sprite';
-  public readonly capabilities = spriteGuestLeaf.capabilities;
+  public readonly capabilities = SPRITE_CAPABILITIES;
   public readonly machines: readonly MachineOffer[] = [SPRITE_MACHINE];
   public readonly incompatibilities: readonly ProfileIncompatibility[] = [];
   public readonly prerequisites: ProviderPrerequisites = SPRITE_PREREQUISITES;
-  public readonly shellAccounts = spriteGuestLeaf.shellAccounts;
+  // the Sprite login account receives the same GitHub CLI login as the agent
+  public readonly shellAccounts: readonly string[] = ['sprite'];
   // a Sprite boots one image Fly picks and names neither its release nor its
   // architecture, so only the guest probe tells them; its tooling is Debian's
   public readonly images: readonly [OsImage, ...OsImage[]] = [
     { id: 'sprite', family: 'debian', arch: ['x86_64', 'aarch64'] },
   ];
-  public readonly serviceBackend = spriteGuestLeaf.serviceBackend;
-  public readonly awakeAdapter = spriteGuestLeaf.awakeAdapter;
-  public readonly awakeAsset = spriteGuestLeaf.awakeAsset;
+  // a Sprite runs its services itself
+  public readonly serviceBackend = 'provider';
+  // the governor applies deadlines as the agent, so the agent runs the adapter
+  public readonly awakeAsset = guestAsset(
+    'drivers/providers/sprite/guest/sprite-awake.sh',
+    SHARED_MODE,
+  );
   readonly #session?: SpriteSession;
 
   /**

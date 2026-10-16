@@ -4,12 +4,13 @@ import { rememberSecret } from '#utilities/redaction';
 
 import { FlyApi } from './api.js';
 import { flyBootHookStep } from './boot-hook-step.js';
+import { BOOT_HOOK } from './boot-layout.js';
 import { inspectFlyBoot, startAndBoot, waitForBoot } from './boot.js';
+import { FLY_MACHINE_AWAKE, FLY_MACHINE_CAPABILITIES } from './capabilities.js';
 import { FlyGuestChannel } from './channel.js';
 import { createManagedApp } from './creation.js';
 import { waitUntilDeleted } from './deletion.js';
 import { deriveSshToken } from './flyctl.js';
-import { flyMachineGuestLeaf } from './guest-leaf.js';
 import { declaresAgentService, FLY_MACHINE_IMAGES } from './machine-config.js';
 import { FLY_MACHINES } from './machines.js';
 import { metadataUpdate } from './metadata.js';
@@ -70,19 +71,22 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
   public readonly id = 'fly-machine';
   public readonly kind = 'providers';
   public readonly displayName = 'Fly Machine';
-  public readonly capabilities = flyMachineGuestLeaf.capabilities;
+  public readonly capabilities = FLY_MACHINE_CAPABILITIES;
   public readonly machines = FLY_MACHINES;
   // the spec implies no driver combination a Fly Machine cannot host
   public readonly incompatibilities: readonly ProfileIncompatibility[] = [];
   public readonly prerequisites = FLY_MACHINE_PREREQUISITES;
-  public readonly shellAccounts = flyMachineGuestLeaf.shellAccounts;
+  // a Fly Machine adds no login account beside the agent account
+  public readonly shellAccounts: readonly string[] = [];
   public readonly images = FLY_MACHINE_IMAGES;
-  public readonly serviceBackend = flyMachineGuestLeaf.serviceBackend;
+  // a Fly Machine boots no init system, so runit supervises its services
+  public readonly serviceBackend = 'runit';
   public readonly bootHookStep = flyBootHookStep;
-  public readonly bootHook = flyMachineGuestLeaf.bootHook;
+  // a host move rebuilds the root filesystem from the image, which the boot
+  // hook restores from the volume
+  public readonly bootHook = BOOT_HOOK;
   public readonly inspectBoot = inspectFlyBoot;
-  public readonly awakeAdapter = flyMachineGuestLeaf.awakeAdapter;
-  public readonly awakeAsset = flyMachineGuestLeaf.awakeAsset;
+  public readonly awakeAsset = FLY_MACHINE_AWAKE;
   readonly #session?: FlySession;
 
   /**

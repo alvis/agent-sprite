@@ -15,8 +15,6 @@ import type {
 } from '#drivers/contracts';
 import type { TailnetStatus } from '#drivers/networks/tailscale/index';
 
-import type { GUEST_LEAVES } from './guest-leaves.js';
-
 /** identifier of a registered provider driver */
 export type ProviderId = keyof typeof providers;
 
@@ -29,18 +27,11 @@ export type AgentId = keyof typeof agents;
 /** identifier of a registered network driver */
 export type NetworkId = keyof typeof networks;
 
-/** driver identifiers the guest leaf registry holds for one kind */
-type GuestLeafId<Kind extends keyof typeof GUEST_LEAVES> =
-  keyof (typeof GUEST_LEAVES)[Kind];
-
 /** identifier of a registered driver of one kind */
 export type DriverId<Kind extends DriverKind> = keyof (typeof catalog)[Kind];
 
 // each entry is a typed driver (or declaration) of its kind, so the derived
-// identifier unions stay exactly the registered keys; each kind must also hold
-// exactly the drivers the guest leaf registry holds, except `none`, which has
-// no guest leaf because it deploys nothing, so the payload pipeline and the
-// catalog cannot disagree
+// identifier unions stay exactly the registered keys
 const sprite: ProviderDriver<'sprite'> = spriteProvider;
 
 const flyMachine: ProviderDriver<'fly-machine'> = flyMachineProvider;
@@ -49,15 +40,9 @@ const claude = claudeHarness;
 
 const codex = codexHarness;
 
-const providers = {
-  sprite,
-  'fly-machine': flyMachine,
-} as const satisfies Record<GuestLeafId<'providers'>, unknown>;
+const providers = { sprite, 'fly-machine': flyMachine } as const;
 
-const harnesses = { claude, codex } as const satisfies Record<
-  GuestLeafId<'harnesses'>,
-  unknown
->;
+const harnesses = { claude, codex } as const;
 
 const t3: AgentDriver<'t3', HarnessId, T3Environment> = t3Agent;
 
@@ -65,13 +50,9 @@ const none: NetworkDriver<'none'> = noneNetwork;
 
 const tailscale: NetworkDriver<'tailscale', TailnetStatus> = tailscaleNetwork;
 
-const agents = { t3 } as const satisfies Record<GuestLeafId<'agents'>, unknown>;
+const agents = { t3 } as const;
 
-// `none` installs nothing, so only it may lack a guest leaf
-const networks = { none, tailscale } as const satisfies Record<
-  GuestLeafId<'networks'> | typeof none.id,
-  unknown
->;
+const networks = { none, tailscale } as const;
 
 /** the network a workstation selects when it joins no private network */
 export const NO_NETWORK = none.id;

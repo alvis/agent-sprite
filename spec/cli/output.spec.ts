@@ -14,7 +14,7 @@ import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 
 import type { CommandOptions, CommandResult } from '#command';
 import type { CurrentReadiness } from '#command/data';
-import type { GovernorState } from '#guest/idle/state';
+import type { GovernorState } from '#integrations/guest/governor-report';
 import type { GuestInspection } from '#integrations/guest/runtime';
 import type { UpdateToolOutcome } from '#integrations/guest/updates';
 import type { MachineSummary } from '#machine';

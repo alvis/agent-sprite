@@ -1,4 +1,3 @@
-import { DEFAULT_UPDATE_DUE_DAYS } from '#guest/update-schedule';
 import { isRecord } from '#utilities/guards';
 
 import { catalog, DEFAULT_SELECTION } from './catalog.js';
@@ -132,7 +131,8 @@ export const DEFAULT_PROFILE_OPTIONS: Readonly<ProfileOptions> = {
   isProxyEnabled: false,
   idleTimeoutMinutes: 5,
   holdMaxMinutes: 60,
-  updateDueIntervalDays: DEFAULT_UPDATE_DUE_DAYS,
+  // an update is due a day after the last successful one
+  updateDueIntervalDays: 1,
   // 2 GB is the most a Fly machine can have and still suspend from memory
   minCpus: 2,
   minMemoryGb: 2,
