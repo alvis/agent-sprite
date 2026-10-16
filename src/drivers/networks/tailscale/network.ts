@@ -33,14 +33,23 @@ export const tailscale: NetworkDriver<'tailscale', TailnetStatus> = {
       environment: 'TAILSCALE_TAILNET',
       prompt:
         'Tailscale tailnet (API ID, .ts.net domain, or bare DNS subdomain)',
+      flag: '--network-account ACCOUNT',
     },
     management: {
       environment: 'TAILSCALE_API_KEY',
       prompt: 'Tailscale management API key',
+      flag: '--network-key-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT',
       store: 'tailscale',
     },
-    enrollment: { environment: 'TAILSCALE_AUTH_KEY' },
-    exitNode: { environment: 'TAILSCALE_EXIT_NODE', prompt: 'Home exit node' },
+    enrollment: {
+      environment: 'TAILSCALE_AUTH_KEY',
+      flag: '--network-auth-key-source SOURCE',
+    },
+    exitNode: {
+      environment: 'TAILSCALE_EXIT_NODE',
+      prompt: 'Home exit node',
+      flag: '--exit-node NODE',
+    },
   },
   daemon: tailscaleDaemon,
   launcher: tailscaleLauncher,

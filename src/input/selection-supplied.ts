@@ -94,8 +94,8 @@ export function suppliedSelectionViolations(
 }
 
 /**
- * reads every field a run owns from its flag, then the process environment,
- * then the selected env file; the provider and agent flags are always read
+ * reads every field a run owns from its flag, then the selected env file,
+ * then the process environment; the provider and agent flags are always read
  * @param context flags and sources
  * @param fields fields the run owns
  * @returns the supplied values and every unreadable environment value

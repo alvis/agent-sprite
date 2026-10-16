@@ -239,7 +239,7 @@ Each provider declares the host tools and the management credential it needs. `c
 
 ### CLI Runtime
 
-Pass `--env-file FILE` for dotenv input. Explicit flags and credential references precede process environment, selected dotenv values, eligible profile/local defaults, prompts, and defaults. A malformed flag value is a `USAGE` error. Selection values from every source, option bounds and boolean environment values are then validated together before any provider call: every problem, such as an unknown driver, a malformed number or an out-of-range timeout, is reported in one `INPUT` error.
+Pass `--env-file FILE` for dotenv input. Explicit flags and credential references precede selected dotenv values, which precede the process environment, eligible profile/local defaults, prompts, and defaults. A malformed flag value is a `USAGE` error. Selection values from every source, option bounds and boolean environment values are then validated together before any provider call: every problem, such as an unknown driver, a malformed number or an out-of-range timeout, is reported in one `INPUT` error.
 
 | Variables                                     | Meaning                                                                                                   |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -298,7 +298,7 @@ Provider and network management credentials stay on the invoking computer. Enrol
 
 ### Show Needs Only the Provider Token
 
-`show` resolves its provider token from an explicit source, process environment, selected dotenv file, or a token previously saved on this computer. It does not load unrelated integration-profile values. GitHub, Tailscale, and proxy credentials are unnecessary, including for inspection and pairing.
+`show` resolves its provider token from an explicit source, selected dotenv file, process environment, or a token previously saved on this computer. It does not load unrelated integration-profile values. GitHub, Tailscale, and proxy credentials are unnecessary, including for inspection and pairing.
 
 `--no-local-credentials` skips the saved provider-token fallback and prevents saving a prompted token. Environment and explicit file credentials still work. On other commands, it also disables eligible local credential discovery. `--local-credentials` explicitly permits that fallback; neither flag selects another integration.
 

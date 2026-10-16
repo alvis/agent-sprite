@@ -188,10 +188,7 @@ async function resolveSetup(params: SetupPreparationParams): Promise<{
     sources,
   });
   if (input.missing.length > 0) {
-    throw new CommandFault({
-      code: 'INPUT',
-      message: missingSetupMessage(input.missing),
-    });
+    throw missingSetupInputs(input.missing);
   }
 
   return {
@@ -206,12 +203,17 @@ async function resolveSetup(params: SetupPreparationParams): Promise<{
 }
 
 /**
- * adds terminal guidance only when an implicit blocker hid a required prompt
- * @param missing unresolved setup inputs
- * @returns actionable INPUT message
+ * reports every unresolved setup input, adding terminal guidance only when an
+ * implicit blocker hid a required prompt
+ * @param missing one actionable line per unresolved setup input
+ * @returns the INPUT fault
  */
-function missingSetupMessage(missing: string[]): string {
-  return [`Missing: ${missing.join(', ')}`, promptUnavailableDetail()]
-    .filter(Boolean)
-    .join('. ');
+export function missingSetupInputs(missing: readonly string[]): CommandFault {
+  const promptHint = promptUnavailableDetail();
+
+  return new CommandFault({
+    code: 'INPUT',
+    message: 'Required setup inputs are missing',
+    details: [...missing, ...(promptHint ? [promptHint] : [])],
+  });
 }

@@ -269,7 +269,16 @@ describe('fn:GitHub credential provenance', () => {
       ],
       environment,
     );
-    expect(dropped.results).toEqual([{ ok: true, missing: ['GitHub token'] }]);
+    expect(dropped.results).toEqual([
+      {
+        ok: true,
+        missing: [
+          'GitHub token is not set. Set GH_TOKEN or pass --env-file FILE containing GH_TOKEN; ' +
+            'use --github-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; ' +
+            'or run in a TTY to enter it when prompted. Or pass --no-github to skip GitHub authentication.',
+        ],
+      },
+    ]);
     expect(dropped.stderr).toContain(
       'discovered gh credential could not be verified',
     );

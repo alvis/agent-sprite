@@ -53,7 +53,7 @@ export async function resolveGitIdentity(
     return undefined;
   }
   const get = (key: string): string | undefined =>
-    [sources.processEnv[key], sources.fileEnv[key]].find((value) =>
+    [sources.fileEnv[key], sources.processEnv[key]].find((value) =>
       Boolean(value),
     );
   const prompt = options.nonInteractive ? undefined : interaction;

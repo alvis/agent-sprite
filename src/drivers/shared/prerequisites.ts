@@ -1,5 +1,6 @@
 import type {
   CredentialPrerequisite,
+  InputPrerequisite,
   PrerequisiteProblem,
   ProviderPrerequisites,
   ProviderPreflightParams,
@@ -65,6 +66,28 @@ export function refusedCredential(
 }
 
 /**
+ * describes an absent declared input with every place it is read from
+ * @param input declared input
+ * @param guidance what the input must be or how else to proceed, when that needs saying
+ * @returns the problem and its fix
+ */
+export function missingInput(
+  input: InputPrerequisite,
+  guidance?: string,
+): PrerequisiteProblem {
+  return {
+    subject: input.environment,
+    problem: `${input.prompt} is not set`,
+    fix: [
+      `Set ${input.environment} or pass --env-file FILE containing ${input.environment};`,
+      `use ${input.flag};`,
+      'or run in a TTY to enter it when prompted.',
+      ...(guidance ? [guidance] : []),
+    ].join(' '),
+  };
+}
+
+/**
  * describes an absent management credential with every place it is read from
  * @param credential declared credential
  * @returns the problem and its fix
@@ -72,16 +95,14 @@ export function refusedCredential(
 function missingCredential(
   credential: CredentialPrerequisite,
 ): PrerequisiteProblem {
-  return {
-    subject: credential.environment,
-    problem: `${credential.label} is not set`,
-    fix: [
-      `Set ${credential.environment} or pass --env-file FILE containing ${credential.environment};`,
-      'use --provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT;',
-      'or run in a TTY to enter it when prompted.',
-      `It needs ${credential.scope}. ${credential.obtain}`,
-    ].join(' '),
-  };
+  return missingInput(
+    {
+      environment: credential.environment,
+      prompt: credential.label,
+      flag: '--provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT',
+    },
+    `It needs ${credential.scope}. ${credential.obtain}`,
+  );
 }
 
 /**

@@ -140,7 +140,8 @@ export interface ProxySetupData {
 
 /** names of configured environment values without their secret contents */
 export interface EnvironmentSetupData {
-  runtimeEnvironment: { status: 'configured'; names: string[] };
+  runtimeEnvironment:
+    { status: 'configured'; names: string[] } | { status: 'skipped' };
 }
 
 /** selected plugin changes by native harness */

@@ -1,5 +1,3 @@
-import { SpritesClient } from '@fly/sprites';
-
 import { ProviderFault } from '#drivers/failures';
 import { guestAsset } from '#integrations/guest/assets';
 import { checkOperation, currentOperation, runOperation } from '#operation';
@@ -7,8 +5,9 @@ import { SHARED_MODE } from '#os/contracts';
 
 import { SPRITE_CAPABILITIES } from './capabilities';
 import { SpriteGuestChannel } from './channel';
+import { createSpritesClient } from './client';
 import { createManagedSprite } from './creation';
-import { callSprites, toProviderFailure } from './failures';
+import { callSprites } from './failures';
 import { mergeMetadataLabels } from './labels';
 import { SPRITE_MACHINE } from './machines';
 import { preflightSprite, SPRITE_PREREQUISITES } from './prerequisites';
@@ -19,7 +18,7 @@ import {
   toRecord,
 } from './records';
 
-import type { Sprite } from '@fly/sprites';
+import type { Sprite, SpritesClient } from '@fly/sprites';
 
 import type { WorkstationProfile } from '#core/profile';
 import type {
@@ -38,8 +37,6 @@ import type {
   ProviderPrerequisites,
 } from '#drivers/providers/prerequisites';
 import type { OsImage } from '#os/contracts';
-
-const REQUEST_TIMEOUT_MS = 30_000;
 
 /** live provider state shared by every record one bound driver returns */
 interface SpriteSession {
@@ -98,15 +95,13 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
   }
 
   /**
-   * binds a Sprites API token with bounded requests
+   * binds a Sprites API token with requests bounded by time and cancellation
    * @param binding Sprites API token and the services core may restore
    * @returns a driver bound to the token
    */
   public authenticate(binding: ProviderBinding): SpriteProvider {
     return new SpriteProvider({
-      client: new SpritesClient(binding.credential, {
-        timeout: REQUEST_TIMEOUT_MS,
-      }),
+      client: createSpritesClient(binding.credential),
       sprites: new WeakMap(),
       channels: new Map(),
       restorableServices: [...binding.restorableServices],
@@ -181,12 +176,9 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
         message: `Sprite ${name} changed identity or organization before deletion`,
       });
     }
-    const operation = currentOperation();
-    checkOperation(operation);
-    await client.deleteSprite(name).catch((error: unknown) => {
-      checkOperation(operation);
-      throw toProviderFailure(error);
-    });
+    await runOperation(async () =>
+      callSprites(async () => client.deleteSprite(name)),
+    );
   }
 
   /**
@@ -347,11 +339,10 @@ export class SpriteProvider implements ProviderDriver<'sprite'> {
   async #fetchVerified(name: string): Promise<Sprite> {
     const { client } = this.#bound();
     const operation = currentOperation();
-    checkOperation(operation);
-    const sprite = await client.getSprite(name).catch((error: unknown) => {
-      checkOperation(operation);
-      throw toProviderFailure(error);
-    });
+    const sprite = await runOperation(
+      async () => callSprites(async () => client.getSprite(name)),
+      operation,
+    );
     assertVerifiedWorkstation(sprite, name);
     operation?.identify({ name: sprite.name, id: sprite.id });
     checkOperation(operation);

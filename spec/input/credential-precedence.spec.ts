@@ -95,6 +95,40 @@ describe('fn:management credential precedence', () => {
     },
   );
 
+  it('should prefer the selected env file over the process environment for credentials and values', async () => {
+    const sources = {
+      ...emptySources,
+      processEnv: {
+        SPRITES_TOKEN: 'process-selected-token',
+        CLIPROXYAPI_BASE_URL: 'https://process.example.test',
+      },
+      fileEnv: {
+        SPRITES_TOKEN: 'file-selected-token',
+        CLIPROXYAPI_BASE_URL: 'https://file.example.test',
+      },
+    };
+
+    const credential = await resolveProviderCredential(
+      { envFile: 'selected.env', localCredentials: false },
+      'sprite',
+      { sources },
+    );
+    const { input } = await resolveBaseInputs(
+      { envFile: 'selected.env', localCredentials: false, github: false },
+      sources,
+    );
+
+    expect(credential).toEqual({
+      token: 'file-selected-token',
+      source: 'SPRITES_TOKEN in selected.env',
+    });
+    expect(input).toMatchObject({
+      providerToken: 'file-selected-token',
+      proxyUrl: 'https://file.example.test',
+      sources: { CLIPROXYAPI_BASE_URL: 'selected.env' },
+    });
+  });
+
   it('should read the Tailscale store only for selected enrollment and honors a direct key first', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-tailnet-store-'),

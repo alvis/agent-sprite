@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   checkDeclaredPrerequisites,
+  missingInput,
   refusedCredential,
 } from '#drivers/shared/prerequisites';
 
@@ -153,5 +154,27 @@ describe('fn:refusedCredential', () => {
     ).toBe(
       'The entered value holds a Fly API token; the provider needs an Example organization token',
     );
+  });
+});
+
+describe('fn:missingInput', () => {
+  it('should name the variable, the env file, the flag and the prompt, then any guidance', () => {
+    const problem = missingInput(
+      {
+        environment: 'EXAMPLE_ACCOUNT',
+        prompt: 'Example account',
+        flag: '--example-account ACCOUNT',
+      },
+      'Or pass --no-example to skip it.',
+    );
+
+    expect(problem).toEqual({
+      subject: 'EXAMPLE_ACCOUNT',
+      problem: 'Example account is not set',
+      fix:
+        'Set EXAMPLE_ACCOUNT or pass --env-file FILE containing EXAMPLE_ACCOUNT; ' +
+        'use --example-account ACCOUNT; or run in a TTY to enter it when prompted. ' +
+        'Or pass --no-example to skip it.',
+    });
   });
 });

@@ -2,9 +2,9 @@ import { mkdtempDisposable } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { setupAgent } from '#setup/sections';
+import { setupAgent, setupEnvironment, setupGit } from '#setup/sections';
 import { PairingSecret } from '#utilities/pairing-secret';
 
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile';
@@ -14,6 +14,7 @@ import {
   workstationOf,
 } from '../mocks/sprites';
 
+import type { GuestChannel } from '#drivers/guest-channel';
 import type { SetupContext } from '#setup/context';
 
 // setup's root session is a framed guest shell only the live specs open
@@ -93,5 +94,75 @@ describe('fn:setupAgent', () => {
     expect(requested.pairing.token?.disclose(true)).toBe(token);
     expect(context.mutation.started).toBe(false);
     expect(calls.filter(([, args]) => args?.includes('pair'))).toHaveLength(1);
+  });
+});
+
+/**
+ * builds a setup context over a guest that runs nothing
+ * @param options parsed setup flags
+ * @returns the context and its guest
+ */
+async function quietSetup(
+  options: SetupContext['options'],
+): Promise<{ context: SetupContext; guest: GuestChannel }> {
+  const sprite = createFilesystemSprite({
+    root: tmpdir(),
+    execute: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
+  });
+  const context: SetupContext = {
+    ...workstationOf(sprite),
+    options,
+    input: {
+      profile: DISABLED_NETWORK_PROFILE,
+      runtimeEnv: {},
+      sources: {},
+      missing: [],
+    },
+    profile: DISABLED_NETWORK_PROFILE,
+    persistsProfile: false,
+    isReleaseChanged: false,
+    networkEnrolled: false,
+    mutation: { started: false },
+  };
+
+  return { context, guest: await context.connection.guest() };
+}
+
+describe('fn:setupEnvironment', () => {
+  it('should skip the section without --env-file when it cannot prompt', async () => {
+    const { context, guest } = await quietSetup({ nonInteractive: true });
+
+    const result = await setupEnvironment(guest, context);
+
+    expect(result).toEqual({ runtimeEnvironment: { status: 'skipped' } });
+    expect(context.mutation.started).toBe(false);
+  });
+});
+
+describe('fn:setupGit', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('should name every source of a missing Git identity before changing the guest', async () => {
+    vi.stubEnv('GIT_AUTHOR_NAME', undefined);
+    vi.stubEnv('GIT_AUTHOR_EMAIL', undefined);
+    vi.stubEnv('GIT_COMMITTER_NAME', undefined);
+    vi.stubEnv('GIT_COMMITTER_EMAIL', undefined);
+    const { context, guest } = await quietSetup({
+      nonInteractive: true,
+      localCredentials: false,
+    });
+
+    await expect(setupGit(guest, context)).rejects.toMatchObject({
+      code: 'INPUT',
+      message: 'Required setup inputs are missing',
+      details: [
+        'Git author identity is not set. Set GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL or pass --env-file FILE ' +
+          'containing GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL; use --git-name NAME and --git-email EMAIL; ' +
+          'or run in a TTY to enter it when prompted. Or pass --no-git-identity to leave it unset.',
+      ],
+    });
+    expect(context.mutation.started).toBe(false);
   });
 });

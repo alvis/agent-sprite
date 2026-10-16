@@ -29,7 +29,7 @@ interface ProviderCredentialSources {
 
 /**
  * resolves a provider's management credential from its declared sources, in
- * explicit reference, process environment, env file, then local store order
+ * explicit reference, env file, process environment, then local store order
  * @param options parsed env file path and local credential policy
  * @param provider provider whose declared credential is read
  * @param selection explicit reference, preloaded sources and store location
@@ -51,12 +51,12 @@ export async function resolveProviderCredential(
   const sources = selection.sources ?? (await readEnvironmentSources(options));
   const candidates = [
     {
-      value: sources.processEnv[credential.environment],
-      source: `${credential.environment} in the process environment`,
-    },
-    {
       value: sources.fileEnv[credential.environment],
       source: `${credential.environment} in ${options.envFile ?? 'the env file'}`,
+    },
+    {
+      value: sources.processEnv[credential.environment],
+      source: `${credential.environment} in the process environment`,
     },
   ];
   const direct = candidates.find(({ value }) => Boolean(value));

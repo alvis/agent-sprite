@@ -6,10 +6,12 @@ export const CLIPROXYAPI_INPUTS = {
   baseUrl: {
     environment: 'CLIPROXYAPI_BASE_URL',
     prompt: 'CLIProxyAPI base URL',
+    flag: '--proxy-url URL',
   },
   /** client key the guest uses to reach the hub */
   apiKey: {
     environment: 'CLIPROXYAPI_API_KEY',
     prompt: 'CLIProxyAPI client key',
+    flag: '--proxy-api-key-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT',
   },
 } as const;

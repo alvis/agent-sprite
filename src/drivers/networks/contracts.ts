@@ -1,3 +1,4 @@
+import type { InputPrerequisite } from '#drivers/providers/prerequisites';
 import type { Secret } from '#integrations/guest/session/secret';
 import type { GuestAsset } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
@@ -164,24 +165,16 @@ export interface NetworkReleaseParams {
   recordIdentity: NetworkIdentityRecorder;
 }
 
-/** one caller-side network input: where it is read from and how it is asked for */
-interface NetworkInput {
-  /** environment variable read from the process, selected env file or saved profile */
-  environment: string;
-  /** prompt shown when an interactive run still lacks the value */
-  prompt: string;
-}
-
 /** caller-side inputs a network needs, declared as data */
 export interface NetworkInputs {
   /** account or network that the management credential manages */
-  account: NetworkInput;
+  account: InputPrerequisite;
   /** management credential and its local credential store entry */
-  management: NetworkInput & { store: string };
+  management: InputPrerequisite & { store: string };
   /** single-use enrollment credential that can replace the management credential */
-  enrollment: Pick<NetworkInput, 'environment'>;
+  enrollment: Pick<InputPrerequisite, 'environment' | 'flag'>;
   /** exit node selector */
-  exitNode: NetworkInput;
+  exitNode: InputPrerequisite;
 }
 
 /** network identity and capabilities, declared as data */
