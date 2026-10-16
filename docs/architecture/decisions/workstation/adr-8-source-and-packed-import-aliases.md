@@ -4,7 +4,7 @@
 
 Keep TypeScript source aliases as the development default and rewrite those aliases to compiled output when packing. Run both local commands and end-to-end tests through the same installed-package runner.
 
-- Status: `Accepted`
+- Status: `Accepted`, partly superseded by [ADR-15](adr-15-host-driven-guest-setup.md): the payload closure now covers the shipped guest `sh` programs instead of compiled guest modules
 - Date: `2026-10-09`
 
 ## 🎯 Motivation
