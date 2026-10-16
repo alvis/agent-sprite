@@ -77,6 +77,12 @@ OA_BOOT_AGENT_IDS=1000
 OA_BOOT_BREW_HOME=/home/linuxbrew
 # the system's jq, which the hook reads JSON with, never a tool link
 OA_BOOT_JQ=/usr/bin/jq
+# the setup session's root-only directory and lock: SESSION_DIRECTORY in
+# src/integrations/guest/session/framing.ts
+OA_BOOT_SESSION_DIRECTORY=/run/open-agent-session
+OA_BOOT_SESSION_LOCK=$OA_BOOT_SESSION_DIRECTORY/session.lock
+# removes every directory a setup secret was delivered in
+OA_BOOT_SECRETS_SWEEP='rm -rf /dev/shm/open-agent.*'
 # every group may open ping's sockets, so the agent's ping needs no privilege
 OA_BOOT_PING_GROUPS='0 2147483647'
 # the boot log's size beyond which it is trimmed, and how much a trim keeps
@@ -475,6 +481,18 @@ oa_boot_ping() {
   oa_boot_call "$OA_BOOT_FAMILY" oa_sysctl net.ipv4.ping_group_range "$OA_BOOT_PING_GROUPS"
 }
 
+# removes what a crash left of setup's secrets in /dev/shm, under the setup
+# session's lock and only while no session holds it, so a prepare inside a
+# session or a resume after one leaves the session's own secret alone
+oa_boot_secrets() {
+  if test -d "$OA_BOOT_SESSION_DIRECTORY"; then
+    flock -n "$OA_BOOT_SESSION_LOCK" /bin/sh -c "$OA_BOOT_SECRETS_SWEEP" ||
+      echo "a setup session is open; its secrets are left to it"
+  else
+    /bin/sh -c "$OA_BOOT_SECRETS_SWEEP"
+  fi
+}
+
 # tells whether an account holds the ids of its home on the volume
 # arguments: the account, its home on the volume
 oa_boot_holds() {
@@ -574,6 +592,7 @@ oa_boot_restore() {
   fi
   oa_boot_baseline || oa_boot_log "could not record the image's packages"
   oa_boot_incomplete=
+  oa_boot_step secrets optional oa_boot_secrets
   oa_boot_step volume critical oa_boot_volume
   oa_boot_step guest-root critical oa_boot_guest_root
   # the log reaches the volume once the guest root is bound
