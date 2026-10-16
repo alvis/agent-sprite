@@ -211,7 +211,7 @@ export async function setLastSuccessfulUpdate(
     name,
     [
       'set -e',
-      `/usr/local/bin/jq --arg at '${at.toISOString()}' '.lastSuccess = $at' ${UPDATE_STATUS_PATH} > ${UPDATE_STATUS_PATH}.live`,
+      `/usr/bin/jq --arg at '${at.toISOString()}' '.lastSuccess = $at' ${UPDATE_STATUS_PATH} > ${UPDATE_STATUS_PATH}.live`,
       `chmod 0644 ${UPDATE_STATUS_PATH}.live`,
       `mv -f ${UPDATE_STATUS_PATH}.live ${UPDATE_STATUS_PATH}`,
     ].join('\n'),
@@ -483,7 +483,7 @@ export interface HomebrewGit {
   agentGit?: string;
   /** Git's installed keg as Homebrew lists it, without its revision */
   kegVersion?: string;
-  /** where `/usr/local/bin/git`, `jj` and `gh` resolve */
+  /** where the agent's `git`, `jj` and `gh` resolve */
   links: Record<(typeof BREW_TOOLS)[number], string>;
   /** paths under the prefix the agent account can write; must be none */
   agentWritable: string[];
@@ -521,7 +521,11 @@ export async function readHomebrewGit(
       await Promise.all(
         BREW_TOOLS.map(async (tool) => [
           tool,
-          (await section(`readlink -f /usr/local/bin/${tool}`))[0] ?? '',
+          (
+            await section(
+              `readlink -f "$(runuser -l agent -c 'command -v ${tool}')"`,
+            )
+          )[0] ?? '',
         ]),
       ),
     ) as HomebrewGit['links'],

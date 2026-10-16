@@ -17,7 +17,9 @@ OA_ENVIRONMENT=/opt/open-agent/environment.json
 OA_RESOLVER=/etc/resolv.conf
 # ahead of the rules tailscaled installs from 5210 on
 OA_PRIORITY=5200
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# the system's commands ahead of the tool links, which bring Homebrew's
+# tailscaled: the Homebrew account is locked and root alone writes it
+PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin
 export PATH
 umask 022
 
@@ -40,13 +42,13 @@ oa_files() {
 # reads the daemon's state directory, socket and tunnel from environment.json
 oa_load() {
   test -r "$OA_ENVIRONMENT" || oa_fail "$OA_ENVIRONMENT is not readable"
-  oa_directory=$(jq -er '.network.launcher.stateDirectory
+  oa_directory=$(/usr/bin/jq -er '.network.launcher.stateDirectory
       | select(type == "string" and startswith("/opt/open-agent/") and (contains("/../") | not))' \
     "$OA_ENVIRONMENT") || oa_fail "environment.json names no state directory"
-  oa_socket=$(jq -er '.network.launcher.socket
+  oa_socket=$(/usr/bin/jq -er '.network.launcher.socket
       | select(type == "string" and startswith("/") and (contains("/../") | not))' \
     "$OA_ENVIRONMENT") || oa_fail "environment.json names no daemon socket"
-  oa_tun=$(jq -er '.network.launcher.tun | select(type == "string" and test("^[a-z0-9][a-z0-9._-]*$"))' \
+  oa_tun=$(/usr/bin/jq -er '.network.launcher.tun | select(type == "string" and test("^[a-z0-9][a-z0-9._-]*$"))' \
     "$OA_ENVIRONMENT") || oa_fail "environment.json names no tunnel"
   oa_files "$oa_directory"
 }
@@ -79,7 +81,7 @@ oa_rule_installed() {
   test "$1" = -6 && oa_host=128
   oa_length=$oa_host
   case $2 in */*) oa_length=${2#*/} ;; esac
-  ip "$1" -j rule show | jq -e --argjson priority "$OA_PRIORITY" --arg dst "$oa_address" \
+  ip "$1" -j rule show | /usr/bin/jq -e --argjson priority "$OA_PRIORITY" --arg dst "$oa_address" \
     --argjson length "$oa_length" --argjson host "$oa_host" '
     any(.[]; .priority == $priority and .dst == $dst
       and (.dstlen // $host) == $length and .table == "main")' >/dev/null
@@ -145,7 +147,7 @@ oa_prepare() {
   for oa_nameserver in $oa_nameservers; do
     oa_rule_add "$oa_nameserver"
   done
-  oa_networks=$(jq -er '.provider.transportNetworks | select(type == "array") | .[] | strings' \
+  oa_networks=$(/usr/bin/jq -er '.provider.transportNetworks | select(type == "array") | .[] | strings' \
     "$OA_ENVIRONMENT") || oa_networks=
   for oa_network in $oa_networks; do
     oa_rule_add "$oa_network"

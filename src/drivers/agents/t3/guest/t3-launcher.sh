@@ -46,7 +46,8 @@ export HOME
 oa_harnesses=$(jq -c '[.agent.harnesses[]?.environment] | add // {}' "$OA_ENVIRONMENT" |
   oa_exports 'the harness environment') || exit 1
 eval "$oa_harnesses"
-PATH=$OA_HOME/.local/bin:/usr/local/bin:/usr/bin:/bin
+# the agent's PATH: its own commands, then Homebrew's ahead of the system's
+PATH=$OA_HOME/.local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/bin:/usr/bin:/bin
 export PATH
 if test -e "$OA_COMMITTER"; then
   oa_committer=$(jq -c 'if type == "object" then

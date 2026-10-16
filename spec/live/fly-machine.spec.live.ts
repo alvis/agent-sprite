@@ -1297,13 +1297,13 @@ describe('Fly Machine provider live probe', () => {
         }).toEqual({
           volume: banner,
           tools: [
-            '/usr/local/bin/node',
+            `${HOMEBREW.prefix}/bin/node`,
             expect.stringMatching(/^v\d+\./u) as string,
-            '/usr/local/bin/git',
+            `${HOMEBREW.prefix}/bin/git`,
             expect.stringMatching(/^git version \d/u) as string,
-            '/usr/local/bin/jj',
+            `${HOMEBREW.prefix}/bin/jj`,
             expect.stringMatching(/^jj \d/u) as string,
-            '/usr/local/bin/gh',
+            `${HOMEBREW.prefix}/bin/gh`,
             expect.stringMatching(/^gh version \d/u) as string,
           ],
           recorded: RECORDED_PACKAGE,

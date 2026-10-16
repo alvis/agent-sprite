@@ -96,7 +96,7 @@ oa_fly_suspend_blocker() {
     ;;
   esac
   case $(oa_fly_call GET '' "$OA_FLY_INSPECT_SECONDS") in 2??) ;; *) return ;; esac
-  jq -r --argjson limit "$OA_FLY_SUSPEND_LIMIT_MB" '
+  /usr/bin/jq -r --argjson limit "$OA_FLY_SUSPEND_LIMIT_MB" '
     try (.config | select(type == "object")
       | if (.guest | type) == "object" and (.guest.memory_mb | type) == "number" and .guest.memory_mb > $limit then
           "the machine has \(.guest.memory_mb) MB of memory, more than the \($limit) MB a suspended machine may have"

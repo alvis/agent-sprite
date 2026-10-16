@@ -1,8 +1,8 @@
 # open-agent's runit service backend: each service environment.json records
 # is a root-owned service directory under /etc/sv, enabled by its link in the
 # directory runsvdir supervises, and each drops to its own account through
-# chpst. Setup and the boot hook source it as root; it needs jq, sv, chpst
-# and svlogd on PATH. Every function is safe to rerun, reports why it failed
+# chpst. Setup and the boot hook source it as root; it needs sv, chpst and
+# svlogd on PATH and reads JSON with the system's jq, /usr/bin/jq. Every function is safe to rerun, reports why it failed
 # on stderr and returns non-zero, and keeps its variables under its own oa_
 # prefix since sh has no locals
 
@@ -16,8 +16,14 @@ OA_SV_MARK=open-agent.json
 # seconds sv waits for a service to start or stop, and setup waits for
 # runsvdir to notice a new service, which it looks for every 5 seconds
 OA_SV_WAIT=30
-# the PATH every service and its run file start with
-OA_SV_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# the PATH every run file, and every root service, starts with: the system's
+# commands ahead of the tool links in /usr/local, so no link shadows one root
+# runs. Root runs runit's and tailscaled's Homebrew binaries only because the
+# Homebrew account is locked and root alone writes it, acting as it
+OA_SV_PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin
+# the PATH an agent service starts with after its own commands: Homebrew's
+# ahead of the system's; HOMEBREW_PATH in src, which this shell cannot import
+OA_SV_AGENT_PATH=/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/bin:/usr/bin:/bin
 # a service name, which names its directory, its link and its log
 OA_SV_NAME='^[a-z0-9][a-z0-9._-]*$'
 # whether the last oa_sv_write found something to change, and whether it only
@@ -73,7 +79,7 @@ oa_sv_supervised() {
 # tells whether a definition is well formed, before any of it reaches a file
 # arguments: the definition, as JSON
 oa_sv_valid() {
-  printf '%s' "$1" | jq -e --arg name "$OA_SV_NAME" '
+  printf '%s' "$1" | /usr/bin/jq -e --arg name "$OA_SV_NAME" '
     (.name | type == "string" and test($name)) and
     (.account == "root" or .account == "agent") and
     (.command | type == "string" and startswith("/")) and
@@ -84,11 +90,12 @@ oa_sv_valid() {
 
 # renders a definition as its run file: wait for every service it needs, then
 # replace the shell with the command, as its account, from its home, with a
-# clean environment; every word is quoted, so none is read as shell code
+# clean environment and its account's PATH; every word is quoted, so none is
+# read as shell code
 # arguments: the definition, as JSON, and its account's home
 oa_sv_run() {
-  printf '%s' "$1" | jq -r --arg path "$OA_SV_PATH" --arg wait "$OA_SV_WAIT" \
-    --arg services "$OA_SV_SERVICES" --arg home "$2" '
+  printf '%s' "$1" | /usr/bin/jq -r --arg path "$OA_SV_PATH" --arg agentPath "$OA_SV_AGENT_PATH" \
+    --arg wait "$OA_SV_WAIT" --arg services "$OA_SV_SERVICES" --arg home "$2" '
     "#!/bin/sh",
     "# open-agent service \(.name), written from its definition in environment.json",
     "exec 2>&1",
@@ -96,7 +103,7 @@ oa_sv_run() {
     "export PATH",
     (.needs[] | "sv -w \($wait) start \("\($services)/\(.)" | @sh) >/dev/null || exit 1"),
     "cd \($home | @sh) || exit 1",
-    "exec \(if .account == "root" then "" else "chpst -u \(.account | @sh) " end)env -i HOME=\($home | @sh) USER=\(.account | @sh) LOGNAME=\(.account | @sh) PATH=\"$PATH\" LANG=C.UTF-8 \([.command] + .arguments | map(@sh) | join(" "))"'
+    "exec \(if .account == "root" then "" else "chpst -u \(.account | @sh) " end)env -i HOME=\($home | @sh) USER=\(.account | @sh) LOGNAME=\(.account | @sh) PATH=\(if .account == "root" then $path else "\($home)/.local/bin:\($agentPath)" end | @sh) LANG=C.UTF-8 \([.command] + .arguments | map(@sh) | join(" "))"'
 }
 
 # writes one service's directory, run file, log and enabling link from its
@@ -109,15 +116,15 @@ oa_sv_write() {
     echo "Refusing a malformed service definition" >&2
     return 1
   fi
-  oa_write_name=$(printf '%s' "$1" | jq -r .name) || return 1
-  oa_write_account=$(printf '%s' "$1" | jq -r .account) || return 1
+  oa_write_name=$(printf '%s' "$1" | /usr/bin/jq -r .name) || return 1
+  oa_write_account=$(printf '%s' "$1" | /usr/bin/jq -r .account) || return 1
   oa_write_home=$(getent passwd "$oa_write_account" | cut -d: -f6)
   if test -z "$oa_write_home"; then
     echo "There is no account $oa_write_account to run $oa_write_name as" >&2
     return 1
   fi
   oa_write_run=$(oa_sv_run "$1" "$oa_write_home") || return 1
-  oa_write_definition=$(printf '%s' "$1" | jq -c .) || return 1
+  oa_write_definition=$(printf '%s' "$1" | /usr/bin/jq -c .) || return 1
   oa_write_directory=$OA_SV_DEFINITIONS/$oa_write_name
   oa_write_log=$OA_SV_LOGS/$oa_write_name
   oa_sv_directory 0755 "$OA_SV_DEFINITIONS" &&
@@ -146,7 +153,7 @@ oa_sv_write() {
 # arguments: the definition, as JSON
 oa_sv_put() {
   oa_sv_write "$1" || return 1
-  oa_put_name=$(printf '%s' "$1" | jq -r .name) || return 1
+  oa_put_name=$(printf '%s' "$1" | /usr/bin/jq -r .name) || return 1
   if test -n "$oa_sv_changed" && oa_sv_supervised "$oa_put_name"; then
     sv -w "$OA_SV_WAIT" restart "$OA_SV_DEFINITIONS/$oa_put_name" >/dev/null
   fi
@@ -172,19 +179,19 @@ oa_sv_up() {
 # a service name
 # arguments: path of environment.json
 oa_sv_names() {
-  if ! jq -e --arg name "$OA_SV_NAME" \
+  if ! /usr/bin/jq -e --arg name "$OA_SV_NAME" \
     '.services | type == "array" and all(.[]; .name | type == "string" and test($name))' \
     "$1" >/dev/null; then
     echo "Refusing $1: its services are malformed" >&2
     return 1
   fi
-  jq -r '.services[].name' "$1"
+  /usr/bin/jq -r '.services[].name' "$1"
 }
 
 # prints one service's definition from environment.json
 # arguments: path of environment.json, service name
 oa_sv_definition() {
-  jq -c --arg service "$2" '.services[] | select(.name == $service)' "$1"
+  /usr/bin/jq -c --arg service "$2" '.services[] | select(.name == $service)' "$1"
 }
 
 # lists open-agent's installed services, each marked by its recorded definition
@@ -279,7 +286,7 @@ oa_sv_check() {
 # arguments: the definition, as JSON
 oa_sv_ensure() {
   oa_sv_put "$1" || return 1
-  oa_sv_up "$(printf '%s' "$1" | jq -r .name)"
+  oa_sv_up "$(printf '%s' "$1" | /usr/bin/jq -r .name)"
 }
 
 # stops one of open-agent's services and waits for it to stop; exits 2 when
@@ -321,7 +328,7 @@ oa_sv_states() {
       finish:*) oa_states_status=stopping ;;
       *) oa_states_status=stopped ;;
     esac
-    jq -c --arg status "$oa_states_status" --arg started "$oa_states_started" \
+    /usr/bin/jq -c --arg status "$oa_states_status" --arg started "$oa_states_started" \
       '{name, status: $status, needs} + (if $started == "" then {} else {startedAt: $started} end)' \
       "$OA_SV_DEFINITIONS/$oa_states_name/$OA_SV_MARK" || return 1
   done
@@ -330,5 +337,5 @@ oa_sv_states() {
 # prints the state of every one of open-agent's services as one JSON array
 oa_sv_list() {
   oa_list_states=$(oa_sv_states) || return 1
-  printf '%s\n' "$oa_list_states" | jq -s -c .
+  printf '%s\n' "$oa_list_states" | /usr/bin/jq -s -c .
 }

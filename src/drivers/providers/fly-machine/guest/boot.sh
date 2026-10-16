@@ -75,7 +75,8 @@ OA_BOOT_HOLD_MARK='# open-agent: no service starts while the packages are reinst
 OA_BOOT_AGENT_HOME=/home/agent
 OA_BOOT_AGENT_IDS=1000
 OA_BOOT_BREW_HOME=/home/linuxbrew
-OA_BOOT_BREW_JQ=$OA_BOOT_BREW_HOME/.linuxbrew/opt/jq/bin/jq
+# the system's jq, which the hook reads JSON with, never a tool link
+OA_BOOT_JQ=/usr/bin/jq
 # every group may open ping's sockets, so the agent's ping needs no privilege
 OA_BOOT_PING_GROUPS='0 2147483647'
 # the boot log's size beyond which it is trimmed, and how much a trim keeps
@@ -177,15 +178,6 @@ oa_boot_owner() {
   if test "$(id -u "$1")" != "$2" || test "$(id -g "$1")" != "$3"; then
     echo "Refusing $1: it holds ids other than those its home on the volume was made under"
     return 1
-  fi
-}
-
-# prints the jq a run may use: Homebrew's on the volume, or the one on PATH
-oa_boot_jq() {
-  if test -x "$OA_BOOT_BREW_JQ"; then
-    printf '%s\n' "$OA_BOOT_BREW_JQ"
-  else
-    command -v jq
   fi
 }
 
@@ -339,11 +331,11 @@ oa_boot_hold() {
 oa_boot_release() {
   oa_boot_units=
   if test -f "$OA_BOOT_ENVIRONMENT"; then
-    if ! oa_boot_reader=$(oa_boot_jq); then
-      echo "Keeping every service from starting: no jq reads $OA_BOOT_ENVIRONMENT"
+    if ! test -x "$OA_BOOT_JQ"; then
+      echo "Keeping every service from starting: no $OA_BOOT_JQ reads $OA_BOOT_ENVIRONMENT"
       return 1
     fi
-    oa_boot_units=$("$oa_boot_reader" -r '[.tools[]?.source.vendorServices[]?] | unique | .[]' \
+    oa_boot_units=$("$OA_BOOT_JQ" -r '[.tools[]?.source.vendorServices[]?] | unique | .[]' \
       "$OA_BOOT_ENVIRONMENT") || return 1
   fi
   if test -n "$oa_boot_units"; then
@@ -420,20 +412,17 @@ oa_boot_services() {
   oa_boot_call "$OA_BOOT_CRON" oa_cron_install "$OA_BOOT_ENVIRONMENT"
 }
 
-# prints the login profile: the managed tools and, for an ordinary account,
-# its own commands on PATH
+# prints the login profile: root's PATH puts the system's commands ahead of
+# the tool links, and an ordinary account's its own commands, then
+# Homebrew's, ahead of the system's
 oa_boot_profile_text() {
   cat <<'PROFILE'
-# open-agent: the managed tools and, for an ordinary account, its own commands
-case ":$PATH:" in
-  *:/usr/local/bin:*) ;;
-  *) PATH="/usr/local/bin:$PATH" ;;
-esac
-if test "$(id -u)" != 0 && test -d "$HOME/.local/bin"; then
-  case ":$PATH:" in
-    *":$HOME/.local/bin:"*) ;;
-    *) PATH="$HOME/.local/bin:$PATH" ;;
-  esac
+# open-agent: the system's commands ahead of the tool links for root; its own
+# commands, then Homebrew's, ahead of the system's for an ordinary account
+if test "$(id -u)" = 0; then
+  PATH="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"
+else
+  PATH="$HOME/.local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/bin:/usr/bin:/bin"
 fi
 export PATH
 PROFILE
@@ -598,8 +587,10 @@ oa_boot_restore() {
   oa_boot_step packages optional oa_boot_packages
   test "$oa_boot_outcome" = ok || oa_boot_incomplete=1
   oa_boot_step links optional oa_boot_links
-  # the restored links bring runit's and jq's commands onto PATH
-  PATH=/usr/local/sbin:/usr/local/bin:$PATH
+  # the restored links bring runit's commands onto PATH, after the system's,
+  # which no link shadows; root runs Homebrew's runit only because the
+  # Homebrew account is locked and root alone writes it, acting as it
+  PATH=$PATH:/usr/local/sbin:/usr/local/bin
   oa_boot_step services optional oa_boot_services
   test "$oa_boot_outcome" = ok || oa_boot_incomplete=1
   oa_boot_step profile optional oa_boot_profile

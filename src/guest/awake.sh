@@ -172,7 +172,7 @@ oa_idle_process_start() {
 # capped at the provider's deadline limit by setup, and the notes on what
 # is missing; with no valid provider recorded the defaults apply
 oa_idle_settings() {
-  if jq -c "$OA_IDLE_JQ_DEFS"'
+  if /usr/bin/jq -c "$OA_IDLE_JQ_DEFS"'
     def minutes($v; $least; $default; $label):
       if ($v | count) and $v >= $least then {v: $v}
       else {v: $default, note: "stored \($label) is missing or invalid; the default of \($default) minutes applies"} end;
@@ -206,7 +206,7 @@ oa_idle_settings() {
 # prints one field of the settings
 # arguments: the jq path of the field
 oa_idle_setting() {
-  jq -r "$1 // empty" "$OA_IDLE_WORK/settings.json"
+  /usr/bin/jq -r "$1 // empty" "$OA_IDLE_WORK/settings.json"
 }
 
 # validates a holder file's copy and prints its identity line, its source,
@@ -214,7 +214,7 @@ oa_idle_setting() {
 # its name and directory; it fails on anything that is not a holder
 # arguments: the copy, the file's name, whether its directory is the managed one
 oa_idle_holder() {
-  jq -er --arg name "$2" --argjson managed "$3" "$OA_IDLE_JQ_DEFS"'
+  /usr/bin/jq -er --arg name "$2" --argjson managed "$3" "$OA_IDLE_JQ_DEFS"'
     select(type == "object" and .version == 1
       and (.source | type == "string" and test("\\A[a-z][a-z0-9-]{0,31}\\z"))
       and (.session | type == "string" and test("\\A[0-9a-f]{64}\\z"))
@@ -307,10 +307,10 @@ oa_idle_record_event() {
   oa_idle_record_event_expiry=0
   if test -f "$oa_idle_own/$oa_idle_record_event_name" &&
     oa_idle_read "$oa_idle_own/$oa_idle_record_event_name" "$OA_IDLE_HOLDER_BYTES" "$OA_IDLE_WORK/holder"; then
-    oa_idle_record_event_expiry=$(jq -r 'if type == "object" and (.holdExpiresAt | type) == "number" then .holdExpiresAt else 0 end' \
+    oa_idle_record_event_expiry=$(/usr/bin/jq -r 'if type == "object" and (.holdExpiresAt | type) == "number" then .holdExpiresAt else 0 end' \
       "$OA_IDLE_WORK/holder" 2>/dev/null) || oa_idle_record_event_expiry=0
   fi
-  jq -nc --arg source "$oa_idle_source" --arg session "$oa_idle_record_event_hash" \
+  /usr/bin/jq -nc --arg source "$oa_idle_source" --arg session "$oa_idle_record_event_hash" \
     --argjson now "$1" --argjson holdMax "$(oa_idle_setting .holdMax)" \
     --arg action "$oa_idle_action" --argjson expiry "$oa_idle_record_event_expiry" \
     --arg pid "$oa_idle_pid" --arg start "$oa_idle_pid_start" '
@@ -330,7 +330,7 @@ oa_idle_read_state() {
   : >"$OA_IDLE_WORK/$3"
   if test "$(find "$1/$OA_IDLE_STATE" -maxdepth 0 -type f -links 1 -printf '%U' 2>/dev/null)" != "$2" ||
     ! oa_idle_read "$1/$OA_IDLE_STATE" "$OA_IDLE_STATE_BYTES" "$OA_IDLE_WORK/state-copy" ||
-    ! jq -c 'select(type == "object")' "$OA_IDLE_WORK/state-copy" >"$OA_IDLE_WORK/$3" 2>/dev/null; then
+    ! /usr/bin/jq -c 'select(type == "object")' "$OA_IDLE_WORK/state-copy" >"$OA_IDLE_WORK/$3" 2>/dev/null; then
     : >"$OA_IDLE_WORK/$3"
   fi
 }
@@ -376,7 +376,7 @@ oa_idle_recompute() {
     oa_idle_recompute_incomplete=true
   oa_idle_read_state "$oa_idle_own" "$oa_idle_uid" previous.json
   test -f "$OA_IDLE_WORK/adapter.json" || : >"$OA_IDLE_WORK/adapter.json"
-  jq -nc --slurpfile holders "$OA_IDLE_WORK/holders" \
+  /usr/bin/jq -nc --slurpfile holders "$OA_IDLE_WORK/holders" \
     --slurpfile settings "$OA_IDLE_WORK/settings.json" \
     --slurpfile previous "$OA_IDLE_WORK/previous.json" \
     --slurpfile adapter "$OA_IDLE_WORK/adapter.json" \
@@ -431,11 +431,11 @@ oa_idle_recompute() {
           + {diagnostics: ((($notes | lines) + $set.notes + ($found | lines))[:8] | map(text))})
       }' >"$OA_IDLE_WORK/computed.json" || return 1
   if test "$1" = prune; then
-    jq -r '.spent[]' "$OA_IDLE_WORK/computed.json" >>"$OA_IDLE_WORK/prune"
+    /usr/bin/jq -r '.spent[]' "$OA_IDLE_WORK/computed.json" >>"$OA_IDLE_WORK/prune"
     oa_idle_prune
   fi
   if test "$2" = record; then
-    jq -c .state "$OA_IDLE_WORK/computed.json" >"$OA_IDLE_WORK/state.json" &&
+    /usr/bin/jq -c .state "$OA_IDLE_WORK/computed.json" >"$OA_IDLE_WORK/state.json" &&
       oa_idle_place "$OA_IDLE_WORK/state.json" "$oa_idle_own" "$OA_IDLE_STATE" 0640
   fi
 }
@@ -511,7 +511,7 @@ oa_idle_idle_form_result() {
   *:'failure '?*) set -- failure "${oa_idle_idle_form_line#failure }" ;;
   *) set -- failure "the adapter exited $2 without naming an idle form" ;;
   esac
-  jq -nc --argjson now "$(oa_idle_now)" --arg field "$1" --arg value "$2" "$OA_IDLE_JQ_DEFS"'
+  /usr/bin/jq -nc --argjson now "$(oa_idle_now)" --arg field "$1" --arg value "$2" "$OA_IDLE_JQ_DEFS"'
     {at: ($now | iso), action: "enter-idle-form", ($field): ($value | text)}' >"$OA_IDLE_WORK/adapter.json"
 }
 
@@ -528,7 +528,7 @@ oa_idle_read_tick() {
     oa_idle_read "$OA_IDLE_TICK" "$OA_IDLE_TICK_BYTES" "$OA_IDLE_WORK/tick-copy" ||
       : >"$OA_IDLE_WORK/tick-copy"
   fi
-  jq -nr --rawfile raw "$OA_IDLE_WORK/tick-copy" --argjson now "$1" \
+  /usr/bin/jq -nr --rawfile raw "$OA_IDLE_WORK/tick-copy" --argjson now "$1" \
     --arg boot "$oa_idle_read_tick_boot" --arg uptime "$oa_idle_read_tick_uptime" '
     def past: type == "number" and . <= $now;
     (try ($raw | fromjson) catch {}) as $read
@@ -548,7 +548,7 @@ oa_idle_read_tick() {
 oa_idle_write_tick() {
   oa_idle_write_tick_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) || oa_idle_write_tick_boot=
   oa_idle_write_tick_uptime=$(cut -d ' ' -f 1 /proc/uptime 2>/dev/null) || oa_idle_write_tick_uptime=
-  jq -nc --argjson last "$1" --arg awake "$2" --arg entering "$3" \
+  /usr/bin/jq -nc --argjson last "$1" --arg awake "$2" --arg entering "$3" \
     --arg boot "$oa_idle_write_tick_boot" --arg uptime "$oa_idle_write_tick_uptime" '
     {lastTickAt: $last}
     + (if $awake != "" then {awakeSince: ($awake | tonumber)} else {} end)
@@ -564,7 +564,7 @@ oa_idle_write_tick() {
 # arguments: current epoch milliseconds, the awake time, whether an earlier
 # call may still run (true or false)
 oa_idle_due() {
-  jq -r --argjson now "$1" --argjson awake "$2" --argjson inFlight "$3" \
+  /usr/bin/jq -r --argjson now "$1" --argjson awake "$2" --argjson inFlight "$3" \
     --slurpfile settings "$OA_IDLE_WORK/settings.json" '
     $settings[0] as $set
     | $set.provider.keepAwakeMode == "governed" and $set.provider.awakeAdapter != null
@@ -600,7 +600,7 @@ oa_idle_tick_decide() {
     oa_idle_tick_marked=
   fi
   oa_idle_write_tick "$oa_idle_tick_decide_now" "$oa_idle_tick_decide_awake" "$oa_idle_tick_marked"
-  jq -c .state "$OA_IDLE_WORK/computed.json" >"$OA_IDLE_WORK/state.json" &&
+  /usr/bin/jq -c .state "$OA_IDLE_WORK/computed.json" >"$OA_IDLE_WORK/state.json" &&
     oa_idle_place "$OA_IDLE_WORK/state.json" "$oa_idle_own" "$OA_IDLE_STATE" 0640
 }
 
@@ -616,7 +616,7 @@ oa_idle_tick_settle() {
   oa_idle_tick_settle_read=$(oa_idle_read_tick "$oa_idle_tick_settle_now") || return 1
   oa_idle_tick_settle_awake=${oa_idle_tick_settle_read%% *}
   oa_idle_tick_settle_marked=${oa_idle_tick_settle_read#* }
-  if test -s "$OA_IDLE_WORK/adapter.json" && jq -e 'has("result")' "$OA_IDLE_WORK/adapter.json" >/dev/null; then
+  if test -s "$OA_IDLE_WORK/adapter.json" && /usr/bin/jq -e 'has("result")' "$OA_IDLE_WORK/adapter.json" >/dev/null; then
     oa_idle_tick_settle_awake=
   fi
   if test -z "$oa_idle_idle_form_in_flight" && test "$oa_idle_tick_settle_marked" = "$oa_idle_tick_marked"; then
@@ -680,7 +680,7 @@ oa_idle_apply_once() {
     printf '%s\n' 'the recorded provider does not apply deadlines' >"$OA_IDLE_WORK/apply-failure"
     return 1
   fi
-  oa_idle_apply_target=$(jq -r '.deadline // 0' "$OA_IDLE_WORK/computed.json")
+  oa_idle_apply_target=$(/usr/bin/jq -r '.deadline // 0' "$OA_IDLE_WORK/computed.json")
   oa_idle_apply_status=0
   timeout -k 0.1 1.4 /bin/sh "$oa_idle_apply_adapter" apply-deadline "$oa_idle_apply_target" \
     >"$OA_IDLE_WORK/apply-failure" 2>&1 </dev/null || oa_idle_apply_status=$?
@@ -716,14 +716,14 @@ oa_idle_apply() {
       fi
       oa_idle_apply_applied=$oa_idle_apply_target
       oa_idle_recompute keep keep || break
-      oa_idle_apply_moved=$(jq -r '.deadline // 0' "$OA_IDLE_WORK/computed.json")
+      oa_idle_apply_moved=$(/usr/bin/jq -r '.deadline // 0' "$OA_IDLE_WORK/computed.json")
       test "$oa_idle_apply_moved" != "$oa_idle_apply_applied" || break
       test "$(($(oa_idle_now) - oa_idle_apply_started))" -le 800 || break
     done
     if test "$oa_idle_apply_applied" -le "$(oa_idle_now)"; then
       oa_idle_apply_answer result released
     else
-      oa_idle_apply_answer result "$(jq -nr --argjson at "$oa_idle_apply_applied" "$OA_IDLE_JQ_DEFS"'$at | iso')"
+      oa_idle_apply_answer result "$(/usr/bin/jq -nr --argjson at "$oa_idle_apply_applied" "$OA_IDLE_JQ_DEFS"'$at | iso')"
     fi
   } 8>>"$OA_IDLE_SHARED/.apply.lock"
 }
@@ -731,7 +731,7 @@ oa_idle_apply() {
 # prints a deadline apply's adapter result
 # arguments: result or failure, its text
 oa_idle_apply_answer() {
-  jq -nc --argjson now "$(oa_idle_now)" --arg field "$1" --arg value "$2" "$OA_IDLE_JQ_DEFS"'
+  /usr/bin/jq -nc --argjson now "$(oa_idle_now)" --arg field "$1" --arg value "$2" "$OA_IDLE_JQ_DEFS"'
     {at: ($now | iso), action: "apply-deadline", ($field): ($value | text)}'
 }
 
@@ -746,7 +746,7 @@ oa_idle_dispatch() {
   else
     timeout -k 0.1 2.5 /bin/sh "$oa_idle_self" apply >"$OA_IDLE_WORK/answer" 2>/dev/null </dev/null
   fi
-  if ! jq -ce "$OA_IDLE_JQ_DEFS"'select(isadapter and .action == "apply-deadline")' \
+  if ! /usr/bin/jq -ce "$OA_IDLE_JQ_DEFS"'select(isadapter and .action == "apply-deadline")' \
     "$OA_IDLE_WORK/answer" >"$OA_IDLE_WORK/adapter.json" 2>/dev/null; then
     oa_idle_apply_answer failure 'the apply was ended before the adapter answered' >"$OA_IDLE_WORK/adapter.json"
   fi
@@ -769,16 +769,16 @@ oa_idle_hook_session() {
     echo "hook input is larger than $OA_IDLE_INPUT_BYTES bytes"
     return 1
   fi
-  if ! jq -e . "$OA_IDLE_WORK/input" >/dev/null 2>&1; then
+  if ! /usr/bin/jq -e . "$OA_IDLE_WORK/input" >/dev/null 2>&1; then
     echo 'hook input is not JSON'
     return 1
   fi
-  if ! jq -se 'length == 1 and (.[0] | type == "object" and (.session_id | type == "string"))' \
+  if ! /usr/bin/jq -se 'length == 1 and (.[0] | type == "object" and (.session_id | type == "string"))' \
     "$OA_IDLE_WORK/input" >/dev/null 2>&1; then
     echo 'hook input has no session_id string'
     return 1
   fi
-  if ! oa_idle_session=$(jq -er '.session_id | select(test("\\A[A-Za-z0-9._:-]{1,128}\\z"))' \
+  if ! oa_idle_session=$(/usr/bin/jq -er '.session_id | select(test("\\A[A-Za-z0-9._:-]{1,128}\\z"))' \
     "$OA_IDLE_WORK/input" 2>/dev/null); then
     echo 'hook session_id must be 1 to 128 letters, digits or ._:- characters'
     return 1
@@ -880,7 +880,7 @@ oa_idle_event() {
 oa_idle_report() {
   oa_idle_read_state "$OA_IDLE_MANAGED" 0 root-state.json
   oa_idle_read_state "$OA_IDLE_SHARED" "$oa_idle_agent_uid" agent-state.json
-  jq -nc --slurpfile states "$OA_IDLE_WORK/root-state.json" \
+  /usr/bin/jq -nc --slurpfile states "$OA_IDLE_WORK/root-state.json" \
     --slurpfile agent "$OA_IDLE_WORK/agent-state.json" "$OA_IDLE_JQ_DEFS"'
     def ishold: type == "object"
       and (.source | type == "string" and test("\\A[a-z][a-z0-9-]{0,31}\\z"))

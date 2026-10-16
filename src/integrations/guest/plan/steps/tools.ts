@@ -1,3 +1,5 @@
+import { SESSION_PATH } from '#integrations/guest/session/framing';
+import { HOMEBREW_PATH } from '#tools/accounts';
 import {
   HOMEBREW_LIBRARY,
   LINKS_LIBRARY,
@@ -94,6 +96,9 @@ function toolStep(
 ): SetupStep {
   const { family, homebrewStep, needs = [] } = context;
   const actions = sourceActions(spec, source);
+  const probe = probeCommand(
+    source.kind === 'brew' ? homebrewProbe(spec.version) : spec.version,
+  );
   const command = (calls: readonly LibraryCall[]): StepCommand =>
     libraryCommand(family.shell, [family.library, ...actions.libraries], calls);
 
@@ -106,9 +111,9 @@ function toolStep(
       ...(source.kind === 'brew' ? [homebrewStep] : []),
       ...(spec.needs ?? []).map(toolStepId),
     ],
-    check: actions.check ? command(actions.check) : probeCommand(spec.version),
+    check: actions.check ? command(actions.check) : probe,
     apply: command(actions.apply),
-    verify: probeCommand(spec.version),
+    verify: probe,
     timeoutMs: actions.timeoutMs,
     critical: spec.required,
     retry: 'transport',
@@ -223,6 +228,23 @@ function systemActions(source: SystemToolSource): SourceActions {
     check: [['oa_pkg_installed', ...packages]],
     apply: [...prepare, ['oa_pkg_install', ...packages]],
     timeoutMs: SYSTEM_LIMIT_MS,
+  };
+}
+
+/**
+ * points a formula's version probe at Homebrew's own executables, which the
+ * session's PATH searches only after the system's, unless the probe names
+ * its PATH itself
+ * @param probe the formula's version probe
+ * @returns the probe, with Homebrew's directories first on its PATH
+ */
+function homebrewProbe(probe: ToolVersionProbe): ToolVersionProbe {
+  return {
+    ...probe,
+    environment: {
+      PATH: `${HOMEBREW_PATH}:${SESSION_PATH}`,
+      ...probe.environment,
+    },
   };
 }
 
