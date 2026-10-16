@@ -78,8 +78,6 @@ export function quoteWord(word: string): string {
  */
 export class InBandStatusFilter {
   readonly #marker: Buffer;
-  /** the marker as it follows the wrapper's leading newline */
-  readonly #lineStart: Buffer;
   /** bytes not yet classified */
   #pending = Buffer.alloc(0);
   /** text after the latest marker line, held back as a possible trailer */
@@ -93,7 +91,6 @@ export class InBandStatusFilter {
    */
   constructor(marker: string) {
     this.#marker = Buffer.from(marker);
-    this.#lineStart = Buffer.from(`\n${marker}`);
   }
 
   /**
@@ -209,19 +206,18 @@ export class InBandStatusFilter {
   }
 
   /**
-   * measures the longest end of the pending bytes that could begin a marker
-   * line, its leading newline included
+   * measures the longest end of the pending bytes that could begin a marker;
+   * a trailing newline is never held, since a streaming command's own line
+   * can end a chunk with nothing after it until its next command, so the
+   * wrapper's newline is dropped only when the marker arrives with it
    * @returns how many trailing bytes to hold back
    */
   #partialMarkerLength(): number {
     const data = this.#pending;
-    const longest = Math.min(data.length, this.#lineStart.length - 1);
+    const longest = Math.min(data.length, this.#marker.length - 1);
     for (let length = longest; length > 0; length--) {
       const tail = data.subarray(data.length - length);
-      if (
-        tail.equals(this.#lineStart.subarray(0, length)) ||
-        tail.equals(this.#marker.subarray(0, length))
-      ) {
+      if (tail.equals(this.#marker.subarray(0, length))) {
         return length;
       }
     }
