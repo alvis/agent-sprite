@@ -1,6 +1,6 @@
 > **Status:** Superseded (layout only)
 >
-> **Superseded by:** [ADR-10 — Guest code colocated per driver](../../workstation/adr-10-colocated-guest-code.md)
+> **Superseded by:** [ADR-10 — Guest code colocated per driver](adr-10-colocated-guest-code.md)
 >
 > **What changed:** Guest programs move from one `src/scripts` tree to each driver's `guest/` folder plus a guest kernel, and the payload inventory derives from driver guest leaves. Compilation from TypeScript, the single bootstrap shell asset, the shared guest lock, root-only execution from trusted paths and symlink refusal remain in force.
 
