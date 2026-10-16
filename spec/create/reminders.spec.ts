@@ -54,7 +54,7 @@ describe('fn:createPreflightSummary', () => {
         expect.stringMatching(/Sprite prerequisites/),
       ],
       reminders: [
-        expect.stringMatching(/30 minutes.*seven days/),
+        expect.stringMatching(/hourly.*a day has passed/),
         expect.stringMatching(/native sign-in/),
         expect.stringMatching(/Private GitHub access/),
         expect.stringMatching(/Git identity/),
@@ -68,7 +68,7 @@ describe('fn:createPreflightSummary', () => {
         expect.stringMatching(/exit-node identity.*approved IPv4/),
       ],
       reminders: [
-        expect.stringMatching(/30 minutes.*seven days/),
+        expect.stringMatching(/hourly.*a day has passed/),
         expect.stringMatching(/Guest TUN/),
         expect.stringMatching(/network policy/),
         expect.stringMatching(/enrolment key/),
@@ -81,7 +81,7 @@ describe('fn:createPreflightSummary', () => {
         expect.stringMatching(/Sprite prerequisites/),
       ],
       reminders: [
-        expect.stringMatching(/30 minutes.*seven days/),
+        expect.stringMatching(/hourly.*a day has passed/),
         expect.stringMatching(/Guest TUN/),
         expect.stringMatching(/network policy/),
         expect.stringMatching(/enrolment key/),
