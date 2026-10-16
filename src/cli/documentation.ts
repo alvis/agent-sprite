@@ -57,7 +57,8 @@ export const listDocumentation = {
   customUsage: ['[options]'],
   fullDescription: `Lists current managed workstations from every provider whose credential
 is available, without waking their guests. A provider whose query fails is
-reported as unavailable. --provider PROVIDER names the provider a
+reported as unavailable. A workstation a newer open-agent set up is listed and
+marked, but no other command acts on it until open-agent is upgraded. --provider PROVIDER names the provider a
 --provider-token-source belongs to (sprite when omitted); every other provider
 is still listed. --json emits one structured result.
 

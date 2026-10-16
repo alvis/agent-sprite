@@ -111,7 +111,7 @@ Management credentials (`SPRITES_TOKEN`, `FLY_API_TOKEN`, `TAILSCALE_API_KEY`) n
 
 Every guest command goes through the provider's **guest channel** (`src/drivers/guest-channel.ts`): the Sprites SDK's exec on a Sprite, and `fly ssh console` with a token derived in memory on a Fly Machine. Setup runs in a **`GuestSession`** (`src/integrations/guest/session/`): a root shell the provider opens with `openRootShell` once `awaitGuestReady` returns. The host sends it one framed command at a time, as the account the step names, and reads the exit code from a marker line. The session holds the setup lock and an awake hold while it lives. Only a broken shell or framing is retried; a command's own failure is a result. There is no open-agent code or Node on the guest to set up first.
 
-The **setup plan** (`src/integrations/guest/plan/`) is a list of typed `SetupStep`s ordered by `needs`, each with a check, an apply, a verify, a timeout and a retry class. A step whose check passes is skipped, so a rerun repairs only what is missing. A `Secret` is accepted only as step input. The plan comes from the provider's boot-hook step, the OS family's libraries, the resolved tools and the service backend's services.
+The **setup plan** (`src/integrations/guest/plan/`) is a list of typed `SetupStep`s ordered by `needs`, each with a check, an apply, a verify, a timeout and a retry class. A step whose check passes is skipped, so a rerun repairs only what is missing. A `Secret` is accepted only as step input. The plan comes from the provider's boot-hook step, the OS family's libraries, the resolved tools and the service backend's services. The `agent` account is 2000:2000, clear of the 1000 an image's first user takes, and the `linuxbrew` account is 900:900, a system id the bootstrap packages leave free; the Fly boot hook recreates both under the ids their homes on the volume carry. Setup streams each step as a status line on stderr when nothing interactive is displayed, and takes about 32 to 40 minutes on Fly and about 7 minutes on a Sprite. Tailscale enrolment hands the key to `tailscale up` on descriptor 3 (`--auth-key=file:/dev/fd/3`), and Tailscale needs `iproute2` for its `ip` calls.
 
 ---
 
@@ -136,7 +136,7 @@ A failure after provisioning keeps the machine, marks it incomplete and reports 
 
 ### Downgrade refusal
 
-Setup writes the open-agent version into `environment.json` and into the provider's metadata. Every command that acts on an existing workstation refuses one recorded with a newer version (`src/integrations/guest/release-guard.ts`, a `CONFLICT`). `list` and ordinary `show` compare the metadata version without waking the guest; `show --inspect`, `doctor` and `setup` read `environment.json`; `terminate` wakes the guest to read it and falls back to the metadata only when the guest cannot be read. An absent `environment.json` is not newer.
+Setup writes the open-agent version into `environment.json` and into the provider's metadata. Every command that acts on an existing workstation refuses one recorded with a newer version (`src/integrations/guest/release-guard.ts`, a `CONFLICT`). `list` is not an action, so it lists such a workstation and marks it (`newerRelease` in `--json`) instead of refusing; ordinary `show` compares the metadata version without waking the guest; `show --inspect`, `doctor` and `setup` read `environment.json`; `terminate` wakes the guest to read it and falls back to the metadata only when the guest cannot be read. An absent `environment.json` is not newer.
 
 ### Update
 
@@ -243,7 +243,7 @@ Live runs spend real money and touch real accounts; run them only with the owner
 - **The updater never restarts services.** Do not add a stop, start or restart to the update path; release-channel changes restart the agent through `setup`.
 - **Secrets stay in step input.** A `Secret` is piped on standard input or written to a 0600 file in a private directory under `/dev/shm` that a trap removes; a consumer that opens it once should remove it first and read the open descriptor, as Tailscale's enrollment does. Never put one in argv or on a disk path.
 - **Do not downgrade.** A command must pass the release guard before it acts on an existing workstation; a new command that does not use it can overwrite a newer workstation's state.
-- **Root never runs code the agent account can write.** Every program under `/opt/open-agent` is root-owned, 0700 or 0755 (0755 only when another account runs it); keep it that way when adding programs. The locked `linuxbrew` account is written only by root acting as it, so root may run Homebrew's executables, but every root `PATH` lists `/usr/sbin:/usr/bin:/sbin:/bin` before `/usr/local`, and root reads JSON with `/usr/bin/jq`.
+- **Root never runs code the agent account can write.** Every program under `/opt/open-agent` is root-owned, 0700 or 0755 (0755 only when another account runs it); keep it that way when adding programs. The locked `linuxbrew` account is written only by root acting as it, so root may run Homebrew's executables, but every root `PATH` lists `/usr/sbin:/usr/bin:/sbin:/bin` before `/usr/local`, and root reads JSON with `/usr/bin/jq`, which is 1.6 on Debian 12; a packaged e2e proof reads the shipped programs for what jq 1.6 rejects.
 
 ---
 
