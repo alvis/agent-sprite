@@ -122,15 +122,17 @@ Adding a provider reuses an existing family and every tool. Adding a family mean
   - `rustup update`.
 
   It writes `update-status.json` and never restarts a service (ADR-12's no-restart rule stands). The check interval no longer exists.
+
 - **Idle governor.**
   - ADR-13's rules are unchanged. The governor, the awake command and the adapters become `sh`, and adapters reach provider sockets with `curl --unix-socket`.
   - On `governed` providers, cron runs the governor tick every minute.
+  - The shared agent awake directory becomes `root:agent 1770` (sticky), and root stages every write in a root-only directory before moving it into place, so the agent cannot redirect a root write. ADR-13's `2770` mode is replaced.
 
 ### Fly specifics
 
 - **Homebrew first.** Homebrew lives under `/home/linuxbrew` on the volume. It supplies tailscale, runit, jq, git, wget, iputils, bind (`dig`), netcat, inetutils, iproute2 and the developer tools.
 - **apt.**
-  - apt keeps only what Homebrew cannot provide or needs first: `curl`, `git`, `ca-certificates`, `procps`, `file`, `unzip`, `gcc`, `libc6-dev`, `cron`, and Chrome with its libraries.
+  - apt keeps only what Homebrew cannot provide or needs first: `curl`, `git`, `ca-certificates`, `procps`, `file`, `unzip`, `gcc`, `libc6-dev`, `cron`, `jq` (the one root-run programs read JSON with), and Chrome with its libraries.
   - The apt `git` only bootstraps Homebrew and is never linked.
   - `runit` falls back to apt where no bottle exists.
 - **Root's PATH.** Every root `PATH` lists `/usr/local/sbin:/usr/local/bin` after `/usr/sbin:/usr/bin:/sbin:/bin`, and links skip an executable the system already provides, so root's commands resolve to the system's.
