@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CommandFault, commandError } from '#errors';
 
-import { guestOf } from '../../../mocks/sprites.js';
+import { guestOf } from '../../../mocks/sprites';
 
 import type { ServiceWithState } from '@fly/sprites';
 

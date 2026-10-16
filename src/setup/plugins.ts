@@ -21,7 +21,7 @@ import type { PluginActions } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { NormalizedPluginOptions } from '#plugins';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 type PluginActionName =
   'marketplace' | 'install' | 'disable' | 'uninstall' | 'remove';

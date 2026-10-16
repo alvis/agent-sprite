@@ -12,7 +12,7 @@ import { resolveSecret } from '#input/sources';
 import { InteractionExit } from '#navigation';
 import { setupFailure } from '#setup/failure';
 
-import { providerOf } from '../mocks/sprites.js';
+import { providerOf } from '../mocks/sprites';
 
 import type { WorkstationRecord } from '#drivers/contracts';
 

@@ -2,13 +2,13 @@ import { join } from 'node:path';
 
 import { execa } from 'execa';
 
-import { runTerminal } from '../fixtures/terminal.js';
+import { runTerminal } from '../fixtures/terminal';
 
 import type { CommandData } from '#command/data';
 
-import type { TerminalResult, TerminalStep } from '../fixtures/terminal.js';
+import type { TerminalResult, TerminalStep } from '../fixtures/terminal';
 
-import type { Redactor } from './redaction.js';
+import type { Redactor } from './redaction';
 
 /** single structured result printed by the packed CLI with --json */
 export interface CliEnvelope {

@@ -1,13 +1,9 @@
 import { CommandFault, ensureError } from '#errors';
 import { cancellationReason, currentOperation } from '#operation';
 
-import {
-  deleteTailnetDevice,
-  findTailnetDevice,
-  resolveExitNode,
-} from './api.js';
-import { ensureTailnetDaemon } from './daemon.js';
-import { inspectTailscale } from './status.js';
+import { deleteTailnetDevice, findTailnetDevice, resolveExitNode } from './api';
+import { ensureTailnetDaemon } from './daemon';
+import { inspectTailscale } from './status';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type {
@@ -17,7 +13,7 @@ import type {
   NetworkTargetParams,
 } from '#drivers/networks/contracts';
 
-import type { TailnetStatus } from './types.js';
+import type { TailnetStatus } from './types';
 
 /**
  * protects the selected home exit node from cleanup even under a bad identity

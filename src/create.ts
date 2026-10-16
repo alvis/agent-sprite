@@ -1,9 +1,9 @@
 import { agentPort } from '#core/services';
 import { traceStage } from '#operation';
 
-import { creationOutcome, markCreateIncomplete } from './create/failure.js';
-import { finishCreate } from './create/finish.js';
-import { prepareCreate } from './create/preflight.js';
+import { creationOutcome, markCreateIncomplete } from './create/failure';
+import { finishCreate } from './create/finish';
+import { prepareCreate } from './create/preflight';
 
 import type { CommandResult } from '#command';
 import type { CommandRequest, Interaction } from '#command/contracts';

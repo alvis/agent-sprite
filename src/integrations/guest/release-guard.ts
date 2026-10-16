@@ -7,7 +7,7 @@ import {
   OPEN_AGENT_VERSION,
 } from '#utilities/version';
 
-import { runGuestResult } from './run.js';
+import { runGuestResult } from './run';
 
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 

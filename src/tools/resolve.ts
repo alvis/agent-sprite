@@ -2,7 +2,7 @@ import { CommandFault } from '#errors';
 
 import type { OsConstraint, OsFamily, OsRelease } from '#os/contracts';
 
-import type { Resolution, ToolSource, ToolSpec } from './contracts.js';
+import type { Resolution, ToolSource, ToolSpec } from './contracts';
 
 /** the guest a resolution is for */
 interface ResolutionTarget {

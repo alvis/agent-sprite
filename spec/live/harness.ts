@@ -2,19 +2,19 @@ import { readFile } from 'node:fs/promises';
 
 import { parse } from 'dotenv';
 
-import { createLiveCleanup } from './cleanup.js';
-import { createLiveCli } from './cli.js';
-import { createFlyInventory, FLY_TOKEN_VARIABLE } from './fly.js';
-import { ENVIRONMENT_PREFIX, LIVE_RUN_ID } from './identity.js';
-import { createLiveProvider, isLiveProviderName } from './providers.js';
-import { createRedactor } from './redaction.js';
-import { connectTailnet } from './tailnet.js';
+import { createLiveCleanup } from './cleanup';
+import { createLiveCli } from './cli';
+import { createFlyInventory, FLY_TOKEN_VARIABLE } from './fly';
+import { ENVIRONMENT_PREFIX, LIVE_RUN_ID } from './identity';
+import { createLiveProvider, isLiveProviderName } from './providers';
+import { createRedactor } from './redaction';
+import { connectTailnet } from './tailnet';
 
-import type { LiveCleanup } from './cleanup.js';
-import type { LiveCli } from './cli.js';
-import type { LiveProvider, LiveProviderName } from './providers.js';
-import type { Redactor } from './redaction.js';
-import type { Tailnet } from './tailnet.js';
+import type { LiveCleanup } from './cleanup';
+import type { LiveCli } from './cli';
+import type { LiveProvider, LiveProviderName } from './providers';
+import type { Redactor } from './redaction';
+import type { Tailnet } from './tailnet';
 
 /** live run selection shared from global setup with every live spec */
 export interface LiveRunConfiguration {

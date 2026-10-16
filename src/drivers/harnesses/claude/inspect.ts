@@ -7,20 +7,17 @@ import {
 import { runBoundedIO } from '#operation';
 import { isRecord } from '#utilities/guards';
 
-import { hasWorkHooks } from '../shared/hooks.js';
-import {
-  enabledSelections,
-  listNativePlugins,
-} from '../shared/plugin-state.js';
-import { awakeHooksReadiness, proxyReadiness } from '../shared/readiness.js';
+import { hasWorkHooks } from '../shared/hooks';
+import { enabledSelections, listNativePlugins } from '../shared/plugin-state';
+import { awakeHooksReadiness, proxyReadiness } from '../shared/readiness';
 
-import { CLAUDE_WORK_HOOKS } from './hooks.js';
-import { inspectClaudeInitialization } from './initialization.js';
+import { CLAUDE_WORK_HOOKS } from './hooks';
+import { inspectClaudeInitialization } from './initialization';
 import {
   CLAUDE_INVENTORY,
   CLAUDE_PLUGIN_STATE,
   CLAUDE_SETTINGS,
-} from './paths.js';
+} from './paths';
 
 import type {
   HarnessInspection,
@@ -31,7 +28,7 @@ import type {
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { GuestCommandResult } from '#integrations/guest/run';
 
-import type { ClaudeInitialization } from './initialization.js';
+import type { ClaudeInitialization } from './initialization';
 
 /**
  * reads Claude settings, plugin inventory and SDK initialization without a model turn

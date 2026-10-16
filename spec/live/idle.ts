@@ -1,9 +1,9 @@
 import { WebSocket } from 'ws';
 
-import { asRoot } from './guest.js';
-import { GOVERNOR_REPORT, reportedGovernorState } from './layout.js';
+import { asRoot } from './guest';
+import { GOVERNOR_REPORT, reportedGovernorState } from './layout';
 
-import type { LiveProvider, RunState } from './providers.js';
+import type { LiveProvider, RunState } from './providers';
 
 /** what the governor records, as the proof reads it */
 export interface GovernorState {

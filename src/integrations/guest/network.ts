@@ -5,7 +5,7 @@ import {
   networkIdentityRecorder,
   readGuestEnvironment,
   writeGuestProfile,
-} from './environment/store.js';
+} from './environment/store';
 
 import type { NetworkWithDaemon } from '#core/networks';
 import type { GuestChannel, GuestServiceState } from '#drivers/guest-channel';

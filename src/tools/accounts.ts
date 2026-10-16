@@ -4,7 +4,7 @@ import {
   LINUXBREW_HOME,
 } from '#integrations/guest/layout';
 
-import type { ToolOwner } from './contracts.js';
+import type { ToolOwner } from './contracts';
 
 /** the GitHub CLI in its keg's `opt` link, which only the Homebrew account can change */
 export const HOMEBREW_GH = `${HOMEBREW_PREFIX}/opt/gh/bin/gh`;

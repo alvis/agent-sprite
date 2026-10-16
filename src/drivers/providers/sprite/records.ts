@@ -1,7 +1,7 @@
 import { ProviderFault } from '#drivers/failures';
 
-import { MANAGED_LABEL, readMetadataLabels } from './labels.js';
-import { SPRITE_MACHINE } from './machines.js';
+import { MANAGED_LABEL, readMetadataLabels } from './labels';
+import { SPRITE_MACHINE } from './machines';
 
 import type { Sprite } from '@fly/sprites';
 

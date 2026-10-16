@@ -23,12 +23,12 @@ import { terminateWorkstation } from '#terminate';
 import { rememberSecret } from '#utilities/redaction';
 import { validateCommandRequest } from '#validation';
 
-import { chooseWorkstationAction } from './workstation/actions.js';
+import { chooseWorkstationAction } from './workstation/actions';
 import {
   locateProvider,
   providerAvailability,
   skippedProvider,
-} from './workstation/providers.js';
+} from './workstation/providers';
 
 import type { CommandResult } from '#command';
 import type { CommandRequest, Interaction } from '#command/contracts';

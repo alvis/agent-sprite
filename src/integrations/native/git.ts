@@ -15,7 +15,7 @@ import {
   ensurePrivateDirectory,
   runAsAgent,
   writeOwnedFile,
-} from '../guest/account.js';
+} from '../guest/account';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { GitIdentity } from '#input/types';

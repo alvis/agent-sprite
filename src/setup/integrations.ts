@@ -12,7 +12,7 @@ import type { NetworkWithDaemon } from '#core/networks';
 import type { WorkstationProfile } from '#core/profile';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 /**
  * persists a validated selection and stops every daemon the selection no

@@ -6,7 +6,7 @@ import type {
   NetworkManagement,
 } from '#drivers/networks/contracts';
 
-import type { ResolvedInputs } from './types.js';
+import type { ResolvedInputs } from './types';
 
 /**
  * gathers the caller-side network management credential from resolved inputs

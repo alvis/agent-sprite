@@ -1,9 +1,9 @@
 import { ProviderFault } from '#drivers/failures';
 import { isRecord } from '#utilities/guards';
 
-import { PRIVATE_V6_PREFIX } from './private-networks.js';
+import { PRIVATE_V6_PREFIX } from './private-networks';
 
-import type { MachineSpec } from './machine-config.js';
+import type { MachineSpec } from './machine-config';
 
 /** a Fly app, validated from the Machines API */
 export interface FlyApp {

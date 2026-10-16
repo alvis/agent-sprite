@@ -5,7 +5,7 @@ import { ProviderFault } from '#drivers/failures';
 import { flyMachine } from '#drivers/providers/fly-machine/provider';
 import { summarizeProfile } from '#drivers/providers/recorded';
 
-import { DISABLED_NETWORK_PROFILE } from '../../../fixtures/profile.js';
+import { DISABLED_NETWORK_PROFILE } from '../../../fixtures/profile';
 
 import type { WorkstationProfile } from '#core/profile';
 

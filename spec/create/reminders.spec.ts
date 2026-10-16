@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createPreflightSummary } from '#create/reminders';
 
-import { profileWith } from '../fixtures/profile.js';
+import { profileWith } from '../fixtures/profile';
 
 import type { ResolvedInputs } from '#input/types';
 

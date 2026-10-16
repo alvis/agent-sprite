@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { writeGuestFile } from '#integrations/guest/files';
 
-import { createFilesystemSprite, guestOf } from '../../mocks/sprites.js';
+import { createFilesystemSprite, guestOf } from '../../mocks/sprites';
 
 describe('fn:writeGuestFile', () => {
   it('should reject home and noncanonical destinations before root SDK mutation', async () => {

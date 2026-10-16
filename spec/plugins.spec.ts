@@ -8,7 +8,7 @@ import {
   validateMarketplaceSources,
 } from '#plugins';
 
-import { pluginFlags } from './fixtures/plugin-flags.js';
+import { pluginFlags } from './fixtures/plugin-flags';
 
 import type { CommandOptions } from '#command/contracts';
 import type { HarnessId } from '#core/catalog';

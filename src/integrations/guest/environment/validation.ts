@@ -5,7 +5,7 @@ import { parseProfile } from '#core/profile';
 import { GUEST_ROOT } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
-import type { GuestEnvironment } from './contracts.js';
+import type { GuestEnvironment } from './contracts';
 
 /** tells whether a value has a shape */
 type Check = (value: unknown) => boolean;

@@ -1,9 +1,9 @@
 import { harnessDrivers, harnessIds } from '#core/harnesses';
 import { serviceLabels } from '#core/services';
 
-import { isJsonObject } from '../serialization.js';
+import { isJsonObject } from '../serialization';
 
-import type { JsonObject, JsonValue } from '../serialization.js';
+import type { JsonObject, JsonValue } from '../serialization';
 
 /** every C0 and C1 control character */
 const CONTROL_CHARACTERS = /\p{Cc}/gu;

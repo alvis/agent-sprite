@@ -16,10 +16,10 @@ import {
 } from '#operation';
 import { resolvePluginActions, validateMarketplaceSources } from '#plugins';
 
-import { authorizationFailure } from './failure.js';
-import { promptCreatePluginOptions } from './plugins.js';
-import { createPreflightSummary } from './reminders.js';
-import { confirmCreation, reviewCreatePlan } from './review.js';
+import { authorizationFailure } from './failure';
+import { promptCreatePluginOptions } from './plugins';
+import { createPreflightSummary } from './reminders';
+import { confirmCreation, reviewCreatePlan } from './review';
 
 import type { CommandResult } from '#command';
 import type {
@@ -33,8 +33,8 @@ import type { NetworkExitNode } from '#drivers/networks/contracts';
 import type { PrerequisiteProblem } from '#drivers/providers/prerequisites';
 import type { ResolvedInputs } from '#input/types';
 
-import type { CreateContext } from './context.js';
-import type { RequiredCreateValues, ReviewContext } from './review.js';
+import type { CreateContext } from './context';
+import type { RequiredCreateValues, ReviewContext } from './review';
 
 interface CreateProviderChecks {
   /** the provider answered with the entered credential */

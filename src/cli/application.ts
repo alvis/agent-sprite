@@ -5,17 +5,13 @@ import { buildApplication, buildRouteMap } from '@stricli/core';
 import { catalog } from '#core/catalog';
 import { OPEN_AGENT_VERSION } from '#utilities/version';
 
-import { commandRoutes } from './commands.js';
-import { emitResult } from './execute.js';
-import {
-  applicationText,
-  parseApplication,
-  requestedCommand,
-} from './parser.js';
+import { commandRoutes } from './commands';
+import { emitResult } from './execute';
+import { applicationText, parseApplication, requestedCommand } from './parser';
 
 import type { Application, RouteMap } from '@stricli/core';
 
-import type { ExecutionState, InvocationContext } from './parser.js';
+import type { ExecutionState, InvocationContext } from './parser';
 
 const ENVIRONMENT_NAME_WIDTH = 19;
 const ROOT_HELP_FOOTER = `ENVIRONMENT

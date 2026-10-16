@@ -1,7 +1,7 @@
 import { AGENT_HOME, GUEST_ROOT } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
-import type { PluginInventory } from '../shared/plugin-state.js';
+import type { PluginInventory } from '../shared/plugin-state';
 
 /** Codex configuration directory, also its `CODEX_HOME` */
 export const CODEX_HOME = `${AGENT_HOME}/.codex`;

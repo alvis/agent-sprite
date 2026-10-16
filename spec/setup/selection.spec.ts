@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { replaceNetworkCredential } from '#setup/credentials';
 import { selectSetupSection } from '#setup/selection';
 
-import { driveInk } from '../fixtures/ink.js';
+import { driveInk } from '../fixtures/ink';
 
 describe('workflow:interactive navigation', () => {
   it('should return from network choices and declines a shared credential before reading a key', async () => {

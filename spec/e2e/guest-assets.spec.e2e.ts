@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
-import { packageRoot } from '../fixtures/packed-guest.js';
+import { packageRoot } from '../fixtures/packed-guest';
 
 /**
  * lists every guest program in the checkout

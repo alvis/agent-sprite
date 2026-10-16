@@ -2,17 +2,17 @@ import { guestFileExists, readGuestFile } from '#integrations/guest/files';
 
 import { isRecord } from '#utilities/guards';
 
-import { captureOrRefreshOwnedValue } from '../shared/proxy-ownership.js';
+import { captureOrRefreshOwnedValue } from '../shared/proxy-ownership';
 
-import { CODEX_TOKEN } from './paths.js';
+import { CODEX_TOKEN } from './paths';
 
 import type { TomlTable, TomlValue } from 'smol-toml';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { OwnedConfigurationValue } from '../shared/proxy-ownership.js';
+import type { OwnedConfigurationValue } from '../shared/proxy-ownership';
 
-import type { CodexManagedValues, CodexOwnership } from './types.js';
+import type { CodexManagedValues, CodexOwnership } from './types';
 
 /** inputs for capturing every managed Codex field */
 interface CaptureParams {

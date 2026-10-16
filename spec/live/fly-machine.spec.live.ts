@@ -45,7 +45,7 @@ import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { ENVIRONMENT_PATH, GUEST_ROOT } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
-import { createLiveCli, successData } from './cli.js';
+import { createLiveCli, successData } from './cli';
 import {
   createFlyInventory,
   flyAddresses,
@@ -57,17 +57,17 @@ import {
   flyVolumeState,
   setFlyMachineMemory,
   stopFlyMachine,
-} from './fly.js';
-import { createLiveHarness } from './harness.js';
-import { GOVERNOR_REPORT, HOMEBREW, reportedGovernorState } from './layout.js';
+} from './fly';
+import { createLiveHarness } from './harness';
+import { GOVERNOR_REPORT, HOMEBREW, reportedGovernorState } from './layout';
 
 import type { HarnessId } from '#core/catalog';
 import type { WorkstationProfile } from '#core/profile';
 import type { WorkstationRecord } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { LiveCli } from './cli.js';
-import type { FlyMachineTarget } from './fly.js';
+import type { LiveCli } from './cli';
+import type { FlyMachineTarget } from './fly';
 
 /** the root filesystem facts a cold boot must keep, read as root */
 interface BootFacts {

@@ -7,7 +7,7 @@ import { inspectUntilServing } from '#serving';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 /**
  * waits for the restarted agent service to serve, then exposes it; a

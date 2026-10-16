@@ -23,19 +23,11 @@ export default preset('open-agent', {
       'test:coverage': 'vitest run --project=open-agent:UNIT --coverage',
     },
     assets: {
-      '.gitignore': asset<string[]>((current) => [
-        ...(current ?? []),
-        '.state/',
-      ]),
       // guest programs ship as they are, at their install paths
       '.npmignore': asset<string[]>((current) => [
         ...(current ?? []),
         '!/guest/**',
       ]),
-      'tsconfig.json': asset<{ exclude?: string[] }>((current) => ({
-        ...current,
-        exclude: [...(current?.exclude ?? []), '.state'],
-      })),
       'eslint.config.ts': asset((current) => ({
         ...current,
         default: [

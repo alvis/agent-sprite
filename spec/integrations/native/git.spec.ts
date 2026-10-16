@@ -25,7 +25,7 @@ import {
   createNativeCommandExecutor,
   guestOf,
   sessionGuestOf,
-} from '../../mocks/sprites.js';
+} from '../../mocks/sprites';
 
 import type { Sprite } from '@fly/sprites';
 

@@ -1,4 +1,4 @@
-import { SessionTransportFault } from './faults.js';
+import { SessionTransportFault } from './faults';
 
 /** output a stream keeps for one command, 4 MiB; older output is dropped first */
 const OUTPUT_LIMIT_BYTES = 4_194_304;

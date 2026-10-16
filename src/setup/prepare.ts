@@ -9,15 +9,15 @@ import {
   persistSetupProfile,
   profileUpdateSelected,
   targetedProfile,
-} from './integrations.js';
-import { verifySetupExitNode } from './network.js';
+} from './integrations';
+import { verifySetupExitNode } from './network';
 import {
   assertSameWorkstationKind,
   isNetworkEnrolled,
   readSetupEnvironment,
   unrecordedProfile,
-} from './recorded.js';
-import { resizeWhenRequested } from './resize.js';
+} from './recorded';
+import { resizeWhenRequested } from './resize';
 
 import type {
   CommandOptions,
@@ -30,7 +30,7 @@ import type { GuestChannel } from '#drivers/guest-channel';
 import type { SuppliedSelection } from '#input/selection-supplied';
 import type { InputSources } from '#input/sources';
 
-import type { SetupContext, SetupProgress } from './context.js';
+import type { SetupContext, SetupProgress } from './context';
 
 /** what a setup run is prepared from */
 interface SetupPreparationParams {

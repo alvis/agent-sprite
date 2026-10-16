@@ -1,5 +1,5 @@
-import { cli } from './application.js';
-import { flushOutput } from './streams.js';
+import { cli } from './application';
+import { flushOutput } from './streams';
 
 /**
  * runs the CLI for the installed executable and flushes its final output

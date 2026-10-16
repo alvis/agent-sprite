@@ -1,6 +1,6 @@
-import { restoreTailnetDns } from './daemon.js';
-import { tailscaleDaemon } from './service.js';
-import { inspectTailscale } from './status.js';
+import { restoreTailnetDns } from './daemon';
+import { tailscaleDaemon } from './service';
+import { inspectTailscale } from './status';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { NetworkReleaseParams } from '#drivers/networks/contracts';

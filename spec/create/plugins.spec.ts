@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { promptCreatePluginOptions } from '#create/plugins';
 
-import { driveInk } from '../fixtures/ink.js';
-import { pluginFlags } from '../fixtures/plugin-flags.js';
+import { driveInk } from '../fixtures/ink';
+import { pluginFlags } from '../fixtures/plugin-flags';
 
 describe('fn:promptCreatePluginOptions', () => {
   it('should not invent marketplace setup or cross-harness reuse under --yes', async () => {

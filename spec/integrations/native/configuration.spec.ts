@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { CLAUDE_PLUGIN_STATE } from '#drivers/harnesses/claude/paths';
 import { readSelectedPlugins } from '#integrations/native/configuration';
 
-import { createFilesystemSprite, guestOf } from '../../mocks/sprites.js';
+import { createFilesystemSprite, guestOf } from '../../mocks/sprites';
 
 describe('fn:readSelectedPlugins', () => {
   it('should reject malformed persisted identities instead of treating them as an empty selection', async () => {

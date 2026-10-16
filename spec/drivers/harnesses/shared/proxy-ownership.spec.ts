@@ -10,7 +10,7 @@ import {
   restoreOwnedFile,
 } from '#drivers/harnesses/shared/proxy-ownership';
 
-import { createFilesystemSprite, guestOf } from '../../../mocks/sprites.js';
+import { createFilesystemSprite, guestOf } from '../../../mocks/sprites';
 
 describe('fn:readOwnershipRecord', () => {
   it('should reject malformed schema, fields, and required value evidence from actual persisted files', async () => {

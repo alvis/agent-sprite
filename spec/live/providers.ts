@@ -3,7 +3,7 @@ import { APIError, SpritesClient } from '@fly/sprites';
 import { catalog } from '#core/catalog';
 import { MANAGED_LABEL } from '#drivers/providers/sprite/labels';
 
-import { assertOwnedWorkstation } from './ownership.js';
+import { assertOwnedWorkstation } from './ownership';
 
 import type { Sprite } from '@fly/sprites';
 

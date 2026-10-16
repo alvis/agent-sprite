@@ -7,7 +7,7 @@ import {
 } from '#integrations/guest/environment/store';
 import { markInstallationReady } from '#integrations/guest/install';
 
-import { installSetupPlan } from './install.js';
+import { installSetupPlan } from './install';
 
 import type { NetworkSetupData } from '#command/data';
 import type { WorkstationProfile } from '#core/profile';
@@ -15,7 +15,7 @@ import type { GuestChannel } from '#drivers/guest-channel';
 import type { NetworkExitNode } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 /**
  * enrolls the selected network or update the existing device's exit route;

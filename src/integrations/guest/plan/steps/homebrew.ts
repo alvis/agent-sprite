@@ -6,15 +6,15 @@ import {
   NO_BOTTLE_PREFIX,
 } from '#tools/libraries';
 
-import { libraryCommand } from './library.js';
+import { libraryCommand } from './library';
 
 import type { OsFamily } from '#os/contracts';
 import type { Resolution } from '#tools/contracts';
 import type { RefusedSource } from '#tools/resolve';
 
-import type { SetupStep, StepCommand } from '../contracts.js';
+import type { SetupStep, StepCommand } from '../contracts';
 
-import type { LibraryCall } from './library.js';
+import type { LibraryCall } from './library';
 
 /** id of the step that installs Homebrew */
 export const HOMEBREW_STEP = 'homebrew';

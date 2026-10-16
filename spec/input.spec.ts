@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { resolveCreateInputs, resolveInputs } from '#input';
 import { resolveProviderCredential } from '#input/provider-credential';
 
-import { profileWith } from './fixtures/profile.js';
+import { profileWith } from './fixtures/profile';
 
 describe('fn:resolveInputs', () => {
   it('should aggregate all missing selection inputs before account discovery', async () => {

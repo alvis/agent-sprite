@@ -8,7 +8,7 @@ import { retainManagementCredential } from '#input/prompts';
 import { readLocalCredential } from '#integrations/credentials';
 import { setupLocalCredential } from '#setup/credentials';
 
-import { driveInk } from '../fixtures/ink.js';
+import { driveInk } from '../fixtures/ink';
 
 import type { CredentialStoreLocation } from '#integrations/credentials';
 

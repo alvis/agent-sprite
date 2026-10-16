@@ -2,10 +2,10 @@ import { ExecError } from '@fly/sprites';
 
 import { checkOperation, currentOperation, runOperation } from '#operation';
 
-import { callSprites, toProviderFailure } from './failures.js';
-import { privilegedArguments, SUDO_PROGRAM } from './privilege.js';
-import { SpriteGuestProcess } from './process.js';
-import { SpriteServiceControl } from './services.js';
+import { callSprites, toProviderFailure } from './failures';
+import { privilegedArguments, SUDO_PROGRAM } from './privilege';
+import { SpriteGuestProcess } from './process';
+import { SpriteServiceControl } from './services';
 
 import type { ExecResult, Sprite } from '@fly/sprites';
 

@@ -15,7 +15,7 @@ import type {
   ManagementCredentialName,
 } from '#integrations/credentials';
 
-import type { RequiredInput, ResolvedInputs } from './types.js';
+import type { RequiredInput, ResolvedInputs } from './types';
 
 interface PromptContext {
   options: CommandOptions;

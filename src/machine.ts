@@ -1,6 +1,6 @@
 import { registeredSummary } from '#core/profile';
 
-import { CommandFault } from './errors.js';
+import { CommandFault } from './errors';
 
 import type { ProfileSummary } from '#core/profile';
 import type {

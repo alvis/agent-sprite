@@ -7,11 +7,11 @@ import { refusedCredential } from '#drivers/shared/prerequisites';
 import { checkOperation } from '#operation';
 import { runLocal } from '#utilities/process';
 
-import { catalog } from './catalog.js';
+import { catalog } from './catalog';
 
 import type { PrerequisiteProblem } from '#drivers/providers/prerequisites';
 
-import type { ProviderId } from './catalog.js';
+import type { ProviderId } from './catalog';
 
 /** a provider credential and where it was read from */
 interface PreflightCredential {

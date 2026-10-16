@@ -10,9 +10,9 @@ import {
   NO_SHM_STATUS,
   openBody,
   SESSION_HELPERS,
-} from './framing.js';
-import { OS_PROBE_BODY, parseOsProbe } from './os-probe.js';
-import { ShellSession } from './session.js';
+} from './framing';
+import { OS_PROBE_BODY, parseOsProbe } from './os-probe';
+import { ShellSession } from './session';
 
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 import type { GuestExecResult, GuestProcess } from '#drivers/guest-channel';
@@ -22,7 +22,7 @@ import type {
   GuestSession,
   SessionAwakeHold,
   SessionFamily,
-} from './contracts.js';
+} from './contracts';
 
 const MILLISECONDS_PER_SECOND = 1000;
 /** longest the OS probe may take */

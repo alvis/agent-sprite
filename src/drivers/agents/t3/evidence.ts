@@ -2,7 +2,7 @@ import { runGuestResult } from '#integrations/guest/run';
 import { checkOperation } from '#operation';
 import { isRecord } from '#utilities/guards';
 
-import { T3_HTTP_PORT } from './service.js';
+import { T3_HTTP_PORT } from './service';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 

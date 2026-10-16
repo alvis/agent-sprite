@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { isPrintableInput } from '#cli/keystroke';
 
-import { choiceWindow } from './Choices.js';
+import { choiceWindow } from './Choices';
 
 import type { Dispatch, SetStateAction } from 'react';
 

@@ -1,8 +1,8 @@
-import { quoteWord } from '../../session/framing.js';
+import { quoteWord } from '../../session/framing';
 
 import type { GuestAsset } from '#os/contracts';
 
-import type { StepCommand } from '../contracts.js';
+import type { StepCommand } from '../contracts';
 
 /** one call of a guest library function: the function, then its arguments */
 export type LibraryCall = readonly [string, ...string[]];

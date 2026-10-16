@@ -9,22 +9,22 @@ import { traceStage } from '#operation';
 
 import { validateSetupIntegrationOptions } from '#validation';
 
-import { setupAll } from './setup/all.js';
-import { setupLocalCredential } from './setup/credentials.js';
-import { setupFailure } from './setup/failure.js';
-import { recordSetupMetadata } from './setup/metadata.js';
-import { setupNetwork } from './setup/network.js';
-import { setupPlugins } from './setup/plugins.js';
-import { prepareSetupContext } from './setup/prepare.js';
+import { setupAll } from './setup/all';
+import { setupLocalCredential } from './setup/credentials';
+import { setupFailure } from './setup/failure';
+import { recordSetupMetadata } from './setup/metadata';
+import { setupNetwork } from './setup/network';
+import { setupPlugins } from './setup/plugins';
+import { prepareSetupContext } from './setup/prepare';
 import {
   setupEnvironment,
   setupGit,
   setupGithub,
   setupAgent,
   setupProxy,
-} from './setup/sections.js';
-import { selectSetupSection } from './setup/selection.js';
-import { setupTools } from './setup/tools.js';
+} from './setup/sections';
+import { selectSetupSection } from './setup/selection';
+import { setupTools } from './setup/tools';
 
 import type { CommandResult } from '#command';
 import type {
@@ -39,8 +39,8 @@ import type { GuestChannel } from '#drivers/guest-channel';
 import type { SuppliedSelection } from '#input/selection-supplied';
 import type { InputSources } from '#input/sources';
 
-import type { SetupContext } from './setup/context.js';
-import type { SetupSelection } from './setup/selection.js';
+import type { SetupContext } from './setup/context';
+import type { SetupSelection } from './setup/selection';
 
 interface SetupSelectionParams {
   request: CommandRequest;

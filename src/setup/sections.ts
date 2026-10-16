@@ -19,8 +19,8 @@ import {
 import { promptUnavailableDetail } from '#operation';
 import { PairingSecret } from '#utilities/pairing-secret';
 
-import { installSetupPlan } from './install.js';
-import { exposeWhenServing } from './serving.js';
+import { installSetupPlan } from './install';
+import { exposeWhenServing } from './serving';
 
 import type {
   AgentSetupData,
@@ -31,7 +31,7 @@ import type {
 } from '#command/data';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 /**
  * installs persistent agent services, moves the agent to the release channel

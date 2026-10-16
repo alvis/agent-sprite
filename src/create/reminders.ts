@@ -5,7 +5,7 @@ import { networkDriver } from '#core/networks';
 import type { NetworkExitNode } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
 
-import type { CreatePreflight } from './context.js';
+import type { CreatePreflight } from './context';
 
 /**
  * distinguishes verified caller checks from readiness requiring the new guest

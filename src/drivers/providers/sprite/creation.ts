@@ -8,8 +8,8 @@ import {
   runOperation,
 } from '#operation';
 
-import { isSpriteAbsent, toProviderFailure } from './failures.js';
-import { MANAGED_LABEL, profileSummaryLabels, SCHEMA_LABEL } from './labels.js';
+import { isSpriteAbsent, toProviderFailure } from './failures';
+import { MANAGED_LABEL, profileSummaryLabels, SCHEMA_LABEL } from './labels';
 
 import type { Sprite, SpritesClient } from '@fly/sprites';
 

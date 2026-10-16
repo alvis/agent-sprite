@@ -1,25 +1,25 @@
-import { matchesExitNode } from './api.js';
+import { matchesExitNode } from './api';
 import {
   cleanupTailnetDevice,
   assertSafeTailnetTarget,
   removeStaleTailnetDevice,
-} from './cleanup.js';
-import { enrollTailscale } from './enroll.js';
-import { identifyTailnetDevice } from './identity.js';
+} from './cleanup';
+import { enrollTailscale } from './enroll';
+import { identifyTailnetDevice } from './identity';
 import {
   issueTailscaleCredential,
   preflightTailscale,
   verifyTailscaleExitNode,
-} from './preflight.js';
-import { tailscaleReadiness } from './readiness.js';
-import { releaseTailscale } from './release.js';
-import { tailscaleDaemon, tailscaleLauncher } from './service.js';
-import { inspectTailscale } from './status.js';
-import { tailscaleTool } from './tools.js';
+} from './preflight';
+import { tailscaleReadiness } from './readiness';
+import { releaseTailscale } from './release';
+import { tailscaleDaemon, tailscaleLauncher } from './service';
+import { inspectTailscale } from './status';
+import { tailscaleTool } from './tools';
 
 import type { NetworkDriver } from '#drivers/networks/contracts';
 
-import type { TailnetStatus } from './types.js';
+import type { TailnetStatus } from './types';
 
 /** Tailscale as a private-network driver */
 export const tailscale: NetworkDriver<'tailscale', TailnetStatus> = {

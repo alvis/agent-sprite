@@ -7,19 +7,15 @@ import {
   resultDetailsElement,
 } from '#components/OutputPresentation';
 
-import { humanResultDetails } from './output/details.js';
-import { isJsonObject, serializeResult } from './serialization.js';
+import { humanResultDetails } from './output/details';
+import { isJsonObject, serializeResult } from './serialization';
 
 import type { Writable } from 'node:stream';
 
 import type { CommandResult } from '#command';
 import type { CommandOptions } from '#command/contracts';
 
-import type {
-  JsonObject,
-  JsonValue,
-  SerializedResult,
-} from './serialization.js';
+import type { JsonObject, JsonValue, SerializedResult } from './serialization';
 
 interface ResultStream extends Writable {
   isTTY?: boolean;

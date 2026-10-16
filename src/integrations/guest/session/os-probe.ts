@@ -2,7 +2,7 @@ import { CommandFault } from '#errors';
 
 import type { CpuArch, OsImage, OsRelease } from '#os/contracts';
 
-import type { SessionFamily } from './contracts.js';
+import type { SessionFamily } from './contracts';
 
 /**
  * the body of the session's first script: it reads `/etc/os-release` (or

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { RETIRED_PRODUCT } from './identity.js';
+import { RETIRED_PRODUCT } from './identity';
 import {
   assertOwnedWorkstation,
   foreignIdentifiers,
   isRunWorkstation,
-} from './ownership.js';
+} from './ownership';
 
 const runId = 'oa-live-0a1b2c3d';
 const label = 'open-agent';

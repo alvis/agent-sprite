@@ -1,5 +1,5 @@
-import { CRON_LIBRARY, jobsStep } from './cron.js';
-import { runitBackend } from './runit/backend.js';
+import { CRON_LIBRARY, jobsStep } from './cron';
+import { runitBackend } from './runit/backend';
 
 import type { SetupStep } from '#integrations/guest/plan/contracts';
 import type {

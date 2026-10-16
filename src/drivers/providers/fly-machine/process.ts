@@ -5,9 +5,9 @@ import { PassThrough } from 'node:stream';
 
 import { ProviderFault } from '#drivers/failures';
 
-import { flyctlAgent } from './agent.js';
-import { flyctlEnvironment } from './flyctl.js';
-import { InBandStatusFilter, verifiedStatus } from './in-band.js';
+import { flyctlAgent } from './agent';
+import { flyctlEnvironment } from './flyctl';
+import { InBandStatusFilter, verifiedStatus } from './in-band';
 
 import type { ChildProcessByStdio } from 'node:child_process';
 import type { Readable, Writable } from 'node:stream';

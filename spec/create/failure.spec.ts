@@ -10,8 +10,8 @@ import { rememberSecret } from '#utilities/redaction';
 import {
   DEFAULT_AGENT_PORT,
   DISABLED_NETWORK_PROFILE,
-} from '../fixtures/profile.js';
-import { providerOf } from '../mocks/sprites.js';
+} from '../fixtures/profile';
+import { providerOf } from '../mocks/sprites';
 
 describe('cmd:create failure', () => {
   it('should retain verified preflight, exact name and immutable ID after an uncertain provider create', async () => {

@@ -1,6 +1,6 @@
 import { runAsAgent } from '#integrations/guest/account';
 
-import { t3Tool } from './tools.js';
+import { t3Tool } from './tools';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 

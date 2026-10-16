@@ -9,22 +9,22 @@ import { backendSteps, backendTools } from '#services/backends';
 import { BASE_TOOLS } from '#tools/base';
 import { resolveTools } from '#tools/resolve';
 
-import { idleStep, IDLE_STEP } from '../awake.js';
-import { buildEnvironment } from '../environment/build.js';
+import { idleStep, IDLE_STEP } from '../awake';
+import { buildEnvironment } from '../environment/build';
 import {
   ENVIRONMENT_MODE,
   serializeEnvironment,
-} from '../environment/contracts.js';
+} from '../environment/contracts';
 import {
   environmentNetwork,
   guestJobs,
   guestServices,
-} from '../environment/services.js';
+} from '../environment/services';
 
-import { BOOTSTRAP_STEP, foundationSteps } from './foundation.js';
-import { fileStep } from './steps/file.js';
-import { HOMEBREW_STEP } from './steps/homebrew.js';
-import { toolSteps } from './steps/tools.js';
+import { BOOTSTRAP_STEP, foundationSteps } from './foundation';
+import { fileStep } from './steps/file';
+import { HOMEBREW_STEP } from './steps/homebrew';
+import { toolSteps } from './steps/tools';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { ProviderDriver } from '#drivers/contracts';
@@ -33,11 +33,11 @@ import type { OsFamily, OsImage, OsRelease } from '#os/contracts';
 import type { Resolution, ToolSpec } from '#tools/contracts';
 import type { RefusedSource } from '#tools/resolve';
 
-import type { GuestEnvironment } from '../environment/contracts.js';
-import type { GuestNetworkIdentity } from '../run.js';
+import type { GuestEnvironment } from '../environment/contracts';
+import type { GuestNetworkIdentity } from '../run';
 
-import type { SetupStep } from './contracts.js';
-import type { PlanProvider } from './foundation.js';
+import type { SetupStep } from './contracts';
+import type { PlanProvider } from './foundation';
 
 /** id of the step that writes environment.json */
 const ENVIRONMENT_STEP = 'environment';

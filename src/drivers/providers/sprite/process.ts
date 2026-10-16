@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
-import { toProviderFailure } from './failures.js';
+import { toProviderFailure } from './failures';
 
 import type { Readable, Writable } from 'node:stream';
 

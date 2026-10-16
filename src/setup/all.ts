@@ -3,9 +3,9 @@ import { markInstallationReady } from '#integrations/guest/install';
 import { writeWorkstationLabel } from '#integrations/guest/label';
 import { traceStage } from '#operation';
 
-import { installSetupPlan } from './install.js';
-import { setupNetwork } from './network.js';
-import { setupPlugins } from './plugins.js';
+import { installSetupPlan } from './install';
+import { setupNetwork } from './network';
+import { setupPlugins } from './plugins';
 import {
   setupEnvironment,
   setupGit,
@@ -13,13 +13,13 @@ import {
   setupProxy,
   setupAgent,
   stopService,
-} from './sections.js';
-import { exposeWhenServing } from './serving.js';
+} from './sections';
+import { exposeWhenServing } from './serving';
 
 import type { AllSetupData } from '#command/data';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 /**
  * reconciles every managed guest section: the setup plan installs the tools,

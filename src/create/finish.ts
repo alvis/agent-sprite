@@ -16,8 +16,8 @@ import { inspectUntilServing } from '#serving';
 import { PairingSecret } from '#utilities/pairing-secret';
 import { OPEN_AGENT_VERSION } from '#utilities/version';
 
-import { configureNewWorkstation } from './configure.js';
-import { withCreateHold } from './hold.js';
+import { configureNewWorkstation } from './configure';
+import { withCreateHold } from './hold';
 
 import type { CommandResult } from '#command';
 import type { Interaction } from '#command/contracts';
@@ -29,7 +29,7 @@ import type {
 } from '#integrations/credentials';
 import type { GuestInspection } from '#integrations/guest/inspection-types';
 
-import type { CreateContext, CreatePreflight } from './context.js';
+import type { CreateContext, CreatePreflight } from './context';
 
 interface ResultContext {
   workstation: WorkstationRecord;

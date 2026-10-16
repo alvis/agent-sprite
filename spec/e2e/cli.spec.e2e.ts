@@ -18,8 +18,8 @@ import { pathToFileURL } from 'node:url';
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
-import { runOffline } from '../fixtures/network-block.js';
-import { runTerminal } from '../fixtures/terminal.js';
+import { runOffline } from '../fixtures/network-block';
+import { runTerminal } from '../fixtures/terminal';
 
 const packedBin = process.env.OPEN_AGENT_PACKED_BIN;
 const pendingConnection =

@@ -1,8 +1,8 @@
-import { catalog } from './catalog.js';
+import { catalog } from './catalog';
 
 import type { NetworkDriver } from '#drivers/networks/contracts';
 
-import type { NetworkId } from './catalog.js';
+import type { NetworkId } from './catalog';
 
 /** a registered network driver, whatever it declares */
 export type RegisteredNetwork = NetworkDriver<NetworkId>;

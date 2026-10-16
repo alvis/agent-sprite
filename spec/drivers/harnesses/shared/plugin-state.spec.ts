@@ -26,7 +26,7 @@ import {
   createFilesystemSprite,
   executeNativeConfiguration,
   guestOf,
-} from '../../../mocks/sprites.js';
+} from '../../../mocks/sprites';
 
 import type { ExecResult, Sprite } from '@fly/sprites';
 

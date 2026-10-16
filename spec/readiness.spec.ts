@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { assessReadiness } from '#readiness';
 
-import { environmentOf } from './fixtures/environment.js';
-import { profileWith } from './fixtures/profile.js';
+import { environmentOf } from './fixtures/environment';
+import { profileWith } from './fixtures/profile';
 
 import type { ProviderId } from '#core/catalog';
 import type { GuestServiceState } from '#drivers/guest-channel';

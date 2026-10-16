@@ -1,8 +1,8 @@
 import { catalog } from '#core/catalog';
 
-import { isRunWorkstation } from './ownership.js';
+import { isRunWorkstation } from './ownership';
 
-import type { LiveInventory } from './providers.js';
+import type { LiveInventory } from './providers';
 
 /** one app as the Machines API lists it */
 interface FlyAppSummary {

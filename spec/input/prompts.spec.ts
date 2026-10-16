@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { commandError } from '#errors';
 import { resolveInteractiveInputs } from '#input/prompts';
 
-import { driveInk } from '../fixtures/ink.js';
-import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+import { driveInk } from '../fixtures/ink';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile';
 
 import type { ResolvedInputs } from '#input/types';
 

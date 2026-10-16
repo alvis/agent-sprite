@@ -2,27 +2,27 @@ import { ProviderFault } from '#drivers/failures';
 import { checkOperation, currentOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
-import { FlyApi } from './api.js';
-import { flyBootHookStep } from './boot-hook-step.js';
-import { BOOT_HOOK } from './boot-layout.js';
-import { inspectFlyBoot, startAndBoot } from './boot.js';
-import { FLY_MACHINE_AWAKE, FLY_MACHINE_CAPABILITIES } from './capabilities.js';
-import { FlyGuestChannel } from './channel.js';
-import { createManagedApp } from './creation.js';
-import { waitUntilDeleted } from './deletion.js';
-import { deriveSshToken } from './flyctl.js';
-import { declaresAgentService, FLY_MACHINE_IMAGES } from './machine-config.js';
-import { FLY_MACHINES } from './machines.js';
-import { metadataUpdate } from './metadata.js';
+import { FlyApi } from './api';
+import { inspectFlyBoot, startAndBoot } from './boot';
+import { flyBootHookStep } from './boot-hook-step';
+import { BOOT_HOOK } from './boot-layout';
+import { FLY_MACHINE_AWAKE, FLY_MACHINE_CAPABILITIES } from './capabilities';
+import { FlyGuestChannel } from './channel';
+import { createManagedApp } from './creation';
+import { waitUntilDeleted } from './deletion';
+import { deriveSshToken } from './flyctl';
+import { declaresAgentService, FLY_MACHINE_IMAGES } from './machine-config';
+import { FLY_MACHINES } from './machines';
+import { metadataUpdate } from './metadata';
 import {
   FLY_MACHINE_PREREQUISITES,
   preflightFlyMachine,
-} from './prerequisites.js';
-import { isLive, isManaged, toRecord, workstationMachine } from './records.js';
-import { configuredRegion } from './region.js';
-import { resizeMachine } from './resize.js';
-import { isAccessDenied } from './status.js';
-import { PUBLIC_IP_TYPES } from './wire.js';
+} from './prerequisites';
+import { isLive, isManaged, toRecord, workstationMachine } from './records';
+import { configuredRegion } from './region';
+import { resizeMachine } from './resize';
+import { isAccessDenied } from './status';
+import { PUBLIC_IP_TYPES } from './wire';
 
 import type { WorkstationProfile } from '#core/profile';
 import type {
@@ -40,7 +40,7 @@ import type {
   ProviderPreflightParams,
 } from '#drivers/providers/prerequisites';
 
-import type { FlyApp, FlyMachine } from './wire.js';
+import type { FlyApp, FlyMachine } from './wire';
 
 /** live provider state shared by every record one bound driver returns */
 interface FlySession {

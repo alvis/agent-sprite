@@ -2,7 +2,7 @@ import { harnessIds, harnessLabel } from '#core/harnesses';
 import { classifyMarketplaceSource } from '#integrations/marketplaces';
 import { recordOf } from '#utilities/records';
 
-import { CommandFault } from './errors.js';
+import { CommandFault } from './errors';
 
 import type { CommandOptions } from '#command/contracts';
 import type { HarnessId } from '#core/catalog';

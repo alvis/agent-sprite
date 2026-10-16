@@ -1,4 +1,4 @@
-import { parseWholeNumber } from './whole-number.js';
+import { parseWholeNumber } from './whole-number';
 
 /** the smallest machine a workstation may run on; the provider picks its smallest machine that fits */
 export const machineFlags = {

@@ -1,15 +1,15 @@
 import { CommandFault, ensureError, retainRecoveryFailure } from '#errors';
 import { recoverOperation, runBoundedIO } from '#operation';
 
-import { callSprites } from './failures.js';
-import { privilegedArguments, SUDO_PROGRAM } from './privilege.js';
-import { readServiceRegistry } from './services/registry.js';
+import { callSprites } from './failures';
+import { privilegedArguments, SUDO_PROGRAM } from './privilege';
+import { readServiceRegistry } from './services/registry';
 import {
   consumeServiceStream,
   drainServiceStartup,
   openServiceStream,
   waitForService,
-} from './services/stream.js';
+} from './services/stream';
 
 import type {
   ServiceLogStream,

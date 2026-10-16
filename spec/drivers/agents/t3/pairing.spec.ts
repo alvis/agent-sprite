@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { pairT3 } from '#drivers/agents/t3/pairing';
 import { redactResolved } from '#utilities/redaction';
 
-import { guestOf } from '../../../mocks/sprites.js';
+import { guestOf } from '../../../mocks/sprites';
 
 describe('fn:pairT3', () => {
   it('should register the generated pairing token before returning the guest result', async () => {

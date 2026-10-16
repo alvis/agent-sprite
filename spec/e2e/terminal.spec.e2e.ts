@@ -2,7 +2,7 @@ import { execPath } from 'node:process';
 
 import { describe, expect, it } from 'vitest';
 
-import { runTerminal } from '../fixtures/terminal.js';
+import { runTerminal } from '../fixtures/terminal';
 
 describe('fixture:native terminal', () => {
   it('should wait for each visible prompt before sending input', async () => {

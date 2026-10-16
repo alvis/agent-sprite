@@ -1,6 +1,6 @@
-import { debianFamily } from './debian/family.js';
+import { debianFamily } from './debian/family';
 
-import type { OsFamily, OsFamilyId, OsRelease } from './contracts.js';
+import type { OsFamily, OsFamilyId, OsRelease } from './contracts';
 
 /** every OS family setup supports, by identifier */
 export const OS_FAMILIES: Readonly<Record<OsFamilyId, OsFamily>> = {

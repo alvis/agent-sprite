@@ -6,7 +6,7 @@ import { checkOperation, runOperation } from '#operation';
 import { runLocal } from '#utilities/process';
 import { rememberSecret } from '#utilities/redaction';
 
-import { githubAccount } from './github-account.js';
+import { githubAccount } from './github-account';
 
 import type {
   CommandOptions,
@@ -14,8 +14,8 @@ import type {
   InteractionChoice,
 } from '#command/contracts';
 
-import type { InputSources } from './sources.js';
-import type { GitIdentity } from './types.js';
+import type { InputSources } from './sources';
+import type { GitIdentity } from './types';
 
 interface GitIdentityContext {
   options: CommandOptions;

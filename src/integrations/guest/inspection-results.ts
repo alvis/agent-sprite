@@ -2,12 +2,12 @@ import { ensureError } from '#errors';
 import { InteractionExit } from '#navigation';
 import { checkOperation } from '#operation';
 
-import { sanitizeGuestDiagnostic } from './diagnostics.js';
+import { sanitizeGuestDiagnostic } from './diagnostics';
 
 import type {
   GuestInspection,
   InspectionProbeFailure,
-} from './inspection-types.js';
+} from './inspection-types';
 
 type InspectionResults = readonly [
   PromiseSettledResult<GuestInspection['services']>,

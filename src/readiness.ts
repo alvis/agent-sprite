@@ -4,7 +4,7 @@ import { networkDriver } from '#core/networks';
 import { finding, gatedFinding } from '#drivers/findings';
 import { cronService } from '#services/cron';
 
-import { CommandFault } from './errors.js';
+import { CommandFault } from './errors';
 
 import type { ReadinessFinding } from '#drivers/contracts';
 import type {

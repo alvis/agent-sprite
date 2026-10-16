@@ -5,9 +5,9 @@ import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { readLocalCredential } from '#integrations/credentials';
 import { runOperation } from '#operation';
 
-import { resolveProviderCredential } from './provider-credential.js';
+import { resolveProviderCredential } from './provider-credential';
 
-import { resolveSecret, runtimeEnvironment } from './sources.js';
+import { resolveSecret, runtimeEnvironment } from './sources';
 
 import type { CommandOptions } from '#command/contracts';
 
@@ -18,8 +18,8 @@ import type {
   ManagementCredentialName,
 } from '#integrations/credentials';
 
-import type { InputSources } from './sources.js';
-import type { ResolvedInputs } from './types.js';
+import type { InputSources } from './sources';
+import type { ResolvedInputs } from './types';
 
 type SourceReader = (name: string, explicit?: string) => string | undefined;
 

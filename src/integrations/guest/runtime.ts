@@ -3,15 +3,15 @@ import { inspectHub } from '#drivers/shared/cliproxyapi/hub';
 import { inspectNativeConfiguration } from '#integrations/native/inspection';
 import { checkOperation, traceStage } from '#operation';
 
-import { inspectGovernor } from './awake.js';
-import { readGuestEnvironment, readUpdateStatus } from './environment/store.js';
-import { settleInspectionResults } from './inspection-results.js';
+import { inspectGovernor } from './awake';
+import { readGuestEnvironment, readUpdateStatus } from './environment/store';
+import { settleInspectionResults } from './inspection-results';
 
 import type { Interaction } from '#command/contracts';
 import type { BootReport, ProviderDriver } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { GuestInspection } from './inspection-types.js';
+import type { GuestInspection } from './inspection-types';
 
 const MILLISECONDS_PER_SECOND = 1000;
 const INSPECTION_MESSAGES = {

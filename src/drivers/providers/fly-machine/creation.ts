@@ -10,18 +10,18 @@ import {
   recoverOperation,
 } from '#operation';
 
-import { BOOT_STUB } from './boot-layout.js';
-import { machineSpec, VOLUME_NAME, VOLUME_SIZE_GB } from './machine-config.js';
-import { FLY_MACHINES } from './machines.js';
-import { creationMetadata } from './metadata.js';
-import { isNotFound } from './status.js';
+import { BOOT_STUB } from './boot-layout';
+import { machineSpec, VOLUME_NAME, VOLUME_SIZE_GB } from './machine-config';
+import { FLY_MACHINES } from './machines';
+import { creationMetadata } from './metadata';
+import { isNotFound } from './status';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { CreationOutcome } from '#drivers/creation';
 
-import type { FlyApi } from './api.js';
-import type { FlyMachineOffer } from './machines.js';
-import type { FlyMachine } from './wire.js';
+import type { FlyApi } from './api';
+import type { FlyMachineOffer } from './machines';
+import type { FlyMachine } from './wire';
 
 /** one create request and where it is placed */
 interface CreateAppParams {

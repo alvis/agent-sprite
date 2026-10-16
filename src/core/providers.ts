@@ -1,8 +1,8 @@
-import { catalog } from './catalog.js';
+import { catalog } from './catalog';
 
 import type { ProviderDriver } from '#drivers/contracts';
 
-import type { ProviderId } from './catalog.js';
+import type { ProviderId } from './catalog';
 
 /**
  * binds a provider to its management credential and to the agent services a

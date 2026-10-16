@@ -8,12 +8,12 @@ import { currentOperation, runOperation } from '#operation';
 import { familyOf } from '#os/families';
 import { RunitServiceControl } from '#services/runit/backend';
 
-import { flyctlAgent } from './agent.js';
-import { waitForBoot } from './boot.js';
-import { FLYCTL, flyctlEnvironment, prepareFlyctlDirectory } from './flyctl.js';
-import { inBandCommand, splitInBandStatus, verifiedStatus } from './in-band.js';
-import { FLY_MACHINE_IMAGES } from './machine-config.js';
-import { FlyGuestProcess } from './process.js';
+import { flyctlAgent } from './agent';
+import { waitForBoot } from './boot';
+import { FLYCTL, flyctlEnvironment, prepareFlyctlDirectory } from './flyctl';
+import { inBandCommand, splitInBandStatus, verifiedStatus } from './in-band';
+import { FLY_MACHINE_IMAGES } from './machine-config';
+import { FlyGuestProcess } from './process';
 
 import type {
   GuestChannel,
@@ -23,7 +23,7 @@ import type {
   GuestServiceControl,
 } from '#drivers/guest-channel';
 
-import type { FlyApi } from './api.js';
+import type { FlyApi } from './api';
 
 /** binds a guest channel to one machine */
 interface FlyGuestChannelParams {

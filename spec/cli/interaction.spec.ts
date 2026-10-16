@@ -6,8 +6,8 @@ import { commandError, resultExitCode } from '#errors';
 import { resolveSecret } from '#input/sources';
 import { returnOnBack, withBackNavigation } from '#navigation';
 
-import { createInteraction } from '../../src/cli/interaction.js';
-import { driveInk } from '../fixtures/ink.js';
+import { createInteraction } from '../../src/cli/interaction';
+import { driveInk } from '../fixtures/ink';
 
 describe('fn:createInteraction', () => {
   it('should redact registered credentials in real Ink status and progress output', async () => {

@@ -8,7 +8,7 @@ import { inspectTailscale } from '#drivers/networks/tailscale/status';
 import { OperationContext, withOperation } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 
-import { createFilesystemSprite, guestOf } from '../../../mocks/sprites.js';
+import { createFilesystemSprite, guestOf } from '../../../mocks/sprites';
 
 import type { ExecResult, Sprite } from '@fly/sprites';
 

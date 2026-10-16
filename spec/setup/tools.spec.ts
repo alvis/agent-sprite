@@ -24,9 +24,9 @@ import {
 import { setupTools } from '#setup/tools';
 import { OPEN_AGENT_VERSION } from '#utilities/version';
 
-import { environmentOf } from '../fixtures/environment.js';
-import { driveInk } from '../fixtures/ink.js';
-import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
+import { environmentOf } from '../fixtures/environment';
+import { driveInk } from '../fixtures/ink';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile';
 import {
   createFilesystemSprite,
   guestOf,
@@ -34,7 +34,7 @@ import {
   providerOf,
   workstationOf,
   writtenPaths,
-} from '../mocks/sprites.js';
+} from '../mocks/sprites';
 
 import type { Sprite } from '@fly/sprites';
 
@@ -42,12 +42,12 @@ import type { WorkstationProfile } from '#core/profile';
 import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 import type { SetupContext } from '#setup/context';
 
-import type { GuestExecute } from '../mocks/sprites.js';
+import type { GuestExecute } from '../mocks/sprites';
 
 // setup's root session is a framed guest shell only the live specs open
 vi.mock(
   '#integrations/guest/session/open',
-  async () => import('../mocks/session.js'),
+  async () => import('../mocks/session'),
 );
 // Codex trusts its hooks through its app server, a guest process only the live specs run
 vi.mock('#drivers/harnesses/codex/hook-trust', () => ({

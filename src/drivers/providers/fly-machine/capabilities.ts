@@ -1,7 +1,7 @@
 import { guestAsset } from '#integrations/guest/assets';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 
-import { PRIVATE_V6_NETWORK, PROXY_V4_NETWORK } from './private-networks.js';
+import { PRIVATE_V6_NETWORK, PROXY_V4_NETWORK } from './private-networks';
 
 import type { ProviderCapabilities } from '#drivers/contracts';
 import type { GuestAsset } from '#os/contracts';

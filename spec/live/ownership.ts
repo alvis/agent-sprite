@@ -1,6 +1,6 @@
-import { LIVE_RUN_ID, PRODUCT, RETIRED_PRODUCT } from './identity.js';
+import { LIVE_RUN_ID, PRODUCT, RETIRED_PRODUCT } from './identity';
 
-import type { WorkstationIdentity } from './providers.js';
+import type { WorkstationIdentity } from './providers';
 
 /** provider record observed immediately before a direct deletion */
 export interface ObservedWorkstation {

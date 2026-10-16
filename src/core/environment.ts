@@ -1,8 +1,8 @@
-import { catalog } from './catalog.js';
-import { harnessDrivers, harnessIds } from './harnesses.js';
-import { networksWithInputs } from './networks.js';
+import { catalog } from './catalog';
+import { harnessDrivers, harnessIds } from './harnesses';
+import { networksWithInputs } from './networks';
 
-import type { RegisteredNetwork } from './networks.js';
+import type { RegisteredNetwork } from './networks';
 
 /**
  * lists the management credentials every registered provider and network reads

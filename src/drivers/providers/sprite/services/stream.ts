@@ -4,7 +4,7 @@ import { CommandFault } from '#errors';
 import { sanitizeGuestDiagnostic } from '#integrations/guest/diagnostics';
 import { checkOperation, currentOperation, runBoundedIO } from '#operation';
 
-import { callSprites } from '../failures.js';
+import { callSprites } from '../failures';
 
 import type { ServiceLogEvent, ServiceLogStream, Sprite } from '@fly/sprites';
 

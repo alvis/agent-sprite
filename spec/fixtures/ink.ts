@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream';
 
-import { createInteraction } from '../../src/cli/interaction.js';
+import { createInteraction } from '../../src/cli/interaction';
 
 import type { Interaction } from '#command/contracts';
 

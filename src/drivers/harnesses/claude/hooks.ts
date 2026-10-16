@@ -8,9 +8,9 @@ import {
   HOOK_TIMEOUT_SECONDS,
   mergeWorkHooks,
   TURN_WORK_HOOKS,
-} from '../shared/hooks.js';
+} from '../shared/hooks';
 
-import { CLAUDE_CONFIG_DIR, CLAUDE_SETTINGS } from './paths.js';
+import { CLAUDE_CONFIG_DIR, CLAUDE_SETTINGS } from './paths';
 
 import type {
   AwakeHookCommand,
@@ -18,7 +18,7 @@ import type {
 } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { WorkHooks } from '../shared/hooks.js';
+import type { WorkHooks } from '../shared/hooks';
 
 /**
  * the awake hooks of Claude Code. Claude Code honours a command hook's

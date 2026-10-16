@@ -10,26 +10,22 @@ import {
   inferredOptions,
   networkChoices,
   providerChoices,
-} from './selection-choices.js';
+} from './selection-choices';
 import {
   resolveMachine,
   resolveOptions,
   resolveRelease,
-} from './selection-options.js';
-import { activePrompts } from './selection-sources.js';
-import { readSelection } from './selection-supplied.js';
+} from './selection-options';
+import { activePrompts } from './selection-sources';
+import { readSelection } from './selection-supplied';
 
 import type { SetupSection } from '#command/contracts';
 import type { ProfileCandidate, WorkstationProfile } from '#core/profile';
 import type { SelectionField } from '#core/selection-inputs';
 
-import type {
-  Prompts,
-  Resolved,
-  SelectionContext,
-} from './selection-sources.js';
-import type { SuppliedSelection } from './selection-supplied.js';
-import type { RequiredInput } from './types.js';
+import type { Prompts, Resolved, SelectionContext } from './selection-sources';
+import type { SuppliedSelection } from './selection-supplied';
+import type { RequiredInput } from './types';
 
 /** what an existing workstation's setup run reads before reaching the workstation */
 interface SetupReadContext extends Omit<SelectionContext, 'interaction'> {

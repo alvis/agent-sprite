@@ -1,2 +1,2 @@
 /** Codex harness driver */
-export { codex } from './harness.js';
+export { codex } from './harness';

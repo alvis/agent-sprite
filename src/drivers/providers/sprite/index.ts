@@ -1,1 +1,1 @@
-export { sprite } from './provider.js';
+export { sprite } from './provider';

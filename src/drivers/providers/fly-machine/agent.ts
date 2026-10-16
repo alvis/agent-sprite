@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { execa } from 'execa';
 
-import { FLYCTL, flyctlEnvironment, prepareFlyctlDirectory } from './flyctl.js';
+import { FLYCTL, flyctlEnvironment, prepareFlyctlDirectory } from './flyctl';
 
 const STOP_TIMEOUT_MS = 30_000;
 /** the directory naming, one file a pid, every process with an open session */

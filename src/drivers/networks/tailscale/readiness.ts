@@ -3,7 +3,7 @@ import { finding, gatedFinding } from '#drivers/findings';
 import type { ReadinessFinding } from '#drivers/contracts';
 import type { NetworkReadinessContext } from '#drivers/networks/contracts';
 
-import type { TailnetStatus } from './types.js';
+import type { TailnetStatus } from './types';
 
 /**
  * builds Tailscale checks, skipped for the routing the workstation does not select

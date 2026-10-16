@@ -1,1 +1,1 @@
-export { flyMachine } from './provider.js';
+export { flyMachine } from './provider';

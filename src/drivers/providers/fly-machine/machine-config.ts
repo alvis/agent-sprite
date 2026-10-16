@@ -4,13 +4,13 @@ import {
   BOOT_STUB_MODE,
   BOOT_STUB_PATH,
   VOLUME_PATH,
-} from './boot-layout.js';
-import { guestOf } from './machines.js';
+} from './boot-layout';
+import { guestOf } from './machines';
 
 import type { OsImage } from '#os/contracts';
 
-import type { FlyMachineOffer } from './machines.js';
-import type { FlyGuest, FlyServiceRoute } from './wire.js';
+import type { FlyMachineOffer } from './machines';
+import type { FlyGuest, FlyServiceRoute } from './wire';
 
 /** a file the machine writes to its root filesystem on every boot */
 interface MachineFile {

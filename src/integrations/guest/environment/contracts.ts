@@ -5,7 +5,7 @@
 import { CommandFault } from '#errors';
 import { isRecord } from '#utilities/guards';
 
-import { environmentProblem } from './validation.js';
+import { environmentProblem } from './validation';
 
 import type { WorkstationProfile } from '#core/profile';
 import type { IdleForm, KeepAwakeMode, WakeMode } from '#drivers/contracts';
@@ -18,7 +18,7 @@ import type { NetworkLauncher } from '#drivers/networks/contracts';
 import type { OsFamilyId, PeriodicJob, ServiceBackendId } from '#os/contracts';
 import type { ToolOwner, ToolSource } from '#tools/contracts';
 
-import type { GuestNetworkIdentity } from '../run.js';
+import type { GuestNetworkIdentity } from '../run';
 
 /** the record's mode: root writes it, every account reads it */
 export const ENVIRONMENT_MODE = 0o644;

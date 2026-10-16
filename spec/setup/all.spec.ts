@@ -8,15 +8,15 @@ import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
 import { CODEX_CONFIG } from '#drivers/harnesses/codex/paths';
 import { setupAll } from '#setup/all';
 
-import { profileWith } from '../fixtures/profile.js';
-import { createFilesystemSprite, workstationOf } from '../mocks/sprites.js';
+import { profileWith } from '../fixtures/profile';
+import { createFilesystemSprite, workstationOf } from '../mocks/sprites';
 
 import type { SetupContext } from '#setup/context';
 
 // setup's root session is a framed guest shell only the live specs open
 vi.mock(
   '#integrations/guest/session/open',
-  async () => import('../mocks/session.js'),
+  async () => import('../mocks/session'),
 );
 // Codex trusts its hooks through its app server, a guest process only the live specs run
 vi.mock('#drivers/harnesses/codex/hook-trust', () => ({

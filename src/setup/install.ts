@@ -5,7 +5,7 @@ import { traceStage } from '#operation';
 import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 import type { InstallParams } from '#integrations/guest/install';
 
-import type { SetupContext } from './context.js';
+import type { SetupContext } from './context';
 
 /**
  * runs the workstation's setup plan for the profile this run applies,

@@ -4,12 +4,12 @@ import { InteractionExit } from '#navigation';
 import { checkOperation, runOperation } from '#operation';
 import { isRecord } from '#utilities/guards';
 
-import { tailscaleCommand } from './service.js';
-import { parseTailnetStatus } from './status-parser.js';
+import { tailscaleCommand } from './service';
+import { parseTailnetStatus } from './status-parser';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { TailnetStatus } from './types.js';
+import type { TailnetStatus } from './types';
 
 const NETWORK_PROBE_TIMEOUT_MS = 10_000;
 const EGRESS_PROBE_TIMEOUT_MS = 15_000;

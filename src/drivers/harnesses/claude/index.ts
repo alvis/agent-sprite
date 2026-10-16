@@ -1,2 +1,2 @@
 /** Claude Code harness driver */
-export { claude } from './harness.js';
+export { claude } from './harness';

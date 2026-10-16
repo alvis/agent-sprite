@@ -13,19 +13,19 @@ import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
 import { InteractionExit } from '#navigation';
 import { terminateWorkstation } from '#terminate';
 
-import { environmentOf } from './fixtures/environment.js';
+import { environmentOf } from './fixtures/environment';
 import {
   DISABLED_NETWORK_PROFILE,
   TAILSCALE_PROFILE,
-} from './fixtures/profile.js';
-import { createFilesystemSprite, providerOf } from './mocks/sprites.js';
+} from './fixtures/profile';
+import { createFilesystemSprite, providerOf } from './mocks/sprites';
 
 import type { Sprite } from '@fly/sprites';
 import type { Mock } from 'vitest';
 
 import type { CommandRequest } from '#command/contracts';
 
-import type { GuestExecute } from './mocks/sprites.js';
+import type { GuestExecute } from './mocks/sprites';
 
 const environment = environmentOf(TAILSCALE_PROFILE);
 
