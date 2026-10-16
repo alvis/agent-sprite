@@ -53,6 +53,8 @@ interface StandIn {
 
 const SSH_TOKEN = 'FlyV1 fm2_ssh';
 const COMMAND_STATUS = 3;
+/** a pid above every system's limit, which no process can hold */
+const EXITED_PID = 2 ** 30;
 /** the in-band marker as the command line quotes it */
 const QUOTED_MARKER = String.raw`s/.*'\(@@open-agent-status:[^']*\)'.*/\1/p`;
 /**
@@ -180,6 +182,48 @@ describe('cl:FlyGuestChannel', () => {
         result: { exitCode: COMMAND_STATUS, stdout: 'hello', stderr: 'own\n' },
         stops: 1,
       });
+    });
+
+    it('should leave the agent running while another live process holds a session through it', async () => {
+      const { channel, agentStops, configDirectory } =
+        await standIn('faithful');
+      await mkdir(join(configDirectory, 'sessions'), { recursive: true });
+      await writeFile(
+        join(configDirectory, 'sessions', String(process.ppid)),
+        '',
+      );
+
+      await channel.exec({
+        account: 'root',
+        program: '/bin/true',
+        arguments: [],
+        input: '',
+      });
+
+      expect(await agentStops()).toBe(0);
+    });
+
+    it('should forget a process that exited holding a session and stop the agent', async () => {
+      const { channel, agentStops, configDirectory } =
+        await standIn('faithful');
+      const exited = join(configDirectory, 'sessions', String(EXITED_PID));
+      await mkdir(join(configDirectory, 'sessions'), { recursive: true });
+      await writeFile(exited, '');
+
+      await channel.exec({
+        account: 'root',
+        program: '/bin/true',
+        arguments: [],
+        input: '',
+      });
+
+      expect({
+        stops: await agentStops(),
+        remembered: await stat(exited).then(
+          () => true,
+          () => false,
+        ),
+      }).toEqual({ stops: 1, remembered: false });
     });
 
     it('should give flyctl only allowlisted variables, the SSH token and a private configuration directory', async () => {
