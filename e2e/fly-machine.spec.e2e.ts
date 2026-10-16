@@ -1,21 +1,12 @@
 import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { request } from 'node:https';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
-import { parse } from 'dotenv';
 import { execa } from 'execa';
 import { describe, inject, it } from 'vitest';
 
@@ -45,29 +36,35 @@ import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { ENVIRONMENT_PATH, GUEST_ROOT } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
-import { createLiveCli, successData } from './cli';
+import { successData } from './machines/cli';
 import {
   createFlyInventory,
   flyAddresses,
   flyMachineMemory,
   flyMachineState,
   flyResourceStatus,
-  FLY_TOKEN_VARIABLE,
   flyVolumeIds,
   flyVolumeState,
   setFlyMachineMemory,
   stopFlyMachine,
-} from './fly';
-import { createLiveHarness } from './harness';
-import { GOVERNOR_REPORT, HOMEBREW, reportedGovernorState } from './layout';
+} from './machines/fly';
+import { createMachineHarness } from './machines/harness';
+import {
+  GOVERNOR_REPORT,
+  HOMEBREW,
+  reportedGovernorState,
+} from './machines/layout';
+import { credentialVariable } from './machines/providers';
+import { createRedactor } from './machines/redaction';
+import { describeWorkstationSuite } from './machines/workstation';
 
 import type { HarnessId } from '#core/catalog';
 import type { WorkstationProfile } from '#core/profile';
 import type { WorkstationRecord } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { LiveCli } from './cli';
-import type { FlyMachineTarget } from './fly';
+import type { MachineCli } from './machines/cli';
+import type { FlyMachineTarget } from './machines/fly';
 
 /** the root filesystem facts a cold boot must keep, read as root */
 interface BootFacts {
@@ -100,6 +97,9 @@ interface BootStatus {
 }
 
 const PORT = 8080;
+/** the variable the CLI reads the Fly token from, as the provider's prerequisites declare */
+const FLY_TOKEN =
+  catalog.providers['fly-machine'].prerequisites.credential.environment;
 /** a dotted release version anywhere in a version probe's output */
 const DOTTED_VERSION = /\b\d{1,4}\.\d{1,4}/u;
 const MINUTE_MS = 60_000;
@@ -135,7 +135,7 @@ const AGENT_PATH = '/.well-known/t3/environment';
 // connects to the guest-local Machines API and reports how it went
 const SOCKET_PROBE =
   "require('net').connect('/.fly/api').on('connect',()=>{console.log('connected');process.exit(0)}).on('error',(e)=>{console.log(e.code);process.exit(0)})";
-// reads the live token from standard input, so it never reaches a command
+// reads the run token from standard input, so it never reaches a command
 // line, and reports every file of the guest's writable and configuration
 // areas, and every process environment and command line, that holds it or
 // any macaroon-shaped Fly token
@@ -342,7 +342,7 @@ async function privateAgentRunning(): Promise<boolean> {
 }
 
 /**
- * decodes an SSH token derived from the live token for one app, as flyctl
+ * decodes an SSH token derived from the run token for one app, as flyctl
  * itself reads it
  * @param credential Fly organization token
  * @param name app name
@@ -470,20 +470,16 @@ async function readHarnessVersions(
   return versions;
 }
 
-const live = inject('live');
-const harness = await createLiveHarness(live);
-const token: string =
-  parse(await readFile(live.envFile, 'utf8'))[FLY_TOKEN_VARIABLE]?.trim() ?? '';
-if (token === '') {
-  throw new Error(`${FLY_TOKEN_VARIABLE} is required in the live dotenv file`);
-}
+const harness = await createMachineHarness('fly-machine');
+// the harness has failed already when the run supplies no Fly token
+const token = process.env[credentialVariable('fly-machine')]?.trim() ?? '';
 const profile: WorkstationProfile = {
   ...defaultProfile('none'),
   provider: 'fly-machine',
 };
 
 /**
- * authenticates the Fly Machine provider with the live token
+ * authenticates the Fly Machine provider with the run's token
  * @returns an authenticated provider
  */
 function flyProvider(): ReturnType<
@@ -523,25 +519,6 @@ function flyCreateArguments(name: string, idleMinutes: number): string[] {
 }
 
 /**
- * builds a CLI with a home of its own. flyctl's SSH agent is shared by every
- * process of one home and stopped by the first of them to finish, so tests that
- * run side by side must not share a home
- * @param tag short name of the home, below the run's home
- * @returns CLI driver bound to that home
- */
-async function isolatedCli(tag: string): Promise<LiveCli> {
-  const home = join(live.home, tag);
-  await mkdir(home, { recursive: true });
-
-  return createLiveCli({
-    bin: live.bin,
-    envFile: live.envFile,
-    home,
-    redact: harness.redact,
-  });
-}
-
-/**
  * creates a Fly workstation through the CLI
  * @param name name the workstation takes
  * @param idleMinutes suspend-after-idle minutes; 0 never suspends
@@ -553,7 +530,7 @@ async function isolatedCli(tag: string): Promise<LiveCli> {
 async function createFlyWorkstation(
   name: string,
   idleMinutes: number,
-  run: { cli: LiveCli; signal: AbortSignal },
+  run: { cli: MachineCli; signal: AbortSignal },
 ): Promise<WorkstationRecord> {
   for (let attempt = 1; ; attempt += 1) {
     const outcome = await run.cli.json(
@@ -790,16 +767,18 @@ async function findOnPath(program: string): Promise<string> {
     }
   }
 
-  throw new Error(`${program} is not on the PATH of the live suite`);
+  throw new Error(`${program} is not on the PATH of the e2e suite`);
 }
 
-describe('Fly Machine provider live probe', () => {
-  it('should accept the live token and flyctl through the real preflight', async ({
+describeWorkstationSuite(harness);
+
+describe('Fly Machine provider probe', () => {
+  it('should accept the run token and flyctl through the real preflight', async ({
     expect,
   }) => {
     const problems = await providerPreflight('fly-machine', {
       token,
-      source: FLY_TOKEN_VARIABLE,
+      source: credentialVariable('fly-machine'),
     });
 
     expect(problems).toEqual([]);
@@ -814,7 +793,7 @@ describe('Fly Machine provider live probe', () => {
       credential,
       restorableServices: [],
     });
-    const banner = `open-agent probe ${live.runId}`;
+    const banner = `open-agent probe ${harness.runId}`;
 
     await harness.withWorkstation(name, async () => {
       const created = await provider.create(name, profile, PORT);
@@ -991,7 +970,7 @@ describe('Fly Machine provider live probe', () => {
     'should suspend, resume with its processes, cold boot and update a workstation created through the CLI',
     async ({ expect, signal, annotate }) => {
       const name = harness.workstationName('life');
-      const cli = await isolatedCli('l');
+      const cli = await harness.isolatedCli('l');
 
       await harness.withWorkstation(name, async () => {
         const observing = watchAddresses(name);
@@ -1076,7 +1055,7 @@ describe('Fly Machine provider live probe', () => {
           rootSocket: 'connected',
         });
 
-        const banner = `open-agent volume ${live.runId}`;
+        const banner = `open-agent volume ${harness.runId}`;
         await channel.exec({
           program: '/usr/bin/tee',
           arguments: [VOLUME_FILE],
@@ -1343,7 +1322,7 @@ describe('Fly Machine provider live probe', () => {
     'should stop instead of suspend a machine configured above 2 GB',
     async ({ expect, signal, annotate }) => {
       const name = harness.workstationName('big');
-      const cli = await isolatedCli('b');
+      const cli = await harness.isolatedCli('b');
 
       await harness.withWorkstation(name, async () => {
         const record = await createFlyWorkstation(name, IDLE_MINUTES, {
@@ -1400,7 +1379,7 @@ describe('Fly Machine provider live probe', () => {
     'should never suspend with an idle timeout of 0, and terminate deletes the app, machine and volume',
     async ({ expect, signal, annotate }) => {
       const name = harness.workstationName('zero');
-      const cli = await isolatedCli('z');
+      const cli = await harness.isolatedCli('z');
 
       await harness.withWorkstation(name, async () => {
         const record = await createFlyWorkstation(name, 0, { cli, signal });
@@ -1460,7 +1439,11 @@ describe('Fly Machine provider live probe', () => {
       const inventory = createFlyInventory(token);
       const body = token.replace(/^FlyV1\s+/u, '');
       const narrowed = await deriveSshToken(token, 1);
-      const sprites = parse(await readFile(live.envFile, 'utf8')).SPRITES_TOKEN;
+      const sprites = process.env[credentialVariable('sprite')]?.trim();
+      // the narrowed token is no TEST_* value, so it is named here
+      const redact = createRedactor(process.env, {
+        DERIVED_SSH_TOKEN: narrowed,
+      });
 
       try {
         const withNode = join(directory, 'node-only');
@@ -1478,16 +1461,10 @@ describe('Fly Machine provider live probe', () => {
           bin: string,
           variables: Record<string, string>,
         ) => {
-          const name = `${live.runId}-${label}`;
-          const envFile = join(directory, `${label}.env`);
-          await writeFile(
-            envFile,
-            Object.entries(variables)
-              .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-              .join('\n'),
-          );
+          const name = `${harness.runId}-${label}`;
+          // each prerequisite reaches the CLI as it would from the shell
           const result = await execa(
-            live.bin,
+            inject('packedBin'),
             [
               'create',
               '--name',
@@ -1503,18 +1480,22 @@ describe('Fly Machine provider live probe', () => {
               '--json',
               '--non-interactive',
               '--no-local-credentials',
-              '--env-file',
-              envFile,
             ],
             {
-              env: { PATH: bin, HOME: live.home, NO_COLOR: '1' },
+              env: {
+                ...variables,
+                PATH: bin,
+                HOME: harness.runHome,
+                NO_COLOR: '1',
+              },
               extendEnv: false,
               reject: false,
               timeout: PREFLIGHT_TIMEOUT_MS,
             },
           );
           const output = `${result.stdout}\n${result.stderr}`;
-          const parsed = JSON.parse(result.stdout) as {
+          // the leak check reads the raw output; the assertions only its redaction
+          const parsed = JSON.parse(redact(result.stdout)) as {
             ok: boolean;
             error: { code: string; message: string; details: string[] };
           };
@@ -1542,14 +1523,14 @@ describe('Fly Machine provider live probe', () => {
 
         const nothing = await attempt('none', withNode, {});
         const noFlyctl = await attempt('nofly', withNode, {
-          [FLY_TOKEN_VARIABLE]: token,
+          [FLY_TOKEN]: token,
         });
         const noToken = await attempt('notoken', withFly, {});
         const deploy = await attempt('narrow', withFly, {
-          [FLY_TOKEN_VARIABLE]: narrowed,
+          [FLY_TOKEN]: narrowed,
         });
         const wrongProvider = await attempt('sprites', withFly, {
-          [FLY_TOKEN_VARIABLE]: sprites ?? '',
+          [FLY_TOKEN]: sprites ?? '',
         });
 
         expect(nothing).toEqual({

@@ -28,7 +28,7 @@ import type { GuestEnvironment } from '#integrations/guest/environment/contracts
 import type { UpdateStatus } from '#integrations/guest/updates';
 import type { ToolSpec } from '#tools/contracts';
 
-import type { LiveProvider } from './providers';
+import type { MachineProvider } from './providers';
 
 /** what one run of the scheduled entry did */
 export interface ScheduledRun {
@@ -60,7 +60,7 @@ export interface ToolState {
   manifests: string;
 }
 
-/** tool whose link the live update removes: a bottled tool no service uses */
+/** tool whose link the e2e update removes: a bottled tool no service uses */
 export const STALE_COMPONENT = 'jj';
 const STALE_BINARY = `/usr/local/bin/${STALE_COMPONENT}`;
 const CRON_ENTRY_PATH = '/etc/cron.d/open-agent';
@@ -79,7 +79,7 @@ const COMPILERS = new Set(['gcc', 'llvm', 'make', 'cmake', 'binutils']);
  * @returns the validated record
  */
 export async function readEnvironment(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<GuestEnvironment> {
   return parseEnvironment(
@@ -100,7 +100,7 @@ export interface UpdateRecord extends UpdateStatus {
  * @returns the record, with no tools before any update ran
  */
 export async function readUpdateRecord(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<UpdateRecord> {
   const text = await provider.execute(
@@ -183,7 +183,7 @@ export interface HarnessProcess {
  * @returns the stored profile's due interval and the schedule's
  */
 export async function readStoredIntervals(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<StoredIntervals> {
   const { profile, schedule } = await readEnvironment(provider, name);
@@ -202,7 +202,7 @@ export async function readStoredIntervals(
  * @param at the time to record
  */
 export async function setLastSuccessfulUpdate(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   at: Date,
 ): Promise<void> {
@@ -211,9 +211,9 @@ export async function setLastSuccessfulUpdate(
     name,
     [
       'set -e',
-      `/usr/bin/jq --arg at '${at.toISOString()}' '.lastSuccess = $at' ${UPDATE_STATUS_PATH} > ${UPDATE_STATUS_PATH}.live`,
-      `chmod 0644 ${UPDATE_STATUS_PATH}.live`,
-      `mv -f ${UPDATE_STATUS_PATH}.live ${UPDATE_STATUS_PATH}`,
+      `/usr/bin/jq --arg at '${at.toISOString()}' '.lastSuccess = $at' ${UPDATE_STATUS_PATH} > ${UPDATE_STATUS_PATH}.e2e`,
+      `chmod 0644 ${UPDATE_STATUS_PATH}.e2e`,
+      `mv -f ${UPDATE_STATUS_PATH}.e2e ${UPDATE_STATUS_PATH}`,
     ].join('\n'),
   );
 }
@@ -226,7 +226,7 @@ export async function setLastSuccessfulUpdate(
  * @returns the script's output
  */
 export async function asRoot(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   script: string,
 ): Promise<string> {
@@ -247,7 +247,7 @@ export async function asRoot(
  * @returns the entry's exit status and whether an update ran
  */
 export async function runScheduledEntry(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<ScheduledRun> {
   const before = await readUpdateRecord(provider, name);
@@ -281,7 +281,7 @@ export async function runScheduledEntry(
  * @param name exact workstation name
  */
 async function waitForUpdateLock(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<void> {
   await asRootDetached(
@@ -304,7 +304,7 @@ async function waitForUpdateLock(
  * @param name exact workstation name
  */
 export async function removeToolLink(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<void> {
   await asRoot(
@@ -321,7 +321,7 @@ export async function removeToolLink(
  * @returns the probe's output, which only a linked binary can produce
  */
 export async function probeStaleComponent(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<string> {
   return (await provider.execute(name, `${STALE_BINARY} --version`)).trim();
@@ -335,7 +335,7 @@ export async function probeStaleComponent(
  * @returns every entry found
  */
 export async function guestEntries(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<GuestEntry[]> {
   const listing = await asRoot(
@@ -406,7 +406,7 @@ export function profileTools(
  * @returns a fingerprint of the kegs, the system links and the npm manifests
  */
 export async function readToolState(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<ToolState> {
   const section = (title: string, listing: string): string =>
@@ -450,7 +450,7 @@ export async function readToolState(
  * @returns the log lines
  */
 export async function readUpdateLog(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<string[]> {
   return (await asRoot(provider, name, `cat ${UPDATE_LOG}`))
@@ -503,7 +503,7 @@ export interface HomebrewGit {
  * @returns what the guest reports
  */
 export async function readHomebrewGit(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<HomebrewGit> {
   const brew = `cd ${HOMEBREW.home} && runuser -u ${HOMEBREW.account} -- env -i HOME=${HOMEBREW.home} PATH=/usr/bin:/bin HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 ${HOMEBREW.brew}`;
@@ -580,7 +580,7 @@ export interface AwakeStep {
  * @returns the owner and mode of each
  */
 export async function readAwakeInstall(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<AwakeInstall> {
   const [command, directory, managedDirectory] = await Promise.all([
@@ -610,12 +610,12 @@ export async function readAwakeInstall(
  * @returns the removal's exit status, the managed holders left and the state
  */
 export async function checkManagedHold(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   session: string,
 ): Promise<ManagedHoldCheck> {
   const managed = `${GUEST_ROOT}/${MANAGED_AWAKE_DIRECTORY}`;
-  const holder = `--source live-root --session ${session}`;
+  const holder = `--source e2e-root --session ${session}`;
   await asRoot(provider, name, `${AWAKE_COMMAND} hold-open ${holder}`);
   // root's shell expands the names; the agent account then removes them
   const removeExitCode = Number(
@@ -639,7 +639,7 @@ export async function checkManagedHold(
   await asRoot(
     provider,
     name,
-    `runuser -u agent -- ${AWAKE_COMMAND} heartbeat --source live --session ${session}`,
+    `runuser -u agent -- ${AWAKE_COMMAND} heartbeat --source e2e --session ${session}`,
   );
   const state: unknown = reportedGovernorState(
     await asRoot(provider, name, GOVERNOR_REPORT),
@@ -658,7 +658,7 @@ export async function checkManagedHold(
  * @returns each event's exit status and the state it left
  */
 export async function sendAwakeEvents(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   session: string,
 ): Promise<AwakeStep[]> {
@@ -667,7 +667,7 @@ export async function sendAwakeEvents(
     const status = await asRoot(
       provider,
       name,
-      `runuser -u agent -- ${AWAKE_COMMAND} ${action} --source live --session ${session}; echo $?`,
+      `runuser -u agent -- ${AWAKE_COMMAND} ${action} --source e2e --session ${session}; echo $?`,
     );
     const state: unknown = reportedGovernorState(
       await asRoot(provider, name, GOVERNOR_REPORT),
@@ -719,7 +719,7 @@ interface HookFile {
  * @returns each harness's awake commands by event
  */
 export async function readAwakeHooks(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<AwakeHooks> {
   const read = async (path: string): Promise<Record<string, string[]>> => {
@@ -753,29 +753,6 @@ interface HookState {
 }
 
 /**
- * reads the Sprite's own task list as the agent account, which reaches the
- * guest-local API socket without a credential
- * @param provider selected provider
- * @param name exact workstation name
- * @returns the expiry of the awake task, absent when there is none
- */
-export async function readAwakeTaskExpiry(
-  provider: LiveProvider,
-  name: string,
-): Promise<string | undefined> {
-  const reply = JSON.parse(
-    await asRoot(
-      provider,
-      name,
-      'runuser -u agent -- curl -s --max-time 5 --unix-socket /.sprite/api.sock http://sprite/v1/tasks',
-    ),
-  ) as { tasks?: Array<{ name: string; expires_at: string }> };
-
-  return reply.tasks?.find((task) => task.name === 'open-agent-awake')
-    ?.expires_at;
-}
-
-/**
  * sends each hook event the way a harness does, as the agent account with the
  * event's JSON on standard input, and reads what the governor and the Sprite
  * then hold
@@ -789,7 +766,7 @@ export async function readAwakeTaskExpiry(
  * @returns each event's exit status and the resulting state
  */
 export async function sendHookEvents(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   events: {
     harness: string;
@@ -818,7 +795,7 @@ export async function sendHookEvents(
       deadline: state.deadline,
       lastHeartbeat: state.lastHeartbeat,
       idleTimeoutMinutes: state.idleTimeoutMinutes,
-      taskExpiresAt: await readAwakeTaskExpiry(provider, name),
+      taskExpiresAt: await provider.readAwakeTask(name),
     });
   }
 
@@ -835,7 +812,7 @@ export async function sendHookEvents(
  * shows more than one) and the holds still open once it ended
  */
 export async function watchHolders<T>(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   operation: () => Promise<T>,
 ): Promise<{
@@ -907,7 +884,7 @@ async function sleep(ms: number): Promise<void> {
  * @throws {Error} when the script exits non-zero or does not end in time
  */
 async function asRootDetached(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   script: string,
 ): Promise<string> {
@@ -968,7 +945,7 @@ function asAgentWithNode(command: string): string {
  * @returns the release installed and the latest one
  */
 export async function installOlderRelease(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   tool: ToolSpec,
 ): Promise<OlderRelease> {
@@ -1014,7 +991,7 @@ export async function installOlderRelease(
  * @returns the dotted version it reports
  */
 export async function readLoginVersion(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   program: string,
 ): Promise<string | undefined> {
@@ -1036,7 +1013,7 @@ export async function readLoginVersion(
  * @returns the session's processes, once its native process runs
  */
 export async function startHarnessSession(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<HarnessProcess[]> {
   await asRoot(
@@ -1064,7 +1041,7 @@ export async function startHarnessSession(
  * @returns every session process, ordered by id
  */
 export async function readHarnessSession(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<HarnessProcess[]> {
   // the agent account reads its own processes' executables, which root here may not

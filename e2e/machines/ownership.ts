@@ -1,4 +1,4 @@
-import { LIVE_RUN_ID, PRODUCT, RETIRED_PRODUCT } from './identity';
+import { E2E_SCOPE, PRODUCT, RETIRED_PRODUCT } from './identity';
 
 import type { WorkstationIdentity } from './providers';
 
@@ -14,20 +14,20 @@ export interface ObservedWorkstation {
 export interface DeletionExpectation {
   /** exact workstation name requested by the harness */
   name: string;
-  /** live run whose prefix must contain the name */
-  runId: string;
+  /** cleanup scope whose prefix must start the name */
+  scope: string;
   /** label every managed workstation carries */
   label: string;
 }
 
 /**
- * tells whether a workstation name belongs to the given live run
+ * tells whether a workstation name lies inside an e2e cleanup scope
  * @param name candidate workstation name from a provider or tailnet listing
- * @param runId prefix generated for the current live run
- * @returns true only for a well-formed run id and a name inside its prefix
+ * @param scope `oa-e2e-` for every e2e run, or `<run id>-` for one run
+ * @returns true only for a well-formed scope and a name inside it
  */
-export function isRunWorkstation(name: string, runId: string): boolean {
-  return LIVE_RUN_ID.test(runId) && name.startsWith(`${runId}-`);
+export function isScopedWorkstation(name: string, scope: string): boolean {
+  return E2E_SCOPE.test(scope) && name.startsWith(scope);
 }
 
 /**
@@ -42,8 +42,8 @@ export function assertOwnedWorkstation(
   const refusal =
     observed.name !== expected.name
       ? `expected exactly ${expected.name}`
-      : !isRunWorkstation(observed.name, expected.runId)
-        ? `outside live run ${expected.runId}`
+      : !isScopedWorkstation(observed.name, expected.scope)
+        ? `outside ${expected.scope}*`
         : !observed.labels.includes(expected.label)
           ? `missing managed label ${expected.label}`
           : undefined;
@@ -54,13 +54,13 @@ export function assertOwnedWorkstation(
 
 /**
  * lists every observed identifier that does not belong to the product
- * @param identity labels, guest paths and schedule read from a live workstation
+ * @param identity labels, guest paths and schedule read from a workstation
  * @returns violations; empty when only product identifiers are present
  */
 export function foreignIdentifiers(identity: WorkstationIdentity): string[] {
   const root = `/opt/${PRODUCT}`;
   const missing = [
-    ...[PRODUCT, `${PRODUCT}-schema-v1`].filter(
+    ...identity.requiredLabels.filter(
       (label) => !identity.labels.includes(label),
     ),
     ...[root, `/etc/cron.d/${PRODUCT}`].filter(

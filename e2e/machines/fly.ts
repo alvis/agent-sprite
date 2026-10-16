@@ -1,8 +1,6 @@
-import { catalog } from '#core/catalog';
+import { isScopedWorkstation } from './ownership';
 
-import { isRunWorkstation } from './ownership';
-
-import type { LiveInventory } from './providers';
+import type { MachineInventory } from './providers';
 
 /** one app as the Machines API lists it */
 interface FlyAppSummary {
@@ -40,10 +38,6 @@ interface FlyTokenSummary {
   tokens?: Array<{ org_slug?: string }>;
 }
 
-/** the dotenv credential of the Fly Machine provider, as its prerequisites declare */
-export const FLY_TOKEN_VARIABLE =
-  catalog.providers['fly-machine'].prerequisites.credential.environment;
-
 const API_URL = 'https://api.machines.dev/v1';
 const GRAPHQL_URL = 'https://api.fly.io/graphql';
 const SCHEME = 'FlyV1 ';
@@ -53,12 +47,12 @@ const NOT_FOUND_STATUS = 404;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /**
- * a Fly Machines inventory the live cleanup sweeps alongside the selected
- * provider, independent of the driver it proves absent
- * @param token Fly organization token from the live dotenv file
+ * a Fly Machines inventory the e2e cleanup sweeps and deletes through,
+ * independent of the driver it proves absent
+ * @param token Fly organization token of the e2e run
  * @returns inventory of the token's organization
  */
-export function createFlyInventory(token: string): LiveInventory {
+export function createFlyInventory(token: string): MachineInventory {
   const authorization = authorizationOf(token);
   const request = async (path: string, method = 'GET'): Promise<Response> =>
     fetch(`${API_URL}${path}`, {
@@ -78,7 +72,7 @@ export function createFlyInventory(token: string): LiveInventory {
     const { tokens } = await json<FlyTokenSummary>('/tokens/current');
     const slug = tokens?.[0]?.org_slug;
     if (!slug) {
-      throw new Error('The live Fly token names no organization');
+      throw new Error('The e2e Fly token names no organization');
     }
 
     return slug;
@@ -107,9 +101,9 @@ export function createFlyInventory(token: string): LiveInventory {
         .filter((name) => name.startsWith(prefix));
     },
     hasWorkstation: hasApp,
-    async deleteWorkstation(name, runId) {
-      if (!isRunWorkstation(name, runId)) {
-        throw new Error(`Refusing to delete Fly app ${name} outside ${runId}`);
+    async deleteWorkstation(name, scope) {
+      if (!isScopedWorkstation(name, scope)) {
+        throw new Error(`Refusing to delete Fly app ${name} outside ${scope}*`);
       }
       const machines = await json<FlyMachineSummary[]>(
         `/apps/${encodeURIComponent(name)}/machines`,
@@ -138,7 +132,7 @@ export function createFlyInventory(token: string): LiveInventory {
 /**
  * reads the HTTP status of an app and of its machine and volume listings, so
  * a deletion can be proved to have removed all three
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param name app name
  * @returns status of the app, its machines and its volumes
  */
@@ -164,8 +158,31 @@ export async function flyResourceStatus(
 }
 
 /**
+ * reads the metadata of an app's one machine straight from the Machines API
+ * @param token Fly organization token of the e2e run
+ * @param name the workstation's app, which holds its one machine
+ * @returns the key-value labels the CLI stamped on the machine
+ * @throws {Error} unless the app holds exactly one machine
+ */
+export async function flyMachineMetadata(
+  token: string,
+  name: string,
+): Promise<Record<string, string>> {
+  const machines = await flyJson<FlyMachineSummary[]>(
+    token,
+    `/apps/${encodeURIComponent(name)}/machines`,
+  );
+  const [machine, ...others] = machines;
+  if (!machine || others.length > 0) {
+    throw new Error(`${name} holds ${machines.length} machines, not one`);
+  }
+
+  return machine.config?.metadata ?? {};
+}
+
+/**
  * reads the addresses assigned to an app straight from the Machines API
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param name app name
  * @returns every assigned address
  */
@@ -183,7 +200,7 @@ export async function flyAddresses(
 
 /**
  * lists the volume identities of an app
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param name app name
  * @returns volume identities
  */
@@ -202,7 +219,7 @@ export async function flyVolumeIds(
 /**
  * reads a volume's state through the Fly GraphQL API, which finds a volume by
  * its identity alone and so outlives the app it belonged to
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param id volume identity
  * @returns its state, or undefined once Fly no longer knows the volume
  */
@@ -238,7 +255,7 @@ export async function flyVolumeState(
 
 /**
  * stops a machine and waits until it has stopped
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param name app name
  * @param machine machine identity
  */
@@ -254,7 +271,7 @@ export async function stopFlyMachine(
 
 /**
  * reads a machine's run state straight from the Machines API
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param name app name
  * @param machine machine identity
  * @returns run state
@@ -275,7 +292,7 @@ export async function flyMachineState(
 /**
  * changes a machine's memory through the Machines API, which restarts the
  * machine into a cold boot with the new size
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param target the machine to resize
  * @param memoryMb new memory in megabytes
  */
@@ -298,7 +315,7 @@ export async function setFlyMachineMemory(
 
 /**
  * reads a machine's memory straight from the Machines API
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param name app name
  * @param machine machine identity
  * @returns memory in megabytes
@@ -320,7 +337,7 @@ export async function flyMachineMemory(
 
 /**
  * sends one Machines API request and decodes its JSON answer
- * @param token Fly organization token from the live dotenv file
+ * @param token Fly organization token of the e2e run
  * @param path path below the API base
  * @param request HTTP method and JSON body of the request
  * @param request.method verb of the request, GET unless given

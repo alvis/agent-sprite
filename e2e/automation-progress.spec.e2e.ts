@@ -5,14 +5,13 @@ import { execPath } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
 import { execa } from 'execa';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, inject, it } from 'vitest';
 
-const packedBin = process.env.OPEN_AGENT_PACKED_BIN;
+const packedBin = inject('packedBin');
 
 describe('workflow:installed CLI automation reporting', () => {
   it('should retain redacted warnings and errors while quiet suppresses routine status', async () => {
-    expect(packedBin).toBeDefined();
-    const packageRoot = dirname(dirname(await realpath(packedBin!)));
+    const packageRoot = dirname(dirname(await realpath(packedBin)));
     const reportingUrl = pathToFileURL(
       join(packageRoot, 'lib/cli/reporting.js'),
     ).href;
@@ -58,7 +57,6 @@ describe('workflow:installed CLI automation reporting', () => {
   });
 
   it('should keep real stage progress on stderr and one JSON result on stdout across quiet modes', async () => {
-    expect(packedBin).toBeDefined();
     const cwd = await mkdtemp(join(tmpdir(), 'open-agent-progress-'));
     try {
       const secret = 'pol03-selected-env-private-value';
@@ -79,26 +77,26 @@ describe('workflow:installed CLI automation reporting', () => {
       ];
       const [ordinary, quiet, verboseQuiet, human, quietHuman] =
         await Promise.all([
-          execa(packedBin!, args, {
+          execa(packedBin, args, {
             cwd,
             env,
             extendEnv: false,
             reject: false,
           }),
-          execa(packedBin!, [...args, '--quiet'], {
+          execa(packedBin, [...args, '--quiet'], {
             cwd,
             env,
             extendEnv: false,
             reject: false,
           }),
-          execa(packedBin!, [...args, '--quiet', '--verbose'], {
+          execa(packedBin, [...args, '--quiet', '--verbose'], {
             cwd,
             env,
             extendEnv: false,
             reject: false,
           }),
           execa(
-            packedBin!,
+            packedBin,
             ['list', '--no-local-credentials', '--env-file', envPath],
             {
               cwd,
@@ -108,7 +106,7 @@ describe('workflow:installed CLI automation reporting', () => {
             },
           ),
           execa(
-            packedBin!,
+            packedBin,
             [
               'list',
               '--quiet',
@@ -158,7 +156,6 @@ describe('workflow:installed CLI automation reporting', () => {
   });
 
   it('should explain a non-terminal stdin only when it implicitly blocks a needed prompt', async () => {
-    expect(packedBin).toBeDefined();
     const cwd = await mkdtemp(join(tmpdir(), 'open-agent-prompt-mode-'));
     try {
       const env = {
@@ -167,7 +164,7 @@ describe('workflow:installed CLI automation reporting', () => {
         TMPDIR: cwd,
         NO_COLOR: '1',
       };
-      const human = await execa(packedBin!, ['terminate', 'review-check'], {
+      const human = await execa(packedBin, ['terminate', 'review-check'], {
         cwd,
         env,
         extendEnv: false,
@@ -181,7 +178,7 @@ describe('workflow:installed CLI automation reporting', () => {
       expect(human.stderr).not.toContain('Sprites API token');
 
       const explicit = await execa(
-        packedBin!,
+        packedBin,
         ['terminate', 'review-check', '--json'],
         { cwd, env, extendEnv: false, reject: false },
       );

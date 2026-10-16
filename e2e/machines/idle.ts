@@ -3,7 +3,7 @@ import { WebSocket } from 'ws';
 import { asRoot } from './guest';
 import { GOVERNOR_REPORT, reportedGovernorState } from './layout';
 
-import type { LiveProvider, RunState } from './providers';
+import type { MachineProvider, RunState } from './providers';
 
 /** what the governor records, as the proof reads it */
 export interface GovernorState {
@@ -92,8 +92,8 @@ const TURN_POLL_MS = 3_000;
 const TURN_START_TIMEOUT_MS = 3 * 60_000;
 // generous for model latency on both sides of the tool call
 const TURN_LATENCY_MS = 5 * 60_000;
-const TICK_LOG = '/run/open-agent-live-ticks';
-const AWAKE_LOG = '/run/open-agent-live-awake';
+const TICK_LOG = '/run/open-agent-e2e-ticks';
+const AWAKE_LOG = '/run/open-agent-e2e-awake';
 const AWAKE_TASK = 'open-agent-awake';
 const SPRITE_SOCKET = '/.sprite/api.sock';
 // a tick is written every second, so a longer gap means the guest did not run
@@ -113,7 +113,7 @@ const TOOL_TIMEOUT_MS = 600_000;
  * @returns the recorded state
  */
 export async function readGovernor(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<GovernorState> {
   const state = reportedGovernorState(
@@ -144,7 +144,7 @@ export async function readGovernor(
  * @param turn the turn to start
  */
 export async function startHarnessTurn(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   turn: HarnessTurn,
 ): Promise<void> {
@@ -179,7 +179,7 @@ export async function startHarnessTurn(
  * @param turn the running turn
  */
 export async function waitForToolCall(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   turn: HarnessTurn,
 ): Promise<void> {
@@ -206,7 +206,7 @@ export async function waitForToolCall(
  * @param turn the running turn
  */
 export async function crashHarnessTurn(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   turn: HarnessTurn,
 ): Promise<void> {
@@ -226,7 +226,7 @@ export async function crashHarnessTurn(
  * @returns how it ended
  */
 export async function waitForTurnEnd(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   turn: HarnessTurn,
 ): Promise<TurnOutcome> {
@@ -268,7 +268,7 @@ export async function waitForTurnEnd(
  * @param name exact workstation name
  */
 export async function startAwakeLog(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<void> {
   const tasks = `runuser -u agent -- curl -s --max-time 2 --unix-socket ${SPRITE_SOCKET} http://sprite/v1/tasks | tr -d "\\n"`;
@@ -292,7 +292,7 @@ export async function startAwakeLog(
  * @returns each sample, in order
  */
 export async function stopAwakeLog(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   window: { from: string; to: string },
 ): Promise<AwakeSample[]> {
@@ -352,7 +352,7 @@ function parseJson<T>(text: string | undefined): T | undefined {
  * @param name exact workstation name
  */
 export async function startTickLog(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
 ): Promise<void> {
   await asRoot(
@@ -370,7 +370,7 @@ export async function startTickLog(
  * @returns the pauses, in order
  */
 export async function readPauses(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   since: string,
 ): Promise<GuestPause[]> {
@@ -409,7 +409,7 @@ export async function readPauses(
  * @returns every sample read
  */
 export async function watchRunStates(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   window: {
     durationMs: number;
@@ -474,7 +474,7 @@ export function isAsleep(sample: RunState): boolean {
  * @returns a connection that stays open until it is closed
  */
 export async function openAgentConnection(
-  provider: LiveProvider,
+  provider: MachineProvider,
   name: string,
   url: string,
 ): Promise<AgentConnection> {
@@ -482,7 +482,7 @@ export async function openAgentConnection(
     await asRoot(
       provider,
       name,
-      `runuser -l agent -c 't3 auth session issue --base-dir ~/.t3 --ttl 15m --label open-agent-live --json'`,
+      `runuser -l agent -c 't3 auth session issue --base-dir ~/.t3 --ttl 15m --label open-agent-e2e --json'`,
     ),
   ) as { token: string };
   const socket = new WebSocket(`${url.replace(/^http/, 'ws')}/ws`, {
@@ -527,7 +527,7 @@ export async function openAgentConnection(
 function turnFiles(
   tag: string,
 ): Record<'script' | 'start' | 'end' | 'exit' | 'output' | 'errors', string> {
-  const base = `${TURN_DIRECTORY}/open-agent-live-turn-${tag}`;
+  const base = `${TURN_DIRECTORY}/open-agent-e2e-turn-${tag}`;
 
   return {
     script: `${base}.sh`,

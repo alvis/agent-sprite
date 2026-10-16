@@ -2,6 +2,8 @@ import { join } from 'node:path';
 
 import { execa } from 'execa';
 
+import { TEST_PREFIX } from './identity';
+
 import type { CommandData } from '#command/data';
 
 import type { Redactor } from './redaction';
@@ -17,7 +19,7 @@ export interface CliEnvelope {
   /** success payload */
   data?: unknown;
   /** failure classification */
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; details?: string[] };
 }
 
 /** redacted outcome of one non-interactive invocation */
@@ -30,8 +32,8 @@ export interface CliOutcome {
   stderr: string;
 }
 
-/** the packed executable driven with an isolated home and the live dotenv file */
-export interface LiveCli {
+/** the packed executable driven with an isolated home and the e2e credentials */
+export interface MachineCli {
   /**
    * runs one non-interactive JSON command
    * @param args command and its arguments
@@ -46,41 +48,71 @@ export interface LiveCli {
   ): Promise<CliOutcome>;
 }
 
-/** packed executable, dotenv file, isolated home, and output redaction */
-export interface LiveCliOptions {
+/** packed executable, isolated home, and output redaction */
+export interface MachineCliOptions {
   /** installed packed executable */
   bin: string;
-  /** absolute dotenv path passed with --env-file */
-  envFile: string;
   /** isolated HOME keeping local credentials and config out of the run */
   home: string;
-  /** removes dotenv values from captured output */
+  /** removes credential values from captured output */
   redact: Redactor;
 }
 
 const FORCE_KILL_AFTER_MS = 60_000;
 const OUTPUT_TAIL_LENGTH = 4_000;
 
+/** flags every invocation shares: nothing saved on this computer is read */
+export const SHARED_FLAGS = ['--no-local-credentials'];
+
 /**
- * creates the live CLI driver
- * @param options packed executable, dotenv file, isolated home and redaction
- * @returns live CLI driver
+ * the configuration home of the product drivers the specs import in-process,
+ * set as XDG_CONFIG_HOME before the workers start, so their flyctl state
+ * lives in the run, apart from the owner's and every CLI home's; its
+ * one-letter segment keeps flyctl's agent socket path within macOS's limit
+ * @param runHome the run's isolated home
+ * @returns absolute configuration directory
  */
-export function createLiveCli(options: LiveCliOptions): LiveCli {
-  const { bin, envFile, home, redact } = options;
-  const env = {
-    PATH: process.env.PATH,
+export function driverConfigHome(runHome: string): string {
+  return join(runHome, 'd', '.config');
+}
+
+/**
+ * builds the whole environment of one packed CLI process: nothing of this
+ * computer's environment but PATH, an isolated home, and every `TEST_*`
+ * credential under the name the CLI reads, without its prefix
+ * @param home isolated HOME of the run
+ * @returns child environment, used with `extendEnv: false`
+ */
+export function cliEnvironment(home: string): Record<string, string> {
+  return {
+    ...Object.fromEntries(
+      Object.entries(process.env).flatMap(([name, value]) =>
+        name.startsWith(TEST_PREFIX) && value
+          ? [[name.slice(TEST_PREFIX.length), value]]
+          : [],
+      ),
+    ),
+    PATH: process.env.PATH ?? '',
     HOME: home,
     XDG_CONFIG_HOME: join(home, '.config'),
     NO_COLOR: '1',
   };
-  const shared = ['--env-file', envFile, '--no-local-credentials'];
+}
+
+/**
+ * creates the CLI driver of the machine specs
+ * @param options packed executable, isolated home and redaction
+ * @returns CLI driver
+ */
+export function createMachineCli(options: MachineCliOptions): MachineCli {
+  const { bin, home, redact } = options;
+  const env = cliEnvironment(home);
 
   return {
     async json(args, timeoutMs, signal) {
       const result = await execa(
         bin,
-        [...args, '--json', '--non-interactive', ...shared],
+        [...args, '--json', '--non-interactive', ...SHARED_FLAGS],
         {
           env,
           extendEnv: false,
