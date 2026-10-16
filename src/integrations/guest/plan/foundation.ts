@@ -4,6 +4,8 @@ import { readAsset } from '#integrations/guest/assets';
 import {
   AGENT_HOME,
   AGENT_ID,
+  LOGIN_PROFILE,
+  LOGIN_PROFILE_PATH,
   PING_GROUP_RANGE,
 } from '#integrations/guest/layout';
 import { backendAssets } from '#services/backends';
@@ -17,7 +19,7 @@ import {
 import { AWAKE_ASSET } from '../awake';
 import { UPDATE_GATE_ASSET, UPDATER_ASSET } from '../updates';
 
-import { assetStep, assetStepId } from './steps/file';
+import { assetStep, assetStepId, fileStep } from './steps/file';
 import { homebrewStep } from './steps/homebrew';
 import { libraryCommand } from './steps/library';
 
@@ -34,6 +36,10 @@ const ACCOUNTS_STEP = 'accounts';
 export const BOOTSTRAP_STEP = 'bootstrap';
 /** id of the best-effort step that lets every group open ping sockets */
 const SYSCTL_STEP = 'sysctl:ping';
+/** id of the step that writes the login profile */
+const PROFILE_STEP = 'login-profile';
+/** the login profile's mode: every login shell reads it */
+const PROFILE_MODE = 0o644;
 
 /** longest one command of the account step may take */
 const ACCOUNTS_LIMIT_MS = 60_000;
@@ -67,10 +73,11 @@ interface FoundationContext {
 /**
  * builds the steps every package step builds on: the guest programs, the
  * provider's boot hook before any package step, the agent account, the
- * bootstrap packages, Homebrew where a tool is poured from it, and the ping
- * sysctl
+ * bootstrap packages, Homebrew where a tool is poured from it, the login
+ * profile where no boot hook writes it, and the ping sysctl
  * @param context the provider, selection, release, family and resolved tools
- * @returns the asset, boot hook, account, bootstrap, Homebrew and sysctl steps
+ * @returns the asset, boot hook, account, bootstrap, Homebrew, profile and
+ * sysctl steps
  */
 export async function foundationSteps(
   context: FoundationContext,
@@ -109,6 +116,18 @@ export async function foundationSteps(
           }),
         ]
       : []),
+    // a boot hook writes the profile itself, on every boot
+    ...(bootHook
+      ? []
+      : [
+          fileStep(family, {
+            id: PROFILE_STEP,
+            component: 'login profile',
+            path: LOGIN_PROFILE_PATH,
+            contents: LOGIN_PROFILE,
+            mode: PROFILE_MODE,
+          }),
+        ]),
     sysctlStep(family),
   ];
 }

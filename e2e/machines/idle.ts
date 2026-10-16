@@ -1,5 +1,7 @@
 import { WebSocket } from 'ws';
 
+import { T3_HTTP_PORT } from '#drivers/agents/t3/service';
+
 import { asRoot } from './guest';
 import { GOVERNOR_REPORT, reportedGovernorState } from './layout';
 
@@ -485,7 +487,20 @@ export async function openAgentConnection(
       `runuser -l agent -c 't3 auth session issue --base-dir ~/.t3 --ttl 15m --label open-agent-e2e --json'`,
     ),
   ) as { token: string };
-  const socket = new WebSocket(`${url.replace(/^http/, 'ws')}/ws`, {
+  // T3 refuses, with 426, a connection that names no orchestration protocol
+  // or another than the one its environment endpoint reports
+  const { orchestrationProtocolVersion } = JSON.parse(
+    await asRoot(
+      provider,
+      name,
+      `/usr/bin/curl --silent --fail --max-time 5 http://127.0.0.1:${String(T3_HTTP_PORT)}/.well-known/t3/environment`,
+    ),
+  ) as { orchestrationProtocolVersion?: number };
+  const query =
+    orchestrationProtocolVersion === undefined
+      ? ''
+      : `?orchestrationProtocol=${String(orchestrationProtocolVersion)}`;
+  const socket = new WebSocket(`${url.replace(/^http/, 'ws')}/ws${query}`, {
     headers: { Authorization: `Bearer ${issued.token}` },
   });
   await new Promise<void>((resolve, reject) => {

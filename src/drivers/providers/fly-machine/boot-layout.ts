@@ -7,6 +7,7 @@ import {
   AGENT_HOME,
   GUEST_ROOT,
   LINUXBREW_HOME,
+  LOGIN_PROFILE_PATH,
 } from '#integrations/guest/layout';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 
@@ -53,7 +54,7 @@ const ROOTFS_STATE = '/var/lib/open-agent';
 /** the marker the boot hook leaves on a root filesystem it restored; a rebuilt one lacks it, so the next boot reinstalls the recorded packages */
 export const ROOTFS_RESTORED = `${ROOTFS_STATE}/rootfs-restored`;
 /** the login profile that puts the managed tools on every login shell's PATH */
-export const PROFILE_PATH = '/etc/profile.d/open-agent.sh';
+export const PROFILE_PATH = LOGIN_PROFILE_PATH;
 /** the guest-local Machines API socket, which only root reaches */
 const MACHINES_API = '/.fly/api';
 
