@@ -2,11 +2,7 @@ import { join } from 'node:path';
 
 import { execa } from 'execa';
 
-import { runTerminal } from '../fixtures/terminal';
-
 import type { CommandData } from '#command/data';
-
-import type { TerminalResult, TerminalStep } from '../fixtures/terminal';
 
 import type { Redactor } from './redaction';
 
@@ -48,18 +44,6 @@ export interface LiveCli {
     timeoutMs: number,
     signal?: AbortSignal,
   ): Promise<CliOutcome>;
-  /**
-   * drives one interactive command on a native terminal
-   * @param args command and its arguments
-   * @param steps prompts to wait for and the keys to send
-   * @param timeoutMs time before the terminal is killed
-   * @returns terminal result with redacted output
-   */
-  terminal(
-    args: string[],
-    steps: TerminalStep[],
-    timeoutMs: number,
-  ): Promise<TerminalResult>;
 }
 
 /** packed executable, dotenv file, isolated home, and output redaction */
@@ -75,9 +59,7 @@ export interface LiveCliOptions {
 }
 
 const FORCE_KILL_AFTER_MS = 60_000;
-const PROMPT_TIMEOUT_MS = 2 * 60_000;
 const OUTPUT_TAIL_LENGTH = 4_000;
-const TERMINAL_COLUMNS = 120;
 
 /**
  * creates the live CLI driver
@@ -121,19 +103,6 @@ export function createLiveCli(options: LiveCliOptions): LiveCli {
         }),
         stderr,
       };
-    },
-    async terminal(args, steps, timeoutMs) {
-      const result = await runTerminal(bin, steps, {
-        args: [...args, ...shared],
-        columns: TERMINAL_COLUMNS,
-        cwd: home,
-        env,
-        timeout: timeoutMs,
-        stepTimeout: PROMPT_TIMEOUT_MS,
-        waitForRaw: true,
-      });
-
-      return { ...result, output: redact(result.output) };
     },
   };
 }
