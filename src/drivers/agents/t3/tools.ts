@@ -1,3 +1,5 @@
+import { AGENT_BIN } from '#integrations/guest/layout';
+
 import type { ToolSpec } from '#tools/contracts';
 
 /** the T3 Code CLI, installed from npm by the agent at its release channel's dist-tag */
@@ -7,7 +9,7 @@ export const t3Tool: ToolSpec = {
   needs: ['node'],
   executables: ['t3'],
   version: {
-    executable: '/home/agent/.local/bin/t3',
+    executable: `${AGENT_BIN}/t3`,
     args: ['--version'],
     account: 'agent',
   },
@@ -21,7 +23,7 @@ export const bunTool: ToolSpec = {
   needs: ['node'],
   executables: ['bun'],
   version: {
-    executable: '/home/agent/.local/bin/bun',
+    executable: `${AGENT_BIN}/bun`,
     args: ['--version'],
     account: 'agent',
   },

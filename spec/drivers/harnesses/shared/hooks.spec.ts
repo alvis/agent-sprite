@@ -13,7 +13,7 @@ import {
 } from '#drivers/harnesses/shared/hooks';
 import { AWAKE_COMMAND, AWAKE_DEADLINE_MS } from '#integrations/guest/awake';
 
-const COMMAND = { program: '/opt/open-agent/guest/awake.sh' };
+const COMMAND = { program: '/opt/open-agent/governor/awake.sh' };
 const CLAUDE = { owned: CLAUDE_WORK_HOOKS, command: COMMAND };
 const CODEX = { owned: CODEX_WORK_HOOKS, command: COMMAND };
 
@@ -55,7 +55,7 @@ describe('fn:workHookCommands', () => {
 
   it('should call the awake command the guest installs', () => {
     expect(AWAKE_HOOK_COMMAND.program).toBe(AWAKE_COMMAND);
-    expect(AWAKE_COMMAND).toBe('/opt/open-agent/guest/awake.sh');
+    expect(AWAKE_COMMAND).toBe('/opt/open-agent/governor/awake.sh');
   });
 });
 

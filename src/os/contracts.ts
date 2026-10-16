@@ -63,9 +63,9 @@ export const ROOT_ONLY_MODE = 0o700;
 /** installed mode of a guest program other accounts run too */
 export const SHARED_MODE = 0o755;
 
-/** a guest program shipped as a `.sh` file beside its owner and installed root-owned */
+/** a guest program shipped as a `.sh` file under the package's `guest` directory and installed root-owned */
 export interface GuestAsset {
-  /** path of the `.sh` file relative to the compiled package root, such as `os/debian/lib.sh` */
+  /** path of the `.sh` file relative to the package's `guest` directory, which is its path under the guest root, such as `os/debian/lib.sh` */
   path: string;
   /** installed mode: shared when other accounts run it, root-only when only root does */
   mode: typeof ROOT_ONLY_MODE | typeof SHARED_MODE;

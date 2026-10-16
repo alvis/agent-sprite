@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import { UPDATE_GATE_ASSET } from '#integrations/guest/updates';
 import { setupPlugins } from '#setup/plugins';
 import { setupTools } from '#setup/tools';

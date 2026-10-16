@@ -29,7 +29,7 @@ const t3 = {
     'agent',
     '--',
     '/opt/open-agent/node/bin/node',
-    '/opt/open-agent/drivers/agents/t3/guest/t3-launcher.js',
+    '/opt/open-agent/drivers/agents/t3/launcher.sh',
   ],
   needs: [],
   httpPort: 3773,

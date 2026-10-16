@@ -1,5 +1,5 @@
-import { guestAsset } from '#guest/assets';
-import { GUEST_ROOT } from '#guest/guest-root';
+import { guestAsset } from '#integrations/guest/assets';
+import { GUEST_ROOT } from '#integrations/guest/layout';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 import { isRecord } from '#utilities/guards';
 
@@ -11,7 +11,7 @@ import type { PeriodicJob } from '#os/contracts';
  * awake hold, or skips the hour while a session holds the lock
  */
 export const UPDATE_GATE_ASSET = guestAsset(
-  'guest/update-gate.sh',
+  'maintenance/update-gate.sh',
   ROOT_ONLY_MODE,
 );
 
@@ -19,7 +19,10 @@ export const UPDATE_GATE_ASSET = guestAsset(
  * the updater the gate sources: it upgrades every recorded tool through its
  * manager, restores the links and records the run, never touching a daemon
  */
-export const UPDATER_ASSET = guestAsset('guest/updater.sh', ROOT_ONLY_MODE);
+export const UPDATER_ASSET = guestAsset(
+  'maintenance/updater.sh',
+  ROOT_ONLY_MODE,
+);
 
 /** where the updater records its last run, which every account reads */
 export const UPDATE_STATUS_PATH = `${GUEST_ROOT}/update-status.json`;

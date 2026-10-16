@@ -3,9 +3,9 @@ import { harnessDrivers } from '#core/harnesses';
 import { networkDriver } from '#core/networks';
 import { selectedChannel } from '#core/release-channels';
 import { agentService } from '#core/services';
-import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import { familyOf } from '#os/families';
-import { backendSteps, backendTools } from '#os/services/backends';
+import { backendSteps, backendTools } from '#services/backends';
 import { BASE_TOOLS } from '#tools/base';
 import { resolveTools } from '#tools/resolve';
 

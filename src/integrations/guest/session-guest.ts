@@ -1,4 +1,4 @@
-import { SERVICE_BACKENDS } from '#os/services/backends';
+import { SERVICE_BACKENDS } from '#services/backends';
 
 import type { ProviderDeclaration } from '#drivers/contracts';
 import type {

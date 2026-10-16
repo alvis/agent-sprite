@@ -1,5 +1,5 @@
 import { CommandFault } from '#errors';
-import { cronService } from '#os/services/cron';
+import { cronService } from '#services/cron';
 
 import { catalog } from './catalog.js';
 

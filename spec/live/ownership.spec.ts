@@ -79,7 +79,7 @@ describe('fn:foreignIdentifiers', () => {
     labels: ['open-agent', 'open-agent-schema-v1', 'open-agent-setup-ready'],
     guestPaths: ['/opt/open-agent', '/etc/cron.d/open-agent'],
     schedule:
-      "0 * * * * root '/opt/open-agent/guest/update-gate.sh' >/dev/null 2>&1",
+      "0 * * * * root '/opt/open-agent/maintenance/update-gate.sh' >/dev/null 2>&1",
   };
 
   it('should accept a workstation carrying only product identifiers', () => {

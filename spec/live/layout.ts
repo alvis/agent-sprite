@@ -1,6 +1,9 @@
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import { SESSION_DIRECTORY } from '#integrations/guest/session/framing';
-import { HOMEBREW_PREFIX, LINUXBREW_HOME } from '#tools/accounts';
+import {
+  HOMEBREW_PREFIX,
+  LINUXBREW_HOME,
+  SESSION_DIRECTORY,
+} from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
 // where a live check finds what setup left on the guest

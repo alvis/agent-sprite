@@ -1,3 +1,5 @@
+import { AGENT_BIN } from '#integrations/guest/layout';
+
 import type { ToolSpec } from '#tools/contracts';
 
 /** the Codex CLI, installed from npm by the agent with Homebrew's `node` */
@@ -7,7 +9,7 @@ export const codexTool: ToolSpec = {
   needs: ['node'],
   executables: ['codex'],
   version: {
-    executable: '/home/agent/.local/bin/codex',
+    executable: `${AGENT_BIN}/codex`,
     args: ['--version'],
     account: 'agent',
   },

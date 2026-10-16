@@ -1,4 +1,4 @@
-import { cronService } from '#os/services/cron';
+import { cronService } from '#services/cron';
 
 import { governorJobs } from './awake.js';
 import { UPDATE_JOB } from './updates.js';

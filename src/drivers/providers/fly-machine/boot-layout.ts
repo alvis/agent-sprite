@@ -1,8 +1,12 @@
 // the paths a Fly Machine's boot stub, its boot hook and the host share; the
 // two guest programs repeat them, since sh cannot import them
 
-import { guestAsset } from '#guest/assets';
-import { GUEST_ROOT } from '#guest/guest-root';
+import { guestAsset } from '#integrations/guest/assets';
+import {
+  AGENT_HOME,
+  GUEST_ROOT,
+  LINUXBREW_HOME,
+} from '#integrations/guest/layout';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 
 import type { GuestAsset } from '#os/contracts';
@@ -13,15 +17,15 @@ export const VOLUME_PATH = '/data';
 export const VOLUME_LAYOUT = {
   guestRoot: `${VOLUME_PATH}/open-agent`,
   homes: `${VOLUME_PATH}/home`,
-  agentHome: `${VOLUME_PATH}/home/agent`,
-  homebrewHome: `${VOLUME_PATH}/home/linuxbrew`,
+  agentHome: `${VOLUME_PATH}${AGENT_HOME}`,
+  homebrewHome: `${VOLUME_PATH}${LINUXBREW_HOME}`,
   apt: `${VOLUME_PATH}/apt`,
   packages: `${VOLUME_PATH}/apt/packages`,
 } as const;
 
 /** the boot stub, which the machine configuration writes to the root filesystem; it is never installed under the guest root */
 export const BOOT_STUB: Pick<GuestAsset, 'path'> = {
-  path: 'drivers/providers/fly-machine/guest/boot-stub.sh',
+  path: 'drivers/providers/fly-machine/init.sh',
 };
 /** where the machine configuration's `files` field writes the boot stub */
 export const BOOT_STUB_PATH = '/usr/local/sbin/open-agent-boot';
@@ -29,7 +33,7 @@ export const BOOT_STUB_PATH = '/usr/local/sbin/open-agent-boot';
 export const BOOT_STUB_MODE = 0o755;
 /** the boot hook, kept on the volume, which the stub runs on every boot, and setup to prepare the guest, to restore what a host move's rebuilt root filesystem lost */
 export const BOOT_HOOK: GuestAsset = guestAsset(
-  'drivers/providers/fly-machine/guest/boot.sh',
+  'drivers/providers/fly-machine/boot.sh',
   ROOT_ONLY_MODE,
 );
 /** the boot hook's path on the volume, where the stub looks for it before the guest root is bound */

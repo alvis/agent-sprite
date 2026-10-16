@@ -1,6 +1,6 @@
 import { validateProfile } from '#core/profile';
 import { CommandFault } from '#errors';
-import { ENVIRONMENT_PATH } from '#guest/guest-root';
+import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 
 import { guestFileExists, readGuestFile, writeGuestFile } from '../guest.js';
 

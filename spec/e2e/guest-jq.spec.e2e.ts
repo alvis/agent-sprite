@@ -9,14 +9,14 @@ import { packageRoot } from '../fixtures/packed-guest.js';
 describe('packed guest jq programs', () => {
   it('should run on the jq 1.6 Debian 12 ships', async () => {
     const root = await packageRoot();
-    const programs = (await readdir(join(root, 'lib'), { recursive: true }))
+    const programs = (await readdir(join(root, 'guest'), { recursive: true }))
       .filter((path) => path.endsWith('.sh'))
       .sort();
     const found: string[] = [];
     let spans = 0;
     for (const name of programs) {
       for (const span of quotedSpans(
-        await readFile(join(root, 'lib', name), 'utf8'),
+        await readFile(join(root, 'guest', name), 'utf8'),
       )) {
         spans += 1;
         found.push(

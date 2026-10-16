@@ -1,4 +1,4 @@
-import { guestAsset } from '#guest/assets';
+import { guestAsset } from '#integrations/guest/assets';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 import { OWNER_HOMES } from '#tools/accounts';
 

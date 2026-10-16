@@ -1,9 +1,8 @@
 import { posix } from 'node:path';
 
-import { guestAsset, readAsset } from '#guest/assets';
-import { AGENT_HOME } from '#guest/guest-root';
+import { guestAsset, readAsset } from '#integrations/guest/assets';
+import { AGENT_HOME, AGENT_PATH } from '#integrations/guest/layout';
 import { ROOT_ONLY_MODE } from '#os/contracts';
-import { HOMEBREW_PATH } from '#tools/accounts';
 
 import { runGuest } from '../guest.js';
 
@@ -34,13 +33,8 @@ export const USER = 'agent';
 
 export const HOME = AGENT_HOME;
 
-/** the agent's PATH: its own commands, then Homebrew's ahead of the system's */
-export const AGENT_PATH = `${HOME}/.local/bin:${HOMEBREW_PATH}:/usr/local/bin:/usr/bin:/bin`;
 /** the program that changes one file in an account's home as that account, read from the package and run inline */
-const HOME_FILES = guestAsset(
-  'integrations/guest/home-files.sh',
-  ROOT_ONLY_MODE,
-);
+const HOME_FILES = guestAsset('accounts/home-files.sh', ROOT_ONLY_MODE);
 
 /**
  * runs a command as the non-root guest account

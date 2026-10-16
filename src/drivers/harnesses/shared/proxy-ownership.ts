@@ -1,6 +1,6 @@
 import { CommandFault } from '#errors';
-import { AGENT_HOME } from '#guest/guest-root';
 import { guestFileExists, readGuestFile } from '#integrations/guest';
+import { AGENT_HOME } from '#integrations/guest/layout';
 import {
   ensurePrivateDirectory,
   isRecord,

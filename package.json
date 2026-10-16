@@ -26,7 +26,7 @@
   },
   "scripts": {
     "build": "run build",
-    "postbuild": "find src -name '*.sh' -exec sh -c 'for f; do d=\"lib/${f#src/}\"; mkdir -p \"${d%/*}\" && cp \"$f\" \"$d\" || exit 1; done' sh {} + && chmod +x bin/cli.mjs",
+    "postbuild": "chmod +x bin/cli.mjs",
     "lint": "run lint --",
     "postlint": "eslint --max-warnings 0 bin && run lint:check:shell",
     "lint:check": "run lint:check",

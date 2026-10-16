@@ -1,4 +1,4 @@
-import { AGENT_HOME, GUEST_ROOT } from '#guest/guest-root';
+import { AGENT_HOME, GUEST_ROOT } from '#integrations/guest/layout';
 
 import type { PluginInventory } from '../shared/plugin-state.js';
 

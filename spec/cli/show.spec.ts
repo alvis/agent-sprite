@@ -21,8 +21,8 @@ import {
   mergeMetadataLabels,
 } from '#drivers/providers/sprite/labels';
 import { resultExitCode } from '#errors';
-import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { doctorWorkstation, showWorkstation } from '#inspect';
+import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import { OperationContext } from '#operation';
 import { rememberSecret } from '#utilities/redaction';
 import { OPEN_AGENT_VERSION } from '#utilities/version';
@@ -251,7 +251,7 @@ describe('cmd:show', () => {
     vi.mocked(sprite.listServices).mockResolvedValue([
       {
         name: 't3-code',
-        cmd: '/opt/open-agent/t3-launcher',
+        cmd: '/opt/open-agent/drivers/agents/t3/launcher.sh',
         args: [],
         needs: [],
         state: { name: 't3-code', status: 'running' },

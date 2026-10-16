@@ -1,9 +1,9 @@
 import { networkDriver, networksWithDaemon } from '#core/networks';
 import { defaultProfile } from '#core/profile';
-import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { resolveInputs } from '#input';
 import { networkManagement } from '#input/management';
 import { readGuestEnvironment } from '#integrations/guest/environment-store';
+import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 
 import { CommandFault, commandError } from './errors.js';
 import { selectManagedMachine } from './inspect.js';

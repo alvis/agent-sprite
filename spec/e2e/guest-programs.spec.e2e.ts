@@ -25,23 +25,20 @@ const SERVICE_CONTROL = new RegExp(
   ].join('|'),
 );
 // the shell idle governor, its awake command, and the provider adapters it runs
-const AWAKE_SCRIPT = 'guest/awake.sh';
+const AWAKE_SCRIPT = 'governor/awake.sh';
 // each with the one line it may have that looks like service control: the
 // Sprite adapter's socket, which it uses for its own task alone
 const AWAKE_ADAPTER_SCRIPTS: ReadonlyMap<string, string | undefined> = new Map([
-  ['drivers/providers/fly-machine/guest/fly-machine-awake.sh', undefined],
-  [
-    'drivers/providers/sprite/guest/sprite-awake.sh',
-    'OA_SPRITE_SOCKET=/.sprite/api.sock',
-  ],
+  ['drivers/providers/fly-machine/awake.sh', undefined],
+  ['drivers/providers/sprite/awake.sh', 'OA_SPRITE_SOCKET=/.sprite/api.sock'],
 ]);
 // the cron gate runs as root every hour and runs the updater once an update
 // is due
-const UPDATE_GATE_SCRIPT = 'guest/update-gate.sh';
+const UPDATE_GATE_SCRIPT = 'maintenance/update-gate.sh';
 // the shell updater and every library the gate sources for it
 const UPDATER_SCRIPTS = [
   UPDATE_GATE_SCRIPT,
-  'guest/updater.sh',
+  'maintenance/updater.sh',
   'os/debian/update-system.sh',
   'tools/homebrew/lib.sh',
   'tools/npm/lib.sh',
@@ -103,10 +100,10 @@ const APPROVED_COMPILER_PACKAGES = /const COMPILER_PACKAGES = \[[^\]]*\];/gu;
 /**
  * lists every guest program the packed package ships
  * @param root packed package root
- * @returns paths relative to `lib`
+ * @returns paths relative to `guest`
  */
 async function shippedPrograms(root: string): Promise<string[]> {
-  return (await readdir(join(root, 'lib'), { recursive: true }))
+  return (await readdir(join(root, 'guest'), { recursive: true }))
     .filter((path) => path.endsWith('.sh'))
     .sort();
 }
@@ -166,7 +163,7 @@ describe('packed guest programs', () => {
             [
               name,
               shellExecutableLines(
-                await readFile(join(root, 'lib', name), 'utf8'),
+                await readFile(join(root, 'guest', name), 'utf8'),
               ),
             ] as const,
         ),
@@ -193,7 +190,7 @@ describe('packed guest programs', () => {
       (await shippedPrograms(root)).map(async (name) => ({
         name,
         source: shellExecutableLines(
-          await readFile(join(root, 'lib', name), 'utf8'),
+          await readFile(join(root, 'guest', name), 'utf8'),
         ),
       })),
     );
@@ -250,7 +247,7 @@ describe('packed guest programs', () => {
       [AWAKE_SCRIPT, undefined] as const,
       ...AWAKE_ADAPTER_SCRIPTS,
     ]) {
-      const source = await readFile(join(root, 'lib', name), 'utf8');
+      const source = await readFile(join(root, 'guest', name), 'utf8');
       const executable = shellExecutableLines(source).replaceAll(
         allowed ?? '',
         '',

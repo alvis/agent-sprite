@@ -1,4 +1,4 @@
-import { readAsset } from '#guest/assets';
+import { readAsset } from '#integrations/guest/assets';
 
 import { BOOT_HOOK, BOOT_HOOK_ON_VOLUME } from './boot-layout.js';
 

@@ -2,7 +2,7 @@ import { WorkstationCreationFault } from '#drivers/creation';
 import { ProviderFault } from '#drivers/failures';
 import { pickMachine } from '#drivers/machine-sizes';
 import { summarizeProfile } from '#drivers/providers/recorded';
-import { readAsset } from '#guest/assets';
+import { readAsset } from '#integrations/guest/assets';
 import {
   cancellationReason,
   checkOperation,
