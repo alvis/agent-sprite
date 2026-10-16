@@ -162,7 +162,7 @@ Nothing TypeScript is deployed to the guest. The `postbuild` step copies every `
 Each setup run opens one `GuestSession` (`src/integrations/guest/session/`): a root shell, the OS family's shell (`dash` on Debian), that the provider opens with `openRootShell` once `awaitGuestReady` returns. How a provider becomes root is its own: `fly ssh console` is root, a VM image logs in as a user with `sudo -n`.
 
 - **Framing.** Each command is single-quoted argv. It runs as its account through the family's `oa_as` helper, under `timeout -k` and in its own process group (`setsid`). Both streams end with an `@@open-agent-status:<uuid>` marker carrying the exit code. Input is a here-document with a random delimiter (base64 for binary data) or `/dev/null`, and `TMPDIR` is `/dev/shm`. Captured output is bounded and redacted.
-- **Exclusion.** The session holds a root-only `flock -w 60` and a managed awake hold keyed by its pid, and records its process group, so the next session ends an orphaned one before it takes the lock.
+- **Exclusion.** The session holds a root-only `flock -w 60` and a managed awake hold keyed by its pid, and records its process group, so the next session ends an orphaned one before it takes the lock, even when the group's leader died and only its members remain.
 - **Secrets.** A branded `Secret` is accepted only as step input, piped on standard input. A tool that needs a path gets a 0600 file in a private 0700 directory under `/dev/shm`, removed by a trap. Secrets never touch a disk.
 - **Faults.** A command's non-zero exit is a result. A broken shell or framing is a transport fault: the outcome is unknown, and only this is retried.
 
