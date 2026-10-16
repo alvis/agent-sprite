@@ -1,5 +1,5 @@
-import { GUEST_ROOT } from '#guest/guest-root';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
+import { SESSION_DIRECTORY } from '#integrations/guest/session/framing';
 import { HOMEBREW_PREFIX, LINUXBREW_HOME } from '#tools/accounts';
 import { isRecord } from '#utilities/guards';
 
@@ -25,8 +25,8 @@ export const MANAGED_AWAKE_DIRECTORY = 'run/awake-root';
  */
 export const GOVERNOR_REPORT = `${AWAKE_COMMAND} report`;
 
-/** the lock every update run holds */
-export const UPDATE_LOCK_PATH = `${GUEST_ROOT}/lock/update.lock`;
+/** the setup session's lock, which every scheduled update run holds */
+export const SESSION_LOCK_PATH = `${SESSION_DIRECTORY}/session.lock`;
 
 /**
  * takes the recorded state out of a governor report

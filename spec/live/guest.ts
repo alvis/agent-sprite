@@ -18,7 +18,7 @@ import {
   HOMEBREW,
   MANAGED_AWAKE_DIRECTORY,
   reportedGovernorState,
-  UPDATE_LOCK_PATH,
+  SESSION_LOCK_PATH,
 } from './layout.js';
 
 import type { WorkstationProfile } from '#core/profile';
@@ -238,9 +238,10 @@ export async function asRoot(
 
 /**
  * runs the update gate's line cron holds, without --force, and waits for it
- * to end: it waits for the update lock to be free, runs the very line cron
- * runs, then waits for the lock again, since cron's own tick may have taken
- * it between the wait and the run and updated in the entry's stead
+ * to end: it waits for the session lock, which an update holds, to be free,
+ * runs the very line cron runs, then waits for the lock again, since cron's
+ * own tick may have taken it between the wait and the run and updated in the
+ * entry's stead
  * @param provider selected provider
  * @param name exact workstation name
  * @returns the entry's exit status and whether an update ran
@@ -275,7 +276,7 @@ export async function runScheduledEntry(
 }
 
 /**
- * waits for no update run to hold the update lock
+ * waits for no update run to hold the session lock
  * @param provider selected provider
  * @param name exact workstation name
  */
@@ -288,10 +289,10 @@ async function waitForUpdateLock(
     name,
     [
       'set -e',
-      // no update ran yet while the lock does not exist
-      `test -e ${UPDATE_LOCK_PATH} || exit 0`,
+      // nothing has held the lock while it does not exist
+      `test -e ${SESSION_LOCK_PATH} || exit 0`,
       'waited=0',
-      `until /usr/bin/flock -n ${UPDATE_LOCK_PATH} true; do waited=$((waited + 1)); test "$waited" -lt ${String(LOCK_WAIT_SECONDS)}; sleep 1; done`,
+      `until /usr/bin/flock -n ${SESSION_LOCK_PATH} true; do waited=$((waited + 1)); test "$waited" -lt ${String(LOCK_WAIT_SECONDS)}; sleep 1; done`,
     ].join('\n'),
   );
 }

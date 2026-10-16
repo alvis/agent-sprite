@@ -6,8 +6,9 @@ import { isRecord } from '#utilities/guards';
 import type { PeriodicJob } from '#os/contracts';
 
 /**
- * the update gate cron runs hourly as root: it takes the update lock and
- * runs the updater under an awake hold once an update is due
+ * the update gate cron runs hourly as root: it takes the setup session's lock
+ * without waiting and, once an update is due, runs the updater under an
+ * awake hold, or skips the hour while a session holds the lock
  */
 export const UPDATE_GATE_ASSET = guestAsset(
   'guest/update-gate.sh',

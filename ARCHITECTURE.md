@@ -143,7 +143,7 @@ Setup writes the open-agent version into `environment.json` and into the provide
 Maintenance installs in place and never touches a service ([ADR-12](docs/architecture/decisions/workstation/adr-12-in-place-maintenance.md), whose no-restart rule ADR-15 keeps):
 
 1. Every hour, cron (`/etc/cron.d/open-agent`, run by `open-agent-cron`) starts `update-gate.sh`, which lets the updater through once the due interval in `environment.json` (default 1 day) has passed since the last success. There is no check interval.
-2. The gate takes the update lock and a managed awake hold, then runs `updater.sh`. `setup --section tools --update` runs the gate with `--force`.
+2. The gate takes the setup session's lock without waiting, so an update and a setup session never overlap: while a session holds the lock, a due update waits for the next hour and the gate notes that in `update.log`. Otherwise it takes a managed awake hold and runs `updater.sh`. `setup --section tools --update` runs the gate with `--force` from its session, which already holds the lock.
 3. The updater upgrades each tool `environment.json` records through its manager: `apt-get install --only-upgrade` for system packages, `brew upgrade` for Homebrew formulae that have a bottle, npm by dist-tag and `rustup update`. It never installs a missing tool.
 4. The success time advances only when every required tool succeeded, and the outcome goes to `update-status.json`. A new agent or daemon version runs the next time its service restarts.
 
@@ -190,7 +190,7 @@ Use an existing driver of the same kind as your template: `src/drivers/networks/
 | `/opt/open-agent`                                | The guest root: the `sh` programs setup installed (`guest/`, `os/`, `tools/`, `drivers/`), all root-owned                                                      |
 | `/opt/open-agent/environment.json`               | The one record setup leaves: version, setup state, OS family, resolved tools, update schedule, governor and launch facts                                       |
 | `/opt/open-agent/update-status.json`             | The updater's last run: each tool's outcome and versions, and the last success (`update.log` beside it is its log)                                             |
-| `/opt/open-agent/lock/update.lock`               | The update lock; the setup session takes its own root-only lock                                                                                                |
+| `/run/open-agent-session/session.lock`           | The setup session's lock, root-only, which the hourly update gate also takes                                                                                   |
 | `/opt/open-agent/run/awake`, `run/awake-root`    | The agent's holds (sticky, root:agent 1770) and root's managed holds (root:agent 2750), each with its account's record of the governor state (`governor.json`) |
 | `/opt/open-agent/state/tailscale`                | Tailscale's node identity and resolver files, root-only                                                                                                        |
 | `/home/linuxbrew/.linuxbrew`                     | Homebrew, owned by the `linuxbrew` account; bottles only                                                                                                       |
