@@ -22,6 +22,18 @@ export const HOMEBREW_INSTALLER = {
   sha256: '5f333bbe53bc490e51e7ccb1df8779b3dd6ee73a1a7379efda216edb08ccb148',
 } as const;
 
+/**
+ * the Homebrew release every guest runs: Homebrew/brew's latest stable tag on
+ * 2026-10-16 and the commit it names. Setup checks it out after the
+ * installer, which leaves the newest tag, and the updater refreshes only
+ * formula data, never Homebrew's own code, so a newer release arrives only
+ * with an open-agent release that names it, the next time setup runs
+ */
+export const HOMEBREW_RELEASE = {
+  tag: '7.0.9',
+  commit: 'cdc1ca503231b9a96da64526774915d913c3ec9f',
+} as const;
+
 /** the exit status of a Homebrew helper refusing a formula with no bottle for the guest */
 export const NO_BOTTLE_STATUS = 78;
 

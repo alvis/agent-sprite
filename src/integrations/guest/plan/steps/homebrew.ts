@@ -2,6 +2,7 @@ import { LINUXBREW_HOME } from '#tools/accounts';
 import {
   HOMEBREW_INSTALLER,
   HOMEBREW_LIBRARY,
+  HOMEBREW_RELEASE,
   NO_BOTTLE_PREFIX,
 } from '#tools/libraries';
 
@@ -43,9 +44,11 @@ export interface HomebrewStepParams {
 /**
  * builds the step that installs Homebrew: it creates the linuxbrew system
  * account, with no login, a locked password and no sudo rule, installs the
- * prerequisites, then runs the pinned official installer as that account
+ * prerequisites, runs the pinned official installer as that account, then
+ * checks out the pinned Homebrew release
  * @param params the family, prerequisites, needs, ids and criticality
- * @returns a root step whose check and verify ask whether Homebrew is installed
+ * @returns a root step whose check and verify ask whether Homebrew is
+ * installed and runs the pinned release
  */
 export function homebrewStep(params: HomebrewStepParams): SetupStep {
   const {
@@ -57,13 +60,17 @@ export function homebrewStep(params: HomebrewStepParams): SetupStep {
   } = params;
   const command = (calls: readonly LibraryCall[]): StepCommand =>
     libraryCommand(family.shell, [family.library, HOMEBREW_LIBRARY], calls);
+  const pinned: LibraryCall[] = [
+    ['oa_homebrew_installed'],
+    ['oa_homebrew_pinned', HOMEBREW_RELEASE.commit],
+  ];
 
   return {
     id: HOMEBREW_STEP,
     component: 'homebrew',
     account: 'root',
     needs,
-    check: command([['oa_homebrew_installed']]),
+    check: command(pinned),
     apply: command([
       [
         'oa_account_ensure',
@@ -82,8 +89,9 @@ export function homebrewStep(params: HomebrewStepParams): SetupStep {
         HOMEBREW_INSTALLER.url,
         HOMEBREW_INSTALLER.sha256,
       ],
+      ['oa_homebrew_pin', HOMEBREW_RELEASE.tag, HOMEBREW_RELEASE.commit],
     ]),
-    verify: command([['oa_homebrew_installed']]),
+    verify: command(pinned),
     timeoutMs: HOMEBREW_LIMIT_MS,
     critical,
     retry: 'transport',
