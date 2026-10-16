@@ -4,15 +4,17 @@
 # successful update, or the setup when none succeeded yet, lies the due
 # interval environment.json records (one day when it records no usable one)
 # behind; a baseline that cannot be read or lies ahead never holds an update
-# back. One update runs at a time, under the update lock, and the workstation
-# is kept awake while it runs by a managed hold keyed by the gate's own
-# process. The updater runs in a shell of its own, with the family's library
+# back. An update and a setup session never overlap: the hourly gate takes
+# the setup session's lock without waiting, and skips the hour, noting it in
+# update.log, while a session holds it, and the workstation is kept awake
+# while the update runs by a managed hold keyed by the gate's own process. The updater runs in a shell of its own, with the family's library
 # and update fragment, the tool helpers and the link helpers sourced first,
 # once every one is root's alone; it records the run in update-status.json,
 # and the run's output goes to update.log. It exits 0 when no update was due
 # or the run was recorded, whatever each tool's outcome, and 1 otherwise.
-# `--force`, which setup passes when the user asks for an update, runs the
-# updater whether or not one is due
+# `--force`, which setup passes from its session when the user asks for an
+# update, runs the updater whether or not one is due, under the lock that
+# session already holds
 
 set -u
 umask 022
@@ -27,8 +29,6 @@ OA_GATE_ROOT=/opt/open-agent
 OA_GATE_ENVIRONMENT=$OA_GATE_ROOT/environment.json
 OA_GATE_STATUS=$OA_GATE_ROOT/update-status.json
 OA_GATE_LOG=$OA_GATE_ROOT/update.log
-OA_GATE_LOCK_DIRECTORY=$OA_GATE_ROOT/lock
-OA_GATE_LOCK=$OA_GATE_LOCK_DIRECTORY/update.lock
 OA_GATE_AWAKE=$OA_GATE_ROOT/guest/awake.sh
 OA_GATE_UPDATER=$OA_GATE_ROOT/guest/updater.sh
 OA_GATE_TOOLS=$OA_GATE_ROOT/tools
@@ -40,6 +40,10 @@ OA_GATE_DEFAULT_DAYS=1
 OA_GATE_MAX_DAYS=365
 # the source and session the awake hold is recorded under
 OA_GATE_HOLD=update
+# the setup session's root-only directory and lock: SESSION_DIRECTORY in
+# src/integrations/guest/session/framing.ts
+OA_GATE_SESSION_DIRECTORY=/run/open-agent-session
+OA_GATE_SESSION_LOCK=$OA_GATE_SESSION_DIRECTORY/session.lock
 
 # tells whether a directory is root's alone: a real directory root owns that
 # no group or other account can write
@@ -128,21 +132,27 @@ if test "$(id -u)" != 0; then
 fi
 test -f "$OA_GATE_ENVIRONMENT" || exit 0
 
-# one update at a time, in a lock directory no other account can reach
-test -d "$OA_GATE_LOCK_DIRECTORY" || mkdir -m 0700 "$OA_GATE_LOCK_DIRECTORY" 2>/dev/null
-if ! oa_gate_root_only "$OA_GATE_LOCK_DIRECTORY" ||
-  test "$(stat -c %a "$OA_GATE_LOCK_DIRECTORY")" != 700; then
-  echo "update gate: $OA_GATE_LOCK_DIRECTORY is not a directory root's alone" >&2
-  exit 1
-fi
-exec 9>>"$OA_GATE_LOCK" || exit 1
-flock -n 9 || exit 0
-
 oa_gate_jq=$OA_GATE_JQ
 test -x "$oa_gate_jq" || {
   echo "update gate: no $OA_GATE_JQ reads $OA_GATE_ENVIRONMENT" >&2
   exit 1
 }
+
+# an hourly run takes the setup session's lock, in the directory the session
+# makes root's alone, without waiting; a forced run comes from the session
+# that holds it
+if test "$oa_gate_force" != 1; then
+  test -e "$OA_GATE_SESSION_DIRECTORY" || mkdir -m 0700 "$OA_GATE_SESSION_DIRECTORY" 2>/dev/null
+  if ! oa_gate_root_only "$OA_GATE_SESSION_DIRECTORY" ||
+    test "$(stat -c %a "$OA_GATE_SESSION_DIRECTORY")" != 700; then
+    echo "update gate: $OA_GATE_SESSION_DIRECTORY is not a directory root's alone" >&2
+    exit 1
+  fi
+  exec 9>>"$OA_GATE_SESSION_LOCK" || exit 1
+  oa_gate_busy=
+  flock -n 9 || oa_gate_busy=1
+fi
+
 oa_gate_last=$("$oa_gate_jq" -r '.lastSuccess | strings' "$OA_GATE_STATUS" 2>/dev/null) ||
   oa_gate_last=
 if test "$oa_gate_force" != 1; then
@@ -155,6 +165,14 @@ if test "$oa_gate_force" != 1; then
     exit 1
     ;;
   esac
+  # a due update a setup session holds back waits for the next hour; the note
+  # follows the last run's output, which the next run replaces
+  if test -n "$oa_gate_busy"; then
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) update gate: a setup session holds the guest; the due update waits for the next hour" \
+      >>"$OA_GATE_LOG"
+    chmod 0600 "$OA_GATE_LOG"
+    exit 0
+  fi
 fi
 
 oa_gate_family=$("$oa_gate_jq" -r '.os.family | strings' "$OA_GATE_ENVIRONMENT") || oa_gate_family=

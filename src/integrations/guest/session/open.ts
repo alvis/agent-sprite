@@ -158,7 +158,7 @@ function openedPid(opened: GuestExecResult): number {
   if (exitCode === LOCK_BUSY_STATUS) {
     throw new CommandFault({
       code: 'CONFLICT',
-      message: `Another setup session held the guest for ${LOCK_WAIT_SECONDS} seconds`,
+      message: `Another setup session or a scheduled tool update held the guest for ${LOCK_WAIT_SECONDS} seconds`,
     });
   }
   const [, pid] = PID_LINE.exec(stdout) ?? [];

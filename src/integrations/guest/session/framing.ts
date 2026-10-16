@@ -15,7 +15,10 @@ export const KILL_GRACE_SECONDS = 10;
 /** names the file a `shm-file` secret is written to */
 export const SECRET_FILE_VARIABLE = 'OPEN_AGENT_SECRET_FILE';
 
-/** root-only directory of the session lock and the process-group record */
+/**
+ * root-only directory of the session lock, which the hourly update gate also
+ * takes, and the process-group record
+ */
 export const SESSION_DIRECTORY = '/run/open-agent-session';
 
 /** seconds a session waits for the lock another session holds */
