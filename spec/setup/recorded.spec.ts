@@ -5,9 +5,9 @@ import { isNetworkEnrolled } from '#setup/recorded';
 import { environmentOf } from '../fixtures/environment.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 
-import type { NetworkStatus } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GuestEnvironment } from '#integrations/guest/environment';
+import type { NetworkStatus } from '#drivers/networks/contracts';
+import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 
 const status = vi.hoisted(() => ({
   current: vi.fn<() => Promise<NetworkStatus>>(),

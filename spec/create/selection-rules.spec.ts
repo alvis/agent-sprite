@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { catalog } from '#core/catalog';
 import { prepareCreate } from '#create/preflight';
 
-import type { CommandRequest } from '#command';
+import type { CommandRequest } from '#command/contracts';
 
 // fixture catalog: the shipped agent replaced by a stand-in that drives only
 // Claude and offers no pairing, the two rules no shipped driver can trigger

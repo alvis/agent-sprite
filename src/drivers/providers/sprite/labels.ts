@@ -1,8 +1,8 @@
 import type {
-  RecordedProfile,
   WorkstationMetadata,
   WorkstationSetupState,
 } from '#drivers/contracts';
+import type { RecordedProfile } from '#drivers/providers/recorded';
 
 /** identifies managed Sprites */
 export const MANAGED_LABEL = 'open-agent';

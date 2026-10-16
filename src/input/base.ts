@@ -12,7 +12,7 @@ import { resolveSecret, runtimeEnvironment } from './sources.js';
 import type { CommandOptions } from '#command/contracts';
 
 import type { WorkstationProfile } from '#core/profile';
-import type { NetworkInputs } from '#drivers/contracts';
+import type { NetworkInputs } from '#drivers/networks/contracts';
 import type {
   CredentialStoreLocation,
   ManagementCredentialName,
@@ -33,7 +33,7 @@ interface SecretValues {
 }
 
 /** selected local fallback requirements for this real input resolution */
-export interface BaseInputSelection {
+interface BaseInputSelection {
   /** driver selection whose declared inputs are read */
   profile?: WorkstationProfile;
   /** the workflow may fall back to the saved network management credential */
@@ -108,7 +108,7 @@ export async function resolveBaseInputs(
  * @param profile driver selection
  * @returns provider credential names and the network's inputs, when it has a driver
  */
-export function declaredNames(profile: WorkstationProfile): DeclaredNames {
+function declaredNames(profile: WorkstationProfile): DeclaredNames {
   const { credential } = catalog.providers[profile.provider].prerequisites;
 
   return {

@@ -24,7 +24,7 @@ import type { FlyMachineOffer } from './machines.js';
 import type { FlyMachine } from './wire.js';
 
 /** one create request and where it is placed */
-export interface CreateAppParams {
+interface CreateAppParams {
   /** authenticated Machines API client */
   api: FlyApi;
   /** app name, which is the workstation name */

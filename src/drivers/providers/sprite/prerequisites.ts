@@ -4,7 +4,7 @@ import type {
   PrerequisiteProblem,
   ProviderPrerequisites,
   ProviderPreflightParams,
-} from '#drivers/contracts';
+} from '#drivers/providers/prerequisites';
 
 /** the Sprites SDK needs no host tool; only the organization token */
 export const SPRITE_PREREQUISITES: ProviderPrerequisites = {

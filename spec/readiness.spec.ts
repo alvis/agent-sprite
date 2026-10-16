@@ -7,7 +7,7 @@ import { profileWith } from './fixtures/profile.js';
 
 import type { ProviderId } from '#core/catalog';
 import type { GuestServiceState } from '#drivers/guest-channel';
-import type { GuestInspection } from '#integrations/guest/runtime';
+import type { GuestInspection } from '#integrations/guest/inspection-types';
 
 /**
  * builds an inspection of a workstation on a provider with the given services

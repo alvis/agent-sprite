@@ -1,16 +1,14 @@
 import { CommandFault } from '#errors';
-import { runGuestResult, writeGuestFile } from '#integrations/guest';
-import {
-  AGENT_PATH,
-  asAgent,
-  isRecord,
-  readSelectedPlugins,
-  runAsAgent,
-} from '#integrations/native/configuration';
+import { asAgent, runAsAgent } from '#integrations/guest/account';
+import { writeGuestFile } from '#integrations/guest/files';
+import { AGENT_PATH } from '#integrations/guest/layout';
+import { runGuestResult } from '#integrations/guest/run';
+import { readSelectedPlugins } from '#integrations/native/configuration';
+import { isRecord } from '#utilities/guards';
 
 import type { PluginActions } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GuestCommandResult } from '#integrations/guest/types';
+import type { GuestCommandResult } from '#integrations/guest/run';
 
 /** how one native CLI shapes its decoded plugin and marketplace inventories */
 export interface PluginInventory {

@@ -17,8 +17,6 @@ import type {
 import type { InputSources } from './sources.js';
 import type { GitIdentity } from './types.js';
 
-export { discoverGithubToken } from './github-discovery.js';
-
 interface GitIdentityContext {
   options: CommandOptions;
   sources: InputSources;
@@ -36,7 +34,7 @@ export interface GithubTokenCandidate {
 }
 
 /** verified credential and account selected for guest setup and Git identity */
-export interface SelectedGithubCredential {
+interface SelectedGithubCredential {
   token: string;
   account: GithubAccount;
 }

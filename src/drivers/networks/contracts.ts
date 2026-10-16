@@ -165,7 +165,7 @@ export interface NetworkReleaseParams {
 }
 
 /** one caller-side network input: where it is read from and how it is asked for */
-export interface NetworkInput {
+interface NetworkInput {
   /** environment variable read from the process, selected env file or saved profile */
   environment: string;
   /** prompt shown when an interactive run still lacks the value */

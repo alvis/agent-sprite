@@ -1,10 +1,7 @@
 import type { CommandOptions, Interaction } from '#command/contracts';
 import type { WorkstationProfile } from '#core/profile';
-import type {
-  NetworkExitNode,
-  ProviderDriver,
-  WorkstationRecord,
-} from '#drivers/contracts';
+import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
+import type { NetworkExitNode } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
 import type { SetupConnection } from '#integrations/guest/connection';
 

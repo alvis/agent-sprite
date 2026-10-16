@@ -14,7 +14,7 @@ import type { ServiceStepContext } from '#os/contracts';
 export const CRON_LIBRARY = guestAsset('services/cron.sh', ROOT_ONLY_MODE);
 
 /** id of the step that installs the periodic jobs */
-export const JOBS_STEP = 'services:jobs';
+const JOBS_STEP = 'services:jobs';
 
 /** longest one command of the jobs step may take */
 const JOBS_LIMIT_MS = 60_000;

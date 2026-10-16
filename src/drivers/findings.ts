@@ -11,7 +11,7 @@ export function finding(passed: boolean, name: string): ReadinessFinding {
 }
 
 /** one observation whose check belongs to a feature the workstation may not select */
-export interface GatedObservation {
+interface GatedObservation {
   /** whether the feature the check belongs to is selected */
   isSelected: boolean;
   /** whether the observation held */

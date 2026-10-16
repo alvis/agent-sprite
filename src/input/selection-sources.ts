@@ -25,7 +25,7 @@ export interface Resolved<T> {
 }
 
 /** how one step reads its sources before prompting or defaulting */
-export interface StepSources {
+interface StepSources {
   /** explicit flag value */
   flag?: string;
   /** environment variable read from the process, then the selected env file; none when only the flag applies */
@@ -33,7 +33,7 @@ export interface StepSources {
 }
 
 /** precedence-aware reader of flag, process environment and env file values */
-export interface EnvironmentReader {
+interface EnvironmentReader {
   /**
    * reads one driver id
    * @param step flag and environment variable
@@ -150,7 +150,7 @@ function parseWholeNumber(
 }
 
 /** what a whole-number answer must satisfy before the prompt accepts it */
-export interface NumberRule {
+interface NumberRule {
   /** what the number counts, named in the refusal of a non-number */
   unit: string;
   /** smallest accepted number */

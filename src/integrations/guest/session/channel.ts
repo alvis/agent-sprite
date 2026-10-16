@@ -9,7 +9,7 @@ import type {
   GuestServiceControl,
 } from '#drivers/guest-channel';
 
-import type { GuestSession, StepInput } from './session/contracts.js';
+import type { GuestSession, StepInput } from './contracts.js';
 
 /** limit of a channel command run over the session without one of its own */
 const DEFAULT_LIMIT_MS = 600_000;
@@ -68,7 +68,7 @@ export function sessionGuest(
  * @param guest the channel
  * @returns true for a channel {@link sessionGuest} made
  */
-export function isSessionGuest(guest: GuestChannel): guest is SessionGuest {
+function isSessionGuest(guest: GuestChannel): guest is SessionGuest {
   return 'session' in guest;
 }
 

@@ -1,6 +1,6 @@
 import { checkOperation, runOperation } from '#operation';
 
-import type { GuestInspection } from '#integrations/guest/runtime';
+import type { GuestInspection } from '#integrations/guest/inspection-types';
 
 /**
  * a freshly started agent answers its environment endpoint only after it has

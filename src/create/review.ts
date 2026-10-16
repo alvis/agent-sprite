@@ -9,9 +9,9 @@ import { describePluginSelections } from './plugins.js';
 
 import type { CommandRequest, Interaction } from '#command/contracts';
 import type { WorkstationProfile } from '#core/profile';
-import type { NetworkExitNode } from '#drivers/contracts';
+import type { NetworkExitNode } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
-import type { HarnessPluginActions } from '#integrations/native/plugin-actions';
+import type { HarnessPluginActions } from '#plugins';
 
 import type { CreatePreflight } from './context.js';
 

@@ -6,7 +6,7 @@ import type { AwakeHookCommand } from '#drivers/contracts';
 import type { AwakeAction } from '#integrations/guest/awake';
 
 /** one native hook event a harness reports to the idle governor */
-export interface WorkHook {
+interface WorkHook {
   /** native hook event name */
   event: string;
   /** awake action the event reports */
@@ -27,7 +27,7 @@ export interface WorkHooks {
 }
 
 /** what an owned hook merge, check or listing works on */
-export interface WorkHookParams {
+interface WorkHookParams {
   /** the hooks open-agent owns in the harness */
   owned: WorkHooks;
   /** awake command the hooks invoke */

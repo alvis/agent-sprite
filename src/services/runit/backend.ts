@@ -23,13 +23,10 @@ import type { ServiceBackend, ServiceStepContext } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
 /** the runit helpers: write, start, stop and list each service environment.json records */
-export const RUNIT_LIBRARY = guestAsset(
-  'services/runit/lib.sh',
-  ROOT_ONLY_MODE,
-);
+const RUNIT_LIBRARY = guestAsset('services/runit/lib.sh', ROOT_ONLY_MODE);
 
 /** id of the step that installs and starts the services */
-export const SERVICES_STEP = 'services:runit';
+const SERVICES_STEP = 'services:runit';
 
 /** longest installing and starting every service may take; each start waits up to 30 seconds */
 const SERVICES_LIMIT_MS = 300_000;
@@ -52,7 +49,7 @@ const STATUSES: ReadonlySet<unknown> = new Set([
  * runit, the supervisor of a guest whose provider runs no services itself;
  * Homebrew's formula first, the distribution's package where none is poured
  */
-export const RUNIT_TOOL: ToolSpec = {
+const RUNIT_TOOL: ToolSpec = {
   name: 'runit',
   required: true,
   executables: ['chpst', 'runsv', 'runsvdir', 'sv', 'svlogd'],
@@ -122,7 +119,7 @@ function servicesStep(context: ServiceStepContext): SetupStep {
 }
 
 /** runs one command as root on the guest, returning a non-zero exit as a result */
-export type RootRunner = (
+type RootRunner = (
   argv: readonly [string, ...string[]],
   timeoutMs: number,
 ) => Promise<GuestExecResult>;

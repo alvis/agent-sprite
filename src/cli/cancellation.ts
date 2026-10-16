@@ -10,7 +10,7 @@ export interface CommandCancellation extends InteractionCancellationPort {
 }
 
 /** final forced outcome and terminal disposal without awaiting workflow recovery */
-export interface CommandCancellationParams {
+interface CommandCancellationParams {
   onForce: () => void;
 }
 

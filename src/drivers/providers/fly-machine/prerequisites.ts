@@ -7,7 +7,7 @@ import type {
   PrerequisiteProblem,
   ProviderPrerequisites,
   ProviderPreflightParams,
-} from '#drivers/contracts';
+} from '#drivers/providers/prerequisites';
 
 const TOKEN_SCOPE =
   'a Fly organization token able to create apps, machines and volumes';

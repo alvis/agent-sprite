@@ -8,7 +8,8 @@ import {
 import { bindProvider } from '#core/providers';
 import { createWorkstation } from '#create';
 import { commandError } from '#errors';
-import { resolveProviderCredential, retainManagementCredential } from '#input';
+import { retainManagementCredential } from '#input/prompts';
+import { resolveProviderCredential } from '#input/provider-credential';
 import { doctorWorkstation, listWorkstations, showWorkstation } from '#inspect';
 import {
   currentOperation,
@@ -32,7 +33,8 @@ import {
 import type { CommandResult } from '#command';
 import type { CommandRequest, Interaction } from '#command/contracts';
 import type { ProviderId } from '#core/catalog';
-import type { PrerequisiteProblem, ProviderDriver } from '#drivers/contracts';
+import type { ProviderDriver } from '#drivers/contracts';
+import type { PrerequisiteProblem } from '#drivers/providers/prerequisites';
 import type { ProviderCredential } from '#input/provider-credential';
 import type { OperationContext } from '#operation';
 

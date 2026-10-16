@@ -5,13 +5,13 @@ import {
   registeredSummary,
 } from '#core/profile';
 import { CommandFault } from '#errors';
-import { findGuestEnvironment } from '#integrations/guest/environment-store';
+import { findGuestEnvironment } from '#integrations/guest/environment/store';
 
 import type { SetupSection } from '#command/contracts';
 import type { WorkstationProfile } from '#core/profile';
 import type { WorkstationRecord } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GuestEnvironment } from '#integrations/guest/environment';
+import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 
 /**
  * reconstructs the selection of a workstation whose installation never wrote environment.json

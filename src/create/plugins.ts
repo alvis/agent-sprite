@@ -4,10 +4,7 @@ import { marketplaceSourceHarness, normalizePluginOptions } from '#plugins';
 
 import type { CommandOptions, Interaction } from '#command/contracts';
 import type { HarnessId } from '#core/catalog';
-import type {
-  HarnessPluginActions,
-  NormalizedPluginOptions,
-} from '#integrations/native/plugin-actions';
+import type { HarnessPluginActions, NormalizedPluginOptions } from '#plugins';
 
 /**
  * describes the native choices of every selected harness for the creation review

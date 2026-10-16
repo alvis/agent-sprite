@@ -1,9 +1,7 @@
 import { finding, gatedFinding } from '#drivers/findings';
 
-import type {
-  NetworkReadinessContext,
-  ReadinessFinding,
-} from '#drivers/contracts';
+import type { ReadinessFinding } from '#drivers/contracts';
+import type { NetworkReadinessContext } from '#drivers/networks/contracts';
 
 import type { TailnetStatus } from './types.js';
 

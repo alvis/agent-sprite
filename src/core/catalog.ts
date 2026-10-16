@@ -10,9 +10,9 @@ import type { T3Environment } from '#drivers/agents/t3/index';
 import type {
   AgentDriver,
   DriverKind,
-  NetworkDriver,
   ProviderDriver,
 } from '#drivers/contracts';
+import type { NetworkDriver } from '#drivers/networks/contracts';
 import type { TailnetStatus } from '#drivers/networks/tailscale/index';
 
 /** identifier of a registered provider driver */

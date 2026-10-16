@@ -12,10 +12,9 @@ import {
 
 import type { CommandOptions, CommandRequest } from '#command/contracts';
 
-import type { NormalizedPluginOptions } from '#integrations/native/plugin-actions';
+import type { NormalizedPluginOptions, HarnessPluginActions } from '#plugins';
 
 import type { CommandFaultParams } from './errors.js';
-import type { HarnessPluginActions } from './plugins.js';
 
 /** input failure that can be reported before provider access */
 export class CommandValidationError extends CommandFault {

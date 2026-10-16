@@ -2,22 +2,24 @@ import { validateProfile } from '#core/profile';
 import { CommandFault } from '#errors';
 import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 
-import { guestFileExists, readGuestFile, writeGuestFile } from '../guest.js';
+import { guestFileExists, readGuestFile, writeGuestFile } from '../files.js';
+
+import { parseUpdateStatus, UPDATE_STATUS_PATH } from '../updates.js';
 
 import {
   ENVIRONMENT_MODE,
   parseEnvironment,
   serializeEnvironment,
-} from './environment.js';
-import { parseUpdateStatus, UPDATE_STATUS_PATH } from './updates.js';
+} from './contracts.js';
 
 import type { NetworkId } from '#core/catalog';
 import type { WorkstationProfile } from '#core/profile';
-import type { NetworkIdentityRecorder } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { NetworkIdentityRecorder } from '#drivers/networks/contracts';
 
-import type { GuestEnvironment } from './environment.js';
-import type { UpdateStatus } from './updates.js';
+import type { UpdateStatus } from '../updates.js';
+
+import type { GuestEnvironment } from './contracts.js';
 
 /**
  * reads the environment setup recorded on the guest

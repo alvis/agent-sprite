@@ -4,7 +4,7 @@ import { prerequisiteDetails, providerPreflight } from '#core/preflight';
 import { providersHolding } from '#core/provider-lookup';
 import { bindProvider } from '#core/providers';
 import { CommandFault } from '#errors';
-import { resolveProviderCredential } from '#input';
+import { resolveProviderCredential } from '#input/provider-credential';
 
 import type { CommandRequest, Interaction } from '#command/contracts';
 import type { ProviderId } from '#core/catalog';

@@ -9,7 +9,7 @@ import { CommandFault } from '#errors';
 
 import { createFilesystemSprite, guestOf } from '../../../mocks/sprites.js';
 
-import type { NetworkStaleDeviceParams } from '#drivers/contracts';
+import type { NetworkStaleDeviceParams } from '#drivers/networks/contracts';
 import type { TailnetStatus } from '#drivers/networks/tailscale/types';
 
 const mocks = vi.hoisted(() => ({

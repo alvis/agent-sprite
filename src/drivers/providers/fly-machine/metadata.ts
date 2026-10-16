@@ -1,21 +1,21 @@
 import type {
-  RecordedProfile,
   WorkstationMetadata,
   WorkstationSetupState,
 } from '#drivers/contracts';
+import type { RecordedProfile } from '#drivers/providers/recorded';
 
 /** marks a machine open-agent manages */
-export const MANAGED_KEY = 'open-agent';
+const MANAGED_KEY = 'open-agent';
 /** the value of the ownership key */
-export const MANAGED_VALUE = 'managed';
+const MANAGED_VALUE = 'managed';
 /** names the compact control-plane schema */
-export const SCHEMA_KEY = 'open-agent-schema';
+const SCHEMA_KEY = 'open-agent-schema';
 /** the schema this driver writes */
-export const SCHEMA_VERSION = '1';
+const SCHEMA_VERSION = '1';
 /** records the setup state of the current provisioning attempt */
-export const SETUP_KEY = 'open-agent-setup';
+const SETUP_KEY = 'open-agent-setup';
 /** records the open-agent release that last set the machine up */
-export const VERSION_KEY = 'open-agent-version';
+const VERSION_KEY = 'open-agent-version';
 /** one key per profile summary field; harnesses are comma-separated */
 const PROFILE_KEYS = {
   provider: 'open-agent-provider',

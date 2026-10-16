@@ -12,9 +12,9 @@ import type { ProfileCandidate } from '#core/profile';
 import type {
   AgentDeclaration,
   HarnessDeclaration,
-  NetworkDeclaration,
   ProviderDeclaration,
 } from '#drivers/contracts';
+import type { NetworkDeclaration } from '#drivers/networks/contracts';
 
 // fixture catalog adding an acp-adapter agent and a harness with an adapter
 vi.mock('#core/catalog', () => {

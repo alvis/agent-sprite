@@ -5,11 +5,11 @@ import { isRecord } from '#utilities/guards';
 import type { HarnessId } from '#core/catalog';
 
 /** supported recognition outcomes before changing native marketplace state */
-export type MarketplaceCompatibility =
+type MarketplaceCompatibility =
   'supported' | 'unsupported' | 'inaccessible' | 'unknown';
 
 /** bounded source compatibility evidence for one native harness */
-export interface MarketplaceClassification {
+interface MarketplaceClassification {
   source: string;
   harness: HarnessId;
   compatibility: MarketplaceCompatibility;

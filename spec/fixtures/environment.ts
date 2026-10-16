@@ -1,10 +1,10 @@
 import { catalog } from '#core/catalog';
 import { agentPort } from '#core/services';
-import { ENVIRONMENT_SCHEMA } from '#integrations/guest/environment';
+import { ENVIRONMENT_SCHEMA } from '#integrations/guest/environment/contracts';
 import { OPEN_AGENT_VERSION } from '#utilities/version';
 
 import type { WorkstationProfile } from '#core/profile';
-import type { GuestEnvironment } from '#integrations/guest/environment';
+import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 
 /**
  * builds the environment.json a finished setup of a profile records, with no

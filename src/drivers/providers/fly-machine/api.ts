@@ -38,7 +38,7 @@ export interface FlyMachineTarget {
 }
 
 /** where and how large a new volume is */
-export interface FlyVolumeRequest {
+interface FlyVolumeRequest {
   /** volume name */
   name: string;
   /** region code */
@@ -48,7 +48,7 @@ export interface FlyVolumeRequest {
 }
 
 /** where a new machine runs and what it runs */
-export interface FlyMachineRequest {
+interface FlyMachineRequest {
   /** machine name */
   name: string;
   /** region code */

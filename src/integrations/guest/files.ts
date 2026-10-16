@@ -3,13 +3,13 @@ import { posix } from 'node:path';
 import { runBoundedIO } from '#operation';
 import { holdsResolvedSecret } from '#utilities/redaction';
 
-import { runGuest } from '../guest.js';
+import { runGuest } from './run.js';
 
 import { Secret } from './session/secret.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { GuestFileParams, GuestRunOptions } from './types.js';
+import type { GuestFileParams, GuestRunOptions } from './run.js';
 
 /** the radix chmod reads a mode in */
 const OCTAL = 8;
@@ -73,7 +73,7 @@ export function contentsInput(
  * @param path requested guest file path
  * @throws {Error} when a path could bypass the native account write boundary
  */
-export function assertRootFilePath(path: string): void {
+function assertRootFilePath(path: string): void {
   const normalized = posix.normalize(path);
   if (
     !posix.isAbsolute(path) ||

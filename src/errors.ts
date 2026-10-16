@@ -1,5 +1,5 @@
 import { ProviderFault } from '#drivers/failures';
-import { InteractionExit } from '#navigation/exit';
+import { InteractionExit } from '#navigation';
 import { redactResolved } from '#utilities/redaction';
 
 import type { CommandError, CommandErrorCode } from '#command/contracts';
@@ -15,7 +15,7 @@ export interface CommandFaultParams extends ErrorOptions {
 }
 
 /** portable D10 status derived from the shared failure table */
-export type CommandExitCode = 0 | (typeof FAILURE_EXIT_CODES)[CommandErrorCode];
+type CommandExitCode = 0 | (typeof FAILURE_EXIT_CODES)[CommandErrorCode];
 
 const UNAUTHENTICATED_STATUS = 401;
 const ACCESS_DENIED_STATUS = 403;

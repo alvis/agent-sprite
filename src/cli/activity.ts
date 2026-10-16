@@ -6,7 +6,7 @@ import { redactResolved } from '#utilities/redaction';
 import type { ProgressUpdate } from '#command/contracts';
 
 /** active stage data accepted by the persistent Ink root */
-export type ProgressActivity = ProgressUpdate & { startedAt: number };
+type ProgressActivity = ProgressUpdate & { startedAt: number };
 
 /** ordinary progress presentation settings for one command session */
 export interface ActivityOptions {
@@ -15,7 +15,7 @@ export interface ActivityOptions {
 }
 
 /** command-lifetime stage stack and its presentation methods */
-export interface ActivityController {
+interface ActivityController {
   current: () => ProgressActivity | undefined;
   publish: (update: ProgressUpdate) => void;
   clear: () => void;

@@ -36,7 +36,7 @@ const KEEP_AWAKE_MODES: Readonly<Record<KeepAwakeMode, true>> = {
 };
 
 /** a hold the governor recorded as open */
-export interface RecordedHold {
+interface RecordedHold {
   /** harness or managed operation that opened it */
   source: string;
   /** SHA-256 of the session identifier, in hexadecimal */
@@ -46,7 +46,7 @@ export interface RecordedHold {
 }
 
 /** the last call the governor made to the provider's awake adapter */
-export interface AdapterResult {
+interface AdapterResult {
   /** ISO 8601 instant of the call */
   at: string;
   /** what the governor asked the adapter to do */

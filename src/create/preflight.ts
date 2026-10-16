@@ -3,8 +3,9 @@ import { networkDriver } from '#core/networks';
 import { prerequisiteDetails, providerPreflight } from '#core/preflight';
 import { bindProvider } from '#core/providers';
 import { commandError } from '#errors';
-import { resolveCreateInputs, retainEnteredProviderToken } from '#input';
+import { resolveCreateInputs } from '#input';
 import { networkManagement, resolveEnrollmentKey } from '#input/management';
+import { retainEnteredProviderToken } from '#input/prompts';
 import { assertImageTools } from '#integrations/guest/plan/assemble';
 import { assertRuntimeEnv } from '#integrations/native/git';
 import { machineNameProblem } from '#machine';
@@ -20,20 +21,19 @@ import { promptCreatePluginOptions } from './plugins.js';
 import { createPreflightSummary } from './reminders.js';
 import { confirmCreation, reviewCreatePlan } from './review.js';
 
+import type { CommandResult } from '#command';
 import type {
   CommandError,
   CommandErrorCode,
   CommandRequest,
   Interaction,
 } from '#command/contracts';
-import type {
-  NetworkExitNode,
-  PrerequisiteProblem,
-  ProviderDriver,
-} from '#drivers/contracts';
+import type { ProviderDriver } from '#drivers/contracts';
+import type { NetworkExitNode } from '#drivers/networks/contracts';
+import type { PrerequisiteProblem } from '#drivers/providers/prerequisites';
 import type { ResolvedInputs } from '#input/types';
 
-import type { CreatePreparation } from './preparation.js';
+import type { CreateContext } from './context.js';
 import type { RequiredCreateValues, ReviewContext } from './review.js';
 
 interface CreateProviderChecks {
@@ -49,7 +49,10 @@ interface CreateAuthorizationContext extends ReviewContext {
   provider: ProviderDriver;
 }
 
-export type { CreatePreparation } from './preparation.js';
+/** result of preflight before a provider resource exists */
+export type CreatePreparation =
+  | { kind: 'ready'; context: CreateContext }
+  | { kind: 'result'; result: CommandResult };
 
 /**
  * resolve, verify, and confirm all deterministic inputs before workstation creation

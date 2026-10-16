@@ -9,8 +9,8 @@ import {
 import { none } from '#drivers/networks/none/index';
 
 import type { RegisteredNetwork } from '#core/networks';
-import type { NetworkInputs } from '#drivers/contracts';
 import type { ServiceDefinition } from '#drivers/guest-channel';
+import type { NetworkInputs } from '#drivers/networks/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
 const inputs: NetworkInputs = {

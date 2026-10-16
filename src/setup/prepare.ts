@@ -27,13 +27,13 @@ import type {
 import type { WorkstationProfile } from '#core/profile';
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { SuppliedSelection } from '#input/selection';
+import type { SuppliedSelection } from '#input/selection-supplied';
 import type { InputSources } from '#input/sources';
 
 import type { SetupContext, SetupProgress } from './context.js';
 
 /** what a setup run is prepared from */
-export interface SetupPreparationParams {
+interface SetupPreparationParams {
   /** authenticated provider driver */
   provider: ProviderDriver;
   /** values the run's flags and section-scoped environment supply, already validated */
@@ -57,7 +57,7 @@ export interface SetupPreparationParams {
 }
 
 /** a setup run ready to apply its section */
-export interface PreparedSetup {
+interface PreparedSetup {
   /** complete setup context for the selected section */
   context: SetupContext;
   /** guest channel to apply the section through; over a new session when a resize restarted the machine */

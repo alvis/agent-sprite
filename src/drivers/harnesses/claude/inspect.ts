@@ -1,11 +1,11 @@
+import { HOME } from '#integrations/guest/account';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import {
-  HOME,
-  isRecord,
   readJsonObject,
   readSelectedPlugins,
 } from '#integrations/native/configuration';
 import { runBoundedIO } from '#operation';
+import { isRecord } from '#utilities/guards';
 
 import { hasWorkHooks } from '../shared/hooks.js';
 import {
@@ -29,7 +29,7 @@ import type {
   ReadinessFinding,
 } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GuestCommandResult } from '#integrations/guest/types';
+import type { GuestCommandResult } from '#integrations/guest/run';
 
 import type { ClaudeInitialization } from './initialization.js';
 

@@ -12,7 +12,7 @@ import type { CommandResult } from '#command';
 import type { WorkstationRecord } from '#drivers/contracts';
 
 import type { CreateContext, CreatePreflight } from './context.js';
-import type { CreatePreparation } from './preparation.js';
+import type { CreatePreparation } from './preflight.js';
 
 const PROVIDER_CAUSE_LIMIT = 512;
 

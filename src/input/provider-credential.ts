@@ -18,7 +18,7 @@ export interface ProviderCredential {
 }
 
 /** where a provider credential may be read from */
-export interface ProviderCredentialSources {
+interface ProviderCredentialSources {
   /** the explicit secret reference that names this provider's credential */
   reference?: string;
   /** process and env file values, read from the options when omitted */

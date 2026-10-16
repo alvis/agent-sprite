@@ -17,11 +17,9 @@ import {
 import type { CommandOptions, Interaction } from '#command/contracts';
 import type { PluginsSetupData } from '#command/data';
 import type { HarnessId } from '#core/catalog';
+import type { PluginActions } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type {
-  NormalizedPluginOptions,
-  PluginActions,
-} from '#integrations/native/plugin-actions';
+import type { NormalizedPluginOptions } from '#plugins';
 
 import type { SetupContext } from './context.js';
 

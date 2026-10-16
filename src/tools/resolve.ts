@@ -5,7 +5,7 @@ import type { OsConstraint, OsFamily, OsRelease } from '#os/contracts';
 import type { Resolution, ToolSource, ToolSpec } from './contracts.js';
 
 /** the guest a resolution is for */
-export interface ResolutionTarget {
+interface ResolutionTarget {
   /** the guest's release */
   release: OsRelease;
   /** the guest's OS family */

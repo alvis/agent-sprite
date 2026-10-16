@@ -7,13 +7,13 @@ import { revealSecret } from './secret.js';
 import type { SessionCommand, StepInput } from './contracts.js';
 
 /** prefix of the line that follows a command's output and carries its exit status */
-export const STATUS_MARKER_PREFIX = '@@open-agent-status:';
+const STATUS_MARKER_PREFIX = '@@open-agent-status:';
 
 /** seconds `timeout` waits after its signal before it kills the process group */
 export const KILL_GRACE_SECONDS = 10;
 
 /** names the file a `shm-file` secret is written to */
-export const SECRET_FILE_VARIABLE = 'OPEN_AGENT_SECRET_FILE';
+const SECRET_FILE_VARIABLE = 'OPEN_AGENT_SECRET_FILE';
 
 /** seconds a session waits for the lock another session holds */
 export const LOCK_WAIT_SECONDS = 60;
@@ -22,7 +22,7 @@ export const LOCK_WAIT_SECONDS = 60;
 export const MISSING_COMMANDS_STATUS = 69;
 
 /** exit status of a session that cannot create its private directory */
-export const SESSION_DIRECTORY_STATUS = 71;
+const SESSION_DIRECTORY_STATUS = 71;
 
 /** exit status of a session that found no writable `/dev/shm` */
 export const NO_SHM_STATUS = 72;
@@ -201,7 +201,7 @@ printf 'pid:%s\\n' "$$"`;
 }
 
 /** what {@link commandScript} needs beside the command */
-export interface CommandFrame {
+interface CommandFrame {
   /** the command */
   command: SessionCommand;
   /** the command's marker */

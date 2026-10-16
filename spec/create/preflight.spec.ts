@@ -11,7 +11,7 @@ import { driveInk } from '../fixtures/ink.js';
 
 import type { Sprite } from '@fly/sprites';
 
-import type { CommandRequest } from '#command';
+import type { CommandRequest } from '#command/contracts';
 
 const request = {
   command: 'create',

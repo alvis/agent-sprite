@@ -3,10 +3,10 @@ import { useState } from 'react';
 
 import { isPrintableInput } from '#cli/keystroke';
 
-import type { InteractionChoice } from '#command';
+import type { InteractionChoice } from '#command/contracts';
 
 /** props for a searchable single choice */
-export type SelectProps<V extends string> = {
+type SelectProps<V extends string> = {
   label: string;
   description?: string;
   backLabel?: string;

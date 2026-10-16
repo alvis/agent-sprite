@@ -36,7 +36,7 @@ import type {
 import type { AppliedSetupSection } from '#command/data';
 import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { SuppliedSelection } from '#input/selection';
+import type { SuppliedSelection } from '#input/selection-supplied';
 import type { InputSources } from '#input/sources';
 
 import type { SetupContext } from './setup/context.js';

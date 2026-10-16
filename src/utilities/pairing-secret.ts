@@ -5,7 +5,7 @@ import {
 } from './redaction.js';
 
 /** native pairing material and optional provider connection URL */
-export interface PairingSecretParams {
+interface PairingSecretParams {
   token: string;
   url?: string;
 }

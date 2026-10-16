@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import { AGENT_BIN } from '#integrations/guest/layout';
-import { AGENT_PATH, isRecord } from '#integrations/native/configuration';
+import { AGENT_BIN, AGENT_PATH } from '#integrations/guest/layout';
 import { converse, GuestLineProcess } from '#integrations/native/line-process';
 import { checkOperation } from '#operation';
+import { isRecord } from '#utilities/guards';
 
 import {
   hasNoClaudePendingInteractions,
@@ -11,8 +11,8 @@ import {
 } from './init-notifications.js';
 import { CLAUDE_CONFIG_DIR } from './paths.js';
 
-import type { HarnessCommandEvidence } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { HarnessCommandEvidence } from '#drivers/harness-evidence';
 
 /** what the Claude SDK reports after loading the managed settings */
 export interface ClaudeInitialization extends HarnessCommandEvidence {

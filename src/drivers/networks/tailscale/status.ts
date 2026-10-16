@@ -1,6 +1,6 @@
-import { runGuest, runGuestResult } from '#integrations/guest';
 import { sanitizeGuestDiagnostic } from '#integrations/guest/diagnostics';
-import { InteractionExit } from '#navigation/exit';
+import { runGuest, runGuestResult } from '#integrations/guest/run';
+import { InteractionExit } from '#navigation';
 import { checkOperation, runOperation } from '#operation';
 import { isRecord } from '#utilities/guards';
 

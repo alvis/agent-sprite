@@ -1,7 +1,7 @@
 import { CommandFault } from '#errors';
 
 /** documented native client endpoints derived from one CLIProxyAPI hub URL */
-export interface ProxyEndpoints {
+interface ProxyEndpoints {
   /** hub root, without a version prefix */
   root: string;
   /** hub root with the versioned API prefix */

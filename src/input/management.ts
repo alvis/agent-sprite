@@ -1,7 +1,10 @@
 import { CommandFault } from '#errors';
 import { Secret } from '#integrations/guest/session/secret';
 
-import type { NetworkDriver, NetworkManagement } from '#drivers/contracts';
+import type {
+  NetworkDriver,
+  NetworkManagement,
+} from '#drivers/networks/contracts';
 
 import type { ResolvedInputs } from './types.js';
 

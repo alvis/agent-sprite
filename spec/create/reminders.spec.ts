@@ -4,7 +4,7 @@ import { createPreflightSummary } from '#create/reminders';
 
 import { profileWith } from '../fixtures/profile.js';
 
-import type { ResolvedInputs } from '#input';
+import type { ResolvedInputs } from '#input/types';
 
 const disabled = { network: false, exitNode: false, cliproxyapi: false };
 

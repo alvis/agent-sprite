@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
 import { ProviderFault } from '#drivers/failures';
+import { quoteWord } from '#integrations/guest/session/framing';
 
 /** a command line for `fly ssh console -C` and the marker its status follows */
-export interface InBandCommand {
+interface InBandCommand {
   /** single-quoted words the remote splitter turns back into arguments */
   line: string;
   /** unguessable marker that precedes the status line */
@@ -41,8 +42,6 @@ const MAX_STATUS = 255;
  */
 const TRAILER_LIMIT_BYTES = 65_536;
 const TRANSPORT_DIAGNOSTIC_LENGTH = 300;
-/** closes a single-quoted word, emits an escaped quote and reopens it */
-const ESCAPED_QUOTE = "'\\''";
 
 /**
  * wraps a program and its arguments so the guest reports the exit status in
@@ -57,15 +56,6 @@ export function inBandCommand(words: readonly string[]): InBandCommand {
     .join(' ');
 
   return { line, marker };
-}
-
-/**
- * quotes one word the way a POSIX shell reads it back unchanged
- * @param word any text
- * @returns the single-quoted word
- */
-export function quoteWord(word: string): string {
-  return `'${word.replaceAll("'", ESCAPED_QUOTE)}'`;
 }
 
 /**

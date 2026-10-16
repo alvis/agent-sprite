@@ -3,7 +3,7 @@ import { execa } from 'execa';
 import { currentOperation, runOperation } from '#operation';
 
 /** local executable invocation with a bounded timeout */
-export interface LocalProcessParams {
+interface LocalProcessParams {
   program: string;
   arguments: string[];
   timeoutMs?: number;
@@ -11,7 +11,7 @@ export interface LocalProcessParams {
 }
 
 /** local executable invocation receiving private standard input */
-export interface LocalProcessInputParams extends Omit<
+interface LocalProcessInputParams extends Omit<
   LocalProcessParams,
   'timeoutMs'
 > {

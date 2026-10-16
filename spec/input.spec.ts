@@ -4,11 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  resolveCreateInputs,
-  resolveInputs,
-  resolveProviderCredential,
-} from '#input';
+import { resolveCreateInputs, resolveInputs } from '#input';
+import { resolveProviderCredential } from '#input/provider-credential';
 
 import { profileWith } from './fixtures/profile.js';
 

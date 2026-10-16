@@ -12,10 +12,11 @@ import { rememberSecret } from '#utilities/redaction';
 import { environmentOf } from '../fixtures/environment.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 
-import type { CommandOptions, CommandResult } from '#command';
+import type { CommandResult } from '#command';
+import type { CommandOptions } from '#command/contracts';
 import type { CurrentReadiness } from '#command/data';
 import type { GovernorState } from '#integrations/guest/governor-report';
-import type { GuestInspection } from '#integrations/guest/runtime';
+import type { GuestInspection } from '#integrations/guest/inspection-types';
 import type { UpdateToolOutcome } from '#integrations/guest/updates';
 import type { MachineSummary } from '#machine';
 

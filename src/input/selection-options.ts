@@ -1,8 +1,7 @@
 import { catalog } from '#core/catalog';
 import { isHarnessId } from '#core/harnesses';
 import { isNetworkId } from '#core/networks';
-import { isDriverId } from '#core/profile';
-import { machineViolations } from '#core/profile-rules';
+import { machineViolations, isDriverId } from '#core/profile-rules';
 
 import { releaseChoices } from './selection-choices.js';
 
@@ -13,7 +12,7 @@ import type { Prompts } from './selection-sources.js';
 import type { SuppliedSelection } from './selection-supplied.js';
 
 /** facts the option steps depend on */
-export interface OptionContext {
+interface OptionContext {
   /** drivers already selected */
   selected: {
     provider: string;

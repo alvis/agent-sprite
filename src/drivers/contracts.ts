@@ -18,19 +18,11 @@ import type {
 } from './providers/prerequisites.js';
 import type { RecordedProfile } from './providers/recorded.js';
 
-export type { RecordedProfile };
-
-export type * from './providers/prerequisites.js';
-
-export type * from './networks/contracts.js';
-
-export type * from './harness-evidence.js';
-
 /** the four dimensions a workstation selects drivers from */
 export type DriverKind = 'providers' | 'harnesses' | 'agents' | 'networks';
 
 /** how core reaches the guest */
-export type GuestChannelMode = 'provider-exec' | 'ssh';
+type GuestChannelMode = 'provider-exec' | 'ssh';
 
 /** who decides when the workstation sleeps */
 export type KeepAwakeMode = 'native-deadline' | 'governed' | 'none';
@@ -43,17 +35,16 @@ export type IdleForm =
 export type WakeMode = 'url-traffic' | 'cli-restore' | 'always-on';
 
 /** where workstation data survives sleep */
-export type PersistenceMode =
-  'provider-disk' | 'volume' | 'snapshot' | 'host-disk';
+type PersistenceMode = 'provider-disk' | 'volume' | 'snapshot' | 'host-disk';
 
 /** how the ACP agent port is published */
-export type ExposureMode = 'provider-url' | 'provider-service' | 'network-only';
+type ExposureMode = 'provider-url' | 'provider-service' | 'network-only';
 
 /** where list finds workstations without waking them */
-export type DiscoverySource = 'provider-metadata';
+type DiscoverySource = 'provider-metadata';
 
 /** what an ACP agent launches for each selected harness */
-export type HarnessLaunchMode = 'native-cli' | 'acp-adapter';
+type HarnessLaunchMode = 'native-cli' | 'acp-adapter';
 
 /** who can reach the ACP agent's public port */
 export type ExposureVisibility = 'private' | 'public';

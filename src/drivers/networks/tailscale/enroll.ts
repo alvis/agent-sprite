@@ -1,12 +1,15 @@
-import { runGuest, runGuestResult } from '#integrations/guest';
+import { runGuest, runGuestResult } from '#integrations/guest/run';
 import { isRecord } from '#utilities/guards';
 
 import { ensureTailnetDaemon, enrollTailnet } from './daemon.js';
 import { tailscaleCommand } from './service.js';
 import { inspectTailscale } from './status.js';
 
-import type { NetworkEnrollParams, NetworkExitNode } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type {
+  NetworkEnrollParams,
+  NetworkExitNode,
+} from '#drivers/networks/contracts';
 
 import type { TailnetStatus } from './types.js';
 

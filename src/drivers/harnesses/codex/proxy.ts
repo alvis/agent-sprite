@@ -3,7 +3,7 @@ import { stringify } from 'smol-toml';
 import { resolveProxyEndpoints } from '#drivers/shared/cliproxyapi/endpoints';
 import { CommandFault } from '#errors';
 
-import { writeOwnedFile } from '#integrations/native/configuration';
+import { writeOwnedFile } from '#integrations/guest/account';
 
 import {
   proxyOwnershipPath,

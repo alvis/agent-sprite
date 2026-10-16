@@ -15,10 +15,10 @@ import type {
   ProviderDriver,
   WorkstationRecord,
 } from '#drivers/contracts';
-import type { SuppliedSelection } from '#input/selection';
+import type { SuppliedSelection } from '#input/selection-supplied';
 
 /** what a resize needs to decide and apply */
-export interface ResizeParams {
+interface ResizeParams {
   /** authenticated provider hosting the workstation */
   provider: ProviderDriver;
   /** managed workstation selected for this run */

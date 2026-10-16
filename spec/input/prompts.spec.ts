@@ -6,7 +6,7 @@ import { resolveInteractiveInputs } from '#input/prompts';
 import { driveInk } from '../fixtures/ink.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 
-import type { ResolvedInputs } from '#input';
+import type { ResolvedInputs } from '#input/types';
 
 /** fresh local input state without provider or credential-store access */
 function emptyInput(): ResolvedInputs {

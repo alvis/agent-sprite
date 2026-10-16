@@ -19,10 +19,10 @@ import {
 
 import type { Sprite } from '@fly/sprites';
 
-import type { NetworkDriver, NetworkStatus } from '#drivers/contracts';
 import type { ServiceDefinition } from '#drivers/guest-channel';
+import type { NetworkDriver, NetworkStatus } from '#drivers/networks/contracts';
 import type { ResolvedInputs } from '#input/types';
-import type { GuestNetworkIdentity } from '#integrations/guest/types';
+import type { GuestNetworkIdentity } from '#integrations/guest/run';
 import type { SetupContext } from '#setup/context';
 
 /** a network that runs a daemon but takes no caller-side inputs and installs nothing */

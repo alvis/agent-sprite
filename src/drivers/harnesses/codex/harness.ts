@@ -8,7 +8,8 @@ import {
 import { codexPlugins } from './plugins.js';
 import { codexTool } from './tools.js';
 
-import type { HarnessDriver, HarnessSkillEvidence } from '#drivers/contracts';
+import type { HarnessDriver } from '#drivers/contracts';
+import type { HarnessSkillEvidence } from '#drivers/harness-evidence';
 
 /** Codex as a harness driver */
 export const codex: HarnessDriver<'codex', HarnessSkillEvidence | undefined> = {

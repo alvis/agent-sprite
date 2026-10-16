@@ -11,7 +11,7 @@ import type { NativeHarnessInspection } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
 /** what open-agent manages and observes natively for one selected harness */
-export interface HarnessAgentState {
+interface HarnessAgentState {
   /** plugin identities open-agent manages natively */
   selectedPlugins: string[];
   /** probe evidence the harness reported natively */

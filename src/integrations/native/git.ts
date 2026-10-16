@@ -4,8 +4,8 @@ import {
 } from '#core/environment';
 import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
-import { runGuestResult } from '#integrations/guest';
 import { HOMEBREW_PATH } from '#integrations/guest/layout';
+import { runGuestResult } from '#integrations/guest/run';
 import { HOMEBREW_GH } from '#tools/accounts';
 import { redactResolved, rememberSecret } from '#utilities/redaction';
 
@@ -15,7 +15,7 @@ import {
   ensurePrivateDirectory,
   runAsAgent,
   writeOwnedFile,
-} from './configuration.js';
+} from '../guest/account.js';
 
 import type { GuestChannel } from '#drivers/guest-channel';
 import type { GitIdentity } from '#input/types';
@@ -65,7 +65,7 @@ export async function configureGit(
 }
 
 /** where GitHub CLI is authenticated */
-export interface GithubTarget {
+interface GithubTarget {
   /** selected GitHub host; github.com when absent */
   hostname?: string;
   /** provider shell accounts that share the agent account's login */

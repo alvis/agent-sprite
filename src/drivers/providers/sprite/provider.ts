@@ -25,22 +25,24 @@ import type { WorkstationProfile } from '#core/profile';
 import type {
   ExposureVisibility,
   MachineOffer,
-  PrerequisiteProblem,
   ProfileIncompatibility,
   ProviderBinding,
   ProviderDriver,
-  ProviderPreflightParams,
-  ProviderPrerequisites,
   WorkstationMetadata,
   WorkstationRecord,
 } from '#drivers/contracts';
 import type { GuestChannel, GuestProcess } from '#drivers/guest-channel';
+import type {
+  PrerequisiteProblem,
+  ProviderPreflightParams,
+  ProviderPrerequisites,
+} from '#drivers/providers/prerequisites';
 import type { OsImage } from '#os/contracts';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /** live provider state shared by every record one bound driver returns */
-export interface SpriteSession {
+interface SpriteSession {
   /** authenticated provider client */
   client: SpritesClient;
   /** SDK object behind each record this driver returned */

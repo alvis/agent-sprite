@@ -7,7 +7,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { preflightFlyMachine } from '#drivers/providers/fly-machine/prerequisites';
 import { tokenScopeProblem } from '#drivers/providers/fly-machine/token-scope';
 
-import type { ProviderPreflightParams } from '#drivers/contracts';
+import type { ProviderPreflightParams } from '#drivers/providers/prerequisites';
 
 const NOW = new Date('2026-10-14T00:00:00Z');
 const FUTURE = Math.floor(NOW.getTime() / 1_000) + 3_600;

@@ -2,7 +2,7 @@ import { CommandFault } from '#errors';
 import {
   readGuestEnvironment,
   readUpdateStatus,
-} from '#integrations/guest/environment-store';
+} from '#integrations/guest/environment/store';
 import { markInstallationReady } from '#integrations/guest/install';
 import { GUEST_ROOT } from '#integrations/guest/layout';
 import { UPDATE_GATE_ASSET } from '#integrations/guest/updates';

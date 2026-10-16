@@ -4,7 +4,7 @@ import { networkDriver } from '#core/networks';
 import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
 import { CODEX_HOOKS } from '#drivers/harnesses/codex/paths';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import { parseEnvironment } from '#integrations/guest/environment';
+import { parseEnvironment } from '#integrations/guest/environment/contracts';
 import {
   AGENT_HOME,
   ENVIRONMENT_PATH,
@@ -26,7 +26,7 @@ import {
 } from './layout.js';
 
 import type { WorkstationProfile } from '#core/profile';
-import type { GuestEnvironment } from '#integrations/guest/environment';
+import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 import type { UpdateStatus } from '#integrations/guest/updates';
 import type { ToolSpec } from '#tools/contracts';
 

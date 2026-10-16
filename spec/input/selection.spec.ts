@@ -7,8 +7,8 @@ import {
   resolveCreateSelection,
   resolveSetupSelection,
   selectionRequirements,
-  suppliedSelectionViolations,
 } from '#input/selection';
+import { suppliedSelectionViolations } from '#input/selection-supplied';
 
 import type {
   Interaction,
@@ -17,7 +17,7 @@ import type {
   SetupSection,
 } from '#command/contracts';
 import type { WorkstationProfile } from '#core/profile';
-import type { SelectionContext } from '#input/selection';
+import type { SelectionContext } from '#input/selection-sources';
 import type { InputSources } from '#input/sources';
 
 const empty: InputSources = { processEnv: {}, fileEnv: {}, profile: {} };

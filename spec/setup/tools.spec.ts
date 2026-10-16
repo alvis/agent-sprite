@@ -39,7 +39,7 @@ import {
 import type { Sprite } from '@fly/sprites';
 
 import type { WorkstationProfile } from '#core/profile';
-import type { GuestEnvironment } from '#integrations/guest/environment';
+import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 import type { SetupContext } from '#setup/context';
 
 import type { GuestExecute } from '../mocks/sprites.js';

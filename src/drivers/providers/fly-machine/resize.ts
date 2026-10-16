@@ -8,7 +8,7 @@ import type { FlyApi } from './api.js';
 import type { FlyMachine } from './wire.js';
 
 /** one machine and the size it moves to */
-export interface ResizeParams {
+interface ResizeParams {
   /** authenticated Machines API client */
   api: FlyApi;
   /** app name, which is the workstation name */

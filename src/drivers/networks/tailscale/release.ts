@@ -2,8 +2,8 @@ import { restoreTailnetDns } from './daemon.js';
 import { tailscaleDaemon } from './service.js';
 import { inspectTailscale } from './status.js';
 
-import type { NetworkReleaseParams } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { NetworkReleaseParams } from '#drivers/networks/contracts';
 
 /**
  * stops the managed Tailscale daemon while retaining enrolment and cleanup identity

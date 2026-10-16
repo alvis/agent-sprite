@@ -1,6 +1,6 @@
 import { agentPort } from '#core/services';
 import { inspectGuest } from '#integrations/guest/runtime';
-import { inspectAgentEnvironment } from '#integrations/native';
+import { inspectAgentEnvironment } from '#integrations/native/inspection';
 import { traceStage } from '#operation';
 import { ReadinessFault, assessReadiness } from '#readiness';
 import { inspectUntilServing } from '#serving';

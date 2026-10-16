@@ -2,7 +2,7 @@
 export type CreationOutcome = 'retained' | 'absent' | 'unknown';
 
 /** reconciled provider observation and the original create failure */
-export interface WorkstationCreationFaultParams extends ErrorOptions {
+interface WorkstationCreationFaultParams extends ErrorOptions {
   /** user-facing description of the reconciled outcome */
   message: string;
   /** requested or observed workstation name */

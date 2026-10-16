@@ -7,10 +7,10 @@ import { choiceWindow } from './Choices.js';
 
 import type { Dispatch, SetStateAction } from 'react';
 
-import type { InteractionChoice } from '#command';
+import type { InteractionChoice } from '#command/contracts';
 
 /** props for a searchable compatibility-aware multiple choice */
-export type MultiSelectProps<V extends string> = {
+type MultiSelectProps<V extends string> = {
   label: string;
   description?: string;
   backLabel?: string;

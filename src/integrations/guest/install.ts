@@ -6,7 +6,7 @@ import { OPEN_AGENT_VERSION } from '#utilities/version';
 import {
   readGuestEnvironment,
   writeGuestEnvironment,
-} from './environment-store.js';
+} from './environment/store.js';
 import { assemblePlan } from './plan/assemble.js';
 import { runPlan } from './plan/plan.js';
 import {
@@ -21,7 +21,7 @@ import type { ProviderDriver } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
 
 import type { SetupConnection } from './connection.js';
-import type { GuestEnvironment } from './environment.js';
+import type { GuestEnvironment } from './environment/contracts.js';
 import type { AssemblyParams, SetupAssembly } from './plan/assemble.js';
 import type { PlanProgress, SetupStep } from './plan/contracts.js';
 

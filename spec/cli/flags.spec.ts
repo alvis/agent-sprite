@@ -22,7 +22,7 @@ import { normalizePluginOptions, resolvePluginActions } from '#plugins';
 import type { StricliProcess } from '@stricli/core';
 
 import type { HarnessPluginFlagValues } from '#cli/harness-flags';
-import type { CommandOptions } from '#command';
+import type { CommandOptions } from '#command/contracts';
 import type { HarnessPluginActions } from '#plugins';
 
 type ParsedValues = CommandOptions & HarnessPluginFlagValues;

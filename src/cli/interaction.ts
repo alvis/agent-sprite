@@ -23,7 +23,7 @@ import type { Interaction, ProgressUpdate } from '#command/contracts';
 import type { ActivityOptions } from './activity.js';
 
 /** Ink streams used by the interaction boundary */
-export interface InteractionIO {
+interface InteractionIO {
   stdin: NodeJS.ReadableStream;
   stderr: NodeJS.WritableStream;
 }
@@ -36,7 +36,7 @@ export interface InteractionCancellationPort {
 }
 
 /** terminal behavior attached to the command-owned cancellation port */
-export interface InteractionSessionSettings
+interface InteractionSessionSettings
   extends InteractionCancellationPort, ActivityOptions {}
 
 /** interaction with an explicit terminal-lifetime boundary */

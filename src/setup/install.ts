@@ -1,8 +1,8 @@
-import { findGuestEnvironment } from '#integrations/guest/environment-store';
+import { findGuestEnvironment } from '#integrations/guest/environment/store';
 import { installWorkstation } from '#integrations/guest/install';
 import { traceStage } from '#operation';
 
-import type { GuestEnvironment } from '#integrations/guest/environment';
+import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
 import type { InstallParams } from '#integrations/guest/install';
 
 import type { SetupContext } from './context.js';

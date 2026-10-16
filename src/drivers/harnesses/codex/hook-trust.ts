@@ -1,5 +1,6 @@
 import { CommandFault } from '#errors';
-import { HOME, isRecord } from '#integrations/native/configuration';
+import { HOME } from '#integrations/guest/account';
+import { isRecord } from '#utilities/guards';
 
 import { withCodexAppServer } from './app-server.js';
 import { CODEX_HOOKS } from './paths.js';

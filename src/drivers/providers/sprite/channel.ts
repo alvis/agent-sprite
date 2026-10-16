@@ -24,7 +24,7 @@ const NETWORK_POLICY_MESSAGE =
   'Sprite network policy is enforced; refusing to replace its DNS configuration. No network policy was changed.';
 
 /** binds a guest channel to one Sprite */
-export interface SpriteGuestChannelParams {
+interface SpriteGuestChannelParams {
   /** exact target Sprite */
   sprite: Sprite;
   /** managed services that may be stopped and restored around a replacement */

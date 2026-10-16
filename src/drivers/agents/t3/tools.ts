@@ -17,7 +17,7 @@ export const t3Tool: ToolSpec = {
 };
 
 /** the Bun runtime T3 Code needs beside its own package, installed from npm by the agent */
-export const bunTool: ToolSpec = {
+const bunTool: ToolSpec = {
   name: 'bun',
   required: true,
   needs: ['node'],

@@ -25,11 +25,11 @@ import type { Resolution, ToolSpec } from '#tools/contracts';
 import type { SetupStep } from './contracts.js';
 
 /** id of the step that creates the agent account */
-export const ACCOUNTS_STEP = 'accounts';
+const ACCOUNTS_STEP = 'accounts';
 /** id of the step that installs the bootstrap system packages, cron among them */
 export const BOOTSTRAP_STEP = 'bootstrap';
 /** id of the best-effort step that lets every group open ping sockets */
-export const SYSCTL_STEP = 'sysctl:ping';
+const SYSCTL_STEP = 'sysctl:ping';
 
 /**
  * the agent account's user and group id, the one the Fly boot hook restores
@@ -53,7 +53,7 @@ export type PlanProvider = Pick<
 >;
 
 /** what the foundation of a plan is built from */
-export interface FoundationContext {
+interface FoundationContext {
   /** the provider, whose backend, adapter and boot hook are installed */
   provider: PlanProvider;
   /** the selection, whose agent and network bring launchers */

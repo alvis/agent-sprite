@@ -33,7 +33,7 @@ const OPEN_LIMIT_MS = 15_000;
 const PID_LINE = /^pid:(\d+)$/mu;
 
 /** what a session is opened over */
-export interface GuestSessionParams {
+interface GuestSessionParams {
   /** the root shell the provider opened, running the family's shell */
   shell: GuestProcess;
   /** the family the provider declared */
@@ -89,7 +89,7 @@ export async function openWorkstationSession(
  * @param params the shell, family, declared images and awake hold
  * @returns a session that holds the guest's setup lock
  */
-export async function openGuestSession(
+async function openGuestSession(
   params: GuestSessionParams,
 ): Promise<GuestSession> {
   const { shell, family, images, awakeHold, supersedes } = params;

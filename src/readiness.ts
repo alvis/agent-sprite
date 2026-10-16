@@ -10,7 +10,7 @@ import type { ReadinessFinding } from '#drivers/contracts';
 import type {
   GuestInspection,
   InspectionProbeFailure,
-} from '#integrations/guest/runtime';
+} from '#integrations/guest/inspection-types';
 
 /** specific current-state failures from a guest readiness inspection */
 export interface ReadinessAssessment {

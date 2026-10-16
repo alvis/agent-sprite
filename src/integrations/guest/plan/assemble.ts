@@ -10,13 +10,16 @@ import { BASE_TOOLS } from '#tools/base';
 import { resolveTools } from '#tools/resolve';
 
 import { idleStep, IDLE_STEP } from '../awake.js';
-import { buildEnvironment } from '../environment-build.js';
+import { buildEnvironment } from '../environment/build.js';
+import {
+  ENVIRONMENT_MODE,
+  serializeEnvironment,
+} from '../environment/contracts.js';
 import {
   environmentNetwork,
   guestJobs,
   guestServices,
-} from '../environment-services.js';
-import { ENVIRONMENT_MODE, serializeEnvironment } from '../environment.js';
+} from '../environment/services.js';
 
 import { BOOTSTRAP_STEP, foundationSteps } from './foundation.js';
 import { fileStep } from './steps/file.js';
@@ -30,14 +33,14 @@ import type { OsFamily, OsImage, OsRelease } from '#os/contracts';
 import type { Resolution, ToolSpec } from '#tools/contracts';
 import type { RefusedSource } from '#tools/resolve';
 
-import type { GuestEnvironment } from '../environment.js';
-import type { GuestNetworkIdentity } from '../types.js';
+import type { GuestEnvironment } from '../environment/contracts.js';
+import type { GuestNetworkIdentity } from '../run.js';
 
 import type { SetupStep } from './contracts.js';
 import type { PlanProvider } from './foundation.js';
 
 /** id of the step that writes environment.json */
-export const ENVIRONMENT_STEP = 'environment';
+const ENVIRONMENT_STEP = 'environment';
 
 /** what a plan is assembled from */
 export interface AssemblyParams {
@@ -84,7 +87,7 @@ export interface SetupAssembly {
  * @param provider the provider, whose service backend may bring tools
  * @returns the tools, each named once
  */
-export function workstationTools(
+function workstationTools(
   profile: WorkstationProfile,
   provider: Pick<PlanProvider, 'serviceBackend'>,
 ): ToolSpec[] {

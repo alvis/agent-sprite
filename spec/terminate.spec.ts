@@ -23,7 +23,7 @@ import { createFilesystemSprite, providerOf } from './mocks/sprites.js';
 import type { Sprite } from '@fly/sprites';
 import type { Mock } from 'vitest';
 
-import type { CommandRequest } from '#command';
+import type { CommandRequest } from '#command/contracts';
 
 import type { GuestExecute } from './mocks/sprites.js';
 

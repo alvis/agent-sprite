@@ -1,6 +1,6 @@
 import { catalog } from './catalog.js';
 
-import type { NetworkDriver } from '#drivers/contracts';
+import type { NetworkDriver } from '#drivers/networks/contracts';
 
 import type { NetworkId } from './catalog.js';
 

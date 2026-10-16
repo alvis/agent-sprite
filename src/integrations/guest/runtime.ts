@@ -1,10 +1,10 @@
 import { networkDriver } from '#core/networks';
 import { inspectHub } from '#drivers/shared/cliproxyapi/hub';
-import { inspectNativeConfiguration } from '#integrations/native';
+import { inspectNativeConfiguration } from '#integrations/native/inspection';
 import { checkOperation, traceStage } from '#operation';
 
 import { inspectGovernor } from './awake.js';
-import { readGuestEnvironment, readUpdateStatus } from './environment-store.js';
+import { readGuestEnvironment, readUpdateStatus } from './environment/store.js';
 import { settleInspectionResults } from './inspection-results.js';
 
 import type { Interaction } from '#command/contracts';
@@ -25,13 +25,8 @@ const INSPECTION_MESSAGES = {
   boot: 'Reading the last boot record',
 };
 
-export type {
-  GuestInspection,
-  InspectionProbeFailure,
-} from './inspection-types.js';
-
 /** what an inspection reports to and reads besides the guest itself */
-export interface InspectionOptions {
+interface InspectionOptions {
   /** observer for actual probe starts and elapsed completions */
   progress?: Interaction['progress'];
   /** the provider, whose boot record is read when it keeps one */

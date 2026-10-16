@@ -5,16 +5,13 @@ import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
 
 import { resolveBaseInputs } from './input/base.js';
-import {
-  discoverGithubToken,
-  resolveGitIdentity,
-  selectGithubToken,
-} from './input/github.js';
+import { discoverGithubToken } from './input/github-discovery.js';
+import { resolveGitIdentity, selectGithubToken } from './input/github.js';
 import { resolveInteractiveInputs } from './input/prompts.js';
+import { suppliedSelectionViolations } from './input/selection-supplied.js';
 import {
   resolveCreateSelection,
   selectionRequirements,
-  suppliedSelectionViolations,
 } from './input/selection.js';
 import { readInputSources } from './input/sources.js';
 
@@ -24,25 +21,11 @@ import type { WorkstationProfile } from '#core/profile';
 import type { CredentialStoreLocation } from '#integrations/credentials';
 
 import type { GithubTokenCandidate } from './input/github.js';
-import type {
-  Resolved,
-  SelectionResolution,
-  SuppliedSelection,
-} from './input/selection.js';
+import type { Resolved } from './input/selection-sources.js';
+import type { SuppliedSelection } from './input/selection-supplied.js';
+import type { SelectionResolution } from './input/selection.js';
 import type { InputSources } from './input/sources.js';
 import type { ResolvedInputs, RequiredInput } from './input/types.js';
-
-export {
-  retainEnteredProviderToken,
-  retainManagementCredential,
-} from './input/prompts.js';
-export { resolveProviderCredential } from './input/provider-credential.js';
-
-export type {
-  GitIdentity,
-  ResolvedInputs,
-  RequiredInput,
-} from './input/types.js';
 
 const BASE_CREATE_INPUTS: readonly RequiredInput[] = [
   'name',
