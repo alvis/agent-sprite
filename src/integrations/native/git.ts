@@ -4,14 +4,19 @@ import {
 } from '#core/environment';
 import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
-import { HOMEBREW_PATH } from '#integrations/guest/layout';
+import {
+  ACCOUNT_PATH,
+  AGENT_CONFIG,
+  COMMITTER_PATH,
+  RUNTIME_ENV_PATH,
+  accountHome,
+} from '#integrations/guest/layout';
 import { runGuestResult } from '#integrations/guest/run';
 import { HOMEBREW_GH } from '#tools/accounts';
 import { redactResolved, rememberSecret } from '#utilities/redaction';
 
 import {
   USER,
-  HOME,
   ensurePrivateDirectory,
   runAsAgent,
   writeOwnedFile,
@@ -56,10 +61,10 @@ export async function configureGit(
     'user.email',
     identity.authorEmail,
   ]);
-  await ensurePrivateDirectory(guest, `${HOME}/.config/open-agent`);
+  await ensurePrivateDirectory(guest, AGENT_CONFIG);
   await writeOwnedFile(
     guest,
-    `${HOME}/.config/open-agent/committer.json`,
+    COMMITTER_PATH,
     `${JSON.stringify({ name: identity.committerName, email: identity.committerEmail })}\n`,
   );
 }
@@ -86,7 +91,7 @@ export async function configureGithub(
 ): Promise<void> {
   const hostname = target.hostname ?? 'github.com';
   for (const user of [USER, ...target.shellAccounts]) {
-    const home = `/home/${user}`;
+    const home = accountHome(user);
     const owner = { user, shellAccounts: target.shellAccounts };
     await ensurePrivateDirectory(guest, `${home}/.config`, owner);
     await ensurePrivateDirectory(guest, `${home}/.config/gh`, owner);
@@ -129,19 +134,20 @@ export async function configureRuntimeEnv(
 ): Promise<void> {
   assertRuntimeEnv(environment);
   Object.values(environment).forEach(rememberSecret);
-  await ensurePrivateDirectory(guest, `${HOME}/.config/open-agent`);
+  await ensurePrivateDirectory(guest, AGENT_CONFIG);
   await writeOwnedFile(
     guest,
-    `${HOME}/.config/open-agent/runtime-env.json`,
+    RUNTIME_ENV_PATH,
     `${JSON.stringify(environment)}\n`,
   );
 }
 
 /**
- * refuses runtime variables that would override a credential or the
- * environment open-agent sets, so create can refuse them before it provisions
+ * refuses runtime variables that would override a credential, the
+ * environment open-agent sets or the OA_* names its guest programs reserve,
+ * so create can refuse them before it provisions
  * @param environment requested runtime variables
- * @throws {CommandFault} when a variable is restricted
+ * @throws {CommandFault} when a variable is restricted or reserved
  */
 export function assertRuntimeEnv(environment: Record<string, string>): void {
   const forbidden = new Set([
@@ -163,6 +169,13 @@ export function assertRuntimeEnv(environment: Record<string, string>): void {
       message: `Runtime environment contains restricted keys: ${rejected.join(', ')}`,
     });
   }
+  const reserved = names.filter((name) => name.startsWith('OA_'));
+  if (reserved.length) {
+    throw new CommandFault({
+      code: 'INPUT',
+      message: `Runtime environment contains keys open-agent reserves for its guest programs: ${reserved.join(', ')}; rename them without the OA_ prefix`,
+    });
+  }
 }
 
 /**
@@ -181,6 +194,7 @@ async function runGithubCommand(params: {
   token?: Secret;
 }): Promise<void> {
   const { guest, user, args, token } = params;
+  const home = accountHome(user);
   const result = await runGuestResult(
     guest,
     [
@@ -189,9 +203,9 @@ async function runGithubCommand(params: {
       user,
       '--',
       '/usr/bin/env',
-      `--chdir=/home/${user}`,
-      `HOME=/home/${user}`,
-      `PATH=${HOMEBREW_PATH}:/usr/local/bin:/usr/bin:/bin`,
+      `--chdir=${home}`,
+      `HOME=${home}`,
+      `PATH=${ACCOUNT_PATH}`,
       // the bottle's keg, which only the Homebrew account can change
       HOMEBREW_GH,
       ...args,

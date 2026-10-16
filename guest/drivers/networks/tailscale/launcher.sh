@@ -16,10 +16,9 @@ set -fu
 OA_RESOLVER=/etc/resolv.conf
 # ahead of the rules tailscaled installs from 5210 on
 OA_PRIORITY=5200
-# the setup session's lock, in its root-only directory
-OA_SESSION_LOCK=$OA_SESSION_DIRECTORY/session.lock
-# removes every directory a setup secret, such as an auth key, was delivered in
-OA_SECRETS_SWEEP='rm -rf /dev/shm/open-agent.*'
+# removes every directory a setup secret, such as an auth key, was delivered
+# in, every one under the secret prefix
+OA_SECRETS_SWEEP="rm -rf ${OA_SECRET_PREFIX}*"
 # the system's commands ahead of the tool links, which bring Homebrew's
 # tailscaled: the Homebrew account is locked and root alone writes it
 PATH=$OA_SESSION_PATH

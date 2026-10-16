@@ -28,31 +28,19 @@ LC_ALL=C
 DEBIAN_FRONTEND=noninteractive
 export PATH LC_ALL DEBIAN_FRONTEND
 
-# the volume and the directories it keeps
-OA_BOOT_VOLUME=/data
-OA_BOOT_VOLUME_ROOT=$OA_BOOT_VOLUME/open-agent
-OA_BOOT_HOMES=$OA_BOOT_VOLUME/home
-OA_BOOT_APT=$OA_BOOT_VOLUME/apt
-# every package installed beyond the image's, one name a line
-OA_BOOT_RECORD=$OA_BOOT_APT/packages
+# the volume, the directories it keeps and its record of every package
+# installed beyond the image's, the root filesystem's own record, and this
+# boot's state come in the header as the OA_FLY_* variables
 # what setup keeps in the guest root, which the volume's is bound over
 OA_BOOT_SELF=$OA_GUEST_ROOT/drivers/providers/fly-machine/boot.sh
 OA_BOOT_FAMILY=$OA_GUEST_ROOT/os/debian/lib.sh
 OA_BOOT_LINKS=$OA_GUEST_ROOT/tools/links.sh
 OA_BOOT_RUNIT=$OA_GUEST_ROOT/services/runit/lib.sh
 OA_BOOT_CRON=$OA_GUEST_ROOT/services/cron.sh
-OA_BOOT_LOG=$OA_GUEST_ROOT/boot.log
-OA_BOOT_STATUS=$OA_GUEST_ROOT/boot-status.json
-OA_BOOT_LABEL_RECORD=$OA_GUEST_ROOT/workstation-name
-# the root filesystem's own record: the image's packages, and the marker a
-# restore leaves once the packages, services and jobs are back
-OA_BOOT_STATE=/var/lib/open-agent
-OA_BOOT_BASELINE=$OA_BOOT_STATE/image-packages
-OA_BOOT_MARKER=$OA_BOOT_STATE/rootfs-restored
-# this boot's state, which every boot starts without
-OA_BOOT_RUN=/run/open-agent
-OA_BOOT_READY=$OA_BOOT_RUN/boot-ready
-OA_BOOT_LOCK=$OA_BOOT_RUN/boot.lock
+# the image's packages, beside the marker a restore leaves once the
+# packages, services and jobs are back
+OA_BOOT_BASELINE=$OA_FLY_ROOTFS_STATE/image-packages
+OA_BOOT_LOCK=$OA_FLY_RUN/boot.lock
 # seconds a run waits for another to finish, such as a boot for setup's prepare
 OA_BOOT_LOCK_WAIT=600
 # the root filesystem files the hook writes
@@ -60,25 +48,15 @@ OA_BOOT_APT_CONFIG=/etc/apt/apt.conf.d/90open-agent
 # the image's apt hook, which deletes every download and would leave the cache cold
 OA_BOOT_APT_CLEANER=/etc/apt/apt.conf.d/docker-clean
 OA_BOOT_POLICY=/usr/sbin/policy-rc.d
-OA_BOOT_PROFILE=/etc/profile.d/open-agent.sh
-OA_BOOT_MACHINE_INFO=/etc/machine-info
-OA_BOOT_LABEL_KEY=PRETTY_HOSTNAME
 OA_BOOT_SERVICES=/etc/service
 # the second line of every policy-rc.d open-agent writes, and the third of the
 # one that keeps every service from starting while the packages are reinstalled
 OA_BOOT_POLICY_MARK='# open-agent policy-rc.d'
 OA_BOOT_HOLD_MARK='# open-agent: no service starts while the packages are reinstalled'
-# the ids the agent's account takes when its home on the volume is new:
-# AGENT_IDS in src/integrations/guest/plan/foundation.ts
-OA_BOOT_AGENT_IDS=2000
 # the system's jq, which the hook reads JSON with, never a tool link
 OA_BOOT_JQ=/usr/bin/jq
-# the setup session's lock, in its root-only directory
-OA_BOOT_SESSION_LOCK=$OA_SESSION_DIRECTORY/session.lock
-# removes every directory a setup secret was delivered in
-OA_BOOT_SECRETS_SWEEP='rm -rf /dev/shm/open-agent.*'
-# every group may open ping's sockets, so the agent's ping needs no privilege
-OA_BOOT_PING_GROUPS='0 2147483647'
+# removes every directory a setup secret was delivered in, under the secret prefix
+OA_BOOT_SECRETS_SWEEP="rm -rf ${OA_SECRET_PREFIX}*"
 # the boot log's size beyond which it is trimmed, and how much a trim keeps
 OA_BOOT_LOG_LIMIT=524288
 OA_BOOT_LOG_KEPT=262144
@@ -99,13 +77,13 @@ oa_boot_installed() {
 # once it is removed, as a reinstall of it from the cache is harmless
 oa_boot_record() {
   test -f "$OA_BOOT_BASELINE" || return 0
-  mountpoint -q "$OA_BOOT_VOLUME" || return 0
-  test -d "$OA_BOOT_APT" || return 0
+  mountpoint -q "$OA_FLY_VOLUME" || return 0
+  test -d "$OA_FLY_VOLUME_APT" || return 0
   oa_boot_added=$(mktemp) || return 1
   if oa_boot_installed | comm -23 - "$OA_BOOT_BASELINE" >"$oa_boot_added" &&
-    touch "$OA_BOOT_RECORD" &&
-    sort -u "$OA_BOOT_RECORD" "$oa_boot_added" >"$OA_BOOT_RECORD.new" &&
-    mv -f "$OA_BOOT_RECORD.new" "$OA_BOOT_RECORD"; then
+    touch "$OA_FLY_PACKAGES" &&
+    sort -u "$OA_FLY_PACKAGES" "$oa_boot_added" >"$OA_FLY_PACKAGES.new" &&
+    mv -f "$OA_FLY_PACKAGES.new" "$OA_FLY_PACKAGES"; then
     oa_boot_recorded=0
   else
     oa_boot_recorded=1
@@ -184,30 +162,30 @@ oa_boot_owner() {
 # the volume must be mounted, and it and its homes root's alone, before
 # anything is bound
 oa_boot_volume() {
-  if ! mountpoint -q "$OA_BOOT_VOLUME"; then
-    echo "No volume is mounted at $OA_BOOT_VOLUME"
+  if ! mountpoint -q "$OA_FLY_VOLUME"; then
+    echo "No volume is mounted at $OA_FLY_VOLUME"
     return 1
   fi
-  if ! oa_boot_root_only "$OA_BOOT_VOLUME"; then
-    echo "$OA_BOOT_VOLUME is not root's alone"
+  if ! oa_boot_root_only "$OA_FLY_VOLUME"; then
+    echo "$OA_FLY_VOLUME is not root's alone"
     return 1
   fi
-  if ! test -e "$OA_BOOT_HOMES"; then
-    install -d -m 0755 "$OA_BOOT_HOMES" || return 1
+  if ! test -e "$OA_FLY_VOLUME_HOMES"; then
+    install -d -m 0755 "$OA_FLY_VOLUME_HOMES" || return 1
   fi
-  if ! oa_boot_root_only "$OA_BOOT_HOMES"; then
-    echo "$OA_BOOT_HOMES is not root's alone"
+  if ! oa_boot_root_only "$OA_FLY_VOLUME_HOMES"; then
+    echo "$OA_FLY_VOLUME_HOMES is not root's alone"
     return 1
   fi
 }
 
 # root runs everything under the guest root, so it must be root's alone
 oa_boot_guest_root() {
-  if ! oa_boot_root_only "$OA_BOOT_VOLUME_ROOT"; then
-    echo "$OA_BOOT_VOLUME_ROOT is not root's alone"
+  if ! oa_boot_root_only "$OA_FLY_VOLUME_ROOT"; then
+    echo "$OA_FLY_VOLUME_ROOT is not root's alone"
     return 1
   fi
-  oa_boot_bind "$OA_BOOT_VOLUME_ROOT" "$OA_GUEST_ROOT"
+  oa_boot_bind "$OA_FLY_VOLUME_ROOT" "$OA_GUEST_ROOT"
 }
 
 # the family library every later step calls must be root's alone
@@ -224,7 +202,7 @@ oa_boot_libraries() {
 # into a directory the agent owns; an existing one keeps its ids, which the
 # account is recreated under
 oa_boot_agent() {
-  oa_boot_home=$OA_BOOT_HOMES/agent
+  oa_boot_home=$OA_FLY_VOLUME_AGENT_HOME
   if test -L "$oa_boot_home"; then
     echo "Refusing $oa_boot_home: it is a link"
     return 1
@@ -235,7 +213,7 @@ oa_boot_agent() {
     if test -d /etc/skel; then
       cp -R /etc/skel/. "$oa_boot_home.open-agent-new" || return 1
     fi
-    chown -R "$OA_BOOT_AGENT_IDS:$OA_BOOT_AGENT_IDS" "$oa_boot_home.open-agent-new" &&
+    chown -R "$OA_AGENT_ID:$OA_AGENT_ID" "$oa_boot_home.open-agent-new" &&
       mv -T "$oa_boot_home.open-agent-new" "$oa_boot_home" || return 1
   fi
   if ! test -d "$oa_boot_home" || test "$(stat -c %u "$oa_boot_home")" = 0; then
@@ -257,7 +235,7 @@ oa_boot_agent() {
 # installer expects, and its account is left for setup to create; one it has
 # taken has its account recreated under the ids it was made under
 oa_boot_homebrew() {
-  oa_boot_home=$OA_BOOT_HOMES/linuxbrew
+  oa_boot_home=$OA_FLY_VOLUME_HOMEBREW_HOME
   if test -L "$oa_boot_home"; then
     echo "Refusing $oa_boot_home: it is a link"
     return 1
@@ -287,7 +265,7 @@ oa_boot_apt_text() {
   cat <<EOF
 // open-agent: apt keeps every download in the volume's cache, from which a
 // rebuilt root filesystem reinstalls, and records what dpkg installs
-Dir::Cache::archives "$OA_BOOT_APT/archives/";
+Dir::Cache::archives "$OA_FLY_VOLUME_APT/archives/";
 Binary::apt::APT::Keep-Downloaded-Packages "true";
 APT::Keep-Downloaded-Packages "true";
 DPkg::Post-Invoke { "/bin/sh $OA_BOOT_SELF record-packages || true"; };
@@ -297,10 +275,10 @@ EOF
 # keeps apt's downloads in the volume's cache and its lists on the volume
 oa_boot_apt() {
   rm -f "$OA_BOOT_APT_CLEANER" || return 1
-  install -d -m 0755 "$OA_BOOT_APT" "$OA_BOOT_APT/lists" "$OA_BOOT_APT/archives" || return 1
-  install -d -m 0700 "$OA_BOOT_APT/lists/partial" "$OA_BOOT_APT/archives/partial" || return 1
-  if ! oa_boot_root_only "$OA_BOOT_APT"; then
-    echo "$OA_BOOT_APT is not root's alone"
+  install -d -m 0755 "$OA_FLY_VOLUME_APT" "$OA_FLY_VOLUME_APT/lists" "$OA_FLY_VOLUME_APT/archives" || return 1
+  install -d -m 0700 "$OA_FLY_VOLUME_APT/lists/partial" "$OA_FLY_VOLUME_APT/archives/partial" || return 1
+  if ! oa_boot_root_only "$OA_FLY_VOLUME_APT"; then
+    echo "$OA_FLY_VOLUME_APT is not root's alone"
     return 1
   fi
   if ! oa_boot_apt_text | cmp -s - "$OA_BOOT_APT_CONFIG"; then
@@ -308,7 +286,7 @@ oa_boot_apt() {
     chmod 0644 "$OA_BOOT_APT_CONFIG.new" || return 1
     mv -f "$OA_BOOT_APT_CONFIG.new" "$OA_BOOT_APT_CONFIG" || return 1
   fi
-  oa_boot_bind "$OA_BOOT_APT/lists" /var/lib/apt/lists
+  oa_boot_bind "$OA_FLY_VOLUME_APT/lists" /var/lib/apt/lists
 }
 
 # keeps every service a package ships from starting while the packages are
@@ -360,7 +338,7 @@ oa_boot_packages() {
     echo "The root filesystem is restored already"
     return 0
   fi
-  if ! test -s "$OA_BOOT_RECORD"; then
+  if ! test -s "$OA_FLY_PACKAGES"; then
     echo "No packages are recorded yet"
     return 0
   fi
@@ -368,7 +346,7 @@ oa_boot_packages() {
   while read -r oa_boot_package; do
     test -n "$oa_boot_package" && set -- "$@" "$oa_boot_package"
   done <<EOF
-$(grep -Ex '[a-z0-9][a-z0-9.+-]*' "$OA_BOOT_RECORD")
+$(grep -Ex '[a-z0-9][a-z0-9.+-]*' "$OA_FLY_PACKAGES")
 EOF
   if test "$#" -eq 0; then
     return 0
@@ -422,7 +400,7 @@ oa_boot_profile_text() {
 if test "\$(id -u)" = 0; then
   PATH="$OA_SESSION_PATH"
 else
-  PATH="\$HOME/.local/bin:$OA_HOMEBREW_PATH:/usr/local/bin:/usr/bin:/bin"
+  PATH="\$HOME/.local/bin:$OA_ACCOUNT_PATH"
 fi
 export PATH
 PROFILE
@@ -430,49 +408,49 @@ PROFILE
 
 # writes the login profile every login shell reads
 oa_boot_profile() {
-  if oa_boot_profile_text | cmp -s - "$OA_BOOT_PROFILE"; then
+  if oa_boot_profile_text | cmp -s - "$OA_FLY_PROFILE"; then
     return 0
   fi
-  install -d -m 0755 "${OA_BOOT_PROFILE%/*}" || return 1
-  oa_boot_profile_text >"$OA_BOOT_PROFILE.new" || return 1
-  chmod 0644 "$OA_BOOT_PROFILE.new" || return 1
-  mv -f "$OA_BOOT_PROFILE.new" "$OA_BOOT_PROFILE"
+  install -d -m 0755 "${OA_FLY_PROFILE%/*}" || return 1
+  oa_boot_profile_text >"$OA_FLY_PROFILE.new" || return 1
+  chmod 0644 "$OA_FLY_PROFILE.new" || return 1
+  mv -f "$OA_FLY_PROFILE.new" "$OA_FLY_PROFILE"
 }
 
 # recreates the machine information file from the workstation name setup
 # recorded under the guest root, keeping any other key the file has; a record
 # that is not root's alone or not a DNS label is refused
 oa_boot_label() {
-  if ! test -e "$OA_BOOT_LABEL_RECORD"; then
+  if ! test -e "$OA_WORKSTATION_NAME_PATH"; then
     echo "No workstation name is recorded yet"
     return 0
   fi
-  if ! oa_boot_trusted "$OA_BOOT_LABEL_RECORD"; then
-    echo "Refusing $OA_BOOT_LABEL_RECORD: it is a link or not root's alone"
+  if ! oa_boot_trusted "$OA_WORKSTATION_NAME_PATH"; then
+    echo "Refusing $OA_WORKSTATION_NAME_PATH: it is a link or not root's alone"
     return 1
   fi
-  oa_boot_label=$(head -n 1 "$OA_BOOT_LABEL_RECORD")
+  oa_boot_label=$(head -n 1 "$OA_WORKSTATION_NAME_PATH")
   if ! printf '%s\n' "$oa_boot_label" | grep -Eqx '[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'; then
-    echo "Refusing $OA_BOOT_LABEL_RECORD: it holds no DNS label"
+    echo "Refusing $OA_WORKSTATION_NAME_PATH: it holds no DNS label"
     return 1
   fi
   {
-    if test -f "$OA_BOOT_MACHINE_INFO"; then
-      grep -v "^[[:space:]]*${OA_BOOT_LABEL_KEY}[[:space:]]*=" "$OA_BOOT_MACHINE_INFO" || :
+    if test -f "$OA_MACHINE_INFO_PATH"; then
+      grep -v "^[[:space:]]*${OA_MACHINE_INFO_LABEL_KEY}[[:space:]]*=" "$OA_MACHINE_INFO_PATH" || :
     fi
-    printf '%s=%s\n' "$OA_BOOT_LABEL_KEY" "$oa_boot_label"
-  } >"$OA_BOOT_MACHINE_INFO.new" || return 1
-  if cmp -s "$OA_BOOT_MACHINE_INFO.new" "$OA_BOOT_MACHINE_INFO"; then
-    rm -f "$OA_BOOT_MACHINE_INFO.new"
+    printf '%s=%s\n' "$OA_MACHINE_INFO_LABEL_KEY" "$oa_boot_label"
+  } >"$OA_MACHINE_INFO_PATH.new" || return 1
+  if cmp -s "$OA_MACHINE_INFO_PATH.new" "$OA_MACHINE_INFO_PATH"; then
+    rm -f "$OA_MACHINE_INFO_PATH.new"
     return 0
   fi
-  chmod 0644 "$OA_BOOT_MACHINE_INFO.new" || return 1
-  mv -f "$OA_BOOT_MACHINE_INFO.new" "$OA_BOOT_MACHINE_INFO"
+  chmod 0644 "$OA_MACHINE_INFO_PATH.new" || return 1
+  mv -f "$OA_MACHINE_INFO_PATH.new" "$OA_MACHINE_INFO_PATH"
 }
 
 # lets every group open ping's sockets, where the kernel allows it
 oa_boot_ping() {
-  oa_boot_call "$OA_BOOT_FAMILY" oa_sysctl net.ipv4.ping_group_range "$OA_BOOT_PING_GROUPS"
+  oa_boot_call "$OA_BOOT_FAMILY" oa_sysctl net.ipv4.ping_group_range "$OA_PING_GROUP_RANGE"
 }
 
 # removes what a crash left of setup's secrets in /dev/shm, under the setup
@@ -480,7 +458,7 @@ oa_boot_ping() {
 # session or a resume after one leaves the session's own secret alone
 oa_boot_secrets() {
   if test -d "$OA_SESSION_DIRECTORY"; then
-    flock -n "$OA_BOOT_SESSION_LOCK" /bin/sh -c "$OA_BOOT_SECRETS_SWEEP" ||
+    flock -n "$OA_SESSION_LOCK" /bin/sh -c "$OA_BOOT_SECRETS_SWEEP" ||
       echo "a setup session is open; its secrets are left to it"
   else
     /bin/sh -c "$OA_BOOT_SECRETS_SWEEP"
@@ -496,7 +474,7 @@ oa_boot_holds() {
 
 # tells whether this boot's ready file says a critical step halted it
 oa_boot_halted_boot() {
-  test "$(cat "$OA_BOOT_READY" 2>/dev/null)" = "$(cat /proc/sys/kernel/random/boot_id) halted"
+  test "$(cat "$OA_FLY_BOOT_READY" 2>/dev/null)" = "$(cat "$OA_BOOT_ID_PATH") halted"
 }
 
 # tells whether a prepare would change nothing setup needs: the boot did not
@@ -506,18 +484,18 @@ oa_boot_halted_boot() {
 # boot, which marks the root filesystem restored
 oa_boot_check() {
   ! oa_boot_halted_boot || return 1
-  oa_boot_same "$OA_BOOT_VOLUME_ROOT" "$OA_GUEST_ROOT" || return 1
-  oa_boot_same "$OA_BOOT_HOMES/agent" "$OA_AGENT_HOME" || return 1
-  oa_boot_holds agent "$OA_BOOT_HOMES/agent" || return 1
+  oa_boot_same "$OA_FLY_VOLUME_ROOT" "$OA_GUEST_ROOT" || return 1
+  oa_boot_same "$OA_FLY_VOLUME_HOMES/agent" "$OA_AGENT_HOME" || return 1
+  oa_boot_holds agent "$OA_FLY_VOLUME_HOMES/agent" || return 1
   test "$(getent passwd agent | cut -d: -f6)" = "$OA_AGENT_HOME" || return 1
-  oa_boot_same "$OA_BOOT_HOMES/linuxbrew" "$OA_LINUXBREW_HOME" || return 1
-  if test "$(stat -c %u "$OA_BOOT_HOMES/linuxbrew")" != 0; then
-    oa_boot_holds linuxbrew "$OA_BOOT_HOMES/linuxbrew" || return 1
+  oa_boot_same "$OA_FLY_VOLUME_HOMES/linuxbrew" "$OA_LINUXBREW_HOME" || return 1
+  if test "$(stat -c %u "$OA_FLY_VOLUME_HOMES/linuxbrew")" != 0; then
+    oa_boot_holds linuxbrew "$OA_FLY_VOLUME_HOMES/linuxbrew" || return 1
   fi
   ! test -e "$OA_BOOT_APT_CLEANER" || return 1
   oa_boot_apt_text | cmp -s - "$OA_BOOT_APT_CONFIG" || return 1
-  oa_boot_same "$OA_BOOT_APT/lists" /var/lib/apt/lists || return 1
-  oa_boot_profile_text | cmp -s - "$OA_BOOT_PROFILE"
+  oa_boot_same "$OA_FLY_VOLUME_APT/lists" /var/lib/apt/lists || return 1
+  oa_boot_profile_text | cmp -s - "$OA_FLY_PROFILE"
 }
 
 # prints the milliseconds since the epoch
@@ -566,22 +544,22 @@ oa_boot_step() {
 # package is reinstalled, so the record holds only what setup added
 oa_boot_baseline() {
   test -f "$OA_BOOT_BASELINE" && return 0
-  install -d -m 0755 "$OA_BOOT_STATE" || return 1
+  install -d -m 0755 "$OA_FLY_ROOTFS_STATE" || return 1
   oa_boot_installed >"$OA_BOOT_BASELINE.new" || return 1
   mv -f "$OA_BOOT_BASELINE.new" "$OA_BOOT_BASELINE"
 }
 
 # marks the root filesystem restored
 oa_boot_mark() {
-  install -d -m 0755 "$OA_BOOT_STATE" || return 1
-  printf '%s\n' "$oa_boot_id" >"$OA_BOOT_MARKER"
+  install -d -m 0755 "$OA_FLY_ROOTFS_STATE" || return 1
+  printf '%s\n' "$oa_boot_id" >"$OA_FLY_ROOTFS_RESTORED"
 }
 
 # runs every step in order; the marker is left once the packages, services
 # and jobs are back, so a failed reinstall is retried on the next run
 oa_boot_restore() {
   oa_boot_fresh=
-  if ! test -f "$OA_BOOT_MARKER"; then
+  if ! test -f "$OA_FLY_ROOTFS_RESTORED"; then
     oa_boot_fresh=1
   fi
   oa_boot_baseline || oa_boot_log "could not record the image's packages"
@@ -590,8 +568,8 @@ oa_boot_restore() {
   oa_boot_step volume critical oa_boot_volume
   oa_boot_step guest-root critical oa_boot_guest_root
   # the log reaches the volume once the guest root is bound
-  if oa_boot_same "$OA_BOOT_VOLUME_ROOT" "$OA_GUEST_ROOT"; then
-    oa_boot_keep_log || oa_boot_log "could not keep the log in $OA_BOOT_LOG"
+  if oa_boot_same "$OA_FLY_VOLUME_ROOT" "$OA_GUEST_ROOT"; then
+    oa_boot_keep_log || oa_boot_log "could not keep the log in $OA_FLY_BOOT_LOG"
   fi
   oa_boot_step libraries critical oa_boot_libraries
   oa_boot_step agent-account critical oa_boot_agent
@@ -603,7 +581,7 @@ oa_boot_restore() {
   # the restored links bring runit's commands onto PATH, after the system's,
   # which no link shadows; root runs Homebrew's runit only because the
   # Homebrew account is locked and root alone writes it, acting as it
-  PATH=$PATH:/usr/local/sbin:/usr/local/bin
+  PATH=$OA_SESSION_PATH
   oa_boot_step services optional oa_boot_services
   test "$oa_boot_outcome" = ok || oa_boot_incomplete=1
   oa_boot_step profile optional oa_boot_profile
@@ -617,15 +595,15 @@ oa_boot_restore() {
 # moves the run's log so far onto the boot log on the volume, trimming it,
 # and writes the rest of the run there
 oa_boot_keep_log() {
-  if ! test -e "$OA_BOOT_LOG"; then
-    install -m 0600 /dev/null "$OA_BOOT_LOG" || return 1
+  if ! test -e "$OA_FLY_BOOT_LOG"; then
+    install -m 0600 /dev/null "$OA_FLY_BOOT_LOG" || return 1
   fi
-  cat "$oa_boot_sink" >>"$OA_BOOT_LOG" || return 1
-  if test "$(stat -c %s "$OA_BOOT_LOG")" -gt "$OA_BOOT_LOG_LIMIT"; then
-    tail -c "$OA_BOOT_LOG_KEPT" "$OA_BOOT_LOG" >"$OA_BOOT_LOG.new" || return 1
-    mv -f "$OA_BOOT_LOG.new" "$OA_BOOT_LOG" || return 1
+  cat "$oa_boot_sink" >>"$OA_FLY_BOOT_LOG" || return 1
+  if test "$(stat -c %s "$OA_FLY_BOOT_LOG")" -gt "$OA_BOOT_LOG_LIMIT"; then
+    tail -c "$OA_BOOT_LOG_KEPT" "$OA_FLY_BOOT_LOG" >"$OA_FLY_BOOT_LOG.new" || return 1
+    mv -f "$OA_FLY_BOOT_LOG.new" "$OA_FLY_BOOT_LOG" || return 1
   fi
-  oa_boot_sink=$OA_BOOT_LOG
+  oa_boot_sink=$OA_FLY_BOOT_LOG
 }
 
 # writes the ready file the host waits for, naming this boot
@@ -633,8 +611,8 @@ oa_boot_keep_log() {
 # the volume, so setup may repair it; failed, when the guest root is not;
 # or resumed, when a prepare repaired a halted boot
 oa_boot_ready() {
-  printf '%s %s\n' "$oa_boot_id" "$1" >"$OA_BOOT_READY.new" &&
-    mv -f "$OA_BOOT_READY.new" "$OA_BOOT_READY"
+  printf '%s %s\n' "$oa_boot_id" "$1" >"$OA_FLY_BOOT_READY.new" &&
+    mv -f "$OA_FLY_BOOT_READY.new" "$OA_FLY_BOOT_READY"
 }
 
 # writes the boot's result and every step's for doctor
@@ -642,9 +620,9 @@ oa_boot_ready() {
 oa_boot_report() {
   printf '{"bootId":"%s","startedAt":"%s","status":"%s","durationMs":%s,"steps":{%s}}\n' \
     "$oa_boot_id" "$oa_boot_started" "$1" "$oa_boot_duration" "$oa_boot_steps" \
-    >"$OA_BOOT_STATUS.new" || return 1
-  chmod 0644 "$OA_BOOT_STATUS.new" || return 1
-  mv -f "$OA_BOOT_STATUS.new" "$OA_BOOT_STATUS"
+    >"$OA_FLY_BOOT_STATUS.new" || return 1
+  chmod 0644 "$OA_FLY_BOOT_STATUS.new" || return 1
+  mv -f "$OA_FLY_BOOT_STATUS.new" "$OA_FLY_BOOT_STATUS"
 }
 
 # replaces the boot with runsvdir, waiting for setup to install runit first
@@ -680,11 +658,11 @@ case ${1-boot} in
     ;;
 esac
 
-install -d -m 0755 "$OA_BOOT_RUN" || exit 1
-oa_boot_sink=$OA_BOOT_RUN/boot-$oa_boot_mode.log
+install -d -m 0755 "$OA_FLY_RUN" || exit 1
+oa_boot_sink=$OA_FLY_RUN/boot-$oa_boot_mode.log
 : >"$oa_boot_sink" || exit 1
 chmod 0600 "$oa_boot_sink" || exit 1
-oa_boot_id=$(cat /proc/sys/kernel/random/boot_id)
+oa_boot_id=$(cat "$OA_BOOT_ID_PATH")
 oa_boot_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 oa_boot_began=$(oa_boot_now)
 oa_boot_halted=0
@@ -722,12 +700,12 @@ if test "$oa_boot_mode" = prepare; then
   fi
   exit 0
 fi
-if test "$oa_boot_sink" = "$OA_BOOT_LOG"; then
-  oa_boot_report "$oa_boot_result" || oa_boot_log "could not write $OA_BOOT_STATUS"
+if test "$oa_boot_sink" = "$OA_FLY_BOOT_LOG"; then
+  oa_boot_report "$oa_boot_result" || oa_boot_log "could not write $OA_FLY_BOOT_STATUS"
 fi
 if test "$oa_boot_halted" = 1; then
   # setup may repair the guest only while its root is the volume's
-  if oa_boot_same "$OA_BOOT_VOLUME_ROOT" "$OA_GUEST_ROOT"; then
+  if oa_boot_same "$OA_FLY_VOLUME_ROOT" "$OA_GUEST_ROOT"; then
     oa_boot_ready halted
     oa_boot_log "handover=none: a critical step failed; setup can repair the guest before the stub stops the machine; see $oa_boot_sink"
   else

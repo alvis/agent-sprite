@@ -1,5 +1,4 @@
 import { guestAsset } from '#integrations/guest/assets';
-import { GUEST_ROOT } from '#integrations/guest/layout';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 import { isRecord } from '#utilities/guards';
 
@@ -23,9 +22,6 @@ export const UPDATER_ASSET = guestAsset(
   'maintenance/updater.sh',
   ROOT_ONLY_MODE,
 );
-
-/** where the updater records its last run, which every account reads */
-export const UPDATE_STATUS_PATH = `${GUEST_ROOT}/update-status.json`;
 
 /** minutes between two runs of the gate */
 const GATE_INTERVAL_MINUTES = 60;

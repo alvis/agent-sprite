@@ -11,11 +11,11 @@ import {
   mergeMetadataLabels,
   SCHEMA_LABEL,
 } from '#drivers/providers/sprite/labels';
-import { ENVIRONMENT_PATH } from '#integrations/guest/layout';
 import {
-  UPDATE_GATE_ASSET,
+  ENVIRONMENT_PATH,
   UPDATE_STATUS_PATH,
-} from '#integrations/guest/updates';
+} from '#integrations/guest/layout';
+import { UPDATE_GATE_ASSET } from '#integrations/guest/updates';
 import { setupWorkstation } from '#setup';
 import {
   persistSetupProfile,

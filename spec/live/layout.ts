@@ -1,9 +1,5 @@
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import {
-  HOMEBREW_PREFIX,
-  LINUXBREW_HOME,
-  SESSION_DIRECTORY,
-} from '#integrations/guest/layout';
+import { HOMEBREW_PREFIX, LINUXBREW_HOME } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
 // where a live check finds what setup left on the guest
@@ -27,9 +23,6 @@ export const MANAGED_AWAKE_DIRECTORY = 'run/awake-root';
  * agent each record in their own awake directory, as `{recorded, state}`
  */
 export const GOVERNOR_REPORT = `${AWAKE_COMMAND} report`;
-
-/** the setup session's lock, which every scheduled update run holds */
-export const SESSION_LOCK_PATH = `${SESSION_DIRECTORY}/session.lock`;
 
 /**
  * takes the recorded state out of a governor report

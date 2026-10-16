@@ -1,13 +1,17 @@
 import { posix } from 'node:path';
 
-import { guestAsset, readAsset } from '#integrations/guest/assets';
-import { AGENT_HOME, AGENT_PATH } from '#integrations/guest/layout';
-import { ROOT_ONLY_MODE } from '#os/contracts';
+import { readAsset } from '#integrations/guest/assets';
+import {
+  AGENT_HOME,
+  AGENT_PATH,
+  accountHome,
+} from '#integrations/guest/layout';
 
 import { contentsInput } from './files';
 import { runGuest } from './run';
 
 import type { GuestChannel } from '#drivers/guest-channel';
+import type { GuestAsset } from '#os/contracts';
 
 import type { GuestRunResult } from './run';
 
@@ -33,7 +37,9 @@ export const USER = 'agent';
 export const HOME = AGENT_HOME;
 
 /** the program that changes one file in an account's home as that account, read from the package and run inline */
-const HOME_FILES = guestAsset('accounts/home-files.sh', ROOT_ONLY_MODE);
+const HOME_FILES: Pick<GuestAsset, 'path'> = {
+  path: 'accounts/home-files.sh',
+};
 
 /**
  * runs a command as the non-root guest account
@@ -112,7 +118,7 @@ async function runNativeFileCommand(
 ): Promise<void> {
   const { guest, path, operation, owner, contents } = params;
   const user = owner?.user ?? USER;
-  const home = `/home/${user}`;
+  const home = accountHome(user);
   if (
     ![USER, ...(owner?.shellAccounts ?? [])].includes(user) ||
     !path.startsWith(`${home}/`) ||

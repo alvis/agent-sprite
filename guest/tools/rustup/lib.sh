@@ -9,7 +9,7 @@ OA_RUSTUP_BIN=$OA_HOMEBREW_PREFIX/opt/rustup/bin
 # arguments: rustup's arguments
 oa_rustup() {
   oa_as agent env \
-    PATH="$OA_RUSTUP_BIN:/usr/local/bin:/usr/bin:/bin" \
+    PATH="$OA_RUSTUP_BIN:$OA_ACCOUNT_BASE_PATH" \
     RUSTUP_AUTO_INSTALL=0 \
     "$OA_RUSTUP_BIN/rustup" "$@"
 }

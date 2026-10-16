@@ -10,10 +10,11 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { HOMEBREW_PATH } from '#integrations/guest/layout';
+import { ACCOUNT_PATH, accountHome } from '#integrations/guest/layout';
 import { Secret } from '#integrations/guest/session/secret';
 
 import {
+  assertRuntimeEnv,
   configureGit,
   configureGithub,
   configureRuntimeEnv,
@@ -42,9 +43,9 @@ function protectedGithubArgs(user: string, args: string[]): string[] {
     user,
     '--',
     '/usr/bin/env',
-    `--chdir=/home/${user}`,
-    `HOME=/home/${user}`,
-    `PATH=${HOMEBREW_PATH}:/usr/local/bin:/usr/bin:/bin`,
+    `--chdir=${accountHome(user)}`,
+    `HOME=${accountHome(user)}`,
+    `PATH=${ACCOUNT_PATH}`,
     protectedGh,
     ...args,
   ];
@@ -334,5 +335,28 @@ describe('fn:configureRuntimeEnv', () => {
     ).rejects.toEqual(expect.objectContaining({ code: 'INPUT' }));
 
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(approved);
+  });
+});
+
+describe('fn:assertRuntimeEnv', () => {
+  it('should reject every OA_ name the guest programs reserve and tell the user to rename it', () => {
+    const run = () =>
+      assertRuntimeEnv({
+        USER_TAG: 'kept',
+        OA_GUEST_ROOT: '/srv/elsewhere',
+        OA_CUSTOM: 'value',
+      });
+
+    expect(run).toThrow(
+      expect.objectContaining({
+        code: 'INPUT',
+        message:
+          'Runtime environment contains keys open-agent reserves for its guest programs: OA_GUEST_ROOT, OA_CUSTOM; rename them without the OA_ prefix',
+      }),
+    );
+  });
+
+  it('should accept a name that only contains OA_ after its start', () => {
+    expect(() => assertRuntimeEnv({ MY_OA_SETTING: 'value' })).not.toThrow();
   });
 });

@@ -13,7 +13,7 @@ oa_npm_run() {
   oa_npm_program=$1
   shift
   oa_as agent env \
-    PATH="$OA_NPM_PREFIX/bin:$OA_NPM_NODE:/usr/local/bin:/usr/bin:/bin" \
+    PATH="$OA_NPM_PREFIX/bin:$OA_NPM_NODE:$OA_ACCOUNT_BASE_PATH" \
     NPM_CONFIG_PREFIX="$OA_NPM_PREFIX" \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_FUND=false \

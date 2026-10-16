@@ -5,7 +5,7 @@ import {
   writeOwnedFile,
 } from '#integrations/guest/account';
 import { guestFileExists, readGuestFile } from '#integrations/guest/files';
-import { AGENT_HOME } from '#integrations/guest/layout';
+import { AGENT_CONFIG } from '#integrations/guest/layout';
 import { isRecord } from '#utilities/guards';
 
 import type { ProxyRoute } from '#drivers/contracts';
@@ -37,7 +37,7 @@ export interface NativeProxyParams<Current> {
  * @returns absolute guest path of the ownership record
  */
 export function proxyOwnershipPath(harness: string): string {
-  return `${AGENT_HOME}/.config/open-agent/${harness}-proxy-ownership.json`;
+  return `${AGENT_CONFIG}/${harness}-proxy-ownership.json`;
 }
 
 /**
@@ -241,7 +241,7 @@ export async function writeOwnershipRecord(
   path: string,
   fields: Record<string, OwnedConfigurationValue>,
 ): Promise<void> {
-  await ensurePrivateDirectory(guest, `${AGENT_HOME}/.config/open-agent`);
+  await ensurePrivateDirectory(guest, AGENT_CONFIG);
   await writeOwnedFile(
     guest,
     path,

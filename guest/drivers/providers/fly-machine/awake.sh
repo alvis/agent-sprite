@@ -18,8 +18,8 @@ PATH=$OA_SYSTEM_PATH
 LC_ALL=C
 export PATH LC_ALL
 
-# the guest-local Machines API socket and the host name it expects
-OA_FLY_SOCKET=/.fly/api
+# the host name the guest-local Machines API socket, OA_FLY_API from the
+# header, expects
 OA_FLY_HOST=flaps
 # largest memory a suspended machine may have, in megabytes
 OA_FLY_SUSPEND_LIMIT_MB=2048
@@ -60,10 +60,10 @@ oa_fly_variable() {
 oa_fly_call() {
   set -- "$1" "$2" "$3" "http://$OA_FLY_HOST/v1/apps/$oa_fly_app/machines/$oa_fly_machine$2"
   if test "$1" = GET; then
-    curl -sS --unix-socket "$OA_FLY_SOCKET" --max-time "$3" --max-filesize "$OA_FLY_MACHINE_BYTES" \
+    curl -sS --unix-socket "$OA_FLY_API" --max-time "$3" --max-filesize "$OA_FLY_MACHINE_BYTES" \
       -o "$oa_fly_work/body" -w '%{http_code}' "$4" 2>"$oa_fly_work/error"
   else
-    curl -sS --unix-socket "$OA_FLY_SOCKET" --max-time "$3" -X "$1" -H 'Content-Length: 0' \
+    curl -sS --unix-socket "$OA_FLY_API" --max-time "$3" -X "$1" -H 'Content-Length: 0' \
       -o "$oa_fly_work/body" -w '%{http_code}' "$4" 2>"$oa_fly_work/error"
   fi
 }
@@ -156,7 +156,7 @@ enter-idle-form)
   oa_fly_enter_idle_form
   ;;
 *)
-  echo 'usage: drivers/providers/fly-machine/awake.sh enter-idle-form; a Fly Machine applies no deadline' >&2
+  echo "usage: $OA_GUEST_ROOT/drivers/providers/fly-machine/awake.sh enter-idle-form; a Fly Machine applies no deadline" >&2
   exit 64
   ;;
 esac

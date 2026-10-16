@@ -1,6 +1,7 @@
 import { guestAsset } from '#integrations/guest/assets';
 import { ROOT_ONLY_MODE } from '#os/contracts';
 
+import { FLY_VARIABLES } from './boot-layout';
 import { PRIVATE_V6_NETWORK, PROXY_V4_NETWORK } from './private-networks';
 
 import type { ProviderCapabilities } from '#drivers/contracts';
@@ -35,4 +36,5 @@ export const FLY_MACHINE_CAPABILITIES: ProviderCapabilities = {
 export const FLY_MACHINE_AWAKE: GuestAsset = guestAsset(
   'drivers/providers/fly-machine/awake.sh',
   ROOT_ONLY_MODE,
+  FLY_VARIABLES,
 );

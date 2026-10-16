@@ -71,6 +71,8 @@ export interface GuestAsset {
   mode: typeof ROOT_ONLY_MODE | typeof SHARED_MODE;
   /** absolute guest path it is installed at */
   installAs: string;
+  /** OA_* variables its owner adds to the layout header, such as a provider's own paths */
+  variables?: Readonly<Record<string, string>>;
 }
 
 /** the outcome of asking a family whether a release can run Homebrew */

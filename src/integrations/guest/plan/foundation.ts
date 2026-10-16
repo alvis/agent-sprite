@@ -1,7 +1,11 @@
 import { catalog } from '#core/catalog';
 import { networkDriver } from '#core/networks';
 import { readAsset } from '#integrations/guest/assets';
-import { AGENT_HOME } from '#integrations/guest/layout';
+import {
+  AGENT_HOME,
+  AGENT_ID,
+  PING_GROUP_RANGE,
+} from '#integrations/guest/layout';
 import { backendAssets } from '#services/backends';
 import {
   HOMEBREW_LIBRARY,
@@ -31,20 +35,12 @@ export const BOOTSTRAP_STEP = 'bootstrap';
 /** id of the best-effort step that lets every group open ping sockets */
 const SYSCTL_STEP = 'sysctl:ping';
 
-/**
- * the agent account's user and group id, the one the Fly boot hook restores
- * too; it stays clear of 1000, the first user an image adds, such as the
- * `ubuntu` account of the Sprite image
- */
-const AGENT_IDS = '2000';
 /** longest one command of the account step may take */
 const ACCOUNTS_LIMIT_MS = 60_000;
 /** longest one command of the bootstrap step may take, its lock wait included */
 const BOOTSTRAP_LIMIT_MS = 1_200_000;
 /** longest one command of the sysctl step may take */
 const SYSCTL_LIMIT_MS = 30_000;
-/** the group range that lets every account open an unprivileged ping socket */
-const PING_GROUP_RANGE = '0 2147483647';
 
 /** the provider facts a plan is assembled from */
 export type PlanProvider = Pick<
@@ -179,8 +175,8 @@ function accountsStep(family: OsFamily, needs: readonly string[]): SetupStep {
       [
         'oa_account_ensure',
         'agent',
-        AGENT_IDS,
-        AGENT_IDS,
+        AGENT_ID,
+        AGENT_ID,
         AGENT_HOME,
         '/bin/bash',
         'user',
