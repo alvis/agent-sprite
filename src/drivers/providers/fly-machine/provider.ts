@@ -5,7 +5,7 @@ import { rememberSecret } from '#utilities/redaction';
 import { FlyApi } from './api.js';
 import { flyBootHookStep } from './boot-hook-step.js';
 import { BOOT_HOOK } from './boot-layout.js';
-import { inspectFlyBoot, startAndBoot, waitForBoot } from './boot.js';
+import { inspectFlyBoot, startAndBoot } from './boot.js';
 import { FLY_MACHINE_AWAKE, FLY_MACHINE_CAPABILITIES } from './capabilities.js';
 import { FlyGuestChannel } from './channel.js';
 import { createManagedApp } from './creation.js';
@@ -36,7 +36,7 @@ import type {
   WorkstationMetadata,
   WorkstationRecord,
 } from '#drivers/contracts';
-import type { GuestChannel, GuestProcess } from '#drivers/guest-channel';
+import type { GuestProcess } from '#drivers/guest-channel';
 
 import type { FlyApp, FlyMachine } from './wire.js';
 
@@ -318,7 +318,7 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
    */
   public async openGuest(
     workstation: WorkstationRecord,
-  ): Promise<GuestChannel> {
+  ): Promise<FlyGuestChannel> {
     const { api, channels } = this.#bound();
     const existing = channels.get(workstation.id);
     if (existing) {
@@ -354,15 +354,13 @@ export class FlyMachineProvider implements ProviderDriver<'fly-machine'> {
 
   /**
    * waits until the boot script has rebuilt the root filesystem in the
-   * machine's current boot
+   * machine's current boot and an SSH session reaches the guest, so the root
+   * shell opened next is not lost to a machine flyctl cannot dial yet
    * @param workstation managed workstation, already started
    */
   public async awaitGuestReady(workstation: WorkstationRecord): Promise<void> {
-    const { app, machine } = await this.#fetchMatching(workstation);
-    await waitForBoot(this.#bound().api, {
-      app: app.name,
-      machine: machine.id,
-    });
+    const guest = await this.openGuest(workstation);
+    await guest.awaitReady();
   }
 
   /**

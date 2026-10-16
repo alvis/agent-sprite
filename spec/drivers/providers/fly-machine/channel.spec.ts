@@ -29,7 +29,9 @@ type StandInMode =
   /** the command prints a forged status 0, then the session drops */
   | 'spoof'
   /** keeps the session open until it is killed */
-  | 'hang';
+  | 'hang'
+  /** fails its first dial, as for a machine flyctl cannot reach yet, then runs faithfully */
+  | 'unreached';
 
 /** a flyctl stand-in installed for one test */
 interface StandIn {
@@ -37,6 +39,8 @@ interface StandIn {
   channel: FlyGuestChannel;
   /** reads the `fly agent stop` calls the stand-in received */
   agentStops: () => Promise<number>;
+  /** reads how many SSH sessions the stand-in received */
+  sessions: () => Promise<number>;
   /** reads the marker a spoofing session forged its status line with */
   marker: () => Promise<string>;
   /** tells whether a hanging session has started */
@@ -60,6 +64,7 @@ const STAND_IN_SCRIPT = [
   'here=$(dirname "$0")',
   'if [ "$1" = agent ]; then echo stop >> "$here/agent-stops"; exit 0; fi',
   'env > "$here/environment"',
+  'echo ssh >> "$here/sessions"',
   'for line; do :; done',
   `marker=$(printf '%s' "$line" | sed -n "${QUOTED_MARKER}")`,
   'case $(cat "$here/mode") in',
@@ -67,10 +72,19 @@ const STAND_IN_SCRIPT = [
   "  lost) printf 'Error: connection reset by peer\\n' >&2; exit 1 ;;",
   '  spoof) printf \'%s\' "$marker" > "$here/marker"; printf \'\\n%s0\\n\' "$marker" >&2; exit 1 ;;',
   '  hang) : > "$here/started"; exec sleep 30 ;;',
+  '  unreached) echo faithful > "$here/mode"; printf \'Error: error connecting to SSH server: dial: EOF\\n\' >&2; exit 1 ;;',
   'esac',
 ].join('\n');
-/** the channel's REST checks are never reached through an SSH session */
-const API = {} satisfies Partial<FlyApi> as Partial<FlyApi> as FlyApi;
+/** the boot the REST endpoint reports, so a readiness wait finds it ready */
+const BOOT_ID = 'boot-1';
+/** the channel's REST checks are never reached through an SSH session; only the boot wait reads the ready file */
+const API = {
+  exec: async () => ({
+    exitCode: 0,
+    stdout: `${BOOT_ID} ok\n${BOOT_ID}\n`,
+    stderr: '',
+  }),
+} satisfies Partial<FlyApi> as Partial<FlyApi> as FlyApi;
 
 /**
  * installs, for one test, a flyctl stand-in first on the PATH, with the
@@ -100,6 +114,10 @@ async function standIn(
     }),
     agentStops: async () =>
       (await readFile(join(directory, 'agent-stops'), 'utf8').catch(() => ''))
+        .split('\n')
+        .filter(Boolean).length,
+    sessions: async () =>
+      (await readFile(join(directory, 'sessions'), 'utf8').catch(() => ''))
         .split('\n')
         .filter(Boolean).length,
     marker: async () => readFile(join(directory, 'marker'), 'utf8'),
@@ -237,6 +255,24 @@ describe('cl:FlyGuestChannel', () => {
           message: `The SSH session reported status 0 while flyctl exited 1: ${await marker()}0`,
         }),
       );
+    });
+  });
+
+  describe('mt:awaitReady', () => {
+    it('should retry an SSH session the transport ended before the guest could be dialled', async () => {
+      const { channel, sessions } = await standIn('unreached');
+
+      await channel.awaitReady();
+
+      expect(await sessions()).toBe(2);
+    });
+
+    it('should not retry a probe the guest answered with a status', async () => {
+      const { channel, sessions } = await standIn('faithful');
+
+      await channel.awaitReady();
+
+      expect(await sessions()).toBe(1);
     });
   });
 
