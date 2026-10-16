@@ -116,14 +116,12 @@ async function probeTailnetEgress(
     dns.status === 'fulfilled'
       ? dns.value.stdout.trim().split(/\s+/)[0]
       : undefined;
+  // ip is found on the PATH, as the launcher finds it, since Homebrew's
+  // iproute2 links it outside /usr/sbin
   const route = probeAddress
-    ? await runGuest(
-        guest,
-        ['/usr/sbin/ip', '-4', 'route', 'get', probeAddress],
-        {
-          timeoutMs: NETWORK_PROBE_TIMEOUT_MS,
-        },
-      ).catch(() => {
+    ? await runGuest(guest, ['ip', '-4', 'route', 'get', probeAddress], {
+        timeoutMs: NETWORK_PROBE_TIMEOUT_MS,
+      }).catch(() => {
         checkOperation();
 
         return undefined;
