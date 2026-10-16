@@ -1,5 +1,5 @@
 import { CommandFault } from '#errors';
-import { traceStage } from '#operation';
+import { publishStatus, traceStage } from '#operation';
 import { installProviderServices } from '#os/services/provider';
 import { OPEN_AGENT_VERSION } from '#utilities/version';
 
@@ -162,7 +162,9 @@ async function runSteps(
     runPlan({
       steps,
       openSession: async (supersedes) => connection.lend(supersedes),
-      onProgress: (event) => interaction?.progress(progressUpdate(event)),
+      onProgress: (event) => {
+        reportProgress(event, interaction);
+      },
     }),
   );
   if (!report.isComplete) {
@@ -177,6 +179,25 @@ async function runSteps(
       ),
     });
   }
+}
+
+/**
+ * reports a plan event as progress to the interaction, or, without one, as a
+ * status line, so a non-interactive run streams each step too
+ * @param event the plan event
+ * @param interaction the prompts and progress display, when interactive
+ */
+function reportProgress(event: PlanProgress, interaction?: Interaction): void {
+  const update = progressUpdate(event);
+  if (interaction) {
+    interaction.progress(update);
+
+    return;
+  }
+  publishStatus({
+    kind: update.outcome === 'failed' ? 'warning' : 'info',
+    message: update.message,
+  });
 }
 
 /**
