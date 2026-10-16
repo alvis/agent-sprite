@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 
 import { toProviderFailure } from './failures.js';
 
@@ -25,16 +26,22 @@ export class SpriteGuestProcess
   public readonly stdout: Readable;
   public readonly stderr: Readable;
   readonly #command: SpriteCommand;
+  /** buffers what the caller writes until the session's WebSocket opens, which refuses earlier input */
+  readonly #input = new PassThrough();
 
   /**
    * wraps one started exec session, re-emitting its exit and translating its
-   * SDK transport failures into provider-neutral failures
+   * SDK transport failures into provider-neutral failures; input reaches the
+   * session once it has spawned
    * @param command SDK exec session
    */
   constructor(command: SpriteCommand) {
     super();
     this.#command = command;
-    this.stdin = command.stdin;
+    this.stdin = this.#input;
+    command.once('spawn', () => {
+      this.#input.pipe(command.stdin);
+    });
     this.stdout = command.stdout;
     this.stderr = command.stderr;
     command.on('exit', (code: number) => this.emit('exit', code));
