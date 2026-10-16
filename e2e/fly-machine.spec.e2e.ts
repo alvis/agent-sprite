@@ -14,6 +14,7 @@ import { catalog } from '#core/catalog';
 import { harnessDrivers } from '#core/harnesses';
 import { providerPreflight } from '#core/preflight';
 import { defaultProfile } from '#core/profile';
+import { T3_SERVER_RECORD } from '#drivers/agents/t3/service';
 import { FlyApi } from '#drivers/providers/fly-machine/api';
 import {
   BOOT_LOG,
@@ -1153,6 +1154,14 @@ describe('Fly Machine provider probe', () => {
             `kept=no; test -e ${ROOTFS_MARKER} && kept=yes; ${RESET_ROOTFS}; echo $kept`,
           )
         ).trim();
+
+        // a stop leaves T3's server record behind, naming a process id the
+        // next boot may give another process; the record names init, which is
+        // always alive, so the agent must start whatever the record says
+        await asRoot(
+          await flyProvider().openGuest(record),
+          `runuser -u agent -- /bin/sh -c 'jq ".pid = 1" ${T3_SERVER_RECORD} > ${T3_SERVER_RECORD}.e2e && mv ${T3_SERVER_RECORD}.e2e ${T3_SERVER_RECORD}'`,
+        );
 
         // a forced stop, then a URL request: the machine cold boots
         await stopFlyMachine(token, name, record.id);
