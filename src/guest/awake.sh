@@ -19,7 +19,8 @@
 # agent; a `governed` one is put into an idle form by the per-minute root
 # `tick` once the deadline passed, sleep is permitted and the workstation
 # has been awake an idle timeout since it last woke, so nothing sleeps with
-# a turn or hold open. An event runs within its budget, --budget-ms or 8
+# a turn or hold open: the tick checks once more, and calls the adapter,
+# under a governor lock no event holds meanwhile. An event runs within its budget, --budget-ms or 8
 # seconds, and exits 0 whatever happens, except for an unknown action; a
 # refused or failed event is recorded as a diagnostic, and an event that is
 # not recorded counts as idleness. Root's `report` prints the newer of the
@@ -45,6 +46,9 @@ OA_IDLE_MANAGED=$OA_IDLE_RUN/awake-root
 # the governor state each account records in its own awake directory
 OA_IDLE_STATE=governor.json
 OA_IDLE_TICK=$OA_IDLE_RUN/idle-tick.json
+# the governor lock: every event takes it shared, and the tick takes it
+# alone across its last check and the adapter's call
+OA_IDLE_LOCK=$OA_IDLE_RUN/governor.lock
 # the account harness hooks run as
 OA_IDLE_AGENT=agent
 # a holder file's name, as find matches it
@@ -60,8 +64,10 @@ OA_IDLE_DEFAULT_BUDGET_MS=8000
 OA_IDLE_MIN_BUDGET_MS=1000
 OA_IDLE_INPUT_WAIT_MS=1500
 OA_IDLE_INPUT_BYTES=65536
-# how long a state lock is waited for, in seconds
+# how long a state lock, or the governor lock shared, is waited for, and how
+# long the tick waits for the governor lock alone, in seconds
 OA_IDLE_LOCK_WAIT=3
+OA_IDLE_EXCLUSIVE_WAIT=10
 OA_IDLE_USAGE='usage: open-agent-awake <heartbeat|hold-open|hold-close> --source <name> --session <id|-> [--budget-ms <1000-8000>]'
 
 # the jq definitions every computation shares: an instant as ISO 8601 with
@@ -449,16 +455,35 @@ oa_idle_prune() {
   return 0
 }
 
-# runs a function under the caller's state lock; when the lock is not taken
-# it sets oa_idle_lock_failure and returns 1
+# runs a function under the governor lock, shared, then the caller's state
+# lock; when either is not taken it sets oa_idle_lock_failure and returns 1
 # arguments: the function and its arguments
 oa_idle_locked() {
+  oa_idle_lock_failure="the awake state could not be recorded under its lock: the governor lock $OA_IDLE_LOCK is missing"
+  test -f "$OA_IDLE_LOCK" || return 1
   oa_idle_lock_failure="the awake state could not be recorded under its lock: the lock was not taken within $OA_IDLE_LOCK_WAIT s"
   {
-    flock -w "$OA_IDLE_LOCK_WAIT" 9 || return 1
+    flock -s -w "$OA_IDLE_LOCK_WAIT" 7 || return 1
+    {
+      flock -w "$OA_IDLE_LOCK_WAIT" 9 || return 1
+      oa_idle_lock_failure=
+      "$@"
+    } 9>>"$oa_idle_own/.lock"
+  } 7<"$OA_IDLE_LOCK"
+}
+
+# runs a function under the governor lock alone, which no event holds
+# meanwhile; when it is not taken it sets oa_idle_lock_failure and returns 1
+# arguments: the function and its arguments
+oa_idle_exclusive() {
+  oa_idle_lock_failure="no idle form was entered: the governor lock $OA_IDLE_LOCK is missing"
+  test -f "$OA_IDLE_LOCK" || return 1
+  oa_idle_lock_failure="no idle form was entered: awake events held the governor lock for $OA_IDLE_EXCLUSIVE_WAIT s"
+  {
+    flock -w "$OA_IDLE_EXCLUSIVE_WAIT" 7 || return 1
     oa_idle_lock_failure=
     "$@"
-  } 9>>"$oa_idle_own/.lock"
+  } 7<"$OA_IDLE_LOCK"
 }
 
 # records the governor state under the caller's state lock, pruning its own
@@ -533,9 +558,25 @@ oa_idle_write_tick() {
     oa_idle_place "$OA_IDLE_WORK/tick.json" "$OA_IDLE_RUN" idle-tick.json 0600
 }
 
+# prints whether the recomputed state puts a governed workstation into its
+# idle form: it has an adapter, sleep is permitted, no earlier call may
+# still run, the deadline passed and it has been awake an idle timeout
+# arguments: current epoch milliseconds, the awake time, whether an earlier
+# call may still run (true or false)
+oa_idle_due() {
+  jq -r --argjson now "$1" --argjson awake "$2" --argjson inFlight "$3" \
+    --slurpfile settings "$OA_IDLE_WORK/settings.json" '
+    $settings[0] as $set
+    | $set.provider.keepAwakeMode == "governed" and $set.provider.awakeAdapter != null
+      and .state.sleepPermitted and ($inFlight | not)
+      and (.deadline == null or .deadline <= $now)
+      and $awake + $set.idle * 60000 <= $now' "$OA_IDLE_WORK/computed.json"
+}
+
 # the first section of a tick, under root's state lock: recomputes and
 # records the state, decides whether an idle form is due and marks it in
-# the tick record; it sets oa_idle_tick_due and oa_idle_tick_marked
+# the tick record; it sets oa_idle_tick_due, oa_idle_tick_awake and
+# oa_idle_tick_marked
 oa_idle_tick_decide() {
   oa_idle_tick_decide_now=$(oa_idle_now)
   oa_idle_tick_decide_read=$(oa_idle_read_tick "$oa_idle_tick_decide_now") || return 1
@@ -548,14 +589,9 @@ oa_idle_tick_decide() {
     echo 'an earlier idle-form call may still be running, so none is started' >>"$OA_IDLE_WORK/notes"
   fi
   oa_idle_recompute prune keep || return 1
-  oa_idle_tick_due=$(jq -r --argjson now "$oa_idle_tick_decide_now" \
-    --argjson awake "$oa_idle_tick_decide_awake" --argjson inFlight "$oa_idle_tick_decide_in_flight" \
-    --slurpfile settings "$OA_IDLE_WORK/settings.json" '
-    $settings[0] as $set
-    | $set.provider.keepAwakeMode == "governed" and $set.provider.awakeAdapter != null
-      and .state.sleepPermitted and ($inFlight | not)
-      and (.deadline == null or .deadline <= $now)
-      and $awake + $set.idle * 60000 <= $now' "$OA_IDLE_WORK/computed.json") || return 1
+  oa_idle_tick_awake=$oa_idle_tick_decide_awake
+  oa_idle_tick_due=$(oa_idle_due "$oa_idle_tick_decide_now" "$oa_idle_tick_awake" \
+    "$oa_idle_tick_decide_in_flight") || return 1
   if test "$oa_idle_tick_due" = true; then
     oa_idle_tick_marked=$oa_idle_tick_decide_now
   elif test "$oa_idle_tick_decide_in_flight" = true; then
@@ -568,8 +604,8 @@ oa_idle_tick_decide() {
     oa_idle_place "$OA_IDLE_WORK/state.json" "$oa_idle_own" "$OA_IDLE_STATE" 0640
 }
 
-# the last section of a tick that entered an idle form, under root's state
-# lock: records the state with the adapter's result and settles the tick
+# the last section of a tick that found an idle form due, under root's
+# state lock: records the state with the adapter's result and settles the tick
 # record. The marker stays while the call may still run, and is cleared
 # only by the tick that set it; an entered idle form, or a call that ended
 # without an answer and may have frozen the machine, keeps no awake time, so
@@ -580,7 +616,7 @@ oa_idle_tick_settle() {
   oa_idle_tick_settle_read=$(oa_idle_read_tick "$oa_idle_tick_settle_now") || return 1
   oa_idle_tick_settle_awake=${oa_idle_tick_settle_read%% *}
   oa_idle_tick_settle_marked=${oa_idle_tick_settle_read#* }
-  if jq -e 'has("result")' "$OA_IDLE_WORK/adapter.json" >/dev/null; then
+  if test -s "$OA_IDLE_WORK/adapter.json" && jq -e 'has("result")' "$OA_IDLE_WORK/adapter.json" >/dev/null; then
     oa_idle_tick_settle_awake=
   fi
   if test -z "$oa_idle_idle_form_in_flight" && test "$oa_idle_tick_settle_marked" = "$oa_idle_tick_marked"; then
@@ -589,9 +625,29 @@ oa_idle_tick_settle() {
   oa_idle_write_tick "$oa_idle_tick_settle_now" "$oa_idle_tick_settle_awake" "$oa_idle_tick_settle_marked"
 }
 
-# the per-minute tick, root's alone: records the state and, once due, puts
-# the workstation into its idle form through the adapter, unlocked, since
-# the call can take a minute
+# the middle section of a tick that found an idle form due, under the
+# governor lock alone: recomputes the state once more and enters the idle
+# form through the adapter only while it is still due. Whatever an event
+# recorded before this check keeps the workstation awake; an event meanwhile
+# waits for the lock, or records itself without it once its wait ran out,
+# and then counts after the resume
+oa_idle_tick_enter() {
+  oa_idle_recompute keep keep || return 1
+  if test "$(oa_idle_due "$(oa_idle_now)" "$oa_idle_tick_awake" false)" != true; then
+    echo 'activity arrived after the idle decision, so no idle form was entered' >>"$OA_IDLE_WORK/notes"
+    return 0
+  fi
+  oa_idle_tick_adapter=$(oa_idle_setting .provider.awakeAdapter)
+  : >"$OA_IDLE_WORK/answer"
+  oa_idle_tick_status=0
+  timeout -k 5 60 /bin/sh "$oa_idle_tick_adapter" enter-idle-form \
+    >"$OA_IDLE_WORK/answer" 2>/dev/null </dev/null || oa_idle_tick_status=$?
+  oa_idle_idle_form_result "$OA_IDLE_WORK/answer" "$oa_idle_tick_status"
+}
+
+# the per-minute tick, root's alone: records the state and, once due, checks
+# again and puts the workstation into its idle form through the adapter
+# under the governor lock alone, then records the outcome
 oa_idle_tick() {
   if ! oa_idle_locked oa_idle_tick_decide; then
     test -n "$oa_idle_lock_failure" &&
@@ -600,13 +656,11 @@ oa_idle_tick() {
     return 0
   fi
   test "$oa_idle_tick_due" = true || return 0
-  oa_idle_tick_adapter=$(oa_idle_setting .provider.awakeAdapter)
-  : >"$OA_IDLE_WORK/answer"
-  oa_idle_tick_status=0
-  timeout -k 5 60 /bin/sh "$oa_idle_tick_adapter" enter-idle-form \
-    >"$OA_IDLE_WORK/answer" 2>/dev/null </dev/null || oa_idle_tick_status=$?
-  oa_idle_idle_form_result "$OA_IDLE_WORK/answer" "$oa_idle_tick_status"
   : >"$OA_IDLE_WORK/notes"
+  rm -f "$OA_IDLE_WORK/adapter.json"
+  if ! oa_idle_exclusive oa_idle_tick_enter && test -n "$oa_idle_lock_failure"; then
+    printf '%s\n' "$oa_idle_lock_failure" >>"$OA_IDLE_WORK/notes"
+  fi
   if ! oa_idle_locked oa_idle_tick_settle; then
     test -n "$oa_idle_lock_failure" &&
       printf '%s\n' "$oa_idle_lock_failure" >>"$OA_IDLE_WORK/notes"
@@ -856,7 +910,8 @@ oa_idle_report() {
 # makes the directories the governor keeps its state in: the run directory,
 # root's, the shared awake directory, which the agent writes and root only
 # reads, sticky so no account removes or renames another's entry, and the
-# managed one, which the agent only reads; it fails when one is a link. The
+# managed one, which the agent only reads, and the governor lock, which the
+# agent only opens to read and lock; it fails when one is a link. The
 # five-digit modes clear a set-group-id bit an earlier mode left
 oa_idle_install() {
   for oa_idle_install_spec in "$OA_IDLE_RUN root 00755" "$OA_IDLE_SHARED $OA_IDLE_AGENT 01770" \
@@ -873,14 +928,21 @@ oa_idle_install() {
       chown "root:$oa_idle_install_group" "$oa_idle_install_path" &&
       chmod "$oa_idle_install_mode" "$oa_idle_install_path" || return 1
   done
+  if test -L "$OA_IDLE_LOCK"; then
+    echo "Refusing $OA_IDLE_LOCK: it is a link" >&2
+    return 1
+  fi
+  touch "$OA_IDLE_LOCK" && chown "root:$OA_IDLE_AGENT" "$OA_IDLE_LOCK" && chmod 0640 "$OA_IDLE_LOCK"
 }
 
-# tells whether the governor's directories are in place with their owners and modes
+# tells whether the governor's directories and lock are in place with their
+# owners and modes
 oa_idle_check() {
-  test "$(stat -c '%F %U:%G %a' "$OA_IDLE_RUN" "$OA_IDLE_SHARED" "$OA_IDLE_MANAGED" 2>/dev/null)" = \
+  test "$(stat -c '%F %U:%G %a' "$OA_IDLE_RUN" "$OA_IDLE_SHARED" "$OA_IDLE_MANAGED" "$OA_IDLE_LOCK" 2>/dev/null)" = \
     "directory root:root 755
 directory root:$OA_IDLE_AGENT 1770
-directory root:$OA_IDLE_AGENT 2750"
+directory root:$OA_IDLE_AGENT 2750
+regular empty file root:$OA_IDLE_AGENT 640"
 }
 
 # runs a subcommand with a work directory of its own, removed on exit
