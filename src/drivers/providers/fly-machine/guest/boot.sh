@@ -223,8 +223,10 @@ oa_boot_libraries() {
 }
 
 # the agent's account and its home: a new home on the volume is made from the
-# skeleton under the agent's fixed ids; an existing one keeps its ids, which
-# the account is recreated under
+# skeleton under the agent's fixed ids, filled while it is still root's and
+# out of reach, then handed over and moved into place, so root never writes
+# into a directory the agent owns; an existing one keeps its ids, which the
+# account is recreated under
 oa_boot_agent() {
   oa_boot_home=$OA_BOOT_HOMES/agent
   if test -L "$oa_boot_home"; then
@@ -232,11 +234,13 @@ oa_boot_agent() {
     return 1
   fi
   if ! test -e "$oa_boot_home"; then
-    install -d -o "$OA_BOOT_AGENT_IDS" -g "$OA_BOOT_AGENT_IDS" -m 0700 "$oa_boot_home" || return 1
+    rm -rf "$oa_boot_home.open-agent-new" &&
+      install -d -m 0700 "$oa_boot_home.open-agent-new" || return 1
     if test -d /etc/skel; then
-      cp -R /etc/skel/. "$oa_boot_home" || return 1
-      chown -R "$OA_BOOT_AGENT_IDS:$OA_BOOT_AGENT_IDS" "$oa_boot_home" || return 1
+      cp -R /etc/skel/. "$oa_boot_home.open-agent-new" || return 1
     fi
+    chown -R "$OA_BOOT_AGENT_IDS:$OA_BOOT_AGENT_IDS" "$oa_boot_home.open-agent-new" &&
+      mv -T "$oa_boot_home.open-agent-new" "$oa_boot_home" || return 1
   fi
   if ! test -d "$oa_boot_home" || test "$(stat -c %u "$oa_boot_home")" = 0; then
     echo "Refusing $oa_boot_home: it is not a directory the agent owns"

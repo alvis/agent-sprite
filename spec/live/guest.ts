@@ -14,9 +14,10 @@ import {
 
 import {
   AWAKE_DIRECTORY,
-  GOVERNOR_STATE_FILE,
+  GOVERNOR_REPORT,
   HOMEBREW,
   MANAGED_AWAKE_DIRECTORY,
+  reportedGovernorState,
   UPDATE_LOCK_PATH,
 } from './layout.js';
 
@@ -635,12 +636,8 @@ export async function checkManagedHold(
     name,
     `runuser -u agent -- ${AWAKE_COMMAND} heartbeat --source live --session ${session}`,
   );
-  const state: unknown = JSON.parse(
-    await asRoot(
-      provider,
-      name,
-      `cat ${GUEST_ROOT}/${AWAKE_DIRECTORY}/${GOVERNOR_STATE_FILE}`,
-    ),
+  const state: unknown = reportedGovernorState(
+    await asRoot(provider, name, GOVERNOR_REPORT),
   );
   await asRoot(provider, name, `${AWAKE_COMMAND} hold-close ${holder}`);
 
@@ -667,12 +664,8 @@ export async function sendAwakeEvents(
       name,
       `runuser -u agent -- ${AWAKE_COMMAND} ${action} --source live --session ${session}; echo $?`,
     );
-    const state: unknown = JSON.parse(
-      await asRoot(
-        provider,
-        name,
-        `cat ${GUEST_ROOT}/${AWAKE_DIRECTORY}/${GOVERNOR_STATE_FILE}`,
-      ),
+    const state: unknown = reportedGovernorState(
+      await asRoot(provider, name, GOVERNOR_REPORT),
     );
     steps.push({ exitCode: Number(status.trim()), state });
   }
@@ -810,12 +803,8 @@ export async function sendHookEvents(
       name,
       `printf '%s' '${event}' | runuser -u agent -- ${AWAKE_COMMAND} ${action} --source ${harness} --session -; echo $?`,
     );
-    const state = JSON.parse(
-      await asRoot(
-        provider,
-        name,
-        `cat ${GUEST_ROOT}/${AWAKE_DIRECTORY}/${GOVERNOR_STATE_FILE}`,
-      ),
+    const state = reportedGovernorState(
+      await asRoot(provider, name, GOVERNOR_REPORT),
     ) as HookState;
     steps.push({
       action,
@@ -856,13 +845,7 @@ export async function watchHolders<T>(
     holds: Array<{ source: string; expiresAt: string }>;
     openHolds: number;
   }> =>
-    JSON.parse(
-      await asRoot(
-        provider,
-        name,
-        `cat ${GUEST_ROOT}/${AWAKE_DIRECTORY}/${GOVERNOR_STATE_FILE}`,
-      ),
-    ) as {
+    reportedGovernorState(await asRoot(provider, name, GOVERNOR_REPORT)) as {
       holds: Array<{ source: string; expiresAt: string }>;
       openHolds: number;
     };

@@ -10,7 +10,8 @@
 # directory under its own state lock, run/awake for the agent and
 # run/awake-root for root, and every event recomputes the awake deadline from
 # both, the provider facts and the idle options environment.json records,
-# then records governor.json. The deadline is the last heartbeat plus the
+# then records the governor state, governor.json, in the caller's own awake
+# directory, so root never writes where the agent can. The deadline is the last heartbeat plus the
 # idle timeout, or the latest open hold, whichever is later; a managed hold
 # lasts while its process runs and ends with it, and any other hold lasts at
 # most the turn-hold maximum after its last refresh. A `native-deadline`
@@ -21,12 +22,13 @@
 # a turn or hold open. An event runs within its budget, --budget-ms or 8
 # seconds, and exits 0 whatever happens, except for an unknown action; a
 # refused or failed event is recorded as a diagnostic, and an event that is
-# not recorded counts as idleness. Root's `report` prints the recorded state
-# for the host, and root's `install` and `check` make and check the
-# directories the governor keeps its state in. Every file it reads from an
-# awake directory is data: it is read without following links, bounded and
-# validated, and a scan that cannot see every holder never lets the
-# workstation sleep
+# not recorded counts as idleness. Root's `report` prints the newer of the
+# two recorded states for the host, and root's `install` and `check` make
+# and check the directories the governor keeps its state in. Every file it
+# reads from an awake directory is data: it is read without following links,
+# bounded and validated, and root takes nothing from the agent's directory
+# but holders, so its own state never carries a field the agent wrote; a
+# scan that cannot see every holder never lets the workstation sleep
 
 set -u
 umask 077
@@ -40,7 +42,8 @@ OA_IDLE_ENVIRONMENT=$OA_GUEST_ROOT/environment.json
 OA_IDLE_RUN=$OA_GUEST_ROOT/run
 OA_IDLE_SHARED=$OA_IDLE_RUN/awake
 OA_IDLE_MANAGED=$OA_IDLE_RUN/awake-root
-OA_IDLE_STATE=$OA_IDLE_SHARED/governor.json
+# the governor state each account records in its own awake directory
+OA_IDLE_STATE=governor.json
 OA_IDLE_TICK=$OA_IDLE_RUN/idle-tick.json
 # the account harness hooks run as
 OA_IDLE_AGENT=agent
@@ -120,7 +123,10 @@ oa_idle_read() {
   test "$(wc -c <"$3")" -le "$2"
 }
 
-# replaces a file in a directory with a copy, mode 0640, atomically
+# replaces a file in a directory with a copy, atomically; the directory is
+# one only the caller can write, run or run/awake-root for root and
+# run/awake for the agent, so no other account can plant a link the
+# temporary or the rename would follow
 # arguments: the copy's source, the directory, the file's name, its mode
 oa_idle_place() {
   oa_idle_place_temporary=$(mktemp "$2/.tmp-XXXXXXXX") || return 1
@@ -310,24 +316,24 @@ oa_idle_record_event() {
     oa_idle_place "$OA_IDLE_WORK/event" "$oa_idle_own" "$oa_idle_record_event_name" 0640
 }
 
-# copies the recorded governor state to previous.json in the work directory,
-# or empties it when there is none to trust
+# copies the governor state an account recorded in its awake directory to a
+# file in the work directory, or empties it when there is none to trust
+# arguments: the awake directory, the id of the account that owns it, the
+# copy's name
 oa_idle_read_state() {
-  : >"$OA_IDLE_WORK/previous.json"
-  oa_idle_read_state_owner=$(find "$OA_IDLE_STATE" -maxdepth 0 -type f -links 1 -printf '%U' 2>/dev/null) ||
-    return 1
-  case " 0 $oa_idle_agent_uid " in *" $oa_idle_read_state_owner "*) ;; *) return 1 ;; esac
-  if test -z "$oa_idle_read_state_owner" ||
-    ! oa_idle_read "$OA_IDLE_STATE" "$OA_IDLE_STATE_BYTES" "$OA_IDLE_WORK/state-copy" ||
-    ! jq -c 'select(type == "object")' "$OA_IDLE_WORK/state-copy" >"$OA_IDLE_WORK/previous.json" 2>/dev/null; then
-    : >"$OA_IDLE_WORK/previous.json"
+  : >"$OA_IDLE_WORK/$3"
+  if test "$(find "$1/$OA_IDLE_STATE" -maxdepth 0 -type f -links 1 -printf '%U' 2>/dev/null)" != "$2" ||
+    ! oa_idle_read "$1/$OA_IDLE_STATE" "$OA_IDLE_STATE_BYTES" "$OA_IDLE_WORK/state-copy" ||
+    ! jq -c 'select(type == "object")' "$OA_IDLE_WORK/state-copy" >"$OA_IDLE_WORK/$3" 2>/dev/null; then
+    : >"$OA_IDLE_WORK/$3"
   fi
 }
 
 # recomputes the governor state into computed.json in the work directory:
 # the pending event first, when there is one, then the holders of both
-# awake directories, the settings and the previous state's last heartbeat
-# and adapter result, which an adapter result in adapter.json replaces.
+# awake directories, the settings and the last heartbeat and adapter result
+# of the state the caller recorded before, which an adapter result in
+# adapter.json replaces.
 # With pruning, which needs the caller's state lock, it removes the
 # invalid, spent and foreign entries of the caller's own directory
 # arguments: whether to prune (prune or keep), whether to record the state (record or keep)
@@ -358,11 +364,11 @@ oa_idle_recompute() {
       oa_idle_recompute_managed_own=true
     fi
   fi
-  oa_idle_scan "$OA_IDLE_SHARED" shared "0 $oa_idle_agent_uid" false "$oa_idle_recompute_shared_own" ||
+  oa_idle_scan "$OA_IDLE_SHARED" shared "$oa_idle_agent_uid" false "$oa_idle_recompute_shared_own" ||
     oa_idle_recompute_incomplete=true
   oa_idle_scan "$OA_IDLE_MANAGED" managed 0 true "$oa_idle_recompute_managed_own" ||
     oa_idle_recompute_incomplete=true
-  oa_idle_read_state
+  oa_idle_read_state "$oa_idle_own" "$oa_idle_uid" previous.json
   test -f "$OA_IDLE_WORK/adapter.json" || : >"$OA_IDLE_WORK/adapter.json"
   jq -nc --slurpfile holders "$OA_IDLE_WORK/holders" \
     --slurpfile settings "$OA_IDLE_WORK/settings.json" \
@@ -424,7 +430,7 @@ oa_idle_recompute() {
   fi
   if test "$2" = record; then
     jq -c .state "$OA_IDLE_WORK/computed.json" >"$OA_IDLE_WORK/state.json" &&
-      oa_idle_place "$OA_IDLE_WORK/state.json" "$OA_IDLE_SHARED" governor.json 0640
+      oa_idle_place "$OA_IDLE_WORK/state.json" "$oa_idle_own" "$OA_IDLE_STATE" 0640
   fi
 }
 
@@ -438,7 +444,7 @@ oa_idle_prune() {
   find "$oa_idle_own" -mindepth 1 -maxdepth 1 -name '.tmp-*' ! -newermt '60 seconds ago' \
     -exec rm -rf -- {} + 2>/dev/null
   find "$oa_idle_own" -mindepth 1 -maxdepth 1 -regextype posix-extended \
-    ! -regex "$OA_IDLE_HOLDER_PATTERN" ! -name governor.json ! -name .lock \
+    ! -regex "$OA_IDLE_HOLDER_PATTERN" ! -name "$OA_IDLE_STATE" ! -name .lock \
     ! -name .apply.lock ! -name '.tmp-*' -exec rm -rf -- {} + 2>/dev/null
   return 0
 }
@@ -559,7 +565,7 @@ oa_idle_tick_decide() {
   fi
   oa_idle_write_tick "$oa_idle_tick_decide_now" "$oa_idle_tick_decide_awake" "$oa_idle_tick_marked"
   jq -c .state "$OA_IDLE_WORK/computed.json" >"$OA_IDLE_WORK/state.json" &&
-    oa_idle_place "$OA_IDLE_WORK/state.json" "$OA_IDLE_SHARED" governor.json 0640
+    oa_idle_place "$OA_IDLE_WORK/state.json" "$oa_idle_own" "$OA_IDLE_STATE" 0640
 }
 
 # the last section of a tick that entered an idle form, under root's state
@@ -813,19 +819,20 @@ oa_idle_event() {
 }
 
 # prints the recorded governor state for the host as a report, which says
-# why when none is recorded or it is not a governor state
+# why when none is recorded or none is a governor state: the newer of the
+# states root and the agent recorded, each having seen both accounts'
+# holders, with the newer of their adapter results. The agent's is read as
+# untrusted data and only printed
 oa_idle_report() {
-  oa_idle_read_state
-  if ! test -s "$OA_IDLE_WORK/previous.json"; then
-    printf '%s\n' '{"recorded":false,"reason":"no governor state is recorded"}'
-    return 0
-  fi
-  jq -c "$OA_IDLE_JQ_DEFS"'
+  oa_idle_read_state "$OA_IDLE_MANAGED" 0 root-state.json
+  oa_idle_read_state "$OA_IDLE_SHARED" "$oa_idle_agent_uid" agent-state.json
+  jq -nc --slurpfile states "$OA_IDLE_WORK/root-state.json" \
+    --slurpfile agent "$OA_IDLE_WORK/agent-state.json" "$OA_IDLE_JQ_DEFS"'
     def ishold: type == "object"
       and (.source | type == "string" and test("\\A[a-z][a-z0-9-]{0,31}\\z"))
       and (.session | type == "string" and test("\\A[0-9a-f]{64}\\z"))
       and (.expiresAt | isinstant);
-    if .version == 1 and (.updatedAt | isinstant)
+    def isstate: .version == 1 and (.updatedAt | isinstant)
       and ((has("keepAwakeMode") | not) or (.keepAwakeMode | IN("native-deadline", "governed", "none")))
       and (.idleTimeoutMinutes | count) and (.holdMaxMinutes | count)
       and ((has("lastHeartbeat") | not) or (.lastHeartbeat | isinstant))
@@ -834,18 +841,26 @@ oa_idle_report() {
       and ((has("deadline") | not) or (.deadline | isinstant))
       and (.sleepPermitted | type == "boolean")
       and ((has("adapter") | not) or (.adapter | isadapter))
-      and (.diagnostics | type == "array" and length <= 8 and all(.[]; istext))
-    then {recorded: true, state: .}
-    else {recorded: false, reason: "the recorded governor state is not valid"} end' \
-    "$OA_IDLE_WORK/previous.json"
+      and (.diagnostics | type == "array" and length <= 8 and all(.[]; istext));
+    ($states + $agent) as $recorded
+    | [$recorded[] | select(isstate)] as $valid
+    | if ($recorded | length) == 0 then {recorded: false, reason: "no governor state is recorded"}
+      elif ($valid | length) == 0 then {recorded: false, reason: "the recorded governor state is not valid"}
+      else
+        ([$valid[] | .adapter // empty] | max_by(.at | instant)) as $adapter
+        | {recorded: true, state: (($valid | max_by(.updatedAt | instant))
+            + (if $adapter != null then {adapter: $adapter} else {} end))}
+      end'
 }
 
 # makes the directories the governor keeps its state in: the run directory,
-# root's, the shared awake directory, which the agent writes, and the
-# managed one, which the agent only reads; it fails when one is a link
+# root's, the shared awake directory, which the agent writes and root only
+# reads, sticky so no account removes or renames another's entry, and the
+# managed one, which the agent only reads; it fails when one is a link. The
+# five-digit modes clear a set-group-id bit an earlier mode left
 oa_idle_install() {
-  for oa_idle_install_spec in "$OA_IDLE_RUN root 0755" "$OA_IDLE_SHARED $OA_IDLE_AGENT 2770" \
-    "$OA_IDLE_MANAGED $OA_IDLE_AGENT 2750"; do
+  for oa_idle_install_spec in "$OA_IDLE_RUN root 00755" "$OA_IDLE_SHARED $OA_IDLE_AGENT 01770" \
+    "$OA_IDLE_MANAGED $OA_IDLE_AGENT 02750"; do
     oa_idle_install_mode=${oa_idle_install_spec##* }
     oa_idle_install_group=${oa_idle_install_spec% *}
     oa_idle_install_group=${oa_idle_install_group##* }
@@ -864,7 +879,7 @@ oa_idle_install() {
 oa_idle_check() {
   test "$(stat -c '%F %U:%G %a' "$OA_IDLE_RUN" "$OA_IDLE_SHARED" "$OA_IDLE_MANAGED" 2>/dev/null)" = \
     "directory root:root 755
-directory root:$OA_IDLE_AGENT 2770
+directory root:$OA_IDLE_AGENT 1770
 directory root:$OA_IDLE_AGENT 2750"
 }
 

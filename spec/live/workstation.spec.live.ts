@@ -310,7 +310,7 @@ describe('live workstation lifecycle', () => {
 
         expect(awakeInstall).toEqual({
           command: 'root 755',
-          directory: 'root agent 2770',
+          directory: 'root agent 1770',
           managedDirectory: 'root agent 2750',
         });
         expect(awakeSteps).toEqual([
