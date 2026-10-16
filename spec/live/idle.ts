@@ -1,9 +1,9 @@
 import { WebSocket } from 'ws';
 
 import { GUEST_ROOT } from '#guest/guest-root';
-import { AWAKE_DIRECTORY, GOVERNOR_STATE_FILE } from '#guest/idle/state';
 
 import { asRoot } from './guest.js';
+import { AWAKE_DIRECTORY, GOVERNOR_STATE_FILE } from './layout.js';
 
 import type { LiveProvider, RunState } from './providers.js';
 

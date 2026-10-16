@@ -1,15 +1,16 @@
 import { guestAsset } from '#guest/assets';
-import { isGovernorReport } from '#guest/idle/state';
 import { checkOperation } from '#operation';
 import { SHARED_MODE } from '#os/contracts';
 
 import { runGuestResult } from '../guest.js';
 
+import { isGovernorReport } from './governor-report.js';
+
 import type { ProviderCapabilities } from '#drivers/contracts';
 import type { GuestChannel } from '#drivers/guest-channel';
-import type { GovernorReport } from '#guest/idle/state';
 import type { PeriodicJob, ServiceStepContext } from '#os/contracts';
 
+import type { GovernorReport } from './governor-report.js';
 import type { SetupStep, StepCommand } from './plan/contracts.js';
 import type { SessionAwakeHold, SessionCommand } from './session/contracts.js';
 

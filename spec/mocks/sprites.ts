@@ -3,7 +3,6 @@ import {
   chmod,
   mkdir,
   readFile,
-  realpath,
   rename,
   rm,
   stat,
@@ -18,13 +17,8 @@ import { catalog } from '#core/catalog';
 import { SpriteGuestChannel } from '#drivers/providers/sprite/channel';
 import { SpriteProvider } from '#drivers/providers/sprite/provider';
 import { toRecord } from '#drivers/providers/sprite/records';
-import { HOMEBREW } from '#guest/homebrew';
-import {
-  ensureNativeDirectory,
-  removeNativeFile,
-  writeNativeFile,
-} from '#guest/native-files';
 import { SetupConnection } from '#integrations/guest/connection';
+import { HOMEBREW_GH } from '#tools/accounts';
 
 import type { ChownOptions, ExecResult } from '@fly/sprites';
 
@@ -207,101 +201,15 @@ export function createFilesystemSprite(params: FilesystemSpriteParams): Sprite {
 
   const sprite = Object.assign(new Sprite('temporary', client), {
     filesystem: (): SpriteFilesystem => filesystem,
-    execFile: vi.fn<Sprite['execFile']>(async (file, args = [], options) => {
-      const native = await executeNativeFileCommand({ root, file, args });
-
-      return native ?? execute(file, args, options);
-    }),
+    execFile: vi.fn<Sprite['execFile']>(async (file, args = [], options) =>
+      execute(file, args, options),
+    ),
     execFileHTTP: vi.fn<Sprite['execFileHTTP']>(
-      async (file, args = [], options) => {
-        const native = await executeNativeFileCommand({
-          root,
-          file,
-          args,
-          input: options?.input,
-        });
-
-        return native ?? execute(file, args, options);
-      },
+      async (file, args = [], options) => execute(file, args, options),
     ),
   } satisfies Partial<Sprite>);
 
   return sprite;
-}
-
-/**
- * runs native SDK commands against the real helper in the isolated host tree
- * @param params isolated root, SDK command and optional HTTP stdin
- * @param params.root isolated Sprite filesystem root
- * @param params.file SDK executable
- * @param params.args SDK argument array
- * @param params.input HTTP stdin for private writes
- * @returns helper completion, or undefined for another command
- */
-async function executeNativeFileCommand(params: {
-  root: string;
-  file: string;
-  args: string[];
-  input?: string | Buffer;
-}): Promise<ExecResult | undefined> {
-  const { root, file, args, input } = params;
-  const [
-    sudoN,
-    sudoE,
-    sudoEnd,
-    runuser,
-    userFlag,
-    user,
-    userEnd,
-    node,
-    script,
-    operation,
-    home,
-    path,
-  ] = args;
-  if (
-    file !== '/usr/bin/sudo' ||
-    sudoN !== '-n' ||
-    sudoE !== '-E' ||
-    sudoEnd !== '--' ||
-    runuser !== '/usr/sbin/runuser' ||
-    userFlag !== '-u' ||
-    !['agent', 'sprite'].includes(user ?? '') ||
-    userEnd !== '--' ||
-    node !== '/opt/open-agent/node/bin/node' ||
-    script !== '/opt/open-agent/guest/native-files.js'
-  ) {
-    return undefined;
-  }
-  if (home !== `/home/${user}` || !path) {
-    throw new Error('Unexpected native helper arguments');
-  }
-  const canonicalRoot = await realpath(root);
-  const mappedHome = join(canonicalRoot, home);
-  const mappedPath = join(canonicalRoot, path);
-  await mkdir(mappedHome, { recursive: true });
-  switch (operation) {
-    case 'mkdir':
-      await ensureNativeDirectory({ home: mappedHome, path: mappedPath });
-      break;
-    case 'write':
-      if (input === undefined) {
-        throw new Error('Native helper write requires HTTP stdin');
-      }
-      await writeNativeFile({
-        home: mappedHome,
-        path: mappedPath,
-        contents: String(input),
-      });
-      break;
-    case 'remove':
-      await removeNativeFile({ home: mappedHome, path: mappedPath });
-      break;
-    default:
-      throw new Error('Unexpected native helper operation');
-  }
-
-  return { stdout: '', stderr: '', exitCode: 0 };
 }
 
 /**
@@ -316,7 +224,7 @@ export function createNativeCommandExecutor(
 
   return vi.fn<Sprite['execFile']>(async (file, args = []) => {
     const harnessIndex = args.findIndex((argument) =>
-      ['claude', 'codex', 'git', 'jj', HOMEBREW.gh].includes(argument),
+      ['claude', 'codex', 'git', 'jj', HOMEBREW_GH].includes(argument),
     );
     if (file === '/usr/bin/sudo' && harnessIndex >= 0) {
       const expected = pending.shift();

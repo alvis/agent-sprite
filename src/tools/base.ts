@@ -208,8 +208,7 @@ export const BASE_TOOLS: readonly ToolSpec[] = [
     sources: [brew('iproute2', ['sbin'])],
   },
   {
-    // Homebrew's own Node, which the agent's npm tools run on; open-agent
-    // runs on the private Node under the guest root instead
+    // Homebrew's own Node, which the agent's npm tools run on
     name: 'node',
     required: true,
     executables: ['node', 'npm', 'npx'],

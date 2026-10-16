@@ -41,7 +41,6 @@ import {
 import { tokenScopeProblem } from '#drivers/providers/fly-machine/token-scope';
 import { summarizeProfile } from '#drivers/providers/recorded';
 import { GUEST_ROOT } from '#guest/guest-root';
-import { HOMEBREW } from '#guest/homebrew';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { isRecord } from '#utilities/guards';
 
@@ -59,6 +58,7 @@ import {
   stopFlyMachine,
 } from './fly.js';
 import { createLiveHarness } from './harness.js';
+import { HOMEBREW } from './layout.js';
 
 import type { HarnessId } from '#core/catalog';
 import type { WorkstationProfile } from '#core/profile';

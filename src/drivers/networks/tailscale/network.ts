@@ -5,7 +5,6 @@ import {
   removeStaleTailnetDevice,
 } from './cleanup.js';
 import { enrollTailscale } from './enroll.js';
-import { tailscaleGuestLeaf } from './guest-leaf.js';
 import { identifyTailnetDevice } from './identity.js';
 import {
   issueTailscaleCredential,
@@ -16,6 +15,7 @@ import { tailscaleReadiness } from './readiness.js';
 import { releaseTailscale } from './release.js';
 import { tailscaleDaemon, tailscaleLauncher } from './service.js';
 import { inspectTailscale } from './status.js';
+import { tailscaleTool } from './tools.js';
 
 import type { NetworkDriver } from '#drivers/contracts';
 
@@ -27,8 +27,7 @@ export const tailscale: NetworkDriver<'tailscale', TailnetStatus> = {
   kind: 'networks',
   displayName: 'Tailscale',
   supportsExitNode: true,
-  guest: tailscaleGuestLeaf.guest,
-  tools: tailscaleGuestLeaf.tools,
+  tools: [tailscaleTool],
   inputs: {
     account: {
       environment: 'TAILSCALE_TAILNET',

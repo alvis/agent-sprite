@@ -1,5 +1,4 @@
 import { largestMachine, pickMachine } from '#drivers/machine-sizes';
-import { MAX_UPDATE_DUE_DAYS } from '#guest/update-schedule';
 
 import { catalog } from './catalog.js';
 import { selectionLabel } from './selection-inputs.js';
@@ -14,6 +13,9 @@ import type {
   ProfileValidationOptions,
   ProfileViolation,
 } from './profile.js';
+
+/** longest update due interval: one year */
+export const MAX_UPDATE_DUE_DAYS = 365;
 
 /** a whole-number option's bound */
 interface OptionBound {

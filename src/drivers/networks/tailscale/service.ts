@@ -1,13 +1,18 @@
 import { guestAsset } from '#guest/assets';
+import { GUEST_ROOT } from '#guest/guest-root';
 import { ROOT_ONLY_MODE } from '#os/contracts';
-
-import {
-  TAILSCALE_SOCKET,
-  TAILSCALE_STATE_DIRECTORY,
-} from './guest/tailscale-state.js';
 
 import type { ServiceDefinition } from '#drivers/guest-channel';
 import type { NetworkLauncher } from '#drivers/networks/contracts';
+
+/** root-only directory of everything Tailscale keeps across a restart, on the persistent guest root so a provider that discards its root filesystem on a cold boot keeps the node identity */
+const TAILSCALE_STATE_DIRECTORY = `${GUEST_ROOT}/state/tailscale`;
+
+/** the daemon's state file, which holds the enrolled node identity */
+export const TAILSCALE_STATE_FILE = `${TAILSCALE_STATE_DIRECTORY}/tailscaled.state`;
+
+/** the daemon's control socket, on the volatile run filesystem */
+const TAILSCALE_SOCKET = '/var/run/tailscale/tailscaled.sock';
 
 /**
  * the launcher that routes the provider's resolvers and transport outside the

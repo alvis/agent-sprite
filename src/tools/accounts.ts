@@ -8,6 +8,9 @@ export const LINUXBREW_HOME = '/home/linuxbrew';
 /** the default Homebrew prefix, the only one bottles pour at */
 export const HOMEBREW_PREFIX = `${LINUXBREW_HOME}/.linuxbrew`;
 
+/** the GitHub CLI in its keg's `opt` link, which only the Homebrew account can change */
+export const HOMEBREW_GH = `${HOMEBREW_PREFIX}/opt/gh/bin/gh`;
+
 /** where every tool owner's commands start, its home */
 export const OWNER_HOMES: Readonly<Record<ToolOwner, string>> = {
   root: '/root',

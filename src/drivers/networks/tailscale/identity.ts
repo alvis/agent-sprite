@@ -1,7 +1,7 @@
 import { CommandFault, commandError } from '#errors';
 import { checkOperation, runBoundedIO } from '#operation';
 
-import { TAILSCALE_STATE_FILE } from './guest/tailscale-state.js';
+import { TAILSCALE_STATE_FILE } from './service.js';
 import { inspectTailscale } from './status.js';
 
 import type { NetworkRecord } from '#drivers/contracts';

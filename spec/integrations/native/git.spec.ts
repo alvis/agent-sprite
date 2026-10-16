@@ -10,7 +10,6 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { HOMEBREW } from '#guest/homebrew';
 import { Secret } from '#integrations/guest/session/secret';
 
 import {
@@ -18,6 +17,7 @@ import {
   configureGithub,
   configureRuntimeEnv,
 } from '#integrations/native/git';
+import { HOMEBREW_GH } from '#tools/accounts';
 
 import {
   createFilesystemSprite,
@@ -28,7 +28,7 @@ import {
 import type { Sprite } from '@fly/sprites';
 
 const success = { stdout: '', stderr: '', exitCode: 0 };
-const protectedGh = HOMEBREW.gh;
+const protectedGh = HOMEBREW_GH;
 
 function protectedGithubArgs(user: string, args: string[]): string[] {
   return [

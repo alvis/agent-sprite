@@ -3,8 +3,7 @@ import { describe, inject, it } from 'vitest';
 import { t3Service } from '#drivers/agents/t3/service';
 import { codexTool } from '#drivers/harnesses/codex/tools';
 import { tailscaleDaemon } from '#drivers/networks/tailscale/service';
-import { GUEST_KERNEL } from '#guest/guest-root';
-import { HOMEBREW } from '#guest/homebrew';
+import { GUEST_ROOT } from '#guest/guest-root';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 
 import { successData, tail } from './cli.js';
@@ -28,10 +27,7 @@ import {
   readLoginVersion,
   replacedSession,
   readManifestState,
-  checkLockDescriptorInheritance,
   checkManagedHold,
-  REFRESH_PROBE_SOURCE,
-  runRefreshProbe,
   readAwakeHooks,
   readAwakeInstall,
   readNodeTrees,
@@ -62,15 +58,14 @@ import {
   waitForTurnEnd,
   watchRunStates,
 } from './idle.js';
+import { HOMEBREW } from './layout.js';
 import { foreignIdentifiers } from './ownership.js';
 
 import type { ExpectStatic } from 'vitest';
 
-import type { ComponentOutcome } from '#guest/component-outcome';
-
 import type { TerminalStep } from '../fixtures/terminal.js';
 
-import type { ScheduledRun } from './guest.js';
+import type { ComponentOutcome, ScheduledRun } from './guest.js';
 import type { RunSample } from './idle.js';
 
 // budgets sum below the project testTimeout so a slow step fails before vitest
@@ -84,8 +79,6 @@ const DAY_MS = 86_400_000;
 // whole-second rounding and the delay between the governor's record and the Sprite's answer
 const TASK_EXPIRY_TOLERANCE_MS = 3000;
 const MINUTE_MS = 60_000;
-// longer than the 30 second refresh of a 1 minute hold maximum
-const REFRESH_PROBE_MS = 45_000;
 // due intervals the default cannot produce
 const UPDATE_DUE_DAYS = 3;
 const RESCHEDULED_DUE_DAYS = 5;
@@ -137,7 +130,7 @@ const HOLD_REFRESH_SKEW_MS = 5 * SECOND_MS;
 function expectCompletedRun(expect: ExpectStatic, run: ScheduledRun): void {
   expect(run.exitStatus).toBe(0);
   expect(run.updaterRuns).toEqual([
-    { script: `${GUEST_KERNEL}/updater.js`, exitCode: 0 },
+    { script: `${GUEST_ROOT}/guest/updater.sh`, exitCode: 0 },
   ]);
 }
 
@@ -452,24 +445,6 @@ describe('live workstation lifecycle', () => {
           Date.parse(closed!.deadline ?? '') -
             Date.parse(closed!.lastHeartbeat ?? ''),
         ).toBe(closed!.idleTimeoutMinutes * MINUTE_MS);
-
-        // a descriptor root holds open (a transaction's lock) never reaches
-        // the agent-account child that applies the deadline
-        expect(await checkLockDescriptorInheritance(provider, name)).toMatch(
-          /^uid=[1-9]\d* lock-fds=0$/,
-        );
-
-        // a managed operation longer than half the 1 minute hold maximum has
-        // its hold refreshed, so it never lapses mid-operation, and it ends
-        // the hold when it finishes
-        const refreshWatch = await watchHolders(provider, name, async () =>
-          runRefreshProbe(provider, name, REFRESH_PROBE_MS),
-        );
-
-        expect(
-          refreshWatch.expiries[REFRESH_PROBE_SOURCE],
-        ).toBeGreaterThanOrEqual(2);
-        expect(refreshWatch.openHoldsAfter).toBe(0);
 
         const inspected = successData(
           await cli.json(

@@ -1,52 +1,39 @@
-import { isRecord, isStringArray } from '../records.js';
+import { isRecord } from '#utilities/guards';
 
-import { SESSION_HASH, SOURCE_NAME } from './names.js';
-import { isKeepAwakeMode } from './provider-facts.js';
+import type { KeepAwakeMode } from '#drivers/contracts';
 
-// guest kernel: constants, types and validators only, with no I/O, so the host
-// imports them to install the governor's directories and to validate its
-// report. The governor records its state after every recompute; the host
-// reads it back through a root report that validates it again, so the record
-// is data to every reader and its shape is checked field by field
+// the governor records its state after every recompute; the host reads it
+// back through root's report, so the record is data and its shape is checked
+// field by field
 
-/** the run directory, relative to the guest root, which only root writes */
-export const RUN_DIRECTORY = 'run';
-
-/**
- * the shared awake directory, relative to the guest root: the agent account's
- * holders, the state record and the agent account's locks
- */
-export const AWAKE_DIRECTORY = 'run/awake';
-
-/**
- * the managed awake directory, relative to the guest root: the holders of
- * root's managed operations and root's lock, which the agent account reads but
- * can neither remove nor block
- */
-export const MANAGED_AWAKE_DIRECTORY = 'run/awake-root';
-
-/** the governor state record within the awake directory */
-export const GOVERNOR_STATE_FILE = 'governor.json';
-
-/** largest governor state record a reader accepts, in bytes */
-export const STATE_MAX_BYTES = 16_384;
 /** most holds the record lists */
-export const RECORDED_HOLD_LIMIT = 32;
+const RECORDED_HOLD_LIMIT = 32;
 /** most diagnostics the record keeps */
-export const DIAGNOSTIC_LIMIT = 8;
+const DIAGNOSTIC_LIMIT = 8;
 /** longest diagnostic the record keeps */
 const DIAGNOSTIC_LENGTH = 240;
+/** longest ISO 8601 instant a record holds */
+const INSTANT_LENGTH = 32;
 
 /** a C0 or C1 control character, which could rewrite a terminal's display */
 const CONTROL_CHARACTER = /\p{Cc}/u;
-const CONTROL_CHARACTERS = /\p{Cc}/gu;
+/** a harness or managed operation, as `--source` names it */
+const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+/** a hashed session identifier, as the governor records it */
+const SESSION_HASH = /^[0-9a-f]{64}$/;
 
-/** longest ISO 8601 instant a record holds */
-const INSTANT_LENGTH = 32;
 const ADAPTER_ACTIONS: readonly unknown[] = [
   'apply-deadline',
   'enter-idle-form',
 ];
+
+// every value of the axis, keyed so a value added to the axis fails typecheck
+// here until the reader accepts it
+const KEEP_AWAKE_MODES: Readonly<Record<KeepAwakeMode, true>> = {
+  'native-deadline': true,
+  'governed': true,
+  'none': true,
+};
 
 /** a hold the governor recorded as open */
 export interface RecordedHold {
@@ -77,7 +64,7 @@ export interface GovernorState {
   /** ISO 8601 instant of the recompute */
   updatedAt: string;
   /** the provider's keep-awake mode; absent before the host records a provider */
-  keepAwakeMode?: 'native-deadline' | 'governed' | 'none';
+  keepAwakeMode?: KeepAwakeMode;
   /** minutes without heartbeat or hold before sleep, as applied */
   idleTimeoutMinutes: number;
   /** minutes a hold lasts after its last refresh, as applied */
@@ -90,7 +77,7 @@ export interface GovernorState {
   openHolds: number;
   /** ISO 8601 instant the workstation stays awake until; absent when nothing keeps it awake */
   deadline?: string;
-  /** whether the governor may initiate sleep under REQ-IDLE-9 */
+  /** whether the governor may initiate sleep */
   sleepPermitted: boolean;
   /** the last awake adapter call, kept across recomputes that make none */
   adapter?: AdapterResult;
@@ -114,17 +101,6 @@ export type GovernorReport =
     };
 
 /**
- * turns text the governor records, such as an adapter's failure message, into
- * one bounded line the record's own validation accepts
- * @param text text from any source
- * @returns the text with each control character replaced by a space, cut to
- * the diagnostic length
- */
-export function recordableText(text: string): string {
-  return text.replace(CONTROL_CHARACTERS, ' ').slice(0, DIAGNOSTIC_LENGTH);
-}
-
-/**
  * validates a governor report at a trust boundary
  * @param value untrusted decoded report
  * @returns whether the report is complete and its state valid
@@ -142,21 +118,22 @@ export function isGovernorReport(value: unknown): value is GovernorReport {
  * @param value untrusted decoded record
  * @returns whether every field has its type and bound
  */
-export function isGovernorState(value: unknown): value is GovernorState {
+function isGovernorState(value: unknown): value is GovernorState {
   return (
     isRecord(value) &&
     value.version === 1 &&
     isInstant(value.updatedAt) &&
     (value.keepAwakeMode === undefined ||
-      isKeepAwakeMode(value.keepAwakeMode)) &&
-    isMinutes(value.idleTimeoutMinutes) &&
-    isMinutes(value.holdMaxMinutes) &&
+      (typeof value.keepAwakeMode === 'string' &&
+        Object.hasOwn(KEEP_AWAKE_MODES, value.keepAwakeMode))) &&
+    isCount(value.idleTimeoutMinutes) &&
+    isCount(value.holdMaxMinutes) &&
     (value.lastHeartbeat === undefined || isInstant(value.lastHeartbeat)) &&
     hasRecordedHolds(value) &&
     (value.deadline === undefined || isInstant(value.deadline)) &&
     typeof value.sleepPermitted === 'boolean' &&
     (value.adapter === undefined || isAdapterResult(value.adapter)) &&
-    isStringArray(value.diagnostics) &&
+    Array.isArray(value.diagnostics) &&
     value.diagnostics.length <= DIAGNOSTIC_LIMIT &&
     value.diagnostics.every(isText)
   );
@@ -173,7 +150,7 @@ function hasRecordedHolds(value: Record<string, unknown>): boolean {
     Array.isArray(value.holds) &&
     value.holds.length <= RECORDED_HOLD_LIMIT &&
     value.holds.every(isRecordedHold) &&
-    isMinutes(value.openHolds) &&
+    isCount(value.openHolds) &&
     value.openHolds >= value.holds.length
   );
 }
@@ -199,7 +176,7 @@ function isRecordedHold(value: unknown): value is RecordedHold {
  * @param value untrusted decoded result
  * @returns whether the result names its action and exactly one outcome
  */
-export function isAdapterResult(value: unknown): value is AdapterResult {
+function isAdapterResult(value: unknown): value is AdapterResult {
   return (
     isRecord(value) &&
     isInstant(value.at) &&
@@ -229,7 +206,7 @@ function isInstant(value: unknown): value is string {
  * @param value untrusted field
  * @returns whether the value is a non-negative safe integer
  */
-function isMinutes(value: unknown): value is number {
+function isCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 

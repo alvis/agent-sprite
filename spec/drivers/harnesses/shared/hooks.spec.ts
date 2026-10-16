@@ -11,7 +11,6 @@ import {
   mergeWorkHooks,
   workHookCommands,
 } from '#drivers/harnesses/shared/hooks';
-import { hookInputWaitMs } from '#guest/idle/hook-input';
 import { AWAKE_COMMAND, AWAKE_DEADLINE_MS } from '#integrations/guest/awake';
 
 const COMMAND = { program: '/opt/open-agent/guest/awake.sh' };
@@ -90,15 +89,12 @@ describe('harness hook timeouts', () => {
   });
 
   it.each([CLAUDE_WORK_HOOKS, CODEX_WORK_HOOKS])(
-    'should fit the awake run budget and its input wait inside every $harness timeout with the start margin',
+    'should fit the awake run budget inside every $harness timeout with the start margin',
     ({ events }) => {
       const overruns = events.filter(({ timeoutSeconds }) => {
         const budget = awakeBudgetMs(timeoutSeconds);
 
-        return (
-          budget + HOOK_START_MARGIN_MS > timeoutSeconds * 1_000 ||
-          hookInputWaitMs(budget) >= budget
-        );
+        return budget + HOOK_START_MARGIN_MS > timeoutSeconds * 1_000;
       });
 
       expect(overruns).toEqual([]);

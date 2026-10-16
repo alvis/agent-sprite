@@ -2,11 +2,7 @@ import type { Secret } from '#integrations/guest/session/secret';
 import type { GuestAsset } from '#os/contracts';
 import type { ToolSpec } from '#tools/contracts';
 
-import type {
-  DriverDescriptor,
-  GuestPayload,
-  ReadinessFinding,
-} from '../contracts.js';
+import type { DriverDescriptor, ReadinessFinding } from '../contracts.js';
 import type {
   GuestChannel,
   GuestServiceState,
@@ -208,8 +204,6 @@ export interface NetworkDriver<
   tools: readonly ToolSpec[];
   /** caller-side inputs, read and prompted for by core; absent when the network takes none */
   inputs?: NetworkInputs;
-  /** compiled guest modules the network contributes to the deployable payload; empty when it deploys none */
-  guest: readonly GuestPayload[];
   /** daemon service; the agent service depends on it when the network is selected; absent when the network runs no daemon */
   daemon?: ServiceDefinition;
   /** the launcher the daemon service runs; present exactly when `daemon` is */
