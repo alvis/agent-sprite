@@ -10,6 +10,7 @@ import {
   OperationContext,
   checkOperation,
   currentOperation,
+  promptUnavailableDetail,
   recoverOperation,
   runBoundedIO,
   runOperation,
@@ -474,5 +475,23 @@ describe('invocation-scoped operations', () => {
       outcome: 'unknown',
     });
     expect(reconcile).toHaveBeenCalledExactlyOnceWith('disposable');
+  });
+
+  it('should explain an implicit terminal limitation only inside the invocation that has one', async () => {
+    const blocked = new OperationContext({
+      signal: new AbortController().signal,
+    });
+    const free = new OperationContext({ signal: new AbortController().signal });
+    blocked.setPromptBlocker('stdin is not a terminal');
+
+    expect(promptUnavailableDetail()).toBeUndefined();
+    await withOperation(blocked, async () => {
+      expect(promptUnavailableDetail()).toBe(
+        'Prompts are disabled because stdin is not a terminal; pass required flags or run in a TTY.',
+      );
+    });
+    await withOperation(free, async () => {
+      expect(promptUnavailableDetail()).toBeUndefined();
+    });
   });
 });

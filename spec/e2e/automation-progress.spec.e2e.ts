@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execPath } from 'node:process';
@@ -6,8 +6,6 @@ import { pathToFileURL } from 'node:url';
 
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
-
-import { runTerminal } from '../fixtures/terminal';
 
 const packedBin = process.env.OPEN_AGENT_PACKED_BIN;
 
@@ -159,38 +157,28 @@ describe('workflow:installed CLI automation reporting', () => {
     }
   });
 
-  it('should explain redirected stderr only when it implicitly blocks a needed prompt', async () => {
+  it('should explain a non-terminal stdin only when it implicitly blocks a needed prompt', async () => {
     expect(packedBin).toBeDefined();
     const cwd = await mkdtemp(join(tmpdir(), 'open-agent-prompt-mode-'));
     try {
-      const errorPath = join(cwd, 'error.log');
       const env = {
         PATH: process.env.PATH,
         HOME: cwd,
         TMPDIR: cwd,
         NO_COLOR: '1',
       };
-      const human = await runTerminal('/bin/sh', [], {
-        args: [
-          '-c',
-          'exec 2>"$1"; shift; exec "$@"',
-          'sh',
-          errorPath,
-          packedBin!,
-          'terminate',
-          'review-check',
-        ],
+      const human = await execa(packedBin!, ['terminate', 'review-check'], {
         cwd,
         env,
+        extendEnv: false,
+        reject: false,
       });
-      const diagnostic = await readFile(errorPath, 'utf8');
 
-      expect(human.timedOut).toBe(false);
       expect(human.exitCode).toBe(2);
-      expect(human.output).toBe('');
-      expect(diagnostic).toContain('stderr is not a terminal');
-      expect(diagnostic).toContain('pass required flags or run in a TTY');
-      expect(diagnostic).not.toContain('Sprites API token');
+      expect(human.stdout).toBe('');
+      expect(human.stderr).toContain('stdin is not a terminal');
+      expect(human.stderr).toContain('pass required flags or run in a TTY');
+      expect(human.stderr).not.toContain('Sprites API token');
 
       const explicit = await execa(
         packedBin!,

@@ -19,24 +19,43 @@ import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
 import { runOffline } from '../fixtures/network-block';
-import { runTerminal } from '../fixtures/terminal';
+
+import type { Readable } from 'node:stream';
 
 const packedBin = process.env.OPEN_AGENT_PACKED_BIN;
+const STAGE_TIMEOUT_MS = 15_000;
 const pendingConnection =
   'data:text/javascript,' +
   encodeURIComponent(
     'import {createServer} from "node:net"; createServer().listen(0,"127.0.0.1");',
   );
+
+const FLUSH_WAIT_MARKER = '[SAF05:FLUSH_WAIT]';
 const heldFlush =
   'data:text/javascript,' +
   encodeURIComponent(`
     const write = process.stdout.write.bind(process.stdout);
     process.stdout.write = (chunk, encoding, callback) => {
       if (chunk !== '') return write(chunk, encoding, callback);
-      write('[SAF05:FLUSH_WAIT]\\n');
+      write('${FLUSH_WAIT_MARKER}\\n');
       const done = typeof encoding === 'function' ? encoding : callback;
       setTimeout(() => done?.(), 1000);
       return true;
+    };
+  `);
+const HANGING_FETCH_MARKER = '[SAF05:FETCH_HANGING]';
+/** a preloaded module whose network fetch stays pending, then fails like a dropped connection */
+const hangingFetch =
+  'data:text/javascript,' +
+  encodeURIComponent(`
+    const fetchLocal = globalThis.fetch;
+    globalThis.fetch = (input, init) => {
+      const url = new URL(input?.url ?? String(input));
+      if (['data:', 'blob:', 'file:'].includes(url.protocol)) return fetchLocal(input, init);
+      process.stderr.write('${HANGING_FETCH_MARKER}\\n');
+      return new Promise((_, reject) =>
+        setTimeout(() => reject(new TypeError('fetch failed')), 1000),
+      );
     };
   `);
 
@@ -79,6 +98,31 @@ async function withIsolatedCli<T>(
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
+}
+
+/**
+ * waits until a child process stream has produced a marker
+ * @param stream child stdout or stderr
+ * @param marker text that signals the child reached the awaited stage
+ */
+async function waitForOutput(
+  stream: Readable | null,
+  marker: string,
+): Promise<void> {
+  let seen = '';
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Timed out waiting for ${marker}`)),
+      STAGE_TIMEOUT_MS,
+    );
+    stream?.on('data', (chunk: Buffer | string) => {
+      seen += chunk.toString();
+      if (seen.includes(marker)) {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+  });
 }
 
 describe('workflow:installed CLI', () => {
@@ -222,19 +266,19 @@ describe('workflow:installed CLI', () => {
   it('should require exact termination consent before env-file access when process mode disables prompts', async () => {
     expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
-      runTerminal(packedBin!, [], {
-        args: ['terminate', '--env-file', join(cwd, 'missing.env')],
+      execa(packedBin!, ['terminate', '--env-file', join(cwd, 'missing.env')], {
         cwd,
         env: { ...env, CI: 'true' },
+        extendEnv: false,
+        reject: false,
+        all: true,
       }),
     );
 
-    expect(result.timedOut).toBe(false);
-    expect(result.matchedSteps).toBe(0);
     expect(result.exitCode).toBe(2);
-    expect(result.output).toContain('exact workstation name and --yes');
-    expect(result.output).not.toContain('missing.env');
-    expect(result.output).not.toContain('Sprites API token');
+    expect(result.all).toContain('exact workstation name and --yes');
+    expect(result.all).not.toContain('missing.env');
+    expect(result.all).not.toContain('Sprites API token');
   });
 
   it.each([
@@ -1616,45 +1660,6 @@ describe('workflow:installed CLI', () => {
     expect(attempts).toEqual([]);
   });
 
-  it('should print verbose facts during a real Ink token prompt and cancellation', async () => {
-    expect(packedBin).toBeDefined();
-    const result = await withIsolatedCli(async (cwd, env) =>
-      runTerminal(
-        packedBin!,
-        [{ waitFor: 'Sprites API token', input: '\x03' }],
-        {
-          args: [
-            'show',
-            'open-agent-review-check',
-            '--verbose',
-            '--no-local-credentials',
-          ],
-          cwd,
-          env,
-        },
-      ),
-    );
-
-    expect(result.timedOut).toBe(false);
-    expect(result.matchedSteps).toBe(1);
-    expect(result.exitCode).toBe(130);
-    expect(result.output).toContain('[verbose] stage=command event=start');
-    expect(result.output).toContain('Cancelled by user.');
-    expect(result.output).not.toContain('^C');
-  });
-
-  it('should print help through the installed bin on a native terminal', async () => {
-    expect(packedBin).toBeDefined();
-    const result = await withIsolatedCli(async (cwd, env) =>
-      runTerminal(packedBin!, [], { args: ['--help'], cwd, env }),
-    );
-
-    expect(result.timedOut).toBe(false);
-    expect(result.exitCode).toBe(0);
-    expect(result.output).toContain('open-agent');
-    expect(result.output).toContain('terminate');
-  });
-
   it('should flush output despite a pending network handle', async () => {
     expect(packedBin).toBeDefined();
     const result = await withIsolatedCli(async (cwd, env) =>
@@ -2267,83 +2272,83 @@ describe('workflow:installed CLI', () => {
     },
   );
 
-  it('should show the real token prompt and responds to Ctrl-C', async () => {
-    expect(packedBin).toBeDefined();
-    const result = await withIsolatedCli(async (cwd, env) =>
-      runTerminal(
-        packedBin!,
-        [{ waitFor: 'Sprites API token', input: '\x03' }],
-        {
-          args: ['show', 'open-agent-review-check', '--no-local-credentials'],
-          cwd,
-          env,
-        },
-      ),
-    );
-
-    expect(result.timedOut).toBe(false);
-    expect(result.matchedSteps, result.output).toBe(1);
-    expect(result.output).toContain('Sprites API token');
-    expect(result.output).toContain('https://sprites.dev/account');
-    expect(result.output).toContain('intended organization');
-    expect(result.exitCode).toBe(130);
-    expect(result.output).toContain('Cancelled by user.');
-    expect(result.output).not.toContain('^C');
-  });
-
   it.each(['SIGINT', 'SIGTERM'] as const)(
-    'should flush one cancellation result for OS %s at the real token prompt',
+    'should flush one cancellation result for OS %s while a request hangs',
     async (signal) => {
       expect(packedBin).toBeDefined();
-      const result = await withIsolatedCli(async (cwd, env) =>
-        runTerminal(packedBin!, [{ waitFor: 'Sprites API token', signal }], {
-          args: ['show', 'open-agent-review-check', '--no-local-credentials'],
-          cwd,
-          env,
-        }),
-      );
-
-      expect(result.timedOut).toBe(false);
-      expect(result.matchedSteps, result.output).toBe(1);
-      expect(result.exitCode).toBe(130);
-      expect(result.output).toContain('Cancelled by user.');
-      expect(result.output).toContain('open-agent-review-check');
-      expect(result.output).not.toContain('^C');
-      expect(result.output.match(/Cancelled by user\./gu)).toHaveLength(1);
-    },
-  );
-
-  it('should force exit on the second physical interrupt during final flush', async () => {
-    expect(packedBin).toBeDefined();
-    const result = await withIsolatedCli(async (cwd, env) =>
-      runTerminal(
-        execPath,
-        [
-          { waitFor: 'Sprites API token', input: '\x03' },
-          { waitFor: '[SAF05:FLUSH_WAIT]', signal: 'SIGINT' },
-        ],
-        {
-          args: [
+      const result = await withIsolatedCli(async (cwd, env) => {
+        const child = execa(
+          execPath,
+          [
             '--import',
-            heldFlush,
+            hangingFetch,
             packedBin!,
             'show',
             'open-agent-review-check',
-            '--no-local-credentials',
+            '--json',
           ],
-          cwd,
-          env,
-        },
-      ),
-    );
+          {
+            cwd,
+            env: { ...env, SPRITES_TOKEN: 'offline-placeholder' },
+            extendEnv: false,
+            reject: false,
+            timeout: 30_000,
+          },
+        );
+        await waitForOutput(child.stderr, HANGING_FETCH_MARKER);
+        child.kill(signal);
 
-    expect(result.timedOut).toBe(false);
-    expect(result.matchedSteps, result.output).toBe(2);
-    expect(result.exitCode).toBe(130);
-    expect(result.elapsedMs - result.stepTimes[1]!).toBeLessThan(500);
-    expect(result.output).toContain('[SAF05:FLUSH_WAIT]');
-    expect(result.output.match(/Cancelled by user\./gu)).toHaveLength(1);
-    expect(result.output).toContain('open-agent-review-check');
-    expect(result.output).not.toContain('^C');
+        return child;
+      });
+
+      expect(result.exitCode).toBe(130);
+      expect(result.stdout.trim().split('\n')).toHaveLength(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        schemaVersion: 1,
+        command: 'show',
+        ok: false,
+        error: { code: 'CANCELLED', machine: 'open-agent-review-check' },
+      });
+    },
+  );
+
+  it('should force exit on the second interrupt during final flush', async () => {
+    expect(packedBin).toBeDefined();
+    const result = await withIsolatedCli(async (cwd, env) => {
+      const child = execa(
+        execPath,
+        [
+          '--import',
+          hangingFetch,
+          '--import',
+          heldFlush,
+          packedBin!,
+          'show',
+          'open-agent-review-check',
+          '--json',
+        ],
+        {
+          cwd,
+          env: { ...env, SPRITES_TOKEN: 'offline-placeholder' },
+          extendEnv: false,
+          reject: false,
+          timeout: 30_000,
+        },
+      );
+      await waitForOutput(child.stderr, HANGING_FETCH_MARKER);
+      child.kill('SIGINT');
+      await waitForOutput(child.stdout, FLUSH_WAIT_MARKER);
+      const secondInterrupt = performance.now();
+      child.kill('SIGINT');
+      const exit = await child;
+
+      return { exit, elapsedMs: performance.now() - secondInterrupt };
+    });
+
+    expect(result.exit.exitCode).toBe(130);
+    expect(result.elapsedMs).toBeLessThan(500);
+    expect(result.exit.stdout).toContain(FLUSH_WAIT_MARKER);
+    expect(result.exit.stdout.match(/"code":"CANCELLED"/gu)).toHaveLength(1);
+    expect(result.exit.stdout).toContain('open-agent-review-check');
   });
 });

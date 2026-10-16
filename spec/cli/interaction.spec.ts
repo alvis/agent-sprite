@@ -7,6 +7,7 @@ import { resolveSecret } from '#input/sources';
 import { returnOnBack, withBackNavigation } from '#navigation';
 
 import { createInteraction } from '../../src/cli/interaction';
+import { createStageReporter } from '../../src/cli/reporting';
 import { driveInk } from '../fixtures/ink';
 
 describe('fn:createInteraction', () => {
@@ -230,5 +231,42 @@ describe('fn:createInteraction', () => {
     expect(captured).toBe(`${beforeOutput}post-dispose-output`);
     input.destroy();
     output.destroy();
+  });
+
+  it('should print verbose stage lines on stderr while an Ink prompt stays open', async () => {
+    const lines: string[] = [];
+    vi.spyOn(process.stderr, 'write').mockImplementation(((chunk: string) => {
+      lines.push(chunk);
+
+      return true;
+    }) as never);
+    const reportStage = createStageReporter(
+      { command: 'show', options: { verbose: true, quiet: true } },
+      () => undefined,
+    );
+    const observed = await driveInk(
+      async (interaction) => {
+        reportStage({ stage: 'command', event: 'start', targetKnown: false });
+        const answer = interaction.input({ message: 'Sprites API token' });
+        reportStage({
+          stage: 'command',
+          event: 'complete',
+          durationMs: 1,
+          outcome: 'ok',
+          targetKnown: false,
+        });
+
+        return answer;
+      },
+      [{ waitFor: 'Sprites API token', input: ['a', '\r'] }],
+    );
+
+    expect(observed.matchedSteps, observed.output).toBe(1);
+    expect(observed.result).toBe('a');
+    expect(lines).toEqual([
+      '[verbose] stage=command event=start command=show targetKnown=false\n',
+      '[verbose] stage=command event=complete durationMs=1 outcome=ok command=show targetKnown=false\n',
+    ]);
+    expect(observed.output).not.toContain('[verbose]');
   });
 });

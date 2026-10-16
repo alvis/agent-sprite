@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { commandError } from '#errors';
 import { InteractionExit, returnOnBack } from '#navigation';
 
 describe('fn:returnOnBack', () => {
@@ -17,5 +18,18 @@ describe('fn:returnOnBack', () => {
         throw new InteractionExit('cancel');
       }),
     ).rejects.toMatchObject({ action: 'cancel' });
+  });
+});
+
+describe('cl:InteractionExit', () => {
+  it('should report a cancellation as a user cancellation', () => {
+    expect(commandError(new InteractionExit('cancel'))).toMatchObject({
+      code: 'CANCELLED',
+      message: 'Cancelled by user.',
+    });
+  });
+
+  it('should not describe back navigation as a cancellation', () => {
+    expect(new InteractionExit('back').message).not.toContain('Cancelled');
   });
 });

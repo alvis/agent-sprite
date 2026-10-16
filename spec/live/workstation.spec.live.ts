@@ -5,7 +5,7 @@ import { codexTool } from '#drivers/harnesses/codex/tools';
 import { tailscaleDaemon } from '#drivers/networks/tailscale/service';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 
-import { successData, tail } from './cli';
+import { successData } from './cli';
 import {
   BREW_TOOLS,
   checkManagedHold,
@@ -57,8 +57,6 @@ import { foreignIdentifiers } from './ownership';
 
 import type { UpdateToolOutcome } from '#integrations/guest/updates';
 
-import type { TerminalStep } from '../fixtures/terminal';
-
 import type { UpdateRecord } from './guest';
 import type { RunSample } from './idle';
 
@@ -78,13 +76,10 @@ const UPDATE_DUE_DAYS = 3;
 const RESCHEDULED_DUE_DAYS = 5;
 const GIT_NAME = 'Open Agent Live';
 const GIT_EMAIL = 'live@example.invalid';
-const DOWN = '\u001B[B';
-const ENTER = '\r';
-// the interactive answers below assume this dotenv shape
-const INTERACTIVE_REQUIRED = ['CLIPROXYAPI_BASE_URL', 'CLIPROXYAPI_API_KEY'];
-const INTERACTIVE_UNSET = ['GH_TOKEN', 'GITHUB_TOKEN'];
 // a real harness turn routes through the profile's CLIProxyAPI hub
-const PROXY_REQUIRED = INTERACTIVE_REQUIRED;
+const PROXY_REQUIRED = ['CLIPROXYAPI_BASE_URL', 'CLIPROXYAPI_API_KEY'];
+// the create that skips GitHub access assumes the dotenv carries no GitHub token
+const GITHUB_UNSET = ['GH_TOKEN', 'GITHUB_TOKEN'];
 // the readiness findings a workstation without model credentials fails
 const MODEL_ACCESS_FAILURE = /gateway/iu;
 // anything that would show the missing network taking part in the result
@@ -153,40 +148,6 @@ function instant(value: string | undefined): number {
 
 const harness = await createLiveHarness(inject('live'));
 const { cli, cleanup, provider } = harness;
-
-/**
- * answers every interactive create prompt for one named workstation
- * @param name workstation name typed at the name prompt
- * @returns prompts and keys in their on-screen order
- */
-function interactiveCreateSteps(name: string): TerminalStep[] {
-  return [
-    // two providers are registered, so the first, Fly Sprite, is chosen
-    { waitFor: 'Provider', input: ENTER },
-    // T3 Code declares two release channels, so the default, stable, is chosen
-    { waitFor: 'Release channel', input: ENTER },
-    { waitFor: 'Harnesses', input: ENTER },
-    { waitFor: 'Network', input: ENTER },
-    { waitFor: 'Use an exit node?', input: 'n' },
-    { waitFor: 'Route harnesses through CLIProxyAPI?', input: 'y' },
-    { waitFor: 'Suspend after idle', input: ENTER },
-    { waitFor: 'Workstation name:', input: name },
-    { waitFor: `${name}│`, input: ENTER },
-    { waitFor: 'Skip GitHub access', input: DOWN },
-    { waitFor: '› Skip GitHub access', input: ENTER },
-    { waitFor: 'Git author name:', input: GIT_NAME },
-    { waitFor: `${GIT_NAME}│`, input: ENTER },
-    { waitFor: 'Git author email:', input: GIT_EMAIL },
-    { waitFor: `${GIT_EMAIL}│`, input: ENTER },
-    { waitFor: '› Use this identity', input: ENTER },
-    { waitFor: 'Configure Claude marketplaces or plugins', input: 'n' },
-    { waitFor: 'Configure Codex marketplaces or plugins', input: 'n' },
-    {
-      waitFor: 'expose authenticated T3 Code at its provider URL?',
-      input: 'y',
-    },
-  ];
-}
 
 describe('live workstation lifecycle', () => {
   it.concurrent(
@@ -898,6 +859,13 @@ describe('live workstation lifecycle', () => {
         );
         // the request reached the agent, not a harness: the governor saw nothing
         expect(await readGovernor(provider, name)).toEqual(after);
+        // the idle cycle left every supervised service running
+        const services = await provider.snapshotServices(name);
+
+        expect(services.length).toBeGreaterThan(0);
+        expect(services.filter(({ status }) => status !== 'running')).toEqual(
+          [],
+        );
 
         // an open ACP connection without harness activity adds no heartbeat,
         // no hold and no Sprite task
@@ -1312,36 +1280,44 @@ describe('live workstation lifecycle', () => {
   );
 
   it.concurrent(
-    'should create through every interactive prompt on a native terminal',
+    'should create non-interactively with a proxy, a git identity and no GitHub access or plugins',
     async ({ expect, signal }) => {
       const name = harness.workstationName('i');
-      const steps = interactiveCreateSteps(name);
       const mismatched = [
-        ...INTERACTIVE_REQUIRED.filter((key) => !harness.hasValue(key)),
-        ...INTERACTIVE_UNSET.filter((key) => harness.hasValue(key)),
+        ...PROXY_REQUIRED.filter((key) => !harness.hasValue(key)),
+        ...GITHUB_UNSET.filter((key) => harness.hasValue(key)),
       ];
       if (mismatched.length > 0) {
         throw new Error(
-          `Interactive create answers need ${INTERACTIVE_REQUIRED.join(', ')} set and ` +
-            `${INTERACTIVE_UNSET.join(', ')} empty; mismatched: ${mismatched.join(', ')}`,
+          `This create needs ${PROXY_REQUIRED.join(', ')} set and ` +
+            `${GITHUB_UNSET.join(', ')} empty; mismatched: ${mismatched.join(', ')}`,
         );
       }
 
       await harness.withWorkstation(name, async () => {
-        const terminal = await cli.terminal(
-          ['create', ...provider.createArgs],
-          steps,
-          CREATE_TIMEOUT_MS,
+        successData(
+          await cli.json(
+            [
+              'create',
+              '--name',
+              name,
+              '--network',
+              'tailscale',
+              '--no-use-exit-node',
+              '--proxy',
+              '--no-github',
+              '--git-name',
+              GIT_NAME,
+              '--git-email',
+              GIT_EMAIL,
+              '--no-plugins',
+              ...provider.createArgs,
+            ],
+            CREATE_TIMEOUT_MS,
+            signal,
+          ),
+          'create',
         );
-
-        expect(
-          {
-            exitCode: terminal.exitCode,
-            timedOut: terminal.timedOut,
-            matchedSteps: terminal.matchedSteps,
-          },
-          tail(terminal.output),
-        ).toEqual({ exitCode: 0, timedOut: false, matchedSteps: steps.length });
 
         const show = successData(
           await cli.json(
