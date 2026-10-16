@@ -31,8 +31,12 @@ export const BOOTSTRAP_STEP = 'bootstrap';
 /** id of the best-effort step that lets every group open ping sockets */
 export const SYSCTL_STEP = 'sysctl:ping';
 
-/** the agent account's user and group id, the one the Fly boot hook restores too */
-const AGENT_IDS = '1000';
+/**
+ * the agent account's user and group id, the one the Fly boot hook restores
+ * too; it stays clear of 1000, the first user an image adds, such as the
+ * `ubuntu` account of the Sprite image
+ */
+const AGENT_IDS = '2000';
 /** longest one command of the account step may take */
 const ACCOUNTS_LIMIT_MS = 60_000;
 /** longest one command of the bootstrap step may take, its lock wait included */
