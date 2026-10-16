@@ -11,6 +11,15 @@ export function rememberSecret(value: string | undefined): void {
 }
 
 /**
+ * tells whether text holds a credential resolved during this process
+ * @param text text the host is about to hand on
+ * @returns true when any registered credential occurs in it
+ */
+export function holdsResolvedSecret(text: string): boolean {
+  return [...secretValues].some((value) => text.includes(value));
+}
+
+/**
  * redacts all credentials resolved during this process
  * @param message diagnostic text to sanitize
  * @returns text with resolved credential values removed

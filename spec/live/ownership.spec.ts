@@ -77,9 +77,9 @@ describe('fn:assertOwnedWorkstation', () => {
 describe('fn:foreignIdentifiers', () => {
   const identity = {
     labels: ['open-agent', 'open-agent-schema-v1', 'open-agent-setup-ready'],
-    guestPaths: ['/opt/open-agent', '/etc/cron.d/open-agent', '/opt/node'],
+    guestPaths: ['/opt/open-agent', '/etc/cron.d/open-agent'],
     schedule:
-      '* * * * * root /opt/open-agent/node/bin/node /opt/open-agent/guest/updater.js',
+      "0 * * * * root '/opt/open-agent/guest/update-gate.sh' >/dev/null 2>&1",
   };
 
   it('should accept a workstation carrying only product identifiers', () => {

@@ -24,7 +24,8 @@ export interface HubStatus {
 
 /** root's curl configuration naming the gateway's model catalogue and the client key it is asked with */
 const HUB_RECORD = `${GUEST_ROOT}/cliproxyapi.curl`;
-// the record holds the client key, so only root, which runs the probe, reads it
+// the record holds the client key, so only root, which runs the probe, reads
+// it, and the write hands it to the guest as a secret input
 const HUB_RECORD_MODE = 0o600;
 /** seconds curl waits for the gateway */
 const REQUEST_LIMIT_SECONDS = 10;

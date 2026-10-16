@@ -6,7 +6,7 @@ import { CLIPROXYAPI_INPUTS } from '#drivers/shared/cliproxyapi/inputs';
 import { CommandFault } from '#errors';
 import { runGuestResult } from '#integrations/guest';
 import { HOMEBREW_GH } from '#tools/accounts';
-import { redactResolved } from '#utilities/redaction';
+import { redactResolved, rememberSecret } from '#utilities/redaction';
 
 import {
   USER,
@@ -117,7 +117,8 @@ export async function configureGithub(
 }
 
 /**
- * stores only explicitly requested application runtime variables
+ * stores only explicitly requested application runtime variables; each value
+ * is registered for redaction, so the file reaches the guest as a secret input
  * @param guest target guest
  * @param environment approved runtime variables
  */
@@ -125,6 +126,23 @@ export async function configureRuntimeEnv(
   guest: GuestChannel,
   environment: Record<string, string>,
 ): Promise<void> {
+  assertRuntimeEnv(environment);
+  Object.values(environment).forEach(rememberSecret);
+  await ensurePrivateDirectory(guest, `${HOME}/.config/open-agent`);
+  await writeOwnedFile(
+    guest,
+    `${HOME}/.config/open-agent/runtime-env.json`,
+    `${JSON.stringify(environment)}\n`,
+  );
+}
+
+/**
+ * refuses runtime variables that would override a credential or the
+ * environment open-agent sets, so create can refuse them before it provisions
+ * @param environment requested runtime variables
+ * @throws {CommandFault} when a variable is restricted
+ */
+export function assertRuntimeEnv(environment: Record<string, string>): void {
   const forbidden = new Set([
     ...driverCredentialNames(),
     ...harnessEnvironmentNames(),
@@ -144,12 +162,6 @@ export async function configureRuntimeEnv(
       message: `Runtime environment contains restricted keys: ${rejected.join(', ')}`,
     });
   }
-  await ensurePrivateDirectory(guest, `${HOME}/.config/open-agent`);
-  await writeOwnedFile(
-    guest,
-    `${HOME}/.config/open-agent/runtime-env.json`,
-    `${JSON.stringify(environment)}\n`,
-  );
 }
 
 /**

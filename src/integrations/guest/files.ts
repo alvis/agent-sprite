@@ -1,12 +1,15 @@
 import { posix } from 'node:path';
 
 import { runBoundedIO } from '#operation';
+import { holdsResolvedSecret } from '#utilities/redaction';
 
 import { runGuest } from '../guest.js';
 
+import { Secret } from './session/secret.js';
+
 import type { GuestChannel } from '#drivers/guest-channel';
 
-import type { GuestFileParams } from './types.js';
+import type { GuestFileParams, GuestRunOptions } from './types.js';
 
 /** the radix chmod reads a mode in */
 const OCTAL = 8;
@@ -31,7 +34,8 @@ const WRITE_PROGRAM = [
 ].join(' && ');
 
 /**
- * writes a root-owned guest file atomically with an explicit mode
+ * writes a root-owned guest file atomically with an explicit mode; contents
+ * that hold a credential go as a secret input
  * @param guest target guest
  * @param params destination, contents, and optional permissions
  */
@@ -44,8 +48,24 @@ export async function writeGuestFile(
   await runGuest(
     guest,
     ['/bin/sh', '-c', WRITE_PROGRAM, 'oa-write', path, mode.toString(OCTAL)],
-    { input: contents, step: 'guest file write' },
+    { ...contentsInput(contents), step: 'guest file write' },
   );
+}
+
+/**
+ * hands a written file's contents to the guest: as a secret input when they
+ * hold a credential the host resolved, such as a gateway key or a runtime
+ * variable, so it reaches the guest only through a setup session's secret
+ * input, and as text otherwise
+ * @param contents the file's contents
+ * @returns the write command's input or secret
+ */
+export function contentsInput(
+  contents: string,
+): Pick<GuestRunOptions, 'input' | 'secret'> {
+  return holdsResolvedSecret(contents)
+    ? { secret: { value: Secret.embedding(contents), as: 'stdin' } }
+    : { input: contents };
 }
 
 /**

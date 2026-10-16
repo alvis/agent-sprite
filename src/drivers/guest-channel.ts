@@ -83,7 +83,7 @@ export interface GuestServiceState {
   startedAt?: string;
 }
 
-/** provider services, or the guest supervisor when the service backend is runit */
+/** provider services, or runit's when the service backend is runit */
 export interface GuestServiceControl {
   /**
    * reads every service and its current state from one complete registry

@@ -40,16 +40,23 @@ export interface InstallParams {
   previous?: GuestEnvironment;
   /** receives each step's progress */
   interaction?: Interaction;
+  /**
+   * runs once the tools and environment.json are in place and before any
+   * service or job starts, such as the network enrolment and native
+   * configuration the agent's launcher reads only as it starts
+   */
+  beforeServices?: (guest: GuestChannel) => Promise<void>;
 }
 
 /**
  * installs a workstation through its setup plan: the foundation runs first
  * where Homebrew is needed, so the installed Homebrew can tell which formulae
  * have no bottle and those tools fall through to their next source, then the
- * whole plan runs; services a provider runs itself are registered last. The
- * environment.json the plan writes stays `incomplete` until
- * {@link markInstallationReady}
- * @param params the provider, session, profile, previous record and progress
+ * whole plan runs, then what the caller runs before the services, then the
+ * backend's services and jobs; services a provider runs itself are
+ * registered last. The environment.json the plan writes stays `incomplete`
+ * until {@link markInstallationReady}
+ * @param params the provider, session, profile, previous record, progress and what runs before the services
  * @returns the environment the plan recorded
  * @throws {CommandFault} when a required tool has no usable source, or a critical step failed
  */
@@ -70,6 +77,8 @@ export async function installWorkstation(
   };
   const assembly = await bottledAssembly(params, base);
   await runSteps(params, [...assembly.foundation, ...assembly.steps]);
+  await params.beforeServices?.(await connection.guest());
+  await runSteps(params, assembly.services);
   if (provider.serviceBackend === 'provider') {
     await traceStage('setup.services', async () =>
       installProviderServices(

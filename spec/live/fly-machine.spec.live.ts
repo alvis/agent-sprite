@@ -26,6 +26,7 @@ import { defaultProfile } from '#core/profile';
 import { FlyApi } from '#drivers/providers/fly-machine/api';
 import {
   BOOT_LOG,
+  BOOT_READY_FILE,
   BOOT_STATUS,
   BOOT_STEPS,
   PROFILE_PATH,
@@ -42,6 +43,7 @@ import { tokenScopeProblem } from '#drivers/providers/fly-machine/token-scope';
 import { summarizeProfile } from '#drivers/providers/recorded';
 import { GUEST_ROOT } from '#guest/guest-root';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
+import { ENVIRONMENT_PATH } from '#integrations/guest/environment';
 import { isRecord } from '#utilities/guards';
 
 import { createLiveCli, successData } from './cli.js';
@@ -90,7 +92,7 @@ interface BootFacts {
 interface BootStatus {
   /** the kernel's id of the boot */
   bootId: string;
-  /** ok, or failed when any step failed */
+  /** ok, or failed when any step failed, a failed optional step included */
   status: string;
   /** the whole boot script's duration */
   durationMs: number;
@@ -147,7 +149,7 @@ const TOKEN_SCAN = [
   "const skip=new Set(['node_modules','.linuxbrew','Cellar','.git','tools','apt','linuxbrew']);",
   'const hits=[];let scanned=0;',
   "const check=(file)=>{let data;try{data=fs.readFileSync(file,'latin1')}catch{return}scanned++;if(data.includes(token)||data.includes(body)||shape.test(data))hits.push(file)};",
-  "const walk=(dir)=>{let entries;try{entries=fs.readdirSync(dir,{withFileTypes:true})}catch{return}for(const entry of entries){const full=path.join(dir,entry.name);if(entry.isSymbolicLink())continue;if(entry.isDirectory()){if(!skip.has(entry.name)&&!entry.name.startsWith('node-v')&&entry.name!=='node')walk(full)}else if(entry.isFile()){let size=0;try{size=fs.statSync(full).size}catch{continue}if(size<=2000000)check(full)}}};",
+  'const walk=(dir)=>{let entries;try{entries=fs.readdirSync(dir,{withFileTypes:true})}catch{return}for(const entry of entries){const full=path.join(dir,entry.name);if(entry.isSymbolicLink())continue;if(entry.isDirectory()){if(!skip.has(entry.name))walk(full)}else if(entry.isFile()){let size=0;try{size=fs.statSync(full).size}catch{continue}if(size<=2000000)check(full)}}};',
   "for(const root of ['/etc','/root','/home/agent','/opt/open-agent','/run','/tmp','/var/log','/usr/local/sbin','/usr/local/bin'])walk(root);",
   "for(const pid of fs.readdirSync('/proc').filter((entry)=>/^\\d+$/.test(entry)&&Number(entry)!==process.pid)){check('/proc/'+pid+'/environ');check('/proc/'+pid+'/cmdline')}",
   'console.log(JSON.stringify({scanned,hits}));',
@@ -171,8 +173,10 @@ const PROCESS_SNAPSHOT = [
 ].join('\n');
 /** a file on the root filesystem, which a cold boot discards */
 const ROOTFS_MARKER = '/root/open-agent-cold-boot';
-/** removes what the boot script rebuilds on the root filesystem: Node's links, the login profile, the package Node needs and the marker */
-const RESET_ROOTFS = `rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx ${PROFILE_PATH} ${ROOTFS_MARKER} ${ROOTFS_RESTORED} && dpkg --remove --force-depends libatomic1 >/dev/null`;
+/** a recorded package with no service or maintainer script, which only the boot script's reinstall brings back */
+const RECORDED_PACKAGE = 'file';
+/** removes what the boot script rebuilds on the root filesystem: Node's links, the login profile, a recorded package and the markers */
+const RESET_ROOTFS = `rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx ${PROFILE_PATH} ${ROOTFS_MARKER} ${ROOTFS_RESTORED} && dpkg --remove --force-depends ${RECORDED_PACKAGE} >/dev/null`;
 /** the installer's environment for brew, so its configuration is read as the installer runs it */
 const BREW = `runuser -u ${HOMEBREW.account} -- /usr/bin/env -i HOME=${HOMEBREW.home} PATH=/usr/bin:/bin HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_BOTTLE_SOURCE_FALLBACK=1 ${HOMEBREW.brew}`;
 const STEP_TIMEOUT_MS = 120_000;
@@ -1091,8 +1095,8 @@ describe('Fly Machine provider live probe', () => {
             'setsid nohup sleep 86401 </dev/null >/dev/null 2>&1 &',
           ],
         });
-        const manifest = JSON.parse(
-          await asRoot(channel, `cat ${GUEST_ROOT}/manifest.json`),
+        const environment = JSON.parse(
+          await asRoot(channel, `cat ${ENVIRONMENT_PATH}`),
         ) as { profile: { harnesses: HarnessId[] } };
         const before = await readBootFacts(channel);
         const processesBefore = await waitFor(HOLD_TIMEOUT_MS, async () => {
@@ -1253,32 +1257,38 @@ describe('Fly Machine provider live probe', () => {
           await asRoot(booted, `cd / && ${BREW} config`)
         ).split('\n');
 
-        const supervisors = Number(
-          (
-            await asRoot(
-              booted,
-              "for d in /proc/[0-9]*; do tr '\\0' ' ' <$d/cmdline 2>/dev/null; echo; done | grep -c 'supervisor/main.j[s]'",
-            )
-          ).trim(),
-        );
+        // runit runs every service again, and the ready file names this boot
+        const services = await booted.services.list();
 
-        expect(supervisors).toBeGreaterThanOrEqual(1);
+        expect(services.length).toBeGreaterThan(0);
+        expect(services.filter(({ status }) => status !== 'running')).toEqual(
+          [],
+        );
+        expect((await asRoot(booted, `cat ${BOOT_READY_FILE}`)).trim()).toBe(
+          `${after.bootId} ok`,
+        );
         expect({
           volume: await asRoot(booted, `cat ${VOLUME_FILE}`),
           tools,
-          // Node needs libatomic1 from the root filesystem, which only the
-          // boot script brings back, from the package record and the apt
-          // cache the first create left on the volume
+          // the removed package is back, which only the boot script's
+          // reinstall brings about, from the package record and the apt cache
+          // the first create left on the volume
           recorded: (
             await asRoot(
               booted,
-              `grep -x libatomic1 ${VOLUME_LAYOUT.packages} || true`,
+              `grep -x ${RECORDED_PACKAGE} ${VOLUME_LAYOUT.packages} || true`,
             )
           ).trim(),
           cached: (
             await asRoot(
               booted,
-              `ls ${VOLUME_LAYOUT.apt}/archives | grep '^libatomic1_' || true`,
+              `ls ${VOLUME_LAYOUT.apt}/archives | grep '^${RECORDED_PACKAGE}_' || true`,
+            )
+          ).trim(),
+          installed: (
+            await asRoot(
+              booted,
+              `dpkg-query -W -f '\${db:Status-Abbrev}' ${RECORDED_PACKAGE} || true`,
             )
           ).trim(),
           brew: brewConfig.filter((line) =>
@@ -1286,7 +1296,7 @@ describe('Fly Machine provider live probe', () => {
           ),
           harnesses: await readHarnessVersions(
             booted,
-            manifest.profile.harnesses,
+            environment.profile.harnesses,
           ),
         }).toEqual({
           volume: banner,
@@ -1300,11 +1310,14 @@ describe('Fly Machine provider live probe', () => {
             '/usr/local/bin/gh',
             expect.stringMatching(/^gh version \d/u) as string,
           ],
-          recorded: 'libatomic1',
-          cached: expect.stringMatching(/^libatomic1_\S+\.deb$/u) as string,
+          recorded: RECORDED_PACKAGE,
+          cached: expect.stringMatching(
+            new RegExp(`^${RECORDED_PACKAGE}_\\S+\\.deb$`, 'u'),
+          ) as string,
+          installed: 'ii',
           brew: [`HOMEBREW_PREFIX: ${HOMEBREW.prefix}`],
           harnesses: Object.fromEntries(
-            harnessDrivers(manifest.profile.harnesses).flatMap(({ tools }) =>
+            harnessDrivers(environment.profile.harnesses).flatMap(({ tools }) =>
               tools.map(({ version }) => [
                 basename(version.executable),
                 expect.stringMatching(DOTTED_VERSION) as string,
@@ -1363,11 +1376,11 @@ describe('Fly Machine provider live probe', () => {
         );
         const log = await asRoot(
           await flyProvider().openGuest(record),
-          `tail -n 40 ${GUEST_ROOT}/supervisor.log`,
+          `tail -n 40 ${BOOT_LOG}`,
         );
 
         await annotate(
-          `memory ${await flyMachineMemory(token, name, record.id)} MB: states ${[...new Set(states)].join(' -> ')}; supervisor log:\n${log}`,
+          `memory ${await flyMachineMemory(token, name, record.id)} MB: states ${[...new Set(states)].join(' -> ')}; boot log:\n${log}`,
         );
         expect({
           restarted: restarted?.status,

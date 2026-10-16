@@ -2,6 +2,7 @@ import { recordHub } from '#drivers/shared/cliproxyapi/hub';
 import { CommandFault } from '#errors';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 import { recordOf } from '#utilities/records';
+import { rememberSecret } from '#utilities/redaction';
 
 import { catalog, DEFAULT_SELECTION } from './catalog.js';
 
@@ -99,7 +100,8 @@ export async function inspectHarnesses(
  * @param params.url hub base URL
  * @param params.apiKey hub client API key
  * @param params.drivers selected harness drivers
- * @returns the route, or undefined to restore native authentication
+ * @returns the route, or undefined to restore native authentication; its key
+ * is registered for redaction
  */
 export function proxyRoute(params: {
   enabled: boolean;
@@ -118,6 +120,9 @@ export function proxyRoute(params: {
       message: `${harnessLabel(routed.id)} proxy URL and API key must be supplied together`,
     });
   }
+
+  // registered, every file that embeds the key reaches the guest as a secret input
+  rememberSecret(apiKey);
 
   return url && apiKey ? { url, apiKey } : undefined;
 }

@@ -3,44 +3,38 @@ import { describe, inject, it } from 'vitest';
 import { t3Service } from '#drivers/agents/t3/service';
 import { codexTool } from '#drivers/harnesses/codex/tools';
 import { tailscaleDaemon } from '#drivers/networks/tailscale/service';
-import { GUEST_ROOT } from '#guest/guest-root';
 import { AWAKE_COMMAND } from '#integrations/guest/awake';
 
 import { successData, tail } from './cli.js';
 import {
   BREW_TOOLS,
-  brewToolDurations,
-  componentDuration,
-  expectedComponents,
-  expectedOutcomes,
+  checkManagedHold,
   exposedEntries,
   guestEntries,
-  installActivity,
   installOlderRelease,
-  makeComponentStale,
-  placeOlderNode,
+  loggedOutcomes,
   probeStaleComponent,
+  profileTools,
+  readAwakeHooks,
+  readAwakeInstall,
   readAwakeTaskExpiry,
-  readInstallLog,
+  readEnvironment,
   readHarnessSession,
   readHomebrewGit,
   readLoginVersion,
-  replacedSession,
-  readManifestState,
-  checkManagedHold,
-  readAwakeHooks,
-  readAwakeInstall,
-  readNodeTrees,
   readStoredIntervals,
   readToolState,
+  readUpdateLog,
+  readUpdateRecord,
+  removeToolLink,
+  replacedSession,
   runScheduledEntry,
   sendAwakeEvents,
   sendHookEvents,
   setLastSuccessfulUpdate,
-  skippedComponents,
   startHarnessSession,
   STALE_COMPONENT,
-  STALE_VERSION,
+  updateOutcomes,
   watchHolders,
 } from './guest.js';
 import { createLiveHarness } from './harness.js';
@@ -61,11 +55,11 @@ import {
 import { HOMEBREW } from './layout.js';
 import { foreignIdentifiers } from './ownership.js';
 
-import type { ExpectStatic } from 'vitest';
+import type { UpdateToolOutcome } from '#integrations/guest/updates';
 
 import type { TerminalStep } from '../fixtures/terminal.js';
 
-import type { ComponentOutcome, ScheduledRun } from './guest.js';
+import type { UpdateRecord } from './guest.js';
 import type { RunSample } from './idle.js';
 
 // budgets sum below the project testTimeout so a slow step fails before vitest
@@ -121,20 +115,6 @@ const OBSERVED_SLEEP_MS = 15_000;
 const HOLD_REFRESH_SKEW_MS = 5 * SECOND_MS;
 
 /**
- * checks that a scheduled entry ran end to end: it exited cleanly and the
- * updater process started once and exited cleanly, so an update that was not
- * due was still decided by the updater
- * @param expect the test's own assertion function
- * @param run what the entry did
- */
-function expectCompletedRun(expect: ExpectStatic, run: ScheduledRun): void {
-  expect(run.exitStatus).toBe(0);
-  expect(run.updaterRuns).toEqual([
-    { script: `${GUEST_ROOT}/guest/updater.sh`, exitCode: 0 },
-  ]);
-}
-
-/**
  * summarises run-state samples for an annotation
  * @param samples provider reads in order
  * @returns each distinct state with how often it was read
@@ -150,12 +130,16 @@ function describeSamples(samples: readonly RunSample[]): string {
 }
 
 /**
- * reads the release an update left a component at
- * @param outcome what the update did to the component, absent when it did nothing
- * @returns the bare dotted version, empty when none was recorded
+ * finds what the last update did to one tool
+ * @param status what the updater recorded
+ * @param tool tool name
+ * @returns the tool's outcome, absent when the run did not reach it
  */
-function versionOf(outcome: ComponentOutcome | undefined): string {
-  return outcome?.version ?? '';
+function toolOutcome(
+  status: UpdateRecord,
+  tool: string,
+): UpdateToolOutcome | undefined {
+  return status.tools.find(({ name }) => name === tool);
 }
 
 /**
@@ -244,13 +228,10 @@ describe('live workstation lifecycle', () => {
         });
         // Git, jj and gh are Homebrew's bottles at the default prefix, linked where every
         // caller finds it; the agent runs it but can change nothing under the
-        // prefix, and open-agent installed no compiler, from apt or Homebrew
-        const createLog = await readInstallLog(provider, name);
+        // prefix, and Homebrew poured every keg and installed no compiler
         const homebrewGit = await readHomebrewGit(provider, name);
 
-        await annotate(
-          `Git ${homebrewGit.kegVersion} from Homebrew: create's tool steps took ${brewToolDurations(createLog)}; compilers the provider's image ships: ${homebrewGit.imageCompilers.join(', ') || 'none'}`,
-        );
+        await annotate(`Git ${homebrewGit.kegVersion} from Homebrew`);
         expect(homebrewGit).toEqual({
           agentVersion: homebrewGit.kegVersion,
           agentGit: '/usr/local/bin/git',
@@ -274,17 +255,8 @@ describe('live workstation lifecycle', () => {
             ),
           ],
           brewCompilers: [],
-          aptCompilers: [],
-          imageCompilers: expect.any(Array),
+          unbottledKegs: [],
         });
-        for (const tool of BREW_TOOLS) {
-          expect(componentDuration(createLog, tool)).toEqual(
-            expect.any(Number),
-          );
-        }
-        expect(createLog).not.toContainEqual(
-          expect.stringMatching(/kernel\.org|\/usr\/bin\/make/),
-        );
 
         await expect
           .poll(async () => (await cleanup.devicesOf(name)).length, {
@@ -458,7 +430,7 @@ describe('live workstation lifecycle', () => {
         expect(inspected).toMatchObject({
           machine: { name, id },
           inspection: {
-            manifest: { profile: create.profile },
+            environment: { profile: create.profile },
             readiness: { ready: true },
             native: {
               claude: { awakeHooksInstalled: true },
@@ -512,17 +484,13 @@ describe('live workstation lifecycle', () => {
           release.older,
         );
 
-        // an update that skips unchanged components must still reinstall one
-        // that is out of date, so make one stale before forcing the update
-        await makeComponentStale(provider, name);
-        const manifestBefore = await readManifestState(provider, name);
-
-        expect(manifestBefore.installedVersions[STALE_COMPONENT]).toBe(
-          STALE_VERSION,
-        );
+        // an update must also repair what is missing, not only upgrade what
+        // is there, so remove a tool's link before forcing the update
+        await removeToolLink(provider, name);
+        const statusBefore = await readUpdateRecord(provider, name);
 
         const firstStartedAt = performance.now();
-        // the host transaction and the updater keep the workstation awake as
+        // the setup session and the updater keep the workstation awake as
         // managed holds, and release them when the update ends
         const holdWatch = await watchHolders(provider, name, async () =>
           cli.json(
@@ -533,70 +501,66 @@ describe('live workstation lifecycle', () => {
         );
         const update = successData(holdWatch.result, 'setup');
         const firstMs = Math.round(performance.now() - firstStartedAt);
-        const manifestAfter = await readManifestState(provider, name);
+        const statusAfter = await readUpdateRecord(provider, name);
 
         expect(update).toMatchObject({
           section: 'tools',
           tools: 'updated',
-          components: { installed: expect.any(Number) },
+          components: { installed: expect.any(Number), failed: 0 },
           machine: { name, id },
         });
         expect(holdWatch.sources).toEqual(
-          expect.arrayContaining(['transaction', 'updater']),
+          expect.arrayContaining(['session', 'update']),
         );
         expect(holdWatch.openHoldsAfter).toBe(0);
         expect(await provider.snapshotServices(name)).toEqual(before);
-        expect(manifestAfter.lastUpdateStatus).toBe('succeeded');
-        expect(
-          Date.parse(manifestAfter.lastSuccessfulUpdate ?? ''),
-        ).toBeGreaterThan(
-          Date.parse(manifestBefore.lastSuccessfulUpdate ?? '') || 0,
-        );
-        // the stale component was reinstalled, not just re-recorded
-        expect(manifestAfter.installedVersions[STALE_COMPONENT]).not.toBe(
-          STALE_VERSION,
-        );
-        // the outcome names the stable release; the manifest keeps the raw
-        // report, which may carry a build suffix
-        expect(manifestAfter.componentOutcomes[STALE_COMPONENT]).toEqual({
-          status: 'installed',
-          version: expect.any(String),
+        expect(statusAfter).toMatchObject({
+          finishedAt: expect.any(String),
+          links: 'restored',
         });
-        expect(manifestAfter.installedVersions[STALE_COMPONENT]).toContain(
-          manifestAfter.componentOutcomes[STALE_COMPONENT]?.version,
+        expect(Date.parse(statusAfter.lastSuccess ?? '')).toBeGreaterThan(
+          Date.parse(statusBefore.lastSuccess ?? '') || 0,
         );
         expect(
-          Object.entries(manifestAfter.componentOutcomes).filter(
-            ([, { status }]) => status === 'failed',
-          ),
+          statusAfter.tools.filter(({ outcome }) => outcome === 'failed'),
         ).toEqual([]);
-        expect(await probeStaleComponent(provider, name)).toBe(
-          manifestAfter.installedVersions[STALE_COMPONENT],
+        // the removed link was restored before the updater ran, which found
+        // the tool itself in place
+        const relinked = toolOutcome(statusAfter, STALE_COMPONENT);
+
+        expect(relinked).toMatchObject({
+          manager: 'brew',
+          outcome: expect.stringMatching(/^(?:installed|skipped)$/),
+          to: expect.stringMatching(/^\d+\.\d+\.\d+/),
+        });
+        expect(await probeStaleComponent(provider, name)).toContain(
+          relinked?.to?.replace(/_\d+$/, ''),
         );
 
         // the older harness was upgraded in place: a new session starts the
         // new release, while the running session keeps every process and the
         // files it started from
-        const upgraded = manifestAfter.componentOutcomes[codexTool.name];
-        const upgradedVersion = versionOf(upgraded);
+        const upgraded = toolOutcome(statusAfter, codexTool.name);
 
         await annotate(
-          `${codexTool.name} ${release.older} upgraded to ${upgradedVersion} (latest ${release.latest} before the update) with session processes ${session.map(({ pid }) => pid).join(', ')} running`,
+          `${codexTool.name} ${release.older} upgraded to ${upgraded?.to} (latest ${release.latest} before the update) with session processes ${session.map(({ pid }) => pid).join(', ')} running`,
         );
-        expect(upgraded).toEqual({
-          status: 'installed',
-          version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
+        expect(upgraded).toMatchObject({
+          manager: 'npm',
+          outcome: 'installed',
+          from: release.older,
+          to: expect.stringMatching(/^\d+\.\d+\.\d+$/),
         });
-        expect(upgradedVersion).not.toBe(release.older);
+        expect(upgraded?.to).not.toBe(release.older);
         expect(await readLoginVersion(provider, name, codexTool.name)).toBe(
-          upgradedVersion,
+          upgraded?.to,
         );
         expect(await readHarnessSession(provider, name)).toEqual(
           replacedSession(session, (pattern) => expect.stringMatching(pattern)),
         );
 
         // nothing changed upstream since that update, so an immediate second
-        // forced update finds every component current and installs nothing
+        // forced update finds every tool current and installs nothing
         const toolsAfterFirst = await readToolState(provider, name);
         const secondStartedAt = performance.now();
         const repeated = successData(
@@ -608,54 +572,43 @@ describe('live workstation lifecycle', () => {
           'setup',
         );
         const secondMs = Math.round(performance.now() - secondStartedAt);
-        const manifestRepeated = await readManifestState(provider, name);
-        const repeatedLog = await readInstallLog(provider, name);
-        const probed = expectedComponents(create.profile);
-        const expected = expectedOutcomes(create.profile);
-        const recorded = Object.keys(manifestRepeated.componentOutcomes).sort();
+        const statusRepeated = await readUpdateRecord(provider, name);
+        const recorded = (await readEnvironment(provider, name)).tools
+          .map(({ name: tool }) => tool)
+          .sort();
 
-        // the outcomes name every component the manifest records and every
-        // one the profile installs, so a component cannot be skipped unseen
-        expect(recorded).toEqual(expected);
-        expect(Object.keys(manifestRepeated.installedVersions).sort()).toEqual(
-          probed,
+        await annotate(
+          `forced update: first ${firstMs} ms (re-linked ${STALE_COMPONENT}, upgraded ${codexTool.name}), repeated ${secondMs} ms (all skipped)`,
+        );
+        // the outcomes name every tool environment.json records, which holds
+        // every one the profile's drivers install, so a tool cannot be
+        // skipped unseen
+        expect(recorded).toEqual(
+          expect.arrayContaining(profileTools(create.profile)),
         );
         expect(repeated).toMatchObject({
           section: 'tools',
           tools: 'updated',
-          components: { installed: 0, skipped: expected.length },
+          components: { installed: 0, skipped: recorded.length, failed: 0 },
           machine: { name, id },
         });
-        expect(
-          Object.fromEntries(
-            Object.entries(manifestRepeated.componentOutcomes).map(
-              ([component, { status }]) => [component, status],
-            ),
-          ),
-        ).toEqual(
-          Object.fromEntries(
-            expected.map((component) => [component, 'skipped']),
-          ),
+        expect(updateOutcomes(statusRepeated)).toEqual(
+          Object.fromEntries(recorded.map((tool) => [tool, 'skipped'])),
         );
-        // independent evidence that nothing changed: the Node link, the tools
-        // directory, the system links and the npm manifests are the very same
-        // files, and the run's own log shows nothing was installed
+        // independent evidence that nothing changed: the kegs, the system
+        // links and the npm manifests are the very same files, and the run's
+        // own log reports the same outcomes
         expect(await readToolState(provider, name)).toEqual(toolsAfterFirst);
-        expect(installActivity(repeatedLog)).toEqual([]);
-        expect(skippedComponents(repeatedLog).sort()).toEqual(
-          expected.filter((component) => component !== 'node'),
+        expect(loggedOutcomes(await readUpdateLog(provider, name))).toEqual(
+          updateOutcomes(statusRepeated),
         );
-        expect(skippedComponents(repeatedLog)).toContain('git');
-        expect(repeatedLog).toContainEqual(
-          expect.stringMatching(/^Node v\d+\.\d+\.\d+ is already installed$/),
+        expect(statusRepeated.links).toBe('restored');
+        expect(Date.parse(statusRepeated.lastSuccess ?? '')).toBeGreaterThan(
+          Date.parse(statusAfter.lastSuccess ?? ''),
         );
-        expect(manifestRepeated.lastUpdateStatus).toBe('succeeded');
         expect(
-          Date.parse(manifestRepeated.lastSuccessfulUpdate ?? ''),
-        ).toBeGreaterThan(Date.parse(manifestAfter.lastSuccessfulUpdate ?? ''));
-        expect(manifestRepeated.installedVersions).toEqual(
-          manifestAfter.installedVersions,
-        );
+          statusRepeated.tools.map(({ name: tool, to }) => [tool, to]),
+        ).toEqual(statusAfter.tools.map(({ name: tool, to }) => [tool, to]));
         expect(await provider.snapshotServices(name)).toEqual(before);
         expect(await readHarnessSession(provider, name)).toEqual(
           replacedSession(session, (pattern) => expect.stringMatching(pattern)),
@@ -663,89 +616,30 @@ describe('live workstation lifecycle', () => {
         // root runs everything under the guest root, so it must be root's alone
         expect(exposedEntries(await guestEntries(provider, name))).toEqual([]);
 
-        // a guest whose Node is older than the latest release swaps in the new
-        // tree beside the old one, without touching a tree a service runs from
-        const { older, live } = await placeOlderNode(provider, name);
-
-        expect((await readNodeTrees(provider, name)).link).toBe(older);
-
-        const swapStartedAt = performance.now();
-        const swapped = successData(
-          await cli.json(
-            ['setup', name, '--section', 'tools', '--update'],
-            COMMAND_TIMEOUT_MS,
-            signal,
-          ),
-          'setup',
-        );
-        const swapMs = Math.round(performance.now() - swapStartedAt);
-        const manifestSwapped = await readManifestState(provider, name);
-        const nodeTrees = await readNodeTrees(provider, name);
-        const latest = manifestSwapped.componentOutcomes.node?.version ?? '';
-
-        await annotate(
-          `forced update: first ${firstMs} ms (reinstalled ${STALE_COMPONENT}), repeated ${secondMs} ms (all skipped; checked through brew in ${brewToolDurations(repeatedLog)}), Node swap ${swapMs} ms (Node ${latest} beside the older tree)`,
-        );
-        expect(swapped).toMatchObject({
-          section: 'tools',
-          tools: 'updated',
-          components: { installed: 1, skipped: expected.length - 1 },
-          machine: { name, id },
-        });
-        expect(manifestSwapped.componentOutcomes.node).toEqual({
-          status: 'installed',
-          version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
-        });
-        expect(
-          Object.entries(manifestSwapped.componentOutcomes).filter(
-            ([component, { status }]) =>
-              component !== 'node' && status !== 'skipped',
-          ),
-        ).toEqual([]);
-        // the link names a new tree of the latest release, the tree it
-        // replaced stays, and the tree a running process uses survives
-        expect(nodeTrees.link).toMatch(
-          new RegExp(
-            `^node-v${latest.replaceAll('.', '\\.')}\\.[A-Za-z0-9]{6}$`,
-          ),
-        );
-        expect([older, live]).not.toContain(nodeTrees.link);
-        expect(nodeTrees.trees).toEqual(
-          expect.arrayContaining([older, live, nodeTrees.link]),
-        );
-        expect(manifestSwapped.installedVersions.node).toBe(`v${latest}`);
-        expect(manifestSwapped.lastUpdateStatus).toBe('succeeded');
-        expect(await provider.snapshotServices(name)).toEqual(before);
-        expect(await readHarnessSession(provider, name)).toEqual(
-          replacedSession(session, (pattern) => expect.stringMatching(pattern)),
-        );
-        // the sweep now covers the link, every tree, the tools and the outcomes
-        expect(exposedEntries(await guestEntries(provider, name))).toEqual([]);
-
         // the due interval the create recorded drives the guest: the stored
-        // profile holds it, and the scheduled entry, run without --force,
-        // updates only once the due days have passed
+        // profile and the schedule hold it, and the scheduled entry, run
+        // without --force, updates only once the due days have passed
         expect(create.profile.options).toMatchObject({
           updateDueIntervalDays: UPDATE_DUE_DAYS,
         });
         expect(await readStoredIntervals(provider, name)).toEqual({
           updateDueIntervalDays: UPDATE_DUE_DAYS,
+          scheduleDueDays: UPDATE_DUE_DAYS,
         });
 
         const scheduledStartedAt = Date.now();
+        // the updater records whole seconds
+        const scheduledSecond =
+          Math.floor(scheduledStartedAt / SECOND_MS) * SECOND_MS;
         const recent = new Date(scheduledStartedAt - 2 * DAY_MS);
         await setLastSuccessfulUpdate(provider, name, recent);
-        const attemptBeforeSkip = (await readManifestState(provider, name))
-          .lastAttemptedUpdate;
         const skippedRun = await runScheduledEntry(provider, name);
-        const manifestSkipped = await readManifestState(provider, name);
 
-        // the updater ran and found the update not due: it ended cleanly and
-        // attempted nothing
-        expectCompletedRun(expect, skippedRun);
-        expect(manifestSkipped.lastSuccessfulUpdate).toBe(recent.toISOString());
-        expect(manifestSkipped.lastAttemptedUpdate).toBe(attemptBeforeSkip);
-        expect(manifestSkipped.lastUpdateDiagnostic).toBeUndefined();
+        // the gate found the update not due: it ended cleanly and ran nothing
+        expect(skippedRun).toEqual({ exitStatus: 0, updated: false });
+        expect((await readUpdateRecord(provider, name)).lastSuccess).toBe(
+          recent.toISOString(),
+        );
 
         await setLastSuccessfulUpdate(
           provider,
@@ -753,22 +647,20 @@ describe('live workstation lifecycle', () => {
           new Date(scheduledStartedAt - 4 * DAY_MS),
         );
         const dueRun = await runScheduledEntry(provider, name);
-        const manifestDue = await readManifestState(provider, name);
+        const statusDue = await readUpdateRecord(provider, name);
 
-        expectCompletedRun(expect, dueRun);
-        expect({
-          status: manifestDue.lastUpdateStatus,
-          error: manifestDue.lastUpdateError,
-        }).toEqual({ status: 'succeeded', error: undefined });
-        expect(
-          Date.parse(manifestDue.lastSuccessfulUpdate ?? ''),
-        ).toBeGreaterThanOrEqual(scheduledStartedAt);
-        expect(
-          Date.parse(manifestDue.lastAttemptedUpdate ?? ''),
-        ).toBeGreaterThanOrEqual(scheduledStartedAt);
-        expect(manifestDue.lastAttemptedUpdate).not.toBe(attemptBeforeSkip);
+        expect(dueRun).toEqual({ exitStatus: 0, updated: true });
+        expect(statusDue).toMatchObject({
+          finishedAt: expect.any(String),
+          links: 'restored',
+        });
+        expect(Date.parse(statusDue.startedAt ?? '')).toBeGreaterThanOrEqual(
+          scheduledSecond,
+        );
+        expect(Date.parse(statusDue.lastSuccess ?? '')).toBeGreaterThanOrEqual(
+          scheduledSecond,
+        );
         expect(await provider.snapshotServices(name)).toEqual(before);
-
         // a later setup changes the due interval, and starts, stops and
         // restarts nothing
         const rescheduled = successData(
@@ -794,21 +686,19 @@ describe('live workstation lifecycle', () => {
         });
         expect(await readStoredIntervals(provider, name)).toEqual({
           updateDueIntervalDays: RESCHEDULED_DUE_DAYS,
+          scheduleDueDays: RESCHEDULED_DUE_DAYS,
         });
         expect(await provider.snapshotServices(name)).toEqual(before);
 
         // four days is now below the due interval, so the same entry skips
         const stale = new Date(Date.now() - 4 * DAY_MS);
         await setLastSuccessfulUpdate(provider, name, stale);
-        const attemptBeforeStale = (await readManifestState(provider, name))
-          .lastAttemptedUpdate;
         const staleRun = await runScheduledEntry(provider, name);
-        const manifestStale = await readManifestState(provider, name);
 
-        expectCompletedRun(expect, staleRun);
-        expect(manifestStale.lastSuccessfulUpdate).toBe(stale.toISOString());
-        expect(manifestStale.lastAttemptedUpdate).toBe(attemptBeforeStale);
-        expect(manifestStale.lastUpdateDiagnostic).toBeUndefined();
+        expect(staleRun).toEqual({ exitStatus: 0, updated: false });
+        expect((await readUpdateRecord(provider, name)).lastSuccess).toBe(
+          stale.toISOString(),
+        );
         // the cron entry and the lock the runs used are root-only
         expect(exposedEntries(await guestEntries(provider, name))).toEqual([]);
         expect(await provider.snapshotServices(name)).toEqual(before);
@@ -1335,16 +1225,20 @@ describe('live workstation lifecycle', () => {
           ),
         ).toBe('200');
 
-        const manifest = await readManifestState(provider, name);
-
-        expect(Object.keys(manifest.installedVersions).sort()).toEqual(
-          expectedComponents({
-            agent: 't3',
-            harnesses: ['claude', 'codex'],
-            network: 'none',
-          }),
+        const installed = (await readEnvironment(provider, name)).tools.map(
+          ({ name: tool }) => tool,
         );
-        expect(manifest.installedVersions).not.toHaveProperty('tailscale');
+
+        expect(installed).toEqual(
+          expect.arrayContaining(
+            profileTools({
+              agent: 't3',
+              harnesses: ['claude', 'codex'],
+              network: 'none',
+            }),
+          ),
+        );
+        expect(installed).not.toContain('tailscale');
 
         const show = successData(
           await cli.json(
@@ -1358,7 +1252,7 @@ describe('live workstation lifecycle', () => {
         expect(show).toMatchObject({
           machine: { name },
           inspection: {
-            manifest: { profile: { network: 'none' } },
+            environment: { profile: { network: 'none' } },
             network: { skipped: true, online: false },
           },
         });
@@ -1460,7 +1354,7 @@ describe('live workstation lifecycle', () => {
         expect(show).toMatchObject({
           machine: { name, setup: 'ready' },
           inspection: {
-            manifest: {
+            environment: {
               profile: {
                 network: 'tailscale',
                 options: { isExitNodeEnabled: false, isProxyEnabled: true },

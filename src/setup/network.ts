@@ -18,7 +18,10 @@ import type { ResolvedInputs } from '#input/types';
 import type { SetupContext } from './context.js';
 
 /**
- * enrolls the selected network or update the existing device's exit route
+ * enrolls the selected network or update the existing device's exit route;
+ * when the network had to be installed, the installation is recorded ready
+ * only once the device enrolled, so a failed enrolment leaves it `incomplete`
+ * for recovery to find
  * @param guest guest channel of the managed workstation
  * @param context network choices, prompts, and redaction values
  * @returns selected network route summary
@@ -29,8 +32,12 @@ export async function setupNetwork(
 ): Promise<NetworkSetupData> {
   const { input, profile, networkEnrolled, mutation } = context;
   const network = networkDriver(profile.network);
-  await installSelectedNetwork(guest, context);
+  const installed = await installSelectedNetwork(guest, context);
   if (!network.daemon) {
+    if (installed) {
+      await markInstallationReady(guest);
+    }
+
     return { network: { status: 'disabled', readiness: 'skipped' } };
   }
   const { isExitNodeEnabled } = profile.options;
@@ -68,6 +75,9 @@ export async function setupNetwork(
       `The selected exit node does not match current ${network.displayName} status`,
     );
   }
+  if (installed) {
+    await markInstallationReady(guest);
+  }
 
   return {
     network: {
@@ -103,22 +113,26 @@ async function removeRecordedDevice(
  * runs the setup plan when the network the last plan installed is not the
  * selected one: a network's tool, daemon and the agent's dependency on it are
  * installed only while it is selected, so a switch installs the new one and
- * drops the old one before the device enrols
+ * drops the old one before the device enrols; the record the plan writes
+ * stays `incomplete` until the caller has enrolled the device
  * @param guest guest channel of the managed workstation
  * @param context provider, setup session, selected profile and mutation tracking
+ * @returns whether the plan ran
  */
 async function installSelectedNetwork(
   guest: GuestChannel,
   context: SetupContext,
-): Promise<void> {
+): Promise<boolean> {
   const installed = (await readGuestEnvironment(guest)).network?.id;
   const selected = networkDriver(context.profile.network).daemon
     ? context.profile.network
     : undefined;
-  if (installed !== selected) {
-    await installSetupPlan(context);
-    await markInstallationReady(guest);
+  if (installed === selected) {
+    return false;
   }
+  await installSetupPlan(context);
+
+  return true;
 }
 
 /**
