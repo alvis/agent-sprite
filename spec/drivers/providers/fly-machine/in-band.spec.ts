@@ -91,7 +91,7 @@ describe('cl:InBandStatusFilter', () => {
       ]);
 
       expect({ passed: passed.toString(), status: filter.status }).toEqual({
-        passed: 'warning: @@ not a marker',
+        passed: 'warning: @@ not a marker\n',
         status: 7,
       });
     });
