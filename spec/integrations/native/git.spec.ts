@@ -23,6 +23,7 @@ import {
   createFilesystemSprite,
   createNativeCommandExecutor,
   guestOf,
+  sessionGuestOf,
 } from '../../mocks/sprites.js';
 
 import type { Sprite } from '@fly/sprites';
@@ -155,7 +156,7 @@ describe('fn:configureGithub', () => {
     Object.assign(sprite, { execFileHTTP: login });
 
     await configureGithub(
-      guestOf(sprite),
+      sessionGuestOf(sprite),
       Secret.fromHost('github', 'enterprise-token'),
       {
         hostname: 'github.enterprise.test',
@@ -163,7 +164,7 @@ describe('fn:configureGithub', () => {
       },
     );
     await configureGithub(
-      guestOf(sprite),
+      sessionGuestOf(sprite),
       Secret.fromHost('github', 'default-token'),
       {
         shellAccounts: ['sprite'],
@@ -192,7 +193,7 @@ describe('fn:configureGithub', () => {
             'https',
             '--with-token',
           ]),
-          input: `${token}\n`,
+          input: token,
         })),
       ),
     );
@@ -230,11 +231,6 @@ describe('fn:configureGithub', () => {
     expect(await readFile(join(configDirectory, 'unrelated'), 'utf8')).toBe(
       'preserved',
     );
-    expect(
-      vi
-        .mocked(sprite.filesystem().chown)
-        .mock.calls.every(([path]) => !path.startsWith('/home/')),
-    ).toBe(true);
     const providerDirectory = join(directory.path, '/home/sprite/.config');
     expect((await stat(providerDirectory)).mode & 0o777).toBe(0o700);
     expect((await stat(join(providerDirectory, 'gh'))).mode & 0o777).toBe(
@@ -257,7 +253,7 @@ describe('fn:configureGithub', () => {
     });
 
     const error = await configureGithub(
-      guestOf(sprite),
+      sessionGuestOf(sprite),
       Secret.fromHost('github', 'secret-github-value'),
       { shellAccounts: ['sprite'] },
     ).catch((failure: Error) => failure);
@@ -295,7 +291,7 @@ describe('fn:configureGithub', () => {
 
     await expect(
       configureGithub(
-        guestOf(sprite),
+        sessionGuestOf(sprite),
         Secret.fromHost('github', 'github-value'),
         {
           shellAccounts: ['sprite'],
@@ -328,9 +324,9 @@ describe('fn:configureRuntimeEnv', () => {
       '/home/agent/.config/open-agent/runtime-env.json',
     );
 
-    await configureRuntimeEnv(guestOf(sprite), approved);
+    await configureRuntimeEnv(sessionGuestOf(sprite), approved);
     await expect(
-      configureRuntimeEnv(guestOf(sprite), {
+      configureRuntimeEnv(sessionGuestOf(sprite), {
         SPRITES_TOKEN: 'private',
         HOME: '/malicious',
       }),

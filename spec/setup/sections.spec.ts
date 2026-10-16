@@ -2,22 +2,29 @@ import { mkdtempDisposable } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { ServiceLogStream } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
 import { setupAgent } from '#setup/sections';
 import { PairingSecret } from '#utilities/pairing-secret';
 
-import { DISABLED_NETWORK_PROFILE, profileWith } from '../fixtures/profile.js';
+import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 import {
   createFilesystemSprite,
-  guestOf,
+  holdServices,
   workstationOf,
 } from '../mocks/sprites.js';
 
 import type { SetupContext } from '#setup/context';
 
-const integrations = { network: false, exitNode: false, cliproxyapi: false };
+// setup's root session is a framed guest shell only the live specs open
+vi.mock(
+  '#integrations/guest/session/open',
+  async () => import('../mocks/session.js'),
+);
+// Codex trusts its hooks through its app server, a guest process only the live specs run
+vi.mock('#drivers/harnesses/codex/hook-trust', () => ({
+  trustCodexHooks: vi.fn(async () => undefined),
+}));
 
 describe('fn:setupAgent', () => {
   it('should mint zero codes when omitted and exactly one when requested', async () => {
@@ -39,33 +46,7 @@ describe('fn:setupAgent', () => {
         exitCode: 0,
       }),
     });
-    await sprite.filesystem().mkdir('/opt/open-agent', {
-      recursive: true,
-    });
-    await sprite.filesystem().mkdir('/opt/open-agent/t3-environment-probe', {
-      recursive: true,
-    });
-    await sprite.filesystem().mkdir('/etc/cron.d', { recursive: true });
-    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
-      schema: 1,
-      createdAt: '2026-10-09T00:00:00Z',
-      installedVersions: {},
-      profile: profileWith(integrations),
-    });
-    vi.spyOn(sprite, 'listServices').mockResolvedValue([]);
-    vi.spyOn(sprite, 'getService').mockImplementation(async (name) => ({
-      name,
-      cmd: '/usr/bin/sudo',
-      args: [],
-      needs: [],
-      state: { name, status: 'running' },
-    }));
-    vi.spyOn(sprite, 'createService').mockImplementation(
-      async () =>
-        new ServiceLogStream(
-          new Response('{"type":"complete","timestamp":0}\n'),
-        ),
-    );
+    holdServices(sprite);
     const context: SetupContext = {
       ...workstationOf(sprite),
       options: {},
@@ -82,7 +63,10 @@ describe('fn:setupAgent', () => {
       mutation: { started: false },
     };
 
-    const ordinary = await setupAgent(guestOf(sprite), context);
+    const ordinary = await setupAgent(
+      await context.connection.guest(),
+      context,
+    );
 
     expect(ordinary).toEqual({
       service: 'configured',
@@ -94,7 +78,10 @@ describe('fn:setupAgent', () => {
 
     context.options = { withPairCode: true };
     context.mutation.started = false;
-    const requested = await setupAgent(guestOf(sprite), context);
+    const requested = await setupAgent(
+      await context.connection.guest(),
+      context,
+    );
 
     expect(requested).toMatchObject({
       pairing: {

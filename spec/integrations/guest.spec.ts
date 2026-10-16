@@ -81,9 +81,8 @@ describe('fn:writeGuestFile', () => {
         writeGuestFile(guestOf(sprite), { path, contents: 'private' }),
       ).rejects.toThrow(/home files must be changed as their owning account/);
     }
-    expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
-    expect(sprite.filesystem().chown).not.toHaveBeenCalled();
-    expect(sprite.filesystem().rename).not.toHaveBeenCalled();
+    expect(sprite.execFile).not.toHaveBeenCalled();
+    expect(sprite.execFileHTTP).not.toHaveBeenCalled();
   });
 });
 

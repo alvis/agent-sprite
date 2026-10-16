@@ -3,7 +3,6 @@
 // read it with jq, and the host reads it back to inspect, update and destroy
 
 import { CommandFault } from '#errors';
-import { GUEST_ROOT } from '#guest/guest-root';
 import { isRecord } from '#utilities/guards';
 
 import { environmentProblem } from './environment-validation.js';
@@ -20,9 +19,6 @@ import type { OsFamilyId, PeriodicJob, ServiceBackendId } from '#os/contracts';
 import type { ToolOwner, ToolSource } from '#tools/contracts';
 
 import type { GuestNetworkIdentity } from './types.js';
-
-/** where setup records the guest's environment */
-export const ENVIRONMENT_PATH = `${GUEST_ROOT}/environment.json`;
 
 /** the record's mode: root writes it, every account reads it */
 export const ENVIRONMENT_MODE = 0o644;
@@ -126,7 +122,7 @@ export interface EnvironmentNetwork {
   launcher: Omit<NetworkLauncher, 'asset'>;
 }
 
-/** the record setup leaves at {@link ENVIRONMENT_PATH} */
+/** the record setup leaves at `/opt/open-agent/environment.json` */
 export interface GuestEnvironment {
   /** format version */
   schema: typeof ENVIRONMENT_SCHEMA;

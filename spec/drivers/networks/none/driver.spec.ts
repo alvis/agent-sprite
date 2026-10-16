@@ -32,12 +32,11 @@ describe('drv:none', () => {
     expect(catalog.networks.none).toBe(none);
   });
 
-  it('should declare no daemon, tools, inputs, guest payloads or exit node support', () => {
+  it('should declare no daemon, tools, inputs or exit node support', () => {
     expect(none).toMatchObject({
       id: 'none',
       kind: 'networks',
       supportsExitNode: false,
-      guest: [],
       tools: [],
     });
     expect(none.daemon).toBeUndefined();

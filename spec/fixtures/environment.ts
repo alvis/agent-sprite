@@ -8,7 +8,7 @@ import type { GuestEnvironment } from '#integrations/guest/environment';
 
 /**
  * builds the environment.json a finished setup of a profile records, with no
- * tools, services or jobs
+ * tools, jobs or network and only the agent's service
  * @param profile the recorded profile
  * @param overrides fields that differ from a ready setup
  * @returns a complete environment record
@@ -34,8 +34,8 @@ export function environmentOf(
       supportsCliWakeSleep: false,
       maxAwakeDeadlineMinutes: null,
       transportNetworks: [],
-      idleTimeoutMinutes: 0,
-      holdMaxMinutes: 0,
+      idleTimeoutMinutes: profile.options.idleTimeoutMinutes,
+      holdMaxMinutes: profile.options.holdMaxMinutes,
       awakeAdapter: null,
     },
     agent: {
@@ -46,7 +46,7 @@ export function environmentOf(
       harnesses: [],
     },
     network: null,
-    services: [],
+    services: [catalog.agents[profile.agent].service],
     jobs: [],
     ...overrides,
   };

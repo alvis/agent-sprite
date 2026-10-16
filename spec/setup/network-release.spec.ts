@@ -6,8 +6,10 @@ import { ServiceLogStream } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
 import { tailscaleLauncher } from '#drivers/networks/tailscale/service';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { persistSetupProfile } from '#setup/integrations';
 
+import { environmentOf } from '../fixtures/environment.js';
 import {
   DISABLED_NETWORK_PROFILE,
   TAILSCALE_PROFILE,
@@ -33,9 +35,9 @@ const tailscaled = {
 } satisfies ServiceWithState;
 
 /**
- * stands up a set-up workstation whose payload holds the Tailscale launcher
+ * stands up a set-up workstation whose guest holds the Tailscale launcher
  * @param root directory standing for the guest filesystem
- * @param recorded selection the manifest records
+ * @param recorded selection the environment records
  * @param services services the provider reports as registered
  * @returns the sprite, with service mutations answered by the mock
  */
@@ -53,23 +55,11 @@ async function workstation(
     }),
   });
   const filesystem = sprite.filesystem();
-  await filesystem.mkdir('/opt/open-agent/t3-environment-probe', {
-    recursive: true,
-  });
-  await filesystem.mkdir('/etc/cron.d', { recursive: true });
-  await filesystem.mkdir(
-    LAUNCHER_PATH.slice(0, LAUNCHER_PATH.lastIndexOf('/')),
-    {
-      recursive: true,
-    },
-  );
   await filesystem.writeFile(LAUNCHER_PATH, '# staged launcher\n');
-  await filesystem.writeJSON('/opt/open-agent/manifest.json', {
-    schema: 1,
-    createdAt: '2026-10-09T00:00:00Z',
-    installedVersions: {},
-    profile: recorded,
-  });
+  await filesystem.writeFile(
+    ENVIRONMENT_PATH,
+    JSON.stringify(environmentOf(recorded)),
+  );
   vi.spyOn(sprite, 'listServices').mockResolvedValue(services);
   serveServiceRegistry(sprite);
   vi.spyOn(sprite, 'stopService').mockImplementation(

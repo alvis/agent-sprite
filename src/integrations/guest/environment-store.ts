@@ -1,11 +1,11 @@
 import { validateProfile } from '#core/profile';
 import { CommandFault } from '#errors';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
 
 import { guestFileExists, readGuestFile, writeGuestFile } from '../guest.js';
 
 import {
   ENVIRONMENT_MODE,
-  ENVIRONMENT_PATH,
   parseEnvironment,
   serializeEnvironment,
 } from './environment.js';

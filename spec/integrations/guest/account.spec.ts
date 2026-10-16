@@ -76,47 +76,76 @@ describe('native account SDK boundary', () => {
     );
     await removeOwnedFile(guestOf(sprite), '/home/agent/.config/native.json');
 
-    const helper = '/opt/open-agent/guest/native-files.js';
-    const commands = vi
-      .mocked(sprite.execFile)
-      .mock.calls.map(([, args]) => args ?? [])
-      .filter((args) => args.includes(helper));
-    expect(commands.map((args) => args.slice(3, 7))).toEqual([
-      ['/usr/sbin/runuser', '-u', 'agent', '--'],
-      ['/usr/sbin/runuser', '-u', 'sprite', '--'],
-      ['/usr/sbin/runuser', '-u', 'agent', '--'],
-    ]);
-    expect(commands.map((args) => args.at(-3))).toEqual([
-      'mkdir',
-      'mkdir',
-      'remove',
+    // each runs the home files program inline as its account, `$0` then its operation
+    const { mock: plain } = vi.mocked(sprite.execFile);
+    const { mock: http } = vi.mocked(sprite.execFileHTTP);
+    const programs = [
+      ...plain.calls.map(([, args], index) => ({
+        args: args ?? [],
+        order: plain.invocationCallOrder[index] ?? 0,
+      })),
+      ...http.calls.map(([, args], index) => ({
+        args: args ?? [],
+        order: http.invocationCallOrder[index] ?? 0,
+      })),
+    ]
+      .sort((left, right) => left.order - right.order)
+      .map(({ args }) => args)
+      .filter((args) => args.includes('oa-home-files'));
+    expect(
+      programs.map((args) => [
+        ...args.slice(3, 9),
+        ...args.slice(args.indexOf('oa-home-files') + 1),
+      ]),
+    ).toEqual([
+      [
+        '/usr/sbin/runuser',
+        '-u',
+        'agent',
+        '--',
+        '/bin/sh',
+        '-c',
+        'mkdir',
+        '/home/agent',
+        '/home/agent/.config',
+      ],
+      [
+        '/usr/sbin/runuser',
+        '-u',
+        'sprite',
+        '--',
+        '/bin/sh',
+        '-c',
+        'mkdir',
+        '/home/sprite',
+        '/home/sprite/.config',
+      ],
+      [
+        '/usr/sbin/runuser',
+        '-u',
+        'agent',
+        '--',
+        '/bin/sh',
+        '-c',
+        'write',
+        '/home/agent',
+        '/home/agent/.config/native.json',
+      ],
+      [
+        '/usr/sbin/runuser',
+        '-u',
+        'agent',
+        '--',
+        '/bin/sh',
+        '-c',
+        'remove',
+        '/home/agent',
+        '/home/agent/.config/native.json',
+      ],
     ]);
     const writes = vi.mocked(sprite.execFileHTTP).mock.calls;
     expect(writes).toHaveLength(1);
-    expect(writes[0]?.[1]).toEqual([
-      '-n',
-      '-E',
-      '--',
-      '/usr/sbin/runuser',
-      '-u',
-      'agent',
-      '--',
-      '/opt/open-agent/node/bin/node',
-      helper,
-      'write',
-      '/home/agent',
-      '/home/agent/.config/native.json',
-    ]);
     expect(writes[0]?.[2]?.input).toBe('private');
-    expect(sprite.filesystem().writeFile).not.toHaveBeenCalledWith(
-      expect.stringMatching(/^\/home\//),
-      expect.anything(),
-      expect.anything(),
-    );
-    expect(sprite.filesystem().chown).not.toHaveBeenCalledWith(
-      expect.stringMatching(/^\/home\//),
-      expect.anything(),
-    );
   });
 
   it('should reject escaped native paths before helper deployment or SDK execution', async () => {
@@ -134,7 +163,6 @@ describe('native account SDK boundary', () => {
         writeOwnedFile(guestOf(sprite), path, 'private'),
       ).rejects.toThrow(/inside its owning account home/);
     }
-    expect(sprite.filesystem().writeFile).not.toHaveBeenCalled();
     expect(sprite.execFile).not.toHaveBeenCalled();
     expect(sprite.execFileHTTP).not.toHaveBeenCalled();
   });

@@ -5,9 +5,11 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { none } from '#drivers/networks/none/index';
+import { ENVIRONMENT_PATH } from '#guest/guest-root';
 import { revealSecret } from '#integrations/guest/session/secret';
 import { setupNetwork } from '#setup/network';
 
+import { environmentOf } from '../fixtures/environment.js';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile.js';
 import {
   createFilesystemSprite,
@@ -15,7 +17,10 @@ import {
   workstationOf,
 } from '../mocks/sprites.js';
 
+import type { Sprite } from '@fly/sprites';
+
 import type { NetworkDriver, NetworkStatus } from '#drivers/contracts';
+import type { ServiceDefinition } from '#drivers/guest-channel';
 import type { ResolvedInputs } from '#input/types';
 import type { GuestNetworkIdentity } from '#integrations/guest/types';
 import type { SetupContext } from '#setup/context';
@@ -30,10 +35,45 @@ vi.mock('#core/networks', async (importOriginal) => ({
   networkDriver: () => daemonOnly.current,
 }));
 
-vi.mock('#integrations/guest/runtime', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('#integrations/guest/runtime')>()),
-  installManagedServices: vi.fn(async () => Promise.resolve()),
-}));
+/** the daemon the observed networks run */
+const DAEMON: ServiceDefinition = {
+  name: 'netd',
+  command: '/usr/bin/netd',
+  arguments: [],
+  account: 'root',
+  needs: [],
+};
+
+/**
+ * records a set-up workstation whose installed network runs the observed
+ * daemon, so network setup enrols it without running the plan again
+ * @param sprite sprite of the workstation
+ * @param identity identity the environment records for the device
+ */
+async function recordNetwork(
+  sprite: Sprite,
+  identity?: GuestNetworkIdentity,
+): Promise<void> {
+  const environment = environmentOf(DISABLED_NETWORK_PROFILE, {
+    network: {
+      id: 'none',
+      daemon: DAEMON.name,
+      launcher: {
+        stateDirectory: '/opt/open-agent/netd',
+        socket: '/run/netd.sock',
+        tun: 'netd0',
+      },
+    },
+    ...(identity && { networkIdentity: identity }),
+  });
+  await sprite.filesystem().writeFile(
+    ENVIRONMENT_PATH,
+    JSON.stringify({
+      ...environment,
+      services: [...environment.services, DAEMON],
+    }),
+  );
+}
 
 /** a network with caller-side inputs whose enrolment and stale-device removal are observed */
 const OBSERVED_INPUTS: NonNullable<NetworkDriver['inputs']> = {
@@ -44,9 +84,9 @@ const OBSERVED_INPUTS: NonNullable<NetworkDriver['inputs']> = {
 };
 
 /**
- * runs network setup against a guest whose manifest records the given device
+ * runs network setup against a guest whose environment records the given device
  * @param params recorded device identity, enrolment state and the observed driver steps
- * @param params.identity identity the manifest records for the device
+ * @param params.identity identity the environment records for the device
  * @param params.enrolled whether the live daemon reported a device before setup
  * @returns the observed driver calls in the order they happened
  */
@@ -60,13 +100,7 @@ async function runObservedSetup(params: {
     id: 'none',
     displayName: 'Observed',
     inputs: OBSERVED_INPUTS,
-    daemon: {
-      name: 'netd',
-      command: '/usr/bin/netd',
-      arguments: [],
-      account: 'root',
-      needs: [],
-    },
+    daemon: DAEMON,
     issueCredential: async () => {
       calls.push('issue');
 
@@ -92,14 +126,7 @@ async function runObservedSetup(params: {
     join(tmpdir(), 'open-agent-setup-observed-'),
   );
   const sprite = createFilesystemSprite({ root: directory.path });
-  await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
-  await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
-    schema: 1,
-    createdAt: '2026-10-09T00:00:00Z',
-    installedVersions: {},
-    profile: DISABLED_NETWORK_PROFILE,
-    networkIdentity: params.identity,
-  });
+  await recordNetwork(sprite, params.identity);
   const input: ResolvedInputs = {
     profile: DISABLED_NETWORK_PROFILE,
     runtimeEnv: {},
@@ -134,13 +161,7 @@ describe('fn:setupNetwork', () => {
       ...none,
       id: 'none',
       displayName: 'Daemon only',
-      daemon: {
-        name: 'netd',
-        command: '/usr/bin/netd',
-        arguments: [],
-        account: 'root',
-        needs: [],
-      },
+      daemon: DAEMON,
       enroll,
       status: async () => Promise.resolve(status),
     } satisfies NetworkDriver<'none'>;
@@ -148,13 +169,7 @@ describe('fn:setupNetwork', () => {
       join(tmpdir(), 'open-agent-setup-daemon-only-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
-    await sprite.filesystem().mkdir('/opt/open-agent', { recursive: true });
-    await sprite.filesystem().writeJSON('/opt/open-agent/manifest.json', {
-      schema: 1,
-      createdAt: '2026-10-09T00:00:00Z',
-      installedVersions: {},
-      profile: DISABLED_NETWORK_PROFILE,
-    });
+    await recordNetwork(sprite);
     const context: SetupContext = {
       ...workstationOf(sprite),
       options: {},
@@ -204,7 +219,7 @@ describe('fn:setupNetwork', () => {
     expect(calls.map((call) => call.split(':')[0])).toEqual(['enroll']);
   });
 
-  it('should not remove a device the manifest recorded for another network', async () => {
+  it('should not remove a device the environment recorded for another network', async () => {
     const calls = await runObservedSetup({
       identity: { network: 'tailscale', deviceId: 'nOLD' },
       enrolled: false,
