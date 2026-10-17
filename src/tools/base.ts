@@ -239,6 +239,14 @@ export const BASE_TOOLS: readonly ToolSpec[] = [
     sources: [brew('ripgrep')],
   },
   {
+    // the editor the login profile names for every account
+    name: 'nano',
+    required: false,
+    executables: ['nano'],
+    version: probe('nano', '--version'),
+    sources: [brew('nano')],
+  },
+  {
     // the alias follows each new minor Python; the unversioned commands are
     // in `libexec/bin`, which Homebrew leaves off its own PATH
     name: 'python3',

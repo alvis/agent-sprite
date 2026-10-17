@@ -95,7 +95,10 @@ export const LOGIN_PROFILE = [
   'else',
   `  PATH="$HOME/.local/bin:${ACCOUNT_PATH}"`,
   'fi',
-  'export PATH',
+  "# nano, which every workstation installs, is every account's editor",
+  'EDITOR=nano',
+  'VISUAL=nano',
+  'export PATH EDITOR VISUAL',
   '',
 ].join('\n');
 
