@@ -153,6 +153,8 @@ export function describeWorkstationSuite(harness: MachineHarness): void {
           expect(homebrewGit).toEqual({
             agentVersion: homebrewGit.kegVersion,
             agentGit: `${HOMEBREW.prefix}/bin/git`,
+            // the login profile names Homebrew's nano as the agent's editor
+            agentEditor: ['nano', 'nano', `${HOMEBREW.prefix}/bin/nano`],
             kegVersion: expect.stringMatching(/^\d+\.\d+\.\d+$/),
             links: Object.fromEntries(
               BREW_TOOLS.map((tool) => [

@@ -482,6 +482,8 @@ export interface HomebrewGit {
   agentVersion?: string;
   /** the Git the agent's login shell runs */
   agentGit?: string;
+  /** the agent's login shell's `EDITOR` and `VISUAL`, then the nano it runs */
+  agentEditor: string[];
   /** Git's installed keg as Homebrew lists it, without its revision */
   kegVersion?: string;
   /** where the agent's `git`, `jj` and `gh` resolve */
@@ -517,6 +519,9 @@ export async function readHomebrewGit(
   return {
     agentVersion: await readLoginVersion(provider, name, 'git'),
     agentGit: (await section("runuser -l agent -c 'command -v git'"))[0],
+    agentEditor: await section(
+      `runuser -l agent -c 'echo "$EDITOR"; echo "$VISUAL"; command -v nano'`,
+    ),
     kegVersion: keg?.split(/\s/)[1]?.replace(/_\d+$/, ''),
     links: Object.fromEntries(
       await Promise.all(
