@@ -13,7 +13,16 @@
 # It leaves every daemon as it is: it neither starts, stops nor signals one,
 # and the family's fragment keeps the packages it upgrades from doing so.
 # Between tools it renews the gate's awake hold, which a provider that keeps
-# its own deadline only reads when told
+# its own deadline only reads when told.
+# Once the run is recorded it cleans up after the update, one manager at a
+# time through the manager's own library: it removes what the update made
+# outdated, such as the package files, kegs, downloads and runtimes of
+# superseded versions, never a current one nor a cache or repository the user
+# keeps. A cleanup never fails the update nor moves the last success; it is
+# recorded under `cleanup` in update-status.json with its outcome (`cleaned`,
+# `skipped` or `failed`) and the bytes it freed, and logged as one line,
+# `open-agent-update <time> cleanup=<manager> outcome=<ok|skipped|failed>
+# freed_mb=<n> duration_ms=<n>`, and is safe to rerun
 
 # the format version of update-status.json
 OA_UPDATER_SCHEMA=1
@@ -21,6 +30,11 @@ OA_UPDATER_SCHEMA=1
 # prints the time as an ISO 8601 UTC timestamp
 oa_updater_now() {
   date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+# prints the milliseconds the machine has been up, which times a cleanup
+oa_updater_ms() {
+  awk '{ printf "%d\n", $1 * 1000 }' /proc/uptime
 }
 
 # renews the gate's awake hold
@@ -37,7 +51,8 @@ oa_updater_record() {
   if "$oa_updater_jq" -n -f "$oa_updater_work/status.jq" \
     --argjson schema "$OA_UPDATER_SCHEMA" --arg started "$oa_updater_started" \
     --arg finished "$1" --arg last "$2" --arg links "$oa_updater_links" \
-    --rawfile tools "$oa_updater_work/outcomes" >"$oa_updater_record_file" &&
+    --rawfile tools "$oa_updater_work/outcomes" \
+    --rawfile cleanups "$oa_updater_work/cleanups" >"$oa_updater_record_file" &&
     chmod 0644 "$oa_updater_record_file" &&
     mv -f "$oa_updater_record_file" "$oa_updater_status"; then
     return 0
@@ -171,9 +186,58 @@ $oa_updater_rustup_tools
 EOF
 }
 
+# prints the kilobytes the directories on its standard input use, one path a
+# line, counting those that exist
+oa_updater_used() {
+  oa_used_total=0
+  while IFS= read -r oa_used_dir; do
+    test -d "$oa_used_dir" || continue
+    oa_used_kb=$(du -sk -- "$oa_used_dir" 2>/dev/null | cut -f 1)
+    oa_used_total=$((oa_used_total + ${oa_used_kb:-0}))
+  done
+  echo "$oa_used_total"
+}
+
+# cleans up after the update through one manager's library, whose
+# oa_<manager>_clean_roots names the directories it shrinks and whose
+# oa_<manager>_clean (the family's oa_update_system_clean for the system)
+# removes the outdated and returns 0, 2 when the manager is not there, or
+# another status when it failed, then records the outcome and the bytes the
+# directories lost, and logs one line. It never sets the update's failure
+# arguments: the manager
+oa_updater_cleanup() {
+  oa_cleanup_manager=$1
+  case $oa_cleanup_manager in
+    system) oa_cleanup_function=oa_update_system_clean ;;
+    *) oa_cleanup_function=oa_${oa_cleanup_manager}_clean ;;
+  esac
+  oa_updater_hold
+  oa_cleanup_began=$(oa_updater_ms)
+  oa_cleanup_before=$("${oa_cleanup_function}_roots" | oa_updater_used)
+  "$oa_cleanup_function"
+  oa_cleanup_status=$?
+  oa_cleanup_after=$("${oa_cleanup_function}_roots" | oa_updater_used)
+  oa_cleanup_ended=$(oa_updater_ms)
+  oa_cleanup_freed=$((oa_cleanup_before - oa_cleanup_after))
+  if test "$oa_cleanup_freed" -lt 0; then
+    oa_cleanup_freed=0
+  fi
+  case $oa_cleanup_status in
+    0) set -- cleaned ok '' ;;
+    2) set -- skipped skipped "its manager is not installed" ;;
+    *) set -- failed failed "its cleanup failed" ;;
+  esac
+  oa_cleanup_millis=$((oa_cleanup_ended - oa_cleanup_began))
+  printf 'open-agent-update %s cleanup=%s outcome=%s freed_mb=%s duration_ms=%s%s\n' \
+    "$(oa_updater_now)" "$oa_cleanup_manager" "$2" "$((oa_cleanup_freed / 1024))" \
+    "$oa_cleanup_millis" "${3:+ reason=\"$3\"}"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$oa_cleanup_manager" "$1" "$((oa_cleanup_freed * 1024))" \
+    "$oa_cleanup_millis" "$3" | tr -d '\r' >>"$oa_updater_work/cleanups"
+}
+
 # runs one update: upgrades every recorded tool through its manager, restores
-# the links and records the run; it returns non-zero only when the run could
-# not be recorded
+# the links, records the run and cleans up after it; it returns non-zero only
+# when the run could not be recorded
 # arguments: path of environment.json, path of update-status.json, jq, the
 # awake command, and the pid the awake hold is keyed by
 oa_update_run() {
@@ -205,10 +269,16 @@ def present: if . == "" then null else . end;
     | {name: .[0], manager: .[1], required: (.[2] == "true"), outcome: .[3],
        from: (.[4] | present), to: (.[5] | present)}
       + (if .[6] == "" then {} else {reason: .[6]} end)
+  ],
+  cleanup: [
+    $cleanups | split("\n")[] | select(. != "") | split("\t")
+    | {manager: .[0], outcome: .[1], freedBytes: (.[2] | tonumber), durationMs: (.[3] | tonumber)}
+      + (if (.[4] // "") == "" then {} else {reason: .[4]} end)
   ]
 }
 EOF
   : >"$oa_updater_work/outcomes"
+  : >"$oa_updater_work/cleanups"
   oa_updater_previous=$("$oa_updater_jq" -r '.lastSuccess | strings' "$oa_updater_status" 2>/dev/null) ||
     oa_updater_previous=
   oa_updater_started=$(oa_updater_now)
@@ -235,5 +305,11 @@ EOF
     oa_updater_last=$oa_updater_finished
   fi
   echo "update finished at $oa_updater_finished; links $oa_updater_links; last success ${oa_updater_last:-none}"
+  oa_updater_record "$oa_updater_finished" "$oa_updater_last" || return 1
+  # the update is recorded, its last success included, before anything is
+  # cleaned, so nothing a cleanup does reaches the verdict
+  for oa_updater_manager in system brew npm rustup; do
+    oa_updater_cleanup "$oa_updater_manager"
+  done
   oa_updater_record "$oa_updater_finished" "$oa_updater_last"
 }

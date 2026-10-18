@@ -244,3 +244,22 @@ oa_brew_version() {
   oa_brew_names "$1" || return 1
   oa_brew list --formula --versions "$1" | cut -d ' ' -f 2
 }
+
+# prints the directories a cleanup of Homebrew shrinks: the formulae's kegs
+# and the account's download cache
+oa_brew_clean_roots() {
+  printf '%s\n%s\n' "$OA_BREW_PREFIX/Cellar" "$OA_BREW_HOME/.cache/Homebrew"
+}
+
+# cleans up after an update of the formulae: brew removes the kegs of versions
+# an upgrade replaced and the downloads of superseded bottles, keeps every
+# installed formula's current keg and any pinned one, and expires cached
+# downloads after its own default of 120 days. It returns 2, noting why on
+# stderr, when Homebrew is not installed
+oa_brew_clean() {
+  if ! test -x "$OA_BREW"; then
+    echo 'Skipping the Homebrew cleanup: Homebrew is not installed' >&2
+    return 2
+  fi
+  oa_brew cleanup
+}

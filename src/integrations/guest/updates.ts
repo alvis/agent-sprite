@@ -16,7 +16,9 @@ export const UPDATE_GATE_ASSET = guestAsset(
 
 /**
  * the updater the gate sources: it upgrades every recorded tool through its
- * manager, restores the links and records the run, never touching a daemon
+ * manager, restores the links, records the run and cleans up what the update
+ * made outdated (recorded under `cleanup` in update-status.json), never
+ * touching a daemon
  */
 export const UPDATER_ASSET = guestAsset(
   'maintenance/updater.sh',
