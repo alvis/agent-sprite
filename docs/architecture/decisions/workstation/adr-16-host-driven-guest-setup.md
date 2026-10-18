@@ -1,22 +1,17 @@
-# ADR-15: Host-driven guest setup, layered by provider, OS family and tool contract
+# ADR-16: Host-driven guest setup, layered by provider, OS family and tool contract
 
 📌
 
 The host sets a workstation up by sending commands over the provider's guest channel, one checked step at a time. The guest keeps only small POSIX `sh` programs for self-maintenance: boot, service runs, the idle governor and its adapters, harness hooks, launchers and a daily updater. Setup is assembled from three layers: the provider, a shared OS family, and a list of tools described in one shared contract.
 
 - Status: `Accepted`
-- Date: `2026-10-15`
-- Supersedes:
-  - ADR-10 (guest code colocated per driver, the guest kernel, the deployed mirror and the guest-leaf registry);
-  - ADR-9's `servicesMode` axis and its exception for the leaf registry;
-  - ADR-12's schedule, skip rule, Node swap and release installers (its no-restart rule stands);
-  - ADR-14's boot install step, supervisor and REST/SSH transport split.
-
-  ADR-13's governor rules stand; only their implementation language changes.
+- Date: `2026-10-18`
 
 ## 🎯 Motivation
 
 Setup used to upload a compiled TypeScript payload and a private Node, then run a root transaction worker on the guest. That made the guest carry about 14,000 lines of code it only needs once, tied every tool to one install path, and assumed Debian on Fly or Sprite. Workstations should be able to run on other machine providers (DigitalOcean, AWS, GCP and others) and other operating systems without rewriting how tools are installed.
+
+The package shares Presetter lint configuration with other TypeScript projects. Custom shell, executable-wrapper and end-to-end lint tasks add local maintenance and additional parser configuration; the project keeps the shared source and unit-spec lint scope.
 
 ## 🧭 Context
 
@@ -27,6 +22,10 @@ Setup used to upload a compiled TypeScript payload and a private Node, then run 
 - Guests never build from source.
 
 ## ✅ Decision
+
+### Development checks
+
+Lint uses the shared Presetter defaults for `src` and `spec`. The executable wrapper in `bin`, the separate `e2e` suite and the guest shell programs are outside that lint scope. There is no custom `lint:check` task or shell lint hook. Guest runtime verification belongs to the machine end-to-end specs.
 
 ### Host-driven setup
 
@@ -107,7 +106,7 @@ Adding a provider reuses an existing family and every tool. Adding a family mean
 ### Self-maintenance on the guest
 
 - **Programs.**
-  - All guest programs are POSIX `sh`, read JSON with `jq`, and pass `shellcheck` in `lint:check`.
+  - All guest programs are POSIX `sh` and read JSON with `jq`.
   - Each is a `.sh` file under the top-level `guest/` directory, at the path it installs to under `/opt/open-agent`. The provider, family, backend or driver that owns it names it through `guestAsset`, and the build does not copy it. Each is installed root-owned: 0755, or 0700 when only root runs it.
   - Guest paths (`/opt/open-agent`, `/home/agent` and the rest) are defined once, in `src/integrations/guest/layout.ts`. `readAsset` prepends them to every program as `OA_*` variables, so no program spells a path itself.
   - Root never runs a file the agent account can write; the linuxbrew account is locked and written only by root acting as it.
@@ -149,11 +148,12 @@ Adding a provider reuses an existing family and every tool. Adding a family mean
 - **Bind-mount `/usr/local/bin` from the volume:** lets Homebrew's interpreters shadow the system ones in package maintainer scripts.
 - **`persist_rootfs: "restart"`:** keeps apt packages only across restarts; the owner chose `always` for faster cold boots.
 - **Secrets in a disk file:** could survive on the volume or in a snapshot.
+- **Custom shell and end-to-end lint hooks:** add project-specific maintenance beyond the selected shared lint scope.
 
 ## 🤝 Accepted Trade Offs
 
 - With `persist_rootfs: "always"`, the kept writable layer can drift from a changed base image until the machine is recreated.
-- Guest programs in `sh` are harder to test in isolation. They are covered by `shellcheck` and live runs, not unit tests.
+- Guest programs in `sh` are harder to test in isolation. The machine end-to-end specs exercise them on real guests; the shared lint tasks do not check them.
 - Every setup needs a working guest channel for its whole duration.
 
 ## ⚖️ Consequences

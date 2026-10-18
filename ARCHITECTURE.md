@@ -51,7 +51,7 @@ flowchart LR
    - an **ACP agent** installs and serves the public agent and mints pairing codes (`t3`);
    - a **harness** installs a coding CLI and merges its native settings, hooks, proxy routing and plugins (`claude`, `codex`);
    - a **network** enrolls the guest in a private network and cleans it up (`none`, `tailscale`).
-4. **Host-driven setup** ([ADR-15](docs/architecture/decisions/workstation/adr-15-host-driven-guest-setup.md)): the host sets a guest up by sending checked commands over the provider's guest channel. It is built from three layers:
+4. **Host-driven setup** ([ADR-16](docs/architecture/decisions/workstation/adr-16-host-driven-guest-setup.md)): the host sets a guest up by sending checked commands over the provider's guest channel. It is built from three layers:
    - the **provider** (`src/drivers/providers/`): provisioning, the guest channel, its OS `images`, its `serviceBackend`, `openRootShell`, `awaitGuestReady` and an optional boot hook;
    - the **OS family** (`src/os/`, `guest/os/`): `debian/lib.sh` (packages, repositories, accounts, replay), and beside it the service backends (`src/services/`: `runit`, `cron`, `provider`);
    - the **tool contract** (`src/tools/`): one `ToolSpec` per tool, with its `brew`, `system`, `npm` or `rustup` sources in preference order.
@@ -86,7 +86,7 @@ A provider differs from another only by the data in its `ProviderCapabilities` (
 | `e2e/`                     | End-to-end specs (`*.spec.e2e.ts`) that drive the packed CLI, `setup.ts` (build, pack, install, sweeps) and `machines/`, the helpers the machine specs share                                                                               |
 | `docs/architecture/`       | The runtime reference ([workstation.md](docs/architecture/workstation.md)) and the ADRs                                                                                                                                                    |
 
-Two rules keep the folders honest ([ADR-9](docs/architecture/decisions/workstation/adr-9-typed-driver-catalog.md), [ADR-11](docs/architecture/decisions/workstation/adr-11-workflow-and-selection-layout.md), [ADR-15](docs/architecture/decisions/workstation/adr-15-host-driven-guest-setup.md)):
+Two rules keep the folders honest ([ADR-9](docs/architecture/decisions/workstation/adr-9-typed-driver-catalog.md), [ADR-11](docs/architecture/decisions/workstation/adr-11-workflow-and-selection-layout.md), [ADR-16](docs/architecture/decisions/workstation/adr-16-host-driven-guest-setup.md)):
 
 - **Driver isolation**: a concrete driver name appears only in its own folder and `src/core/catalog.ts`. Drivers make only type imports from core.
 - **Guest boundary**: a guest program is a `.sh` file under `guest/` that the host reads as an asset (`guestAsset` in `src/integrations/guest/assets.ts`) and sends to the guest; no host module runs one. Guest paths, such as the guest root and the agent's home, are defined once in `src/integrations/guest/layout.ts`, and `readAsset` hands them to every program as `OA_*` variables after its shebang, so no program spells a path itself.
@@ -142,7 +142,7 @@ Setup writes the open-agent version into `environment.json` and into the provide
 
 ### Update
 
-Maintenance installs in place and never touches a service ([ADR-12](docs/architecture/decisions/workstation/adr-12-in-place-maintenance.md), whose no-restart rule ADR-15 keeps):
+Maintenance installs in place and never touches a service ([ADR-12](docs/architecture/decisions/workstation/adr-12-in-place-maintenance.md), whose no-restart rule ADR-16 keeps):
 
 1. Every hour, cron (`/etc/cron.d/open-agent`, run by `open-agent-cron`) starts `update-gate.sh`, which lets the updater through once the due interval in `environment.json` (default 1 day) has passed since the last success. There is no check interval.
 2. The gate takes the setup session's lock without waiting, so an update and a setup session never overlap: while a session holds the lock, a due update waits for the next hour and the gate notes that in `update.log`. Otherwise it takes a managed awake hold and runs `updater.sh`. `setup --section tools --update` runs the gate with `--force` from its session, which already holds the lock.
@@ -158,7 +158,7 @@ One idle governor (`guest/governor/awake.sh`) decides when the workstation may s
 
 ### Cold boot (Fly Machine)
 
-A Fly Machine is created from `debian:bookworm-slim` with `persist_rootfs: "always"`, so its root filesystem survives a restart and a normal cold boot installs nothing ([ADR-15](docs/architecture/decisions/workstation/adr-15-host-driven-guest-setup.md)). The machine configuration holds only the machine's init, `/usr/local/sbin/open-agent-boot` (`guest/drivers/providers/fly-machine/init.sh`), which runs the boot hook on the volume, `boot.sh`, so setup can update the hook without a restart. On every boot the hook:
+A Fly Machine is created from `debian:bookworm-slim` with `persist_rootfs: "always"`, so its root filesystem survives a restart and a normal cold boot installs nothing ([ADR-16](docs/architecture/decisions/workstation/adr-16-host-driven-guest-setup.md)). The machine configuration holds only the machine's init, `/usr/local/sbin/open-agent-boot` (`guest/drivers/providers/fly-machine/init.sh`), which runs the boot hook on the volume, `boot.sh`, so setup can update the hook without a restart. On every boot the hook:
 
 1. checks the `/data` volume and binds `/data/open-agent`, `/data/home/agent`, `/data/home/linuxbrew` and `/data/apt` over `/opt/open-agent`, `/home/agent`, `/home/linuxbrew` and apt's lists;
 2. recreates the `agent` and `linuxbrew` accounts under their original ids;
@@ -176,7 +176,7 @@ Use an existing driver of the same kind as your template: `src/drivers/networks/
 
 1. **Create the folder** `src/drivers/<kind>/<id>/` with an `index.ts` that exports a driver typed by its kind's contract, such as `NetworkDriver<'<id>'>` or `ProviderDriver<'<id>'>` from `src/drivers/contracts.ts`. Keep every reference to the driver's name inside this folder.
 2. **Declare capabilities as data.** A provider fills `ProviderCapabilities`, its `machines` offers and its `prerequisites` (host tools and the credential's environment name, as in `src/drivers/providers/sprite/prerequisites.ts`). It also declares its OS `images` (family, release, architectures), its `serviceBackend`, `openRootShell`, `awaitGuestReady` and, if the machine resets something on boot, a `bootHook`. If core would need an `if (provider === …)`, add a capability instead and record it in an ADR.
-3. **Add tools and guest programs, if any.** A harness, agent or network describes what it installs as `ToolSpec`s (`src/tools/contracts.ts`) with `sources` in preference order, so it reuses an OS family and needs no installer. A launcher, hook or adapter is a POSIX `sh` file at `guest/drivers/<kind>/<id>/`, declared with `guestAsset(path, mode)` (`src/integrations/guest/assets.ts`), where `path` is relative to `guest/`. It reads JSON with `jq`, uses the `OA_*` variables for every guest path, passes `shellcheck` in `lint:check` with no suppression and is installed root-owned.
+3. **Add tools and guest programs, if any.** A harness, agent or network describes what it installs as `ToolSpec`s (`src/tools/contracts.ts`) with `sources` in preference order, so it reuses an OS family and needs no installer. A launcher, hook or adapter is a POSIX `sh` file at `guest/drivers/<kind>/<id>/`, declared with `guestAsset(path, mode)` (`src/integrations/guest/assets.ts`), where `path` is relative to `guest/`. It reads JSON with `jq`, uses the `OA_*` variables for every guest path, is installed root-owned and is exercised by the machine specs.
 4. **Register the driver** in `src/core/catalog.ts`: import it, give it a typed constant, and add it to its kind's record. The `satisfies` checks fail to compile until the catalog holds the ids. Flag choices and help text then pick it up.
 5. **Wire inputs** a new option needs into `src/core/selection-inputs.ts` and `src/input/`; credentials use the `env:`, `file:` and `keychain:` source references.
 6. **Test it**: unit specs in `spec/drivers/<kind>/<id>/` mirroring the source, and, for a provider, an end-to-end spec in `e2e/` that runs the shared machine suite; run it before you call the driver done.
@@ -214,7 +214,7 @@ Live facts, such as name, id, organization and URL, come from the provider; the 
 | `pnpm test:e2e [cli\|automation-progress]`           | `open-agent:E2E`  | The installed CLI, driven with no terminal and no credentials: parsing, output, exit codes and cancellation                                                                                             |
 | `pnpm test:e2e sprite` / `pnpm test:e2e fly-machine` | `open-agent:E2E`  | One real machine type: the shared suite creates, configures, runs and terminates real workstations, plus each provider's own probe (the Sprite awake task; Fly's suspend, resume, cold boot and update) |
 
-Unit specs never mock native file merging, parsers, processes or Ink; they use real temporary files. The guest `sh` programs have no unit specs: `lint:check` runs `sh -n` and `shellcheck` over `guest/`, and the machine specs run them on a real guest. The vitest projects come from Presetter's configuration unchanged, plus the committed `vitest.config.e2e.ts`; an argument to `pnpm test:e2e` picks a spec file by name.
+Unit specs never mock native file merging, parsers, processes or Ink; they use real temporary files. The guest `sh` programs have no unit specs: the machine specs run them on a real guest. Lint uses the shared preset defaults for `src` and `spec`, excluding `bin`, `e2e` and `guest`. The vitest projects come from Presetter's configuration unchanged, plus the committed `vitest.config.e2e.ts`; an argument to `pnpm test:e2e` picks a spec file by name.
 
 `e2e/setup.ts` runs once per run: it loads `.env.test`, builds, packs and installs the package into a temporary run home exactly as a user installs it, and then sweeps. Every spec drives that installed CLI, never the checkout.
 
@@ -236,14 +236,14 @@ End-to-end machine runs spend real money and touch real accounts; run them only 
 - **Change tooling configuration**: edit `presetter.config.ts`; `eslint.config.ts`, `vitest.config.ts` and the tsconfig files are generated from it.
 - **Add a managed developer tool**: add a `ToolSpec` to the base set in `src/tools/base.ts`, with a `brew` source first and a `system` source where Homebrew has no bottle. The boot hook needs no change because it restores the links `environment.json` records.
 - **Change a guest program**: setup reads each `.sh` from the package's `guest/` directory, which ships as it is, and writes it to the guest, so the next `setup` from a rebuilt package deploys the change. A change to the Fly boot hook reaches a machine on its next `setup` and takes effect at the next boot; `init.sh` is written into the machine configuration at creation, so a change to it reaches only machines created afterwards.
-- **Check before a pull request**: `pnpm typecheck`, `pnpm lint:check`, `pnpm build`, `pnpm test` and `pnpm test:e2e cli`.
+- **Check before a pull request**: `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm test` and `pnpm test:e2e cli`.
 
 ### Pitfalls
 
 - **Never build from source on a guest.** Tools come from Homebrew bottles, distro packages, npm or rustup; a tool without a bottle for the platform falls through to its next source, is skipped when optional, and is refused at preflight when required. It is never compiled. Do not add a build step or a compiler-driven fallback.
 - **Do not add lint suppressions.** Fix the code instead. The single existing exception, a documented Fly routing fact in `src/drivers/providers/fly-machine/private-networks.ts`, is not a precedent.
 - **open-agent is greenfield.** There is no compatibility code, migration or alias for agent-sprite workstations, labels, paths or credentials. Rename and remove cleanly instead of adding a shim.
-- **Keep guest programs POSIX `sh`.** They run under `dash` on Debian, read JSON with `jq` and carry no `shellcheck` suppression. Do not use bashisms, and never spell a guest path in a program: use the `OA_*` variable `readAsset` assigns from `src/integrations/guest/layout.ts`.
+- **Keep guest programs POSIX `sh`.** They run under `dash` on Debian and read JSON with `jq`. Do not use bashisms, and never spell a guest path in a program: use the `OA_*` variable `readAsset` assigns from `src/integrations/guest/layout.ts`.
 - **Keep the `--` in `bin/cli.mjs`.** Its shebang is `#!/usr/bin/env -S node --`. Node 24 scans the whole command line for its own `--env-file` option, even after the script name, and exits 9 when the path is missing, before the CLI runs. Never remove the `--`, and never launch the CLI as `node bin/cli.mjs …`; use `node -- bin/cli.mjs …`.
 - **The updater never restarts services.** Do not add a stop, start or restart to the update path; release-channel changes restart the agent through `setup`.
 - **Secrets stay in step input.** A `Secret` is piped on standard input or written to a 0600 file in a private directory under `/dev/shm` that a trap removes; a consumer that opens it once should remove it first and read the open descriptor, as Tailscale's enrollment does. Never put one in argv or on a disk path.
@@ -257,5 +257,5 @@ End-to-end machine runs spend real money and touch real accounts; run them only 
 
 - [Workstation architecture](docs/architecture/workstation.md): the detailed runtime reference
 - [Architecture index](docs/architecture/README.md): every ADR with its status
-- [ADR-9](docs/architecture/decisions/workstation/adr-9-typed-driver-catalog.md) driver catalog, [ADR-11](docs/architecture/decisions/workstation/adr-11-workflow-and-selection-layout.md) workflow homes, [ADR-12](docs/architecture/decisions/workstation/adr-12-in-place-maintenance.md) maintenance, [ADR-13](docs/architecture/decisions/workstation/adr-13-idle-governor.md) idle governor, [ADR-14](docs/architecture/decisions/workstation/adr-14-fly-persistence-and-supervisor.md) Fly persistence, [ADR-15](docs/architecture/decisions/workstation/adr-15-host-driven-guest-setup.md) host-driven guest setup
+- [ADR-9](docs/architecture/decisions/workstation/adr-9-typed-driver-catalog.md) driver catalog, [ADR-11](docs/architecture/decisions/workstation/adr-11-workflow-and-selection-layout.md) workflow homes, [ADR-12](docs/architecture/decisions/workstation/adr-12-in-place-maintenance.md) maintenance, [ADR-13](docs/architecture/decisions/workstation/adr-13-idle-governor.md) idle governor, [ADR-14](docs/architecture/decisions/workstation/adr-14-fly-persistence-and-supervisor.md) Fly persistence, [ADR-16](docs/architecture/decisions/workstation/adr-16-host-driven-guest-setup.md) host-driven guest setup
 - [README](README.md): installation, usage and the CLI reference

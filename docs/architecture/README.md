@@ -28,6 +28,6 @@ The selected ACP agent is the sole public service. Optional integrations use dir
 | [ADR-12: In-place maintenance without service restarts](decisions/workstation/adr-12-in-place-maintenance.md)                                | Updater schedule, skip and no-restart rules; supersedes ADR-5                      | Accepted |
 | [ADR-13: Shared heartbeat idle governor](decisions/workstation/adr-13-idle-governor.md)                                                      | Awake inputs, holder state, deadline, sleep rule and adapters                      | Accepted |
 | [ADR-14: Fly persistence, boot script and guest supervisor](decisions/workstation/adr-14-fly-persistence-and-supervisor.md)                  | Volume layout, cold-boot rebuild, supervisor and exec limits                       | Accepted |
-| [ADR-15: Host-driven guest setup, layered by provider, OS family and tool contract](decisions/workstation/adr-15-host-driven-guest-setup.md) | Setup session, OS family and tool contract, sh self-maintenance; supersedes ADR-10 | Accepted |
+| [ADR-16: Host-driven guest setup, layered by provider, OS family and tool contract](decisions/workstation/adr-16-host-driven-guest-setup.md) | Setup session, OS family and tool contract, sh self-maintenance and shared preset lint scope | Accepted |
 
 Architecture documents describe current structure. Effective ADRs explain accepted choices; historical decision bodies remain unchanged in the superseded archive.

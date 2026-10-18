@@ -1,6 +1,6 @@
 > **Status:** Superseded
 >
-> **Superseded by:** [ADR-15 — Host-driven guest setup](../../workstation/adr-15-host-driven-guest-setup.md)
+> **Superseded by:** [ADR-16 — Host-driven guest setup](../../workstation/adr-16-host-driven-guest-setup.md)
 >
 > **What changed:** The guest no longer receives compiled TypeScript or a private Node. The host runs setup as checked commands over the guest channel, and the guest keeps only POSIX `sh` programs stored beside the layer that owns them. The guest kernel, the deployed mirror and the guest-leaf registry are gone.
 
