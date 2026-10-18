@@ -60,6 +60,10 @@ OA_BOOT_SECRETS_SWEEP="rm -rf ${OA_SECRET_PREFIX}*"
 # the boot log's size beyond which it is trimmed, and how much a trim keeps
 OA_BOOT_LOG_LIMIT=524288
 OA_BOOT_LOG_KEPT=262144
+# the room below which the volume counts as nearly full for every account but
+# root: megabytes free, or percent used, whichever is crossed first
+OA_BOOT_LOW_FREE_MB=1024
+OA_BOOT_LOW_USED_PCT=95
 # the exit of a boot a critical step halted
 OA_BOOT_HALTED=3
 # how often a boot looks for runit, which setup installs after the hook
@@ -177,6 +181,30 @@ oa_boot_volume() {
     echo "$OA_FLY_VOLUME_HOMES is not root's alone"
     return 1
   fi
+}
+
+# logs the room the volume leaves every account but root, and warns when it is
+# low: ext4 keeps 5% of a volume for root alone, so the boot runs as root and
+# passes on a volume the agent can no longer write, which this makes visible in
+# the machine's log. df's available column is that room. It only logs: root
+# still needs the machine up, so it neither fails nor halts the boot
+oa_boot_space() {
+  oa_boot_room=$(df -Pk "$OA_FLY_VOLUME" 2>/dev/null |
+    awk 'NR == 2 && $3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ && $3 + $4 > 0 {
+      printf "%d %d\n", $4 / 1024, int(($3 * 100 + $3 + $4 - 1) / ($3 + $4))
+    }')
+  if test -z "$oa_boot_room"; then
+    oa_boot_log "volume free_mb=unknown used_pct=unknown"
+    return 0
+  fi
+  oa_boot_free_mb=${oa_boot_room% *}
+  oa_boot_used_pct=${oa_boot_room#* }
+  oa_boot_log "volume free_mb=$oa_boot_free_mb used_pct=$oa_boot_used_pct"
+  if test "$oa_boot_free_mb" -lt "$OA_BOOT_LOW_FREE_MB" || test "$oa_boot_used_pct" -ge "$OA_BOOT_LOW_USED_PCT"; then
+    oa_boot_log "volume warning=low-space free_mb=$oa_boot_free_mb used_pct=$oa_boot_used_pct" \
+      "below_free_mb=$OA_BOOT_LOW_FREE_MB or_at_used_pct=$OA_BOOT_LOW_USED_PCT"
+  fi
+  return 0
 }
 
 # root runs everything under the guest root, so it must be root's alone
@@ -569,6 +597,7 @@ oa_boot_restore() {
   oa_boot_incomplete=
   oa_boot_step secrets optional oa_boot_secrets
   oa_boot_step volume critical oa_boot_volume
+  test "$oa_boot_halted" = 1 || oa_boot_space
   oa_boot_step guest-root critical oa_boot_guest_root
   # the log reaches the volume once the guest root is bound
   if oa_boot_same "$OA_FLY_VOLUME_ROOT" "$OA_GUEST_ROOT"; then
