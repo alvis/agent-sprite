@@ -69,6 +69,8 @@ export interface ServiceDefinition {
   needs: readonly string[];
   /** port routed to the service, for the ACP agent only */
   httpPort?: number;
+  /** whether the service writes the machine's log itself, as its stderr, on a backend that has one */
+  machineLog?: boolean;
 }
 
 /** observed state of one guest service */

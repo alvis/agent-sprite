@@ -238,7 +238,7 @@ function assembleEnvironment(
       ...(driver.acpAdapter && { acpAdapter: driver.acpAdapter }),
     })),
     network: environmentNetwork(network),
-    services: guestServices(agent, network.daemon),
+    services: guestServices(agent, provider, network.daemon),
     jobs: guestJobs(provider.capabilities),
     ...(params.networkIdentity && { networkIdentity: params.networkIdentity }),
   });

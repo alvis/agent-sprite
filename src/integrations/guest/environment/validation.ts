@@ -192,7 +192,13 @@ const FIELDS: Readonly<Record<string, Check>> = {
       }),
     })(value),
   services: listOf(
-    shape({ name, ...run, needs: listOf(name), httpPort: optional(port) }),
+    shape({
+      name,
+      ...run,
+      needs: listOf(name),
+      httpPort: optional(port),
+      machineLog: optional(flag),
+    }),
   ),
   jobs: listOf(shape({ name, everyMinutes: atLeast(1), run: shape(run) })),
   networkIdentity: optional(

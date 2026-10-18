@@ -1,9 +1,9 @@
 import { cronService } from '#services/cron';
 
-import { governorJobs } from '../awake';
+import { governorJobs, governorServices } from '../awake';
 import { UPDATE_JOB } from '../updates';
 
-import type { ProviderCapabilities } from '#drivers/contracts';
+import type { ProviderCapabilities, ProviderDriver } from '#drivers/contracts';
 import type { ServiceDefinition } from '#drivers/guest-channel';
 import type { NetworkDriver } from '#drivers/networks/contracts';
 import type { PeriodicJob } from '#os/contracts';
@@ -12,17 +12,25 @@ import type { EnvironmentNetwork } from './contracts';
 
 /**
  * lists the services environment.json records for the backend to run: cron,
- * which runs the periodic jobs, then the network's daemon, then the agent's
- * service, which waits for the daemon
+ * which runs the periodic jobs, the governor's awake relay where the backend
+ * has a machine log, then the network's daemon, then the agent's service,
+ * which waits for the daemon
  * @param agent the agent's service, its needs naming the daemon already
+ * @param provider the provider's service backend
  * @param daemon the selected network's daemon; absent when it runs none
  * @returns the services, each after those it needs
  */
 export function guestServices(
   agent: ServiceDefinition,
+  provider: Pick<ProviderDriver, 'serviceBackend'>,
   daemon?: ServiceDefinition,
 ): ServiceDefinition[] {
-  return [cronService, ...(daemon ? [daemon] : []), agent];
+  return [
+    cronService,
+    ...governorServices(provider),
+    ...(daemon ? [daemon] : []),
+    agent,
+  ];
 }
 
 /**

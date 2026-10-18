@@ -29,7 +29,11 @@
 # reads from an awake directory is data: it is read without following links,
 # bounded and validated, and root takes nothing from the agent's directory
 # but holders, so its own state never carries a field the agent wrote; a
-# scan that cannot see every holder never lets the workstation sleep
+# scan that cannot see every holder never lets the workstation sleep.
+# Each event also leaves a one-line record in a directory on memory-backed
+# storage, which root's `relay`, a service of the machine, validates field by
+# field and rebuilds as one line of the machine's log; an event nothing is
+# there to relay leaves a record that is dropped unread
 
 set -u
 umask 077
@@ -70,6 +74,16 @@ OA_IDLE_INPUT_BYTES=65536
 # long the tick waits for the governor lock alone, in seconds
 OA_IDLE_LOCK_WAIT=3
 OA_IDLE_EXCLUSIVE_WAIT=10
+# where events leave their records for the relay, which makes the directory,
+# and how often and how much the relay drains: it reads at most the scan's
+# entries a pass, writes at most the lines' limit and removes any entry left
+# the stale minutes; an event leaves no record while the scan's entries wait
+OA_IDLE_EVENTS=$OA_SERVICE_STATE_DIRECTORY/awake-log
+OA_IDLE_RELAY_SECONDS=5
+OA_IDLE_RELAY_SCAN=200
+OA_IDLE_RELAY_LINES=50
+OA_IDLE_RELAY_STALE_MINUTES=5
+OA_IDLE_RECORD_BYTES=256
 OA_IDLE_USAGE='usage: open-agent-awake <heartbeat|hold-open|hold-close> --source <name> --session <id|-> [--budget-ms <1000-8000>]'
 
 # the jq definitions every computation shares: an instant as ISO 8601 with
@@ -853,19 +867,193 @@ oa_idle_parse() {
   fi
 }
 
+# names, as a short token, why an awake event was refused
+# arguments: the refusal's first line
+oa_idle_refusal_reason() {
+  case $1 in
+  *needs\ a\ value | unexpected\ option*) echo bad-option ;;
+  --budget-ms*) echo bad-budget ;;
+  --source*) echo bad-source ;;
+  --pid*) echo bad-pid ;;
+  --session*) echo bad-session ;;
+  hook*) echo bad-hook-input ;;
+  *) echo refused ;;
+  esac
+}
+
+# leaves the record of the event just handled in the event directory for the
+# relay, when the relay made it and is not behind: one line of the time, the
+# action, the source, the hash of the session, the outcome, the new deadline
+# and the reason, written first beside its entry and renamed into place so the
+# relay never reads half of it. It runs right after the event is recorded and
+# never changes the event's outcome or status
+# arguments: the outcome (recorded, refused or failed), the reason or -
+oa_idle_log_event() {
+  if ! test -d "$OA_IDLE_EVENTS" || test -L "$OA_IDLE_EVENTS"; then
+    return 0
+  fi
+  oa_idle_log_pending=$(find "$OA_IDLE_EVENTS" -mindepth 1 -maxdepth 1 2>/dev/null | head -n "$OA_IDLE_RELAY_SCAN" | wc -l)
+  test "$oa_idle_log_pending" -lt "$OA_IDLE_RELAY_SCAN" || return 0
+  oa_idle_log_source=$oa_idle_source
+  case $oa_idle_log_source in '' | [!a-z]* | *[!a-z0-9-]*) oa_idle_log_source=- ;; esac
+  test "${#oa_idle_log_source}" -le 32 || oa_idle_log_source=-
+  oa_idle_log_session=-
+  if test "$1" != refused && test -n "$oa_idle_session"; then
+    oa_idle_log_session=$(oa_idle_hash "$oa_idle_session") || oa_idle_log_session=-
+  fi
+  oa_idle_log_deadline=-
+  if test "$1" = recorded; then
+    oa_idle_log_deadline=$(/usr/bin/jq -r '.state.deadline // "-"' "$OA_IDLE_WORK/computed.json" 2>/dev/null) ||
+      oa_idle_log_deadline=-
+  fi
+  oa_idle_log_temporary=$(mktemp "$OA_IDLE_EVENTS/.tmp-XXXXXXXX" 2>/dev/null) || return 0
+  if printf '%s %s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$oa_idle_event_kind" \
+    "$oa_idle_log_source" "$oa_idle_log_session" "$1" "$oa_idle_log_deadline" "$2" \
+    >"$oa_idle_log_temporary" 2>/dev/null &&
+    mv -f "$oa_idle_log_temporary" "$OA_IDLE_EVENTS/e-${oa_idle_log_temporary##*/.tmp-}" 2>/dev/null; then
+    return 0
+  fi
+  rm -f "$oa_idle_log_temporary"
+  return 0
+}
+
+# prints the line of the machine's log an event record stands for, or fails
+# when any field of it is not exactly of the shape an event writes. Nothing of
+# the record but fields it validated reaches the line, and none of them can
+# hold a space, control character or newline
+# arguments: the record's file
+oa_idle_relay_line() {
+  oa_idle_relay_extra=
+  IFS=' ' read -r oa_idle_relay_at oa_idle_relay_event oa_idle_relay_source oa_idle_relay_session \
+    oa_idle_relay_outcome oa_idle_relay_deadline oa_idle_relay_reason oa_idle_relay_extra <"$1" || return 1
+  test -z "$oa_idle_relay_extra" || return 1
+  case $oa_idle_relay_at in
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+  *) return 1 ;;
+  esac
+  case $oa_idle_relay_event in heartbeat | hold-open | hold-close) ;; *) return 1 ;; esac
+  case $oa_idle_relay_source in
+  - | [a-z]*) ;;
+  *) return 1 ;;
+  esac
+  case $oa_idle_relay_source in *[!a-z0-9-]*) return 1 ;; esac
+  test "${#oa_idle_relay_source}" -le 32 || return 1
+  case $oa_idle_relay_session in
+  -) ;;
+  *[!0-9a-f]*) return 1 ;;
+  *) test "${#oa_idle_relay_session}" -eq 64 || return 1 ;;
+  esac
+  case $oa_idle_relay_outcome in recorded | refused | failed) ;; *) return 1 ;; esac
+  case $oa_idle_relay_deadline in
+  - | [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z) ;;
+  *) return 1 ;;
+  esac
+  case $oa_idle_relay_reason in
+  - | bad-budget | bad-source | bad-pid | bad-session | bad-hook-input | bad-option | refused | not-recorded) ;;
+  *) return 1 ;;
+  esac
+  oa_idle_relay_text="open-agent-awake $oa_idle_relay_at event=$oa_idle_relay_event source=$oa_idle_relay_source"
+  if test "$oa_idle_relay_session" != -; then
+    oa_idle_relay_text="$oa_idle_relay_text session=$(printf '%.8s' "$oa_idle_relay_session")"
+  fi
+  oa_idle_relay_text="$oa_idle_relay_text outcome=$oa_idle_relay_outcome"
+  if test "$oa_idle_relay_deadline" != -; then
+    oa_idle_relay_text="$oa_idle_relay_text deadline=$oa_idle_relay_deadline"
+  fi
+  if test "$oa_idle_relay_reason" != -; then
+    oa_idle_relay_text="$oa_idle_relay_text reason=$oa_idle_relay_reason"
+  fi
+  printf '%s\n' "$oa_idle_relay_text"
+}
+
+# makes the event directory, root's, writable by the agent and sticky so no
+# account removes or renames another's entry; it fails when it is a link
+oa_idle_relay_prepare() {
+  for oa_idle_relay_path in "$OA_SERVICE_STATE_DIRECTORY" "$OA_IDLE_EVENTS"; do
+    if test -L "$oa_idle_relay_path"; then
+      echo "Refusing $oa_idle_relay_path: it is a link" >&2
+      return 1
+    fi
+  done
+  install -d -m 0755 "$OA_SERVICE_STATE_DIRECTORY" &&
+    mkdir -p "$OA_IDLE_EVENTS" &&
+    chown "root:$OA_IDLE_AGENT" "$OA_IDLE_EVENTS" &&
+    chmod 01770 "$OA_IDLE_EVENTS"
+}
+
+# writes the records of the event directory, up to the relay's limits, as
+# lines on stderr, which the service gives the machine's log, and removes what
+# it read: a record that is not of the shape is removed unwritten, the ones
+# beyond the line limit are removed and counted in one line, and any entry
+# left for the stale minutes is removed
+oa_idle_relay_drain() {
+  oa_idle_drain_count=0
+  oa_idle_drain_dropped=0
+  find "$OA_IDLE_EVENTS" -mindepth 1 -maxdepth 1 -type f -links 1 -name 'e-*' \
+    -printf '%f\n' 2>/dev/null | head -n "$OA_IDLE_RELAY_SCAN" >"$OA_IDLE_WORK/relay"
+  while IFS= read -r oa_idle_drain_name; do
+    case $oa_idle_drain_name in
+    e-*[!A-Za-z0-9]* | e-) continue ;;
+    e-*) ;;
+    *) continue ;;
+    esac
+    if test "$oa_idle_drain_count" -ge "$OA_IDLE_RELAY_LINES"; then
+      oa_idle_drain_dropped=$((oa_idle_drain_dropped + 1))
+    elif oa_idle_read "$OA_IDLE_EVENTS/$oa_idle_drain_name" "$OA_IDLE_RECORD_BYTES" "$OA_IDLE_WORK/record" &&
+      oa_idle_drain_line=$(oa_idle_relay_line "$OA_IDLE_WORK/record"); then
+      printf '%s\n' "$oa_idle_drain_line" >&2
+      oa_idle_drain_count=$((oa_idle_drain_count + 1))
+    fi
+    rm -f -- "$OA_IDLE_EVENTS/$oa_idle_drain_name"
+  done <"$OA_IDLE_WORK/relay"
+  if test "$oa_idle_drain_dropped" -gt 0; then
+    printf 'open-agent-awake %s dropped=%s reason=rate-limit\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$oa_idle_drain_dropped" >&2
+  fi
+  find "$OA_IDLE_EVENTS" -mindepth 1 -maxdepth 1 -mmin "+$OA_IDLE_RELAY_STALE_MINUTES" \
+    -exec rm -rf -- {} + 2>/dev/null
+  return 0
+}
+
+# the awake events' relay, a service of root's that keeps the event directory
+# in place and drains it into the machine's log, which is the service's
+# stderr; it never exits, and waits before it fails so a refused directory
+# does not restart it in a loop
+oa_idle_relay() {
+  oa_idle_relay_prepare || {
+    sleep 30
+    return 1
+  }
+  while :; do
+    oa_idle_relay_drain
+    sleep "$OA_IDLE_RELAY_SECONDS" &
+    wait $!
+  done
+}
+
 # records one awake event, then hands a native-deadline provider the new
 # deadline and records its result with the event's failure, if any
 # arguments: the action, then its options
 oa_idle_event() {
   oa_idle_action=$1
+  oa_idle_event_kind=$1
   shift
   if ! oa_idle_parse "$@" >"$OA_IDLE_WORK/refusal"; then
     oa_idle_action=
     printf 'refused an awake event: %s\n' "$(head -n 1 "$OA_IDLE_WORK/refusal")" >>"$OA_IDLE_WORK/notes"
+    oa_idle_log_event refused "$(oa_idle_refusal_reason "$(head -n 1 "$OA_IDLE_WORK/refusal")")"
     oa_idle_record
     return 0
   fi
-  oa_idle_record || return 0
+  if ! oa_idle_record; then
+    oa_idle_log_event failed not-recorded
+    return 0
+  fi
+  if test -n "$oa_idle_event_failure"; then
+    oa_idle_log_event failed not-recorded
+  else
+    oa_idle_log_event recorded -
+  fi
   if test "$(oa_idle_setting .provider.keepAwakeMode)" != native-deadline ||
     test -z "$(oa_idle_setting .provider.awakeAdapter)"; then
     return 0
@@ -971,7 +1159,7 @@ oa_idle_main() {
   case $oa_idle_main_command in
   heartbeat | hold-open | hold-close) oa_idle_event "$oa_idle_main_command" "$@" ;;
   apply) oa_idle_apply ;;
-  tick | report | install | check)
+  tick | report | install | check | relay)
     if test "$oa_idle_uid" -ne 0; then
       echo "open-agent-awake $oa_idle_main_command is root's alone" >&2
       exit 77
@@ -1005,7 +1193,7 @@ heartbeat | hold-open | hold-close)
     /bin/sh "$oa_idle_self" "$@" >/dev/null 2>&1
   exit 0
   ;;
-apply | tick | report | install | check)
+apply | tick | report | install | check | relay)
   oa_idle_main "$@"
   ;;
 *)

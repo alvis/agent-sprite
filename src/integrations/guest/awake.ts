@@ -5,8 +5,8 @@ import { SHARED_MODE } from '#os/contracts';
 import { isGovernorReport } from './governor-report';
 import { runGuestResult } from './run';
 
-import type { ProviderCapabilities } from '#drivers/contracts';
-import type { GuestChannel } from '#drivers/guest-channel';
+import type { ProviderCapabilities, ProviderDriver } from '#drivers/contracts';
+import type { GuestChannel, ServiceDefinition } from '#drivers/guest-channel';
 import type { PeriodicJob, ServiceStepContext } from '#os/contracts';
 
 import type { GovernorReport } from './governor-report';
@@ -46,6 +46,34 @@ const IDLE_STEP_LIMIT_MS = 30_000;
 
 /** longest the governor report may take */
 const REPORT_LIMIT_MS = 30_000;
+
+/**
+ * the relay of awake events into the machine's log, root's service on a
+ * backend that has such a log: it validates the one-line records the events
+ * leave on memory-backed storage and writes each as a line of that log, so
+ * what an event as the agent says reaches the log only as fields root checked
+ */
+export const awakeRelayService: ServiceDefinition = {
+  name: 'open-agent-awake-relay',
+  command: AWAKE_COMMAND,
+  arguments: ['relay'],
+  account: 'root',
+  needs: [],
+  machineLog: true,
+};
+
+/**
+ * lists the services the idle governor needs: the awake events' relay where
+ * the service backend is runit, whose machine log it writes to; a backend
+ * the provider runs the services on needs none
+ * @param provider the provider's service backend
+ * @returns the relay, or none
+ */
+export function governorServices(
+  provider: Pick<ProviderDriver, 'serviceBackend'>,
+): ServiceDefinition[] {
+  return provider.serviceBackend === 'runit' ? [awakeRelayService] : [];
+}
 
 /**
  * lists the periodic jobs the idle governor needs: a governed provider's

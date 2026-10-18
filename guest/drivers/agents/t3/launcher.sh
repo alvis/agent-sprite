@@ -2,17 +2,65 @@
 # T3 Code's launcher, run as the agent by the t3-code service: it starts the
 # agent's t3 on the port environment.json records, with the environment the
 # agent keeps for its runtime, every selected harness's spawn environment and
-# the committer the agent configured, then replaces itself with t3. Every
-# output of t3 is discarded: it can mint startup credentials even with the
-# browser disabled, so no token, pairing URL or QR reaches the service log
+# the committer the agent configured, then replaces itself with t3. T3 can mint
+# startup credentials on stdout even with the browser disabled, so its output
+# is never kept or logged whole: when the service backend made a directory on
+# memory-backed storage for it, both streams go to a private pipe whose reader
+# appends only T3's error headers, at most eight, to a private file there, never
+# to the volume, and the backend's finish hook forwards the redacted headers of
+# that file; without that directory, both streams are discarded
 
 set -u
 
-# reports why the launcher stopped and exits non-zero
+# where t3's stderr, and the reason the launcher stops, are captured: a fresh,
+# owner-only file for this run, or nothing when the backend made no directory
+# for it
+oa_stderr=/dev/null
+if (umask 077 && : >"$OA_T3_STDERR_CAPTURE") 2>/dev/null; then
+  oa_stderr=$OA_T3_STDERR_CAPTURE
+fi
+
+# reports why the launcher stopped and exits non-zero, in the service log and
+# in the capture, which the finish hook forwards to the machine's log
 # arguments: the reason
 oa_fail() {
   echo "t3 launcher: $1" >&2
+  echo "t3 launcher: $1" >>"$oa_stderr" 2>/dev/null
   exit 1
+}
+
+# keeps the error headers of t3's output, at most eight and cut short, and
+# nothing else, so the credentials and pairing URLs t3 prints never leave the
+# pipe; it reads all of its input, so t3 is never blocked on a full pipe
+# arguments: none; t3's output arrives on stdin and the headers leave on stdout
+oa_t3_errors() {
+  LC_ALL=C sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' |
+    LC_ALL=C tr -cd ' -~\n' |
+    LC_ALL=C awk 'n < 8 && /^( *\[cause\]: [A-Za-z0-9_]*Error: |ERROR \(#[0-9]+\): [A-Za-z0-9_]*Error: )/ {
+      print substr($0, 1, 512)
+      fflush()
+      n++
+    }'
+}
+
+# joins t3's stdout and stderr to one pipe whose reader is oa_t3_errors, which
+# appends to the capture, so the launcher can exec t3 with both streams on
+# file descriptor 5. The pipe is a private, unlinked FIFO of the capture's
+# directory held open at both ends before it is unlinked, and the reader ends
+# when t3, the last writer, exits. Fails, changing nothing, when there is no
+# capture or the pipe cannot be made, and the caller discards stdout instead
+oa_t3_pipe() {
+  test "$oa_stderr" != /dev/null || return 1
+  oa_pipe=$oa_stderr.pipe
+  rm -f "$oa_pipe" && (umask 077 && mkfifo "$oa_pipe") 2>/dev/null || return 1
+  if ! (exec 5<>"$oa_pipe") 2>/dev/null; then
+    rm -f "$oa_pipe"
+    return 1
+  fi
+  exec 5<>"$oa_pipe"
+  exec 6<"$oa_pipe"
+  rm -f "$oa_pipe"
+  { oa_t3_errors >>"$oa_stderr" 2>/dev/null; } <&6 5>&- 6>&- &
 }
 
 # prints the export commands of a map of variable names to strings; refuses
@@ -68,5 +116,9 @@ fi
 # one a stop left behind; its process id may name another process after a
 # boot, and t3 would refuse to start beside it
 rm -f "$OA_T3_SERVER_RECORD" || oa_fail "$OA_T3_SERVER_RECORD cannot be removed"
-exec "$OA_AGENT_BIN/t3" start --host 0.0.0.0 --port "$oa_port" \
-  --base-dir "$OA_T3_HOME" --no-browser --log-level warn </dev/null >/dev/null 2>&1
+set -- start --host 0.0.0.0 --port "$oa_port" \
+  --base-dir "$OA_T3_HOME" --no-browser --log-level warn
+if oa_t3_pipe; then
+  exec "$OA_AGENT_BIN/t3" "$@" </dev/null >&5 2>&5 5>&- 6>&-
+fi
+exec "$OA_AGENT_BIN/t3" "$@" </dev/null >/dev/null 2>>"$oa_stderr"
