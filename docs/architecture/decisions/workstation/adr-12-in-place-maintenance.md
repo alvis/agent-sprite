@@ -4,7 +4,7 @@
 
 Upgrade managed components in place on a configurable schedule, skip every component already at the latest stable version, and never stop, start or restart a service. A running service picks up a new version when it next restarts for any other reason.
 
-- Status: `Accepted`, partly superseded by [ADR-15](adr-15-host-driven-guest-setup.md): the schedule, skip rule, Node swap and release installers are replaced by an hourly `sh` gate and per-manager upgrades; the no-restart rule stands
+- Status: `Accepted`, partly superseded by [ADR-16](adr-16-host-driven-guest-setup.md): the schedule, skip rule, Node swap and release installers are replaced by an hourly `sh` gate and per-manager upgrades; the no-restart rule stands
 - Date: `2026-10-13`
 - Supersedes: [ADR-5 — Managed services and maintenance](../superseded/workstation/adr-5-managed-services-maintenance.md)
 

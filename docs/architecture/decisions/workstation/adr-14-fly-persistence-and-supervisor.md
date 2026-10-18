@@ -4,7 +4,7 @@
 
 A Fly workstation is one app, one machine and one volume. A stock image keeps an ephemeral root filesystem; a root-run boot script rebuilds it from the volume on every boot and hands over to a guest supervisor that runs the services, the update gate and the idle governor's tick.
 
-- Status: `Accepted`, partly superseded by [ADR-15](adr-15-host-driven-guest-setup.md): the boot install step, the Node supervisor and the REST/SSH transport split are replaced by a boot stub and volume hook, runit services, a persisted root filesystem and one SSH setup session; the volume layout stands
+- Status: `Accepted`, partly superseded by [ADR-16](adr-16-host-driven-guest-setup.md): the boot install step, the Node supervisor and the REST/SSH transport split are replaced by a boot stub and volume hook, runit services, a persisted root filesystem and one SSH setup session; the volume layout stands
 - Date: `2026-10-14`
 
 ## 🎯 Motivation
