@@ -1,7 +1,10 @@
 # open-agent's runit service backend: each service environment.json records
 # is a root-owned service directory under /etc/sv, enabled by its link in the
 # directory runsvdir supervises, and each drops to its own account through
-# chpst. Setup and the boot hook source it as root; it needs sv, chpst and
+# chpst. Each also has a finish hook, which writes one line to the machine's
+# log whenever the service exits, and a service that serves HTTP has a
+# readiness check, which writes one line once it answers or after a bounded
+# wait. Setup and the boot hook source it as root; it needs sv, chpst and
 # svlogd on PATH and reads JSON with the system's jq, /usr/bin/jq. Every function is safe to rerun, reports why it failed
 # on stderr and returns non-zero, and keeps its variables under its own oa_
 # prefix since sh has no locals
@@ -24,6 +27,12 @@ OA_SV_PATH=$OA_SESSION_PATH
 # the PATH an agent service starts with after its own commands: the account
 # PATH, Homebrew's commands ahead of the tool links and the system's
 OA_SV_AGENT_PATH=$OA_ACCOUNT_PATH
+# where each service keeps its runtime state on memory-backed storage: the
+# root-owned marker of when it started, and a private directory of its
+# account, where the service may capture its own stderr for its finish hook
+OA_SV_STATE=$OA_SERVICE_STATE_DIRECTORY
+# seconds the readiness check of a service waits for it to answer
+OA_SV_READY_WAIT=120
 # a service name, which names its directory, its link and its log
 OA_SV_NAME='^[a-z0-9][a-z0-9._-]*$'
 # whether the last oa_sv_write found something to change, and whether it only
@@ -84,29 +93,173 @@ oa_sv_valid() {
     (.account == "root" or .account == "agent") and
     (.command | type == "string" and startswith("/")) and
     (.arguments | type == "array" and all(.[]; type == "string")) and
-    (.needs | type == "array" and all(.[]; type == "string" and test($name)))' \
+    (.needs | type == "array" and all(.[]; type == "string" and test($name))) and
+    (.httpPort == null or (.httpPort | type == "number" and floor == . and . >= 1 and . <= 65535)) and
+    (.machineLog == null or (.machineLog | type == "boolean"))' \
     >/dev/null
 }
 
-# renders a definition as its run file: wait for every service it needs, then
-# replace the shell with the command, as its account, from its home, with a
-# clean environment and its account's PATH; every word is quoted, so none is
-# read as shell code
+# renders a definition as its run file: note when the service started and
+# make its private runtime state, wait for every service it needs, then replace
+# the shell with the command, as its account, from its home, with a clean
+# environment and its account's PATH; a service with an HTTP port also starts
+# its readiness check, which writes to the machine's log, saved as the run
+# file's descriptor 3 and closed for the service; a service that records the
+# machine's log itself, such as the awake events' relay, has it as its stderr.
+# Every word is quoted, so none is read as shell code. Nothing about the runtime state may stop the service
+# from starting
 # arguments: the definition, as JSON, and its account's home
 oa_sv_run() {
   printf '%s' "$1" | /usr/bin/jq -r --arg path "$OA_SV_PATH" --arg agentPath "$OA_SV_AGENT_PATH" \
-    --arg wait "$OA_SV_WAIT" --arg services "$OA_SV_SERVICES" --arg home "$2" '
+    --arg wait "$OA_SV_WAIT" --arg services "$OA_SV_SERVICES" --arg home "$2" \
+    --arg state "$OA_SV_STATE" --arg definitions "$OA_SV_DEFINITIONS" '
     "#!/bin/sh",
     "# open-agent service \(.name), written from its definition in environment.json",
+    "exec 3>&2",
     "exec 2>&1",
     "PATH=\($path | @sh)",
     "export PATH",
+    "install -d -m 0755 \($state | @sh) && install -d -m 0700 -o \(.account | @sh) \("\($state)/\(.name)" | @sh) || true",
+    "rm -f \("\($state)/\(.name)/stderr" | @sh)",
+    "awk \u0027{ printf \"%d\\n\", $1 * 1000 }\u0027 /proc/uptime >\("\($state)/\(.name).started" | @sh) || true",
     (.needs[] | "sv -w \($wait) start \("\($services)/\(.)" | @sh) >/dev/null || exit 1"),
     "cd \($home | @sh) || exit 1",
-    "exec \(if .account == "root" then "" else "chpst -u \(.account | @sh) " end)env -i HOME=\($home | @sh) USER=\(.account | @sh) LOGNAME=\(.account | @sh) PATH=\(if .account == "root" then $path else "\($home)/.local/bin:\($agentPath)" end | @sh) LANG=C.UTF-8 \([.command] + .arguments | map(@sh) | join(" "))"'
+    (if .httpPort == null then empty else "/bin/sh \("\($definitions)/\(.name)/ready" | @sh) \(.name | @sh) \(.httpPort) </dev/null >/dev/null 2>&3 3>&- &" end),
+    "exec \(if .account == "root" then "" else "chpst -u \(.account | @sh) " end)env -i HOME=\($home | @sh) USER=\(.account | @sh) LOGNAME=\(.account | @sh) PATH=\(if .account == "root" then $path else "\($home)/.local/bin:\($agentPath)" end | @sh) LANG=C.UTF-8 \([.command] + .arguments | map(@sh) | join(" ")) \(if .machineLog == true then "2>&3 " else "" end)3>&-"'
 }
 
-# writes one service's directory, run file, log and enabling link from its
+# renders the finish hook of every service. runsv runs it each time the
+# service exits, with the exit code and the wait status, and its stderr is the
+# machine's log, so it writes one line there: the service, its exit code, how
+# long it ran and, when the service captured its stderr, the redacted error
+# headers of it. Only lines of a known error shape are read, each is reduced
+# to printable ASCII, has URLs, query strings, e-mail addresses, credentials,
+# JWTs and long tokens replaced and is cut short, so no secret is written. The
+# hook never fails, and it clears the start marker and the capture it read. The
+# capture sits in a directory the service's account owns and the hook runs as
+# root, so it is opened once, without following a link and without blocking,
+# under a two second limit, and a read that fails gives no reason: a link
+# swapped in after a check would be followed and a pipe would hold the hook,
+# and with it the service's restart, for good
+oa_sv_finish() {
+  printf '#!/bin/sh\n'
+  printf '# open-agent service finish hook, written by oa_sv_finish\n'
+  printf 'oa_state=%s\n' "$OA_SV_STATE"
+  cat <<'EOF'
+oa_name=$(pwd -P)
+oa_name=${oa_name##*/}
+oa_code=${1:-unknown}
+oa_runtime=unknown
+oa_started=$(cat "$oa_state/$oa_name.started" 2>/dev/null)
+oa_now=$(awk '{ printf "%d", $1 * 1000 }' /proc/uptime 2>/dev/null)
+case $oa_started in
+  '' | *[!0-9]*) ;;
+  *)
+    case $oa_now in
+      '' | *[!0-9]*) ;;
+      *) oa_runtime=$((oa_now - oa_started)) ;;
+    esac
+    ;;
+esac
+oa_capture=$oa_state/$oa_name/stderr
+oa_reason=
+if test -e "$oa_capture" || test -L "$oa_capture"; then
+  oa_reason=$(timeout 2 dd if="$oa_capture" iflag=nofollow,nonblock \
+    bs=65537 count=1 status=none 2>/dev/null |
+    LC_ALL=C sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' |
+    LC_ALL=C tr -cd ' -~\n' |
+    LC_ALL=C tr -d '"' |
+    LC_ALL=C grep -E '^( *\[cause\]: [A-Za-z0-9_]*Error: |ERROR \(#[0-9]+\): [A-Za-z0-9_]*Error: |t3 launcher: )' |
+    head -n 4 |
+    LC_ALL=C sed -E \
+      -e 's#[A-Za-z][A-Za-z0-9+.-]*://[^[:space:]]*#<url>#g' \
+      -e 's#eyJ[A-Za-z0-9_.+/=-]*#<jwt>#g' \
+      -e 's#[^[:space:]]*@[^[:space:]]*#<redacted>#g' \
+      -e 's#(token|secret|password|passwd|credential|authorization|apikey|api[_-]key|cookie|pairing|bearer)[A-Za-z0-9_-]*[=:] *[^[:space:]]+#\1=<redacted>#Ig' \
+      -e 's#bearer +[^[:space:]]+#bearer <redacted>#Ig' \
+      -e 's#\?[^[:space:]]+#?<redacted>#g' |
+    LC_ALL=C awk '{
+      out = ""
+      while (match($0, /[A-Za-z0-9_+=-]+/)) {
+        word = substr($0, RSTART, RLENGTH)
+        if (RLENGTH >= 20 && word ~ /[0-9]/) word = "<redacted>"
+        out = out substr($0, 1, RSTART - 1) word
+        $0 = substr($0, RSTART + RLENGTH)
+      }
+      print out $0
+    }' |
+    cut -c1-160 |
+    paste -sd ';' -)
+fi
+if test -n "$oa_reason"; then
+  oa_reason=" reason=\"$oa_reason\""
+fi
+printf 'open-agent-service %s service=%s exit=%s runtime_ms=%s%s\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$oa_name" "$oa_code" "$oa_runtime" "$oa_reason" >&2
+rm -f "$oa_state/$oa_name.started" "$oa_capture"
+exit 0
+EOF
+}
+
+# renders the readiness check of a service that serves HTTP. The run file
+# starts it in the background with the machine's log as its stderr; it polls
+# the service's loopback port until the service answers with any HTTP status,
+# then writes one line with the time since the service started, or after a
+# bounded wait writes that the service is not ready. It stops silently when
+# the service exits or restarts meanwhile, and nothing in it waits for the boot
+# arguments: none; the service's name and port are its arguments when it runs
+oa_sv_ready() {
+  printf '#!/bin/sh\n'
+  printf '# open-agent service readiness check, written by oa_sv_ready\n'
+  printf 'oa_state=%s\n' "$OA_SV_STATE"
+  printf 'oa_limit=%s\n' "$OA_SV_READY_WAIT"
+  cat <<'EOF'
+oa_name=$1
+oa_port=$2
+oa_started=$(cat "$oa_state/$oa_name.started" 2>/dev/null)
+case $oa_started in
+  '' | *[!0-9]*) exit 0 ;;
+esac
+while :; do
+  oa_now=$(awk '{ printf "%d", $1 * 1000 }' /proc/uptime 2>/dev/null)
+  case $oa_now in
+    '' | *[!0-9]*) exit 0 ;;
+  esac
+  oa_status=$(/usr/bin/curl -s -o /dev/null --max-time 2 -w '%{http_code}' \
+    "http://127.0.0.1:$oa_port/" 2>/dev/null)
+  case $oa_status in
+    '' | 000) ;;
+    *)
+      printf 'open-agent-service %s service=%s ready duration_ms=%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$oa_name" "$((oa_now - oa_started))" >&2
+      exit 0
+      ;;
+  esac
+  if test "$((oa_now - oa_started))" -ge "$((oa_limit * 1000))"; then
+    printf 'open-agent-service %s service=%s not-ready after %ss\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$oa_name" "$oa_limit" >&2
+    exit 0
+  fi
+  sleep 0.5
+  test "$(cat "$oa_state/$oa_name.started" 2>/dev/null)" = "$oa_started" || exit 0
+done
+EOF
+}
+
+# removes a file of a service's directory that its definition no longer has; a
+# dry run only notes that it would
+# arguments: path
+oa_sv_unfile() {
+  if ! test -e "$1" && ! test -L "$1"; then
+    return 0
+  fi
+  oa_sv_changed=1
+  if test -z "$oa_sv_dry"; then
+    rm -f "$1"
+  fi
+}
+
+# writes one service's directory, run file, finish hook, readiness check, log and enabling link from its
 # definition; what already matches is left as it is, and oa_sv_changed tells
 # whether the run file or anything else changed
 # arguments: the definition, as JSON
@@ -124,6 +277,7 @@ oa_sv_write() {
     return 1
   fi
   oa_write_run=$(oa_sv_run "$1" "$oa_write_home") || return 1
+  oa_write_port=$(printf '%s' "$1" | /usr/bin/jq -r '.httpPort // empty') || return 1
   oa_write_definition=$(printf '%s' "$1" | /usr/bin/jq -c .) || return 1
   oa_write_directory=$OA_SV_DEFINITIONS/$oa_write_name
   oa_write_log=$OA_SV_LOGS/$oa_write_name
@@ -138,7 +292,13 @@ oa_sv_write() {
     oa_sv_file "$oa_write_directory/log/run" 0755 \
       "$(printf '#!/bin/sh\nexec svlogd -tt %s' "$oa_write_log")" &&
     oa_sv_file "$oa_write_directory/$OA_SV_MARK" 0644 "$oa_write_definition" &&
+    oa_sv_file "$oa_write_directory/finish" 0755 "$(oa_sv_finish)" &&
     oa_sv_file "$oa_write_directory/run" 0755 "$oa_write_run" || return 1
+  if test -n "$oa_write_port"; then
+    oa_sv_file "$oa_write_directory/ready" 0755 "$(oa_sv_ready)" || return 1
+  else
+    oa_sv_unfile "$oa_write_directory/ready" || return 1
+  fi
   if test "$(readlink "$OA_SV_SERVICES/$oa_write_name")" = "$oa_write_directory"; then
     return 0
   fi

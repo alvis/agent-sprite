@@ -111,6 +111,14 @@ export const SESSION_DIRECTORY = '/run/open-agent-session';
 /** the lock a setup session holds while it runs, which the boot, the update gate and the network launcher wait on or test */
 export const SESSION_LOCK = `${SESSION_DIRECTORY}/session.lock`;
 
+/**
+ * the memory-backed directory the runit backend keeps each service's runtime
+ * state in: a root-owned start marker per service, and a private directory
+ * owned by the service's account, which holds what the service captured of its
+ * own stderr for the service's finish hook to read; it never lives on the volume
+ */
+export const SERVICE_STATE_DIRECTORY = '/run/open-agent-service';
+
 /** the memory-backed directory setup delivers its secrets in */
 export const SECRET_DIRECTORY = '/dev/shm';
 
