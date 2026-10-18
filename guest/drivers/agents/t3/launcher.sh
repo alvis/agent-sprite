@@ -56,6 +56,14 @@ if test -e "$OA_COMMITTER_PATH"; then
 fi
 
 cd "$OA_AGENT_HOME" || oa_fail "$OA_AGENT_HOME is missing"
+# the free space the agent itself can use (df's available column excludes the
+# blocks the filesystem reserves for root), in whole megabytes; a volume the
+# agent cannot write to makes t3 fail with an error nothing else logs
+oa_free_mb=$(df -Pk "$OA_AGENT_HOME" 2>/dev/null |
+  awk 'NR == 2 && $4 ~ /^[0-9]+$/ { print int($4 / 1024) }')
+if test -n "$oa_free_mb" && test "$oa_free_mb" -lt "$OA_T3_MIN_FREE_MB"; then
+  oa_fail "only $oa_free_mb MB free on $OA_AGENT_HOME; T3 needs at least $OA_T3_MIN_FREE_MB MB"
+fi
 # runit runs one t3 for this base directory, so a server record found now is
 # one a stop left behind; its process id may name another process after a
 # boot, and t3 would refuse to start beside it

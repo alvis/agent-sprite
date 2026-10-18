@@ -10,6 +10,9 @@ export const T3_HTTP_PORT = 3773;
 /** T3's base directory, where it keeps its state and credentials */
 export const T3_HOME = `${AGENT_HOME}/.t3`;
 
+/** megabytes the agent's home must have free for the launcher to start T3, below which T3 cannot write its database and would only crash-loop */
+const T3_MIN_FREE_MB = 64;
+
 /** where T3 records its running server, which a stop can leave naming a process id another process holds after the next boot */
 export const T3_SERVER_RECORD = `${T3_HOME}/userdata/server-runtime.json`;
 
@@ -17,7 +20,11 @@ export const T3_SERVER_RECORD = `${T3_HOME}/userdata/server-runtime.json`;
 export const T3_LAUNCHER = guestAsset(
   'drivers/agents/t3/launcher.sh',
   SHARED_MODE,
-  { OA_T3_HOME: T3_HOME, OA_T3_SERVER_RECORD: T3_SERVER_RECORD },
+  {
+    OA_T3_HOME: T3_HOME,
+    OA_T3_MIN_FREE_MB: String(T3_MIN_FREE_MB),
+    OA_T3_SERVER_RECORD: T3_SERVER_RECORD,
+  },
 );
 
 /**
