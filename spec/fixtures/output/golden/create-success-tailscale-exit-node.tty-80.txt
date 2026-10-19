@@ -1,0 +1,88 @@
+channel: stdout
+text-length: 2064
+notes-length: none
+=== text ===
+Create
+  Retained Credentials
+    Provider
+      Storage: protected-file
+    Network
+      Storage: protected-file
+      Fallback Reason: Keychain is unavailable on this platform
+  Workstation
+    ID: 3d8d7e1f5a2e18
+    Name: atlas
+    Organization: personal
+    Created At: 2026-10-12T08:30:00.000Z
+    State: started
+    Workstation: shared-cpu-2x, 2 CPUs, 4 GB
+    Setup: ready
+    Profile
+      Provider: fly-machine
+      Agent: t3
+      Harnesses: claude, codex
+      Network: tailscale
+    Readiness: not inspected
+  Preflight
+    Checks: Provider token verified, Workstation name is available
+    Reminders: Run open-agent show primary --inspect after the first boot
+  Profile
+    Provider: sprite
+    Agent: t3
+    Harnesses: claude, codex
+    Network: tailscale
+    Options
+      Is Exit Node Enabled: Yes
+      Is Proxy Enabled: Yes
+      Idle Timeout Minutes: 5
+      Hold Max Minutes: 60
+      Update Due Interval Days: 1
+      Min Cpus: 2
+      Min Memory Gb: 2
+  Readiness
+    Ready: Yes
+    Failures: None
+    Skipped: Tailscale connectivity
+    Probe Failures: None
+  Network
+    Online: Yes
+    DNS ready: Yes
+    Skipped: No
+    Device ID: node-1234
+    IP address: 100.64.0.7
+    Exit Node: home-router
+    Exit node IP: 100.64.0.2
+    Exit node: home-router
+    Route Device: tailscale0
+    Public IP: 203.0.113.9
+  Hub
+    Skipped: No
+    Reachable: Yes
+    Status: 200
+  Services: Name: t3-code · State: running
+  Native
+    Claude Code
+      Proxy configured: No
+      Model discovery enabled: No
+      Native plugin inventory available: No
+      Awake hooks installed: No
+      Authentication: not-configured
+    Codex
+      Proxy configured: No
+      Model discovery enabled: No
+      Native plugin inventory available: No
+      Awake hooks installed: No
+      Authentication: not-configured
+    Harnesses
+      Claude Code
+        Selected Plugins: None
+        Evidence
+          Sdk Plugin Loading: not-verified
+      Codex
+        Selected Plugins: None
+  Agent pairing
+    Status: not requested
+    Agent URL: https://atlas.fly.dev/
+
+=== notes ===
+

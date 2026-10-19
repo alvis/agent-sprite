@@ -1,0 +1,8 @@
+channel: stderr
+text-length: 26
+notes-length: none
+=== text ===
+GitHub rejected the token
+
+=== notes ===
+

@@ -1,10 +1,10 @@
-import { catalog } from '#core/catalog';
-import { agentPort } from '#core/services';
-import { ENVIRONMENT_SCHEMA } from '#integrations/guest/environment/contracts';
-import { OPEN_AGENT_VERSION } from '#utilities/version';
+import { ENVIRONMENT_SCHEMA } from '#adapters/guest/environment/contracts';
+import { registry } from '#composition/registry';
+import { agentPort } from '#domain/services';
+import { OPEN_AGENT_VERSION } from '#kernel/version';
 
-import type { WorkstationProfile } from '#core/profile';
-import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
+import type { GuestEnvironment } from '#domain/observations/environment';
+import type { WorkstationProfile } from '#domain/profile';
 
 /**
  * builds the environment.json a finished setup of a profile records, with no
@@ -40,13 +40,13 @@ export function environmentOf(
     },
     agent: {
       id: profile.agent,
-      service: catalog.agents[profile.agent].service.name,
+      service: registry.agents[profile.agent].service.name,
       account: 'agent',
-      port: agentPort(profile.agent),
+      port: agentPort(registry, profile.agent),
       harnesses: [],
     },
     network: null,
-    services: [catalog.agents[profile.agent].service],
+    services: [registry.agents[profile.agent].service],
     jobs: [],
     ...overrides,
   };

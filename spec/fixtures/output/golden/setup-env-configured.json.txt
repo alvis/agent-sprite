@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 286
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"env","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"runtimeEnvironment":{"status":"configured","names":["API_BASE","REGION"]}}}
+
+=== notes ===
+

@@ -1,0 +1,44 @@
+args: --help
+exit-code: 0
+stdout-length: 1364
+stderr-length: 0
+=== stdout ===
+USAGE
+  open-agent create [--name NAME]
+  open-agent setup [<workstation>]
+  open-agent list
+  open-agent show [<workstation>]
+  open-agent terminate [<workstation>]
+  open-agent doctor [<workstation>]
+  open-agent --help
+  open-agent --version
+
+manage persistent coding workstations
+
+FLAGS
+  -h --help     Print help information and exit
+  -v --version  Print version information and exit
+
+COMMANDS
+  create     create one new coding workstation
+  setup      configure an existing workstation
+  list       list owned workstations on every provider with credentials
+  show       show a workstation from current control-plane state
+  terminate  permanently delete a managed workstation
+  doctor     check current workstation readiness
+
+ENVIRONMENT
+  SPRITES_TOKEN       Fly Sprite credential; --provider-token-source selects another source.
+  FLY_API_TOKEN       Fly Machine credential; --provider-token-source selects another source.
+  OPEN_AGENT_*        Driver and option selection; see open-agent create --help.
+  CI, NON_INTERACTIVE Disable prompts when set to 1, true, yes, or on.
+  NO_COLOR            Disable color unless --color is selected.
+
+LEARN MORE
+  https://docs.fly.io/sprites/cli/authentication
+  https://docs.fly.io/sprites/quickstart
+  https://fly.io/docs/machines/api/
+  https://fly.io/docs/security/tokens/
+  https://fly.io/docs/flyctl/install/
+=== stderr ===
+

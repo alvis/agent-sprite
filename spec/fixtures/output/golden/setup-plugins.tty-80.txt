@@ -1,0 +1,19 @@
+channel: stdout
+text-length: 227
+notes-length: none
+=== text ===
+Setup
+  Section: plugins
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Plugins
+    Claude Code: applied
+    Codex: preserved
+
+=== notes ===
+

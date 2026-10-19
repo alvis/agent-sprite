@@ -1,0 +1,22 @@
+channel: stdout
+text-length: 269
+notes-length: none
+=== text ===
+Setup
+  Section: all
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Network
+    Status: disabled
+    Readiness: skipped
+  Proxy
+    Status: disabled
+  Tools: unchanged
+
+=== notes ===
+

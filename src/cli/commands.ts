@@ -32,7 +32,7 @@ import {
 
 import type { Command } from '@stricli/core';
 
-import type { CommandOptions } from '#command/contracts';
+import type { CommandOptions } from '#application/contracts';
 
 import type {
   HarnessPluginFlagValues,
@@ -108,6 +108,7 @@ const createCommand = buildCommand({
    */
   async func(this: InvocationContext, flags: CreateFlags): Promise<void> {
     return execute(
+      this.dependencies,
       {
         command: 'create',
         options: { ...flags, harnessPlugins: harnessPluginOptions(flags) },
@@ -151,6 +152,7 @@ const setupCommand = buildCommand({
     machine?: string,
   ): Promise<void> {
     return execute(
+      this.dependencies,
       {
         command: 'setup',
         machine,
@@ -188,7 +190,11 @@ const listCommand = buildCommand({
     this: InvocationContext,
     flags: ProviderCommonFlags,
   ): Promise<void> {
-    return execute({ command: 'list', options: flags }, this.state);
+    return execute(
+      this.dependencies,
+      { command: 'list', options: flags },
+      this.state,
+    );
   },
   parameters: { flags: { ...providerFlags, ...commonFlags } },
   docs: listDocumentation,
@@ -205,7 +211,11 @@ const showCommand = buildCommand({
     flags: InspectFlags,
     machine?: string,
   ): Promise<void> {
-    return execute({ command: 'show', machine, options: flags }, this.state);
+    return execute(
+      this.dependencies,
+      { command: 'show', machine, options: flags },
+      this.state,
+    );
   },
   parameters: {
     flags: {
@@ -240,6 +250,7 @@ const terminateCommand = buildCommand({
     machine?: string,
   ): Promise<void> {
     return execute(
+      this.dependencies,
       { command: 'terminate', machine, options: flags },
       this.state,
     );
@@ -269,7 +280,11 @@ const doctorCommand = buildCommand({
     flags: ProviderCommonFlags,
     machine?: string,
   ): Promise<void> {
-    return execute({ command: 'doctor', machine, options: flags }, this.state);
+    return execute(
+      this.dependencies,
+      { command: 'doctor', machine, options: flags },
+      this.state,
+    );
   },
   parameters: {
     flags: { ...providerFlags, ...commonFlags },

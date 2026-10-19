@@ -1,9 +1,9 @@
-import { catalog } from '#core/catalog';
-import { harnessIds } from '#core/harnesses';
-import { recordFrom } from '#utilities/records';
+import { registry } from '#composition/registry';
+import { harnessIds } from '#domain/harnesses';
+import { recordFrom } from '#kernel/records';
 
-import type { HarnessPluginOptions } from '#command/contracts';
-import type { HarnessId } from '#core/catalog';
+import type { HarnessPluginOptions } from '#application/contracts';
+import type { HarnessId } from '#domain/ids';
 
 /** a boolean flag that also accepts its --no- form */
 interface PairedBooleanFlag {
@@ -135,7 +135,7 @@ export function harnessPluginOptions(
  * @returns the harness display name
  */
 function displayName(id: HarnessId): string {
-  return catalog.harnesses[id].displayName;
+  return registry.harnesses[id].displayName;
 }
 
 /**

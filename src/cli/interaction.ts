@@ -10,15 +10,18 @@ import {
   secretPromptElement,
   selectPromptElement,
   statusElement,
-} from '#components/InteractionPresentation';
-import { InteractionExit } from '#navigation';
-import { redactResolved } from '#utilities/redaction';
+} from '#cli/components/InteractionPresentation';
+import { InteractionExit } from '#kernel/navigation';
+import { redactResolved } from '#kernel/redaction';
 
 import { createActivityController } from './activity';
 
 import type { ReactElement } from 'react';
 
-import type { Interaction, ProgressUpdate } from '#command/contracts';
+import type {
+  Interaction,
+  ProgressUpdate,
+} from '#application/ports/interaction';
 
 import type { ActivityOptions } from './activity';
 

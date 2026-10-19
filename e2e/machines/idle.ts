@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 
-import { T3_HTTP_PORT } from '#drivers/agents/t3/service';
+import { T3_HTTP_PORT } from '#adapters/drivers/agents/t3/service';
 
 import { asRoot } from './guest';
 import { GOVERNOR_REPORT, reportedGovernorState } from './layout';

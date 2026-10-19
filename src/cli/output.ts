@@ -5,15 +5,16 @@ import { renderToString } from 'ink';
 import {
   machineTableElement,
   resultDetailsElement,
-} from '#components/OutputPresentation';
+} from '#cli/components/OutputPresentation';
 
 import { humanResultDetails } from './output/details';
+import { projectResult } from './output/project';
 import { isJsonObject, serializeResult } from './serialization';
 
 import type { Writable } from 'node:stream';
 
-import type { CommandResult } from '#command';
-import type { CommandOptions } from '#command/contracts';
+import type { CommandOptions } from '#application/contracts';
+import type { CommandResult } from '#application/result';
 
 import type { JsonObject, JsonValue, SerializedResult } from './serialization';
 
@@ -60,7 +61,7 @@ export function prepareResult(
   options: CommandOptions,
   streams: ResultStreams = DEFAULT_STREAMS,
 ): PreparedResult {
-  const safe = serializeResult(result);
+  const safe = serializeResult(projectResult(result));
   if (options.json) {
     return { channel: 'stdout', text: `${JSON.stringify(safe)}\n` };
   }

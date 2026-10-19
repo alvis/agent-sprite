@@ -7,9 +7,11 @@ import {
   text_en,
 } from '@stricli/core';
 
-import { pairingAgentIds } from '#core/ids';
-import { commandError, ensureError } from '#errors';
-import { redactResolved } from '#utilities/redaction';
+import { commandError } from '#application/failures';
+import { registry } from '#composition/registry';
+import { pairingAgentIds } from '#domain/ids';
+import { ensureError } from '#kernel/faults';
+import { redactResolved } from '#kernel/redaction';
 
 import { harnessPluginToggleNames } from './harness-flags';
 
@@ -21,7 +23,9 @@ import type {
   StricliProcess,
 } from '@stricli/core';
 
-import type { CommandError, CommandName } from '#command/contracts';
+import type { CommandError } from '#application/failures';
+import type { ApplicationDependencies } from '#application/ports/dependencies';
+import type { CommandName } from '#kernel/commands';
 
 /** invocation-local parser and final-output ownership */
 export interface ExecutionState {
@@ -33,19 +37,21 @@ export interface ExecutionState {
 /** supported command context carries the current invocation explicitly */
 export interface InvocationContext extends CommandContext {
   state: ExecutionState;
+  dependencies: ApplicationDependencies;
 }
 
 /**
  * executes parser hooks through supported streams without leaking default stacks
  * @param application typed command application
  * @param argv original command-line arguments
- * @param state invocation-local diagnostic ownership
+ * @param context the call's inputs: state, dependencies
  */
 export async function parseApplication(
   application: Application<InvocationContext>,
   argv: string[],
-  state: ExecutionState,
+  context: Pick<InvocationContext, 'state' | 'dependencies'>,
 ): Promise<void> {
+  const { state, dependencies } = context;
   const flagError = validateBooleanFlagSyntax(argv);
   if (flagError) {
     state.errors.push(flagError);
@@ -79,6 +85,7 @@ export async function parseApplication(
     await run(application, withPairingAliases(argv, application), {
       process: contextProcess,
       state,
+      dependencies,
     });
   } catch (error) {
     state.errors.push(commandError(error));
@@ -101,7 +108,7 @@ const PAIRED_BOOLEAN_FLAGS = [
  * @returns alias flags, one per pairing-capable ACP agent
  */
 function pairingAliases(): string[] {
-  return pairingAgentIds().map((id) => `--with-${id}-pair-code`);
+  return pairingAgentIds(registry).map((id) => `--with-${id}-pair-code`);
 }
 
 /**

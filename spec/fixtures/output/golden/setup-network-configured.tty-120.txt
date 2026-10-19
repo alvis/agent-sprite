@@ -1,0 +1,19 @@
+channel: stdout
+text-length: 231
+notes-length: none
+=== text ===
+Setup
+  Section: network
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Network
+    Status: configured
+    Exit Node: home-router
+
+=== notes ===
+

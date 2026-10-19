@@ -2,17 +2,26 @@ import { PassThrough } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { commandError, resultExitCode } from '#errors';
-import { resolveSecret } from '#input/sources';
-import { returnOnBack, withBackNavigation } from '#navigation';
+import { commandError } from '#application/failures';
+import { resolveSecret } from '#application/input/sources';
+import { withBackNavigation } from '#application/navigation';
+import { resultExitCode } from '#cli/exit';
 
-import { createInteraction } from '../../src/cli/interaction';
-import { createStageReporter } from '../../src/cli/reporting';
+import { createInteraction } from '#cli/interaction';
+import { createStageReporter } from '#cli/reporting';
+
+import { returnOnBack } from '#kernel/navigation';
+
 import { driveInk } from '../fixtures/ink';
+import { dependencies } from '../mocks/dependencies';
 
 describe('fn:createInteraction', () => {
   it('should redact registered credentials in real Ink status and progress output', async () => {
-    const secret = await resolveSecret(undefined, 'saf08-ink-status-key');
+    const secret = await resolveSecret(
+      dependencies,
+      undefined,
+      'saf08-ink-status-key',
+    );
     const observed = await driveInk(async (interaction) => {
       interaction.status({ kind: 'warning', message: `Rejected ${secret}` });
       interaction.progress({

@@ -1,0 +1,14 @@
+args: list
+exit-code: 1
+stdout-length: 0
+stderr-length: 642
+=== stdout ===
+
+=== stderr ===
+environment: started
+environment: completed (<N> ms)
+command: started
+command: failed (<N> ms)
+Provider prerequisites are missing or misconfigured
+  Sprites API token is not set. Set SPRITES_TOKEN or pass --env-file FILE containing SPRITES_TOKEN; use --provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; or run in a TTY to enter it when prompted. It needs a Sprites organization token for the organization that owns the workstations. Get one at https://sprites.dev/account; sign in with Fly and select the intended organization.
+  Prompts are disabled because stdin is not a terminal; pass required flags or run in a TTY.

@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { pairingFlags } from '#cli/flags';
 import { applicationText, parseApplication } from '#cli/parser';
 
+import { dependencies } from '../mocks/dependencies';
+
 import type { Application } from '@stricli/core';
 
 import type { ExecutionState, InvocationContext } from '#cli/parser';
@@ -68,7 +70,10 @@ async function parse(
 ): Promise<{ parsed: ParsedCreate[]; state: ExecutionState }> {
   const parsed: ParsedCreate[] = [];
   const state: ExecutionState = { emitted: false, command: null, errors: [] };
-  await parseApplication(createApplication(state, parsed), argv, state);
+  await parseApplication(createApplication(state, parsed), argv, {
+    state,
+    dependencies,
+  });
 
   return { parsed, state };
 }

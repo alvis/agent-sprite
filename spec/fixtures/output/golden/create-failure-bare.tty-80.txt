@@ -1,0 +1,9 @@
+channel: stderr
+text-length: 67
+notes-length: none
+=== text ===
+Missing required input
+  --name is required with --non-interactive
+
+=== notes ===
+

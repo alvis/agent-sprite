@@ -1,6 +1,9 @@
-import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import { HOMEBREW_PREFIX, LINUXBREW_HOME } from '#integrations/guest/layout';
-import { isRecord } from '#utilities/guards';
+import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
+import {
+  HOMEBREW_PREFIX,
+  LINUXBREW_HOME,
+} from '#adapters/guest/platform/layout';
+import { isRecord } from '#kernel/guards';
 
 // where a machine spec finds what setup left on the guest
 

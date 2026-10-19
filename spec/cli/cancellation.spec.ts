@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createCommandCancellation } from '../../src/cli/cancellation';
+import { createCommandCancellation } from '#cli/cancellation';
 
 describe('fn:createCommandCancellation listener ownership', () => {
   it('should release both process signal listeners when the command ends', () => {

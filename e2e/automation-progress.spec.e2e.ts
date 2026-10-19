@@ -16,10 +16,10 @@ describe('workflow:installed CLI automation reporting', () => {
       join(packageRoot, 'lib/cli/reporting.js'),
     ).href;
     const operationUrl = pathToFileURL(
-      join(packageRoot, 'lib/operation.js'),
+      join(packageRoot, 'lib/kernel/operation.js'),
     ).href;
     const redactionUrl = pathToFileURL(
-      join(packageRoot, 'lib/utilities/redaction.js'),
+      join(packageRoot, 'lib/kernel/redaction.js'),
     ).href;
     const source = `
       import { createStatusReporter } from ${JSON.stringify(reportingUrl)};

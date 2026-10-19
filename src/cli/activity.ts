@@ -1,9 +1,9 @@
 import { renderToString } from 'ink';
 
-import { progressElement } from '#components/InteractionPresentation';
-import { redactResolved } from '#utilities/redaction';
+import { progressElement } from '#cli/components/InteractionPresentation';
+import { redactResolved } from '#kernel/redaction';
 
-import type { ProgressUpdate } from '#command/contracts';
+import type { ProgressUpdate } from '#application/ports/interaction';
 
 /** active stage data accepted by the persistent Ink root */
 type ProgressActivity = ProgressUpdate & { startedAt: number };

@@ -2,151 +2,41 @@ import process, { stdin, stderr } from 'node:process';
 
 import { parse } from 'dotenv';
 
-import { commandError, CommandFault, resultExitCode } from '#errors';
+import { commandError } from '#application/failures';
+import { validateCommandRequest } from '#application/validation';
+import { runCommand } from '#application/workstation';
+import { CommandFault } from '#kernel/faults';
 import {
   OperationContext,
   checkOperation,
   runOperation,
   traceStage,
   withOperation,
-} from '#operation';
-import { readInputFile } from '#utilities/input-file';
-import { validateCommandRequest } from '#validation';
-import { runCommand } from '#workstation';
+} from '#kernel/operation';
 
 import { createCommandCancellation } from './cancellation';
+import { emitResult } from './emit';
 import { createInteraction } from './interaction';
 import { resolveProcessExecutionOptions } from './mode';
-import { prepareResult, writePreparedResult } from './output';
 import { createStageReporter, createStatusReporter } from './reporting';
 import { flushOutput } from './streams';
 
-import type { CommandResult, CommandSuccess } from '#command';
-import type {
-  CommandError,
-  CommandOptions,
-  CommandRequest,
-} from '#command/contracts';
+import type { CommandOptions, CommandRequest } from '#application/contracts';
+import type { ApplicationDependencies } from '#application/ports/dependencies';
+import type { CommandResult } from '#application/result';
 
 import type { CommandCancellation } from './cancellation';
 import type { InteractionSession } from './interaction';
-import type { PreparedResult } from './output';
 import type { ExecutionState } from './parser';
-
-const RENDER_FAILURE_MESSAGE =
-  'The command result could not be rendered safely.';
-
-/**
- * owns the ordinary result object and its mode-independent exit status
- * @param result completed command or parser failure
- * @param options selected output mode
- * @param state invocation-local emission ownership
- */
-export function emitResult(
-  result: CommandResult,
-  options: CommandOptions,
-  state: ExecutionState,
-): void {
-  if (state.emitted) {
-    return;
-  }
-  let completed = result;
-  let prepared: PreparedResult;
-  try {
-    prepared = prepareResult(result, options);
-  } catch {
-    completed = preparationFailure(result);
-    try {
-      prepared = prepareResult(completed, options);
-    } catch {
-      completed = {
-        command: state.command,
-        ok: false,
-        error: { code: 'UNEXPECTED', message: RENDER_FAILURE_MESSAGE },
-      };
-      prepared = options.json
-        ? {
-            channel: 'stdout',
-            text: `${JSON.stringify({ schemaVersion: 1, ...completed })}\n`,
-          }
-        : { channel: 'stderr', text: `${RENDER_FAILURE_MESSAGE}\n` };
-    }
-  }
-  state.emitted = true;
-  process.exitCode = resultExitCode(completed);
-  writePreparedResult(prepared);
-}
-
-/**
- * retains verified recovery identity when a result cannot be rendered
- * @param result original typed outcome
- * @returns safe D10 failure without the malformed data branch
- */
-function preparationFailure(result: CommandResult): CommandResult {
-  const recovery = result.ok
-    ? successRecovery(result)
-    : {
-        machine: result.error.machine,
-        machineId: result.error.machineId,
-        setupIncomplete: result.error.setupIncomplete,
-        outcome: result.error.outcome,
-        details: result.error.details,
-      };
-
-  return {
-    command: result.command,
-    ok: false,
-    error: {
-      code: 'UNEXPECTED',
-      message: RENDER_FAILURE_MESSAGE,
-      ...recovery,
-    },
-  };
-}
-
-/**
- * retains typed workstation identity after a successful result cannot be rendered
- * @param result completed command with malformed presentation data
- * @returns available identity and a truthful retry boundary
- */
-function successRecovery(
-  result: CommandSuccess,
-): Pick<
-  CommandError,
-  'machine' | 'machineId' | 'setupIncomplete' | 'outcome' | 'details'
-> {
-  const machine =
-    result.command === 'list'
-      ? undefined
-      : result.command === 'setup'
-        ? 'machine' in result.data
-          ? result.data.machine
-          : undefined
-        : result.data.machine;
-  if (!machine) {
-    return {};
-  }
-
-  return {
-    machine: machine.name,
-    machineId: machine.id,
-    setupIncomplete: machine.setup === 'incomplete' ? true : undefined,
-    outcome: 'unknown',
-    details:
-      result.command === 'terminate'
-        ? ['Workstation deleted; verify network cleanup before retrying.']
-        : [
-            `Inspect: open-agent show ${JSON.stringify(machine.name)} --inspect`,
-          ],
-  };
-}
 
 /**
  * routes one parsed command into the shared application workflow
+ * @param dependencies what the workflows run on
  * @param request typed command request
  * @param state invocation-local result ownership
  */
 export async function execute(
+  dependencies: ApplicationDependencies,
   request: CommandRequest,
   state: ExecutionState,
 ): Promise<void> {
@@ -174,6 +64,7 @@ export async function execute(
     let result: CommandResult;
     try {
       result = await runScopedCommand({
+        dependencies,
         request,
         operation,
         cancellation,
@@ -202,6 +93,7 @@ export async function execute(
 /**
  * runs validation, mode selection and the real workflow in one invocation scope
  * @param params command, cancellation and session ownership
+ * @param params.dependencies what the workflows run on
  * @param params.request parsed command
  * @param params.operation caller-owned operation context
  * @param params.cancellation signal owner
@@ -209,11 +101,13 @@ export async function execute(
  * @returns the completed command result
  */
 async function runScopedCommand({
+  dependencies,
   request,
   operation,
   cancellation,
   setSession,
 }: {
+  dependencies: ApplicationDependencies;
   request: CommandRequest;
   operation: OperationContext;
   cancellation: CommandCancellation;
@@ -225,7 +119,8 @@ async function runScopedCommand({
       'environment',
       async () =>
         runOperation(
-          async () => readModeEnvironment(request.options, operation),
+          async () =>
+            readModeEnvironment(dependencies, request.options, operation),
           operation,
         ),
       { operation },
@@ -252,7 +147,12 @@ async function runScopedCommand({
 
     return traceStage(
       'command',
-      async () => runCommand({ ...request, options }, session),
+      async () =>
+        runCommand(
+          dependencies,
+          { ...request, options },
+          { interaction: session },
+        ),
       { operation, succeeded: (result) => result.ok },
     );
   });
@@ -334,17 +234,19 @@ function forcedCancellation(
 
 /**
  * reads the explicitly selected env file before choosing interaction mode
+ * @param dependencies what the workflows run on
  * @param options command options
  * @param operation captured invocation before the workflow scope
  * @returns merged mode facts, the selected env file taking precedence
  */
 async function readModeEnvironment(
+  dependencies: ApplicationDependencies,
   options: CommandOptions,
   operation: OperationContext,
 ): Promise<NodeJS.ProcessEnv> {
   try {
     const selectedEnv = options.envFile
-      ? parse(await readInputFile(options.envFile, operation))
+      ? parse(await dependencies.host.readInputFile(options.envFile, operation))
       : {};
 
     return { ...process.env, ...selectedEnv };

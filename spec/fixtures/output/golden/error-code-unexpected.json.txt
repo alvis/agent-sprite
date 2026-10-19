@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 253
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"show","ok":false,"error":{"code":"UNEXPECTED","message":"The UNEXPECTED failure message","machine":"primary","machineId":"sprite-primary","setupIncomplete":true,"details":["UNEXPECTED detail one","UNEXPECTED detail two"]}}
+
+=== notes ===
+

@@ -1,0 +1,17 @@
+channel: stdout
+text-length: 190
+notes-length: none
+=== text ===
+Setup
+  Section: github
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  GitHub: preserved
+
+=== notes ===
+

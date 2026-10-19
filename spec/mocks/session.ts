@@ -1,13 +1,10 @@
-import { revealSecret } from '#integrations/guest/session/secret';
+import { revealSecret } from '#kernel/secret';
 
-import type { ProviderDriver } from '#drivers/contracts';
-import type { GuestChannel } from '#drivers/guest-channel';
-import type {
-  GuestSession,
-  StepInput,
-} from '#integrations/guest/session/contracts';
-import type { WorkstationSessionParams } from '#integrations/guest/session/open';
-import type { OsRelease } from '#os/contracts';
+import type { WorkstationSessionParams } from '#adapters/guest/platform/session/open';
+import type { ProviderDriver } from '#application/ports/drivers';
+import type { GuestChannel } from '#application/ports/guest-channel';
+import type { GuestSession, StepInput } from '#application/ports/session';
+import type { OsRelease } from '#domain/guest';
 
 /** pid the stand-in session reports for its shell */
 const SESSION_PID = 4242;
@@ -25,7 +22,7 @@ const SECRET_FILE = 'open-agent-session-secret';
 
 /**
  * stands in for the root setup session over a provider's channel: a spec
- * mocks `#integrations/guest/session/open` with this module, so every
+ * mocks `#adapters/guest/platform/session/open` with this module, so every
  * session command reaches the provider mock's exec, a secret as its input
  * @param params the provider, workstation and family a session opens with
  * @returns a session whose commands run through the provider's channel

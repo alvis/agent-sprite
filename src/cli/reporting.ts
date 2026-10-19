@@ -1,13 +1,11 @@
 import { stderr } from 'node:process';
 
-import { redactResolved } from '#utilities/redaction';
+import { redactResolved } from '#kernel/redaction';
 
-import type {
-  CommandRequest,
-  ProgressUpdate,
-  StatusUpdate,
-} from '#command/contracts';
-import type { StageEvent } from '#operation';
+import type { CommandRequest } from '#application/contracts';
+import type { ProgressUpdate } from '#application/ports/interaction';
+import type { StageEvent } from '#kernel/operation';
+import type { StatusUpdate } from '#kernel/status';
 
 import type { InteractionSession } from './interaction';
 

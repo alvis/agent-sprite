@@ -1,7 +1,7 @@
 import { harnessPluginOptions } from '#cli/harness-flags';
 
+import type { CommandOptions } from '#application/contracts';
 import type { HarnessPluginFlagValues } from '#cli/harness-flags';
-import type { CommandOptions } from '#command/contracts';
 
 /**
  * builds command options from per-harness plugin flags as the CLI parses them

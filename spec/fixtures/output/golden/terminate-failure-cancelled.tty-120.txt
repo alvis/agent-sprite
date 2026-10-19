@@ -1,0 +1,8 @@
+channel: stderr
+text-length: 25
+notes-length: none
+=== text ===
+Typed name did not match
+
+=== notes ===
+

@@ -1,0 +1,8 @@
+channel: stderr
+text-length: 24
+notes-length: none
+=== text ===
+Invalid value for --cpu
+
+=== notes ===
+

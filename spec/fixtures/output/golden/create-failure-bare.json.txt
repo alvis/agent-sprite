@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 166
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"create","ok":false,"error":{"code":"INPUT","message":"Missing required input","details":["--name is required with --non-interactive"]}}
+
+=== notes ===
+

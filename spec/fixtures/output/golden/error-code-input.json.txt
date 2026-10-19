@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 234
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"show","ok":false,"error":{"code":"INPUT","message":"The INPUT failure message","machine":"primary","machineId":"sprite-primary","setupIncomplete":false,"details":["INPUT detail one","INPUT detail two"]}}
+
+=== notes ===
+

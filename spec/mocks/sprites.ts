@@ -18,14 +18,14 @@ import {
 } from '@fly/sprites';
 import { vi } from 'vitest';
 
-import { catalog } from '#core/catalog';
-import { SpriteGuestChannel } from '#drivers/providers/sprite/channel';
-import { SpriteProvider } from '#drivers/providers/sprite/provider';
-import { toRecord } from '#drivers/providers/sprite/records';
-import { SetupConnection } from '#integrations/guest/connection';
-import { sessionGuest } from '#integrations/guest/session/channel';
-import { HOMEBREW_GH } from '#tools/accounts';
+import { SpriteGuestChannel } from '#adapters/drivers/providers/sprite/channel';
+import { SpriteProvider } from '#adapters/drivers/providers/sprite/provider';
+import { toRecord } from '#adapters/drivers/providers/sprite/records';
+import { sessionGuest } from '#adapters/guest/platform/session/channel';
+import { HOMEBREW_GH } from '#adapters/guest/tools/accounts';
+import { registry } from '#composition/registry';
 
+import { dependencies } from './dependencies';
 import { standInSession } from './session';
 
 import type {
@@ -34,11 +34,13 @@ import type {
   ServiceWithState,
 } from '@fly/sprites';
 
-import type { ProviderDriver, WorkstationRecord } from '#drivers/contracts';
-import type { SessionGuest } from '#integrations/guest/session/channel';
+import type { SessionGuest } from '#adapters/guest/platform/session/channel';
+import type { ProviderDriver } from '#application/ports/drivers';
+import type { SetupSession } from '#application/ports/session';
+import type { WorkstationRecord } from '#domain/workstation';
 
 // the agent services core lets a provider stop and restore, as core binds them
-const restorableServices = Object.values(catalog.agents).map(
+const restorableServices = Object.values(registry.agents).map(
   ({ service }) => service.name,
 );
 
@@ -115,9 +117,7 @@ export function guestOf(sprite: Sprite): SpriteGuestChannel {
 export function sessionGuestOf(sprite: Sprite): SessionGuest {
   const channel = guestOf(sprite);
 
-  return sessionGuest(standInSession(channel), channel, {
-    serviceBackend: 'provider',
-  });
+  return sessionGuest(standInSession(channel), channel, channel.services);
 }
 
 /**
@@ -216,7 +216,7 @@ export function providerOf(client: SpritesClient): ProviderDriver {
 export function workstationOf(sprite: Sprite): {
   provider: ProviderDriver;
   workstation: WorkstationRecord;
-  connection: SetupConnection;
+  connection: SetupSession;
 } {
   const workstation = toRecord(sprite);
   const provider = new SpriteProvider({
@@ -229,7 +229,10 @@ export function workstationOf(sprite: Sprite): {
   return {
     provider,
     workstation,
-    connection: new SetupConnection(provider, workstation),
+    connection: dependencies.guest.session.connect({
+      provider,
+      workstation,
+    }),
   };
 }
 

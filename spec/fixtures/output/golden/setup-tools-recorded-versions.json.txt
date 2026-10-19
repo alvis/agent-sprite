@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 992
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"tools","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"tools":{"status":"recorded versions","tools":[{"name":"gh","required":false,"account":"linuxbrew","executables":["gh"],"source":{"kind":"brew","formula":"gh"}},{"name":"ripgrep","required":false,"account":"linuxbrew","executables":["rg"],"source":{"kind":"brew","formula":"ripgrep"}}],"skipped":[{"name":"tmux","reason":"no source is usable on this system"}],"lastUpdate":{"startedAt":"2026-10-09T00:00:00.000Z","finishedAt":"2026-10-09T00:01:00.000Z","lastSuccess":"2026-10-08T00:01:00.000Z","tools":[{"name":"ripgrep","manager":"brew","required":false,"outcome":"failed","reason":"no bottle"},{"name":"gh","manager":"brew","required":false,"outcome":"installed","from":"2.60.0","to":"2.61.0\nsecond line"},{"name":"jq","manager":"brew","required":true,"outcome":"skipped"}]}}}}
+
+=== notes ===
+

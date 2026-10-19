@@ -2,23 +2,28 @@ import { PassThrough } from 'node:stream';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { commandError } from '#application/failures';
+import { resolveSecret } from '#application/input/sources';
 import { prepareResult, writePreparedResult, writeResult } from '#cli/output';
+import { projectResult } from '#cli/output/project';
 import { serializeResult } from '#cli/serialization';
-import { commandError } from '#errors';
-import { resolveSecret } from '#input/sources';
-import { PairingSecret } from '#utilities/pairing-secret';
-import { rememberSecret } from '#utilities/redaction';
+
+import { PairingSecret } from '#kernel/pairing-secret';
+
+import { rememberSecret } from '#kernel/redaction';
 
 import { environmentOf } from '../fixtures/environment';
 import { DISABLED_NETWORK_PROFILE } from '../fixtures/profile';
 
-import type { CommandResult } from '#command';
-import type { CommandOptions } from '#command/contracts';
-import type { CurrentReadiness } from '#command/data';
-import type { GovernorState } from '#integrations/guest/governor-report';
-import type { GuestInspection } from '#integrations/guest/inspection-types';
-import type { UpdateToolOutcome } from '#integrations/guest/updates';
-import type { MachineSummary } from '#machine';
+import { dependencies } from '../mocks/dependencies';
+
+import type { CommandOptions } from '#application/contracts';
+import type { CurrentReadiness } from '#application/data';
+import type { MachineSummary } from '#application/machine';
+import type { CommandResult } from '#application/result';
+import type { GovernorState } from '#domain/observations/governor';
+import type { GuestInspection } from '#domain/observations/inspection';
+import type { UpdateToolOutcome } from '#domain/observations/updates';
 
 const machine: MachineSummary & { provider: 'sprite' } = {
   provider: 'sprite',
@@ -299,7 +304,7 @@ describe('fn:writeResult', () => {
     };
     const human = captureResult(result, {});
     const json = captureResult(result, { json: true });
-    const serialized = serializeResult(result);
+    const serialized = serializeResult(projectResult(result));
 
     expect(Object.keys(serialized.data ?? {})).toEqual(['localCredential']);
     expect(human.stderr).toBe('');
@@ -777,7 +782,11 @@ describe('fn:writeResult', () => {
   });
 
   it('should redact a resolved value in nested results and non-Error failures in both output modes', async () => {
-    const secret = await resolveSecret(undefined, 'saf08-nested-output-secret');
+    const secret = await resolveSecret(
+      dependencies,
+      undefined,
+      'saf08-nested-output-secret',
+    );
     const success: CommandResult = {
       command: 'show',
       ok: true,

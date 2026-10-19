@@ -1,0 +1,10 @@
+channel: stdout
+text-length: 50
+notes-length: 178
+=== text ===
+alpha	sprite-alpha	running			ready	example	sprite
+
+=== notes ===
+Unavailable provider fly-machine: workstation status unknown, no Fly organization token was found; supply one in FLY_API_TOKEN
+Unavailable provider sprite: the token was revoked
+

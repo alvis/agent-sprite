@@ -3,12 +3,12 @@ import { join } from 'node:path';
 
 import { describe, it } from 'vitest';
 
-import { catalog } from '#core/catalog';
-import { t3Service } from '#drivers/agents/t3/service';
-import { codexTool } from '#drivers/harnesses/codex/tools';
-import { tailscaleDaemon } from '#drivers/networks/tailscale/service';
-import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import { RUNTIME_ENV_PATH } from '#integrations/guest/layout';
+import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
+import { RUNTIME_ENV_PATH } from '#adapters/guest/platform/layout';
+import { registry } from '#composition/registry';
+import { t3Service } from '#adapters/drivers/agents/t3/service';
+import { codexTool } from '#adapters/drivers/harnesses/codex/tools';
+import { tailscaleDaemon } from '#adapters/drivers/networks/tailscale/service';
 
 import { successData } from './cli';
 import {
@@ -45,7 +45,7 @@ import {
 import { HOMEBREW } from './layout';
 import { foreignIdentifiers } from './ownership';
 
-import type { UpdateToolOutcome } from '#integrations/guest/updates';
+import type { UpdateToolOutcome } from '#domain/observations/updates';
 
 import type { UpdateRecord } from './guest';
 import type { MachineHarness } from './harness';
@@ -101,7 +101,7 @@ export function describeWorkstationSuite(harness: MachineHarness): void {
   const type = provider.name;
   // a provider with a native deadline mirrors the governor's into its own task
   const hasNativeDeadline =
-    catalog.providers[type].capabilities.keepAwakeMode === 'native-deadline';
+    registry.providers[type].capabilities.keepAwakeMode === 'native-deadline';
 
   describe(`${type} workstation lifecycle`, () => {
     it.concurrent(

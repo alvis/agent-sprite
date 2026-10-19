@@ -1,0 +1,17 @@
+channel: stdout
+text-length: 188
+notes-length: none
+=== text ===
+Setup
+  Section: tools
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Tools: unchanged
+
+=== notes ===
+

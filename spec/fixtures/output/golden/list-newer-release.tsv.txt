@@ -1,0 +1,10 @@
+channel: stdout
+text-length: 106
+notes-length: 83
+=== text ===
+future	sprite-future	running			ready	example	sprite
+current	sprite-current	running			ready	example	sprite
+
+=== notes ===
+Workstation future was set up by open-agent 9.9.9; upgrade open-agent to manage it
+

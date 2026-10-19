@@ -1,0 +1,77 @@
+channel: stdout
+text-length: 2042
+notes-length: none
+=== text ===
+Doctor
+  Workstation
+    ID: 3d8d7e1f5a2e18
+    Name: atlas
+    Organization: personal
+    Created At: 2026-10-12T08:30:00.000Z
+    Provider state before inspection: started
+    Workstation: shared-cpu-2x, 2 CPUs, 4 GB
+    Setup: ready
+    Profile
+      Provider: fly-machine
+      Agent: t3
+      Harnesses: claude, codex
+      Network: tailscale
+  Readiness
+    Ready: Yes
+    Failures: None
+    Skipped: first, Not reported, third
+    Unavailable probes: None
+    Services
+    Network
+      Online: Yes
+      DNS ready: Yes
+      Skipped: No
+      Device ID: node-1234
+      IP address: 100.64.0.7
+      Exit Node: home-router
+      Exit node IP: 100.64.0.2
+      Exit node: home-router
+      Route Device: tailscale0
+      Public IP: 203.0.113.9
+    CLIProxyAPI
+      Skipped: No
+      Reachable: Yes
+      Status: 200
+    Claude Code
+      Proxy configured: No
+      Model discovery enabled: No
+      Native plugin inventory available: No
+      Awake hooks installed: No
+      Authentication: not-configured
+      Selected Plugins: None
+    Codex
+      Proxy configured: No
+      Model discovery enabled: No
+      Native plugin inventory available: No
+      Awake hooks installed: No
+      Authentication: not-configured
+      Selected Plugins: None
+    Machine requirement: at least 2 CPUs, 2 GB
+    Installed tools
+      GitHub CLI: 2.61.0
+      Ripgrep: brew
+    Skipped tools
+      Tmux: no source is usable on this system
+    Last boot
+      Status: halted
+      Started At: 2026-10-09T00:00:00.000Z
+      Unsuccessful Steps
+        Link-tools: failed
+        [REDACTED]: failed
+      Log: step services ok, step link-tools failed
+    Idle governor: last heartbeat 2026-10-09T00:10:00.000Z; 0 open holds; awake
+    until 2026-10-09T00:15:00.000Z, then the provider's idle rules apply
+    Maintenance
+      Last Successful Update: 2026-10-08T00:01:00.000Z
+      Last Update Started At: 2026-10-09T00:00:00.000Z
+      Last Update Finished At: 2026-10-09T00:01:00.000Z
+      Failed Tools: ripgrep
+    Agent URL: https://atlas.fly.dev/
+
+=== notes ===
+

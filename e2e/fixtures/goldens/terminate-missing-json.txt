@@ -1,0 +1,8 @@
+args: terminate missing --json
+exit-code: 2
+stdout-length: 182
+stderr-length: 0
+=== stdout ===
+{"schemaVersion":1,"command":"terminate","ok":false,"error":{"code":"USAGE","message":"Non-interactive termination requires an exact workstation name and --yes","machine":"missing"}}
+=== stderr ===
+

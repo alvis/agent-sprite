@@ -1,0 +1,12 @@
+channel: stderr
+text-length: 113
+notes-length: none
+=== text ===
+The AUTH failure message
+Workstation: primary
+Workstation ID: sprite-primary
+  AUTH detail one
+  AUTH detail two
+
+=== notes ===
+

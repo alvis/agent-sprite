@@ -1705,18 +1705,18 @@ describe('workflow:installed CLI', () => {
 
   it('should prepare one JSON fallback with recovery identity for cyclic diagnostic data', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const executeUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/execute.js'),
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emit.js'),
     ).href;
     const source = `
-      import { emitResult } from ${JSON.stringify(executeUrl)};
-      const cyclic = {}; cyclic.self = cyclic;
+      import { emitResult } from ${JSON.stringify(emitUrl)};
       const state = { emitted: false, command: 'show', errors: [] };
       const result = { command: 'show', ok: false, error: {
-        code: 'PROVIDER', message: 'provider failed', machine: 'retained',
+        code: 'PROVIDER', get message() { throw new Error('unreadable'); },
+        machine: 'retained',
         machineId: 'sprite-retained', setupIncomplete: true,
         outcome: 'unknown', details: ['Inspect retained machine']
-      }, data: { cyclic } };
+      } };
       emitResult(result, { json: true }, state);
       emitResult(result, { json: true }, state);
     `;
@@ -1751,15 +1751,15 @@ describe('workflow:installed CLI', () => {
 
   it('should keep a created machine recoverable when success data cannot be rendered', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const executeUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/execute.js'),
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emit.js'),
     ).href;
     const source = `
-      import { emitResult } from ${JSON.stringify(executeUrl)};
+      import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
       emitResult({ command: 'create', ok: true, data: {
         machine: { name: 'retained-created', id: 'sprite-created' },
-        diagnostic: cyclic,
+        preflight: { checks: cyclic, reminders: [] },
       } }, { json: true }, { emitted: false, command: 'create', errors: [] });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
@@ -1790,16 +1790,16 @@ describe('workflow:installed CLI', () => {
 
   it('should preserve deletion guidance without claiming a retained Sprite after render failure', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const executeUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/execute.js'),
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emit.js'),
     ).href;
     const source = `
-      import { emitResult } from ${JSON.stringify(executeUrl)};
+      import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
       emitResult({ command: 'terminate', ok: true, data: {
         machine: { name: 'deleted-machine', id: 'sprite-deleted' },
-        sprite: { status: 'deleted', id: 'sprite-deleted', name: 'deleted-machine' },
-        tailnet: { status: 'cleanup required', diagnostic: cyclic },
+        workstation: { status: 'deleted', id: 'sprite-deleted', name: 'deleted-machine' },
+        network: { status: 'cleanup required', deviceId: cyclic },
       } }, { json: true }, { emitted: false, command: 'terminate', errors: [] });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
@@ -1833,16 +1833,16 @@ describe('workflow:installed CLI', () => {
 
   it('should keep local-credential setup and list recovery machine-free', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const executeUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/execute.js'),
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emit.js'),
     ).href;
     const source = `
-      import { emitResult } from ${JSON.stringify(executeUrl)};
+      import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
-      const localCredential = { status: 'replaced', scope: 'this computer; all workstations', diagnostic: cyclic };
+      const localCredential = { status: 'replaced', scope: 'this computer; all workstations', fallbackReason: cyclic };
       emitResult({ command: 'setup', ok: true, data: { localCredential } },
         { json: true }, { emitted: false, command: 'setup', errors: [] });
-      emitResult({ command: 'list', ok: true, data: { machines: [{ name: 'listed', diagnostic: cyclic }] } },
+      emitResult({ command: 'list', ok: true, data: { machines: [{ name: 'listed', newerRelease: cyclic }] } },
         { json: true }, { emitted: false, command: 'list', errors: [] });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
@@ -1875,11 +1875,11 @@ describe('workflow:installed CLI', () => {
 
   it('should own a result after one write attempt to a closed OS stdout pipe', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const executeUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/execute.js'),
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emit.js'),
     ).href;
     const source = `
-      import { emitResult } from ${JSON.stringify(executeUrl)};
+      import { emitResult } from ${JSON.stringify(emitUrl)};
       let writeErrors = 0;
       process.stdout.on('error', () => { writeErrors += 1; });
       process.stdin.once('data', () => {

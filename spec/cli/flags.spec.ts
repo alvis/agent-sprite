@@ -2,6 +2,10 @@ import { buildApplication, buildCommand, run } from '@stricli/core';
 import { describe, expect, it } from 'vitest';
 
 import {
+  normalizePluginOptions,
+  resolvePluginActions,
+} from '#application/plugins';
+import {
   commonFlags,
   consentFlags,
   integrationCredentialFlags,
@@ -17,13 +21,12 @@ import {
   harnessPluginFlags,
   harnessPluginOptions,
 } from '#cli/harness-flags';
-import { normalizePluginOptions, resolvePluginActions } from '#plugins';
 
 import type { StricliProcess } from '@stricli/core';
 
+import type { CommandOptions } from '#application/contracts';
+import type { HarnessPluginActions } from '#application/plugins';
 import type { HarnessPluginFlagValues } from '#cli/harness-flags';
-import type { CommandOptions } from '#command/contracts';
-import type { HarnessPluginActions } from '#plugins';
 
 type ParsedValues = CommandOptions & HarnessPluginFlagValues;
 

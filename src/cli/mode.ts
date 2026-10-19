@@ -1,6 +1,6 @@
 import { stdin, stdout, stderr } from 'node:process';
 
-import type { CommandOptions } from '#command/contracts';
+import type { CommandOptions } from '#application/contracts';
 
 /** terminal facts used to choose one interaction mode before execution */
 export interface TerminalFacts {

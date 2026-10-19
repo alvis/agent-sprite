@@ -2,7 +2,9 @@ import { buildApplication, buildRouteMap, run } from '@stricli/core';
 import { describe, expect, it } from 'vitest';
 
 import { commandRoutes } from '#cli/commands';
-import { providerIds } from '#core/ids';
+import { PROVIDER_IDS } from '#domain/ids';
+
+import { dependencies } from '../mocks/dependencies';
 
 import type { StricliProcess } from '@stricli/core';
 
@@ -33,6 +35,7 @@ async function route(argv: string[]): Promise<{
   const context: InvocationContext = {
     process: stricliProcess,
     state: { emitted: false, command: null, errors: [] },
+    dependencies,
   };
 
   await run(application, argv, context);
@@ -48,7 +51,7 @@ describe('provider flag on workstation commands', () => {
 
       expect(exitCode).toBe(0);
       expect(output).toContain('--provider PROVIDER');
-      expect(output).toContain(`PROVIDER · ${providerIds().join(', ')}`);
+      expect(output).toContain(`PROVIDER · ${PROVIDER_IDS.join(', ')}`);
     },
   );
 

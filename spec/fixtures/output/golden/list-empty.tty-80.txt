@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 1
+notes-length: none
+=== text ===
+
+
+=== notes ===
+

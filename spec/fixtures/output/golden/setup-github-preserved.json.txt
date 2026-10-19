@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 235
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"github","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"github":"preserved"}}
+
+=== notes ===
+

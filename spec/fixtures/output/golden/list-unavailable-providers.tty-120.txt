@@ -1,0 +1,17 @@
+channel: stdout
+text-length: 317
+notes-length: none
+=== text ===
+Workstation alpha
+ID: sprite-alpha
+Name: alpha
+Organization: example
+State: running
+Setup: ready
+Readiness: not inspected
+Provider: sprite
+Unavailable provider fly-machine: workstation status unknown, no Fly organization token was found; supply one in FLY_API_TOKEN
+Unavailable provider sprite: the token was revoked
+
+=== notes ===
+
