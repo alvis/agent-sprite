@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 354
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"create","ok":false,"error":{"code":"PROVIDER","message":"Could not confirm the workstation is private","machine":"primary","setupIncomplete":true},"data":{"preflight":{"checks":["Provider token verified","Workstation name is available"],"reminders":[]},"recovery":{"privacy":"unconfirmed","incompleteLabel":"unconfirmed"}}}
+
+=== notes ===
+

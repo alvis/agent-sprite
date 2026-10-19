@@ -1,0 +1,21 @@
+channel: stdout
+text-length: 310
+notes-length: none
+=== text ===
+Setup
+  Section: agent
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Service: configured
+  Agent pairing
+    Status: created
+    Expires at: 2026-10-09T01:00:00.000Z
+    Pairing code: v1-golden-pairing-token
+
+=== notes ===
+

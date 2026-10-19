@@ -1,0 +1,20 @@
+channel: stdout
+text-length: 321
+notes-length: none
+=== text ===
+Setup
+  Section: agent
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Agent pairing
+    Status: created
+    Agent URL: https://primary.sprites.app/#token=v1-golden-pairing-token
+    Pairing code: v1-golden-pairing-token
+
+=== notes ===
+

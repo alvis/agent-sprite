@@ -1,0 +1,12 @@
+channel: stderr
+text-length: 116
+notes-length: none
+=== text ===
+The INPUT failure message
+Workstation: primary
+Workstation ID: sprite-primary
+  INPUT detail one
+  INPUT detail two
+
+=== notes ===
+

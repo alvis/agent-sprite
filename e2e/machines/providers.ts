@@ -1,7 +1,7 @@
 import { APIError, SpritesClient } from '@fly/sprites';
 
-import { catalog } from '#core/catalog';
-import { MANAGED_LABEL, SCHEMA_LABEL } from '#drivers/providers/sprite/labels';
+import { registry } from '#composition/registry';
+import { MANAGED_LABEL, SCHEMA_LABEL } from '#adapters/drivers/providers/sprite/labels';
 
 import { tail } from './cli';
 import { createFlyInventory, flyMachineMetadata } from './fly';
@@ -10,7 +10,7 @@ import { assertOwnedWorkstation } from './ownership';
 
 import type { Sprite } from '@fly/sprites';
 
-import type { ProviderId } from '#core/catalog';
+import type { ProviderId } from '#domain/ids';
 
 import type { Redactor } from './redaction';
 
@@ -155,7 +155,7 @@ const LOOKUP_RETRY_MS = 5_000;
  * @returns `TEST_` and the credential's environment name
  */
 export function credentialVariable(type: MachineType): string {
-  return `${TEST_PREFIX}${catalog.providers[type].prerequisites.credential.environment}`;
+  return `${TEST_PREFIX}${registry.providers[type].prerequisites.credential.environment}`;
 }
 
 /**
@@ -237,6 +237,7 @@ function createSpriteProvider(
 
   return {
     name: 'sprite',
+    /** @param prefix */
     async listWorkstations(prefix) {
       const sprites = await client.listAllSprites(prefix);
 
@@ -244,6 +245,7 @@ function createSpriteProvider(
         .map((sprite) => sprite.name)
         .filter((name) => name.startsWith(prefix));
     },
+    /** @param name */
     async hasWorkstation(name) {
       return lookup(name).then(
         (sprite) => sprite.name === name,
@@ -259,6 +261,7 @@ function createSpriteProvider(
       );
     },
     execute,
+    /** @param name */
     async inspectIdentity(name) {
       const sprite = await lookup(name);
       const listing = await execute(
@@ -273,6 +276,7 @@ function createSpriteProvider(
         schedule: await execute(name, 'cat /etc/cron.d/open-agent'),
       };
     },
+    /** @param name */
     async snapshotServices(name) {
       const sprite = await lookup(name);
 
@@ -286,6 +290,7 @@ function createSpriteProvider(
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
     },
+    /** @param name */
     async readRunState(name) {
       const { status, lastRunningAt, lastWarmingAt } = await lookup(name);
       if (!status || !lastRunningAt) {
@@ -300,6 +305,7 @@ function createSpriteProvider(
           : undefined,
       };
     },
+    /** @param name */
     async readUrl(name) {
       const { url } = await lookup(name);
       if (!url) {
@@ -308,6 +314,7 @@ function createSpriteProvider(
 
       return url;
     },
+    /** @param name */
     async readAwakeTask(name) {
       // curl -s prints nothing when the socket does not answer
       const text = (
@@ -327,6 +334,10 @@ function createSpriteProvider(
 
       return reply.tasks?.find((task) => task.name === AWAKE_TASK)?.expires_at;
     },
+    /**
+     * @param name
+     * @param scope
+     */
     async deleteWorkstation(name, scope) {
       const sprite = await lookup(name);
       assertOwnedWorkstation(
@@ -347,7 +358,7 @@ function createSpriteProvider(
 function createFlyProvider(options: MachineProviderOptions): MachineProvider {
   const { token, redact } = options;
   const inventory = createFlyInventory(token);
-  const driver = catalog.providers['fly-machine'].authenticate({
+  const driver = registry.providers['fly-machine'].authenticate({
     credential: token,
     restorableServices: [],
   });
@@ -366,6 +377,7 @@ function createFlyProvider(options: MachineProviderOptions): MachineProvider {
     ...inventory,
     name: 'fly-machine',
     execute,
+    /** @param name */
     async inspectIdentity(name) {
       const metadata = await flyMachineMetadata(token, name);
       const listing = await execute(
@@ -383,6 +395,7 @@ function createFlyProvider(options: MachineProviderOptions): MachineProvider {
         schedule: await execute(name, 'cat /etc/cron.d/open-agent'),
       };
     },
+    /** @param name */
     async snapshotServices(name) {
       const channel = await driver.openGuest(await driver.get(name));
       const services = await channel.services.list();
@@ -406,6 +419,7 @@ function createFlyProvider(options: MachineProviderOptions): MachineProvider {
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
     },
+    /** @param name */
     async readRunState(name) {
       const { state } = await driver.get(name);
 
@@ -418,6 +432,7 @@ function createFlyProvider(options: MachineProviderOptions): MachineProvider {
     },
     // a Fly Machine keeps no awake task: the idle governor alone decides
     readAwakeTask: async () => undefined,
+    /** @param name */
     async readUrl(name) {
       const { url } = await driver.get(name);
       if (!url) {

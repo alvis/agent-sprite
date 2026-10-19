@@ -2,12 +2,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import type { CommandOptions } from '../../src/command/contracts';
-import type { resolveInputs } from '../../src/input';
+import type { CommandOptions } from '#application/contracts';
+import type { resolveInputs } from '#application/input';
 
 interface ResolverCase {
   options: CommandOptions;
-  resolution?: NonNullable<Parameters<typeof resolveInputs>[2]>;
+  resolution?: NonNullable<
+    Parameters<typeof resolveInputs>[1]['requirementSelection']
+  >;
   stringCandidate?: string;
 }
 
@@ -42,9 +44,29 @@ if (
 ) {
   throw new Error('Source-resolver scenario must contain cases');
 }
-const { resolveInputs: resolveSourceInputs } = await import('../../src/input');
-const { selectGithubToken } = await import('../../src/input/github');
-const { commandError } = await import('../../src/errors');
+const { resolveInputs: resolveSourceInputs } =
+  await import('#application/input');
+const { selectGithubToken } = await import('#application/input/github');
+const { commandError } = await import('#application/failures');
+const { createDependencies } = await import('#composition/dependencies');
+const { OperationContext, withOperation } = await import('#kernel/operation');
+const dependencies = createDependencies();
+
+/**
+ * runs one case within an invocation that reports status as the installed CLI does
+ * @param entry the case to resolve
+ * @returns the case outcome
+ */
+async function resolveReporting(entry: ResolverCase) {
+  const operation = new OperationContext({
+    signal: new AbortController().signal,
+    onStatus: (update) => {
+      process.stderr.write(`Warning: ${update.message}\n`);
+    },
+  });
+
+  return withOperation(operation, async () => resolveCase(entry));
+}
 
 async function resolveCase(entry: ResolverCase) {
   try {
@@ -56,11 +78,10 @@ async function resolveCase(entry: ResolverCase) {
 
       return { ok: true, githubToken: token };
     }
-    const result = await resolveSourceInputs(
-      entry.options,
-      undefined,
-      entry.resolution,
-    );
+    const result = await resolveSourceInputs(dependencies, {
+      options: entry.options,
+      requirementSelection: entry.resolution,
+    });
 
     return {
       ok: true,
@@ -75,6 +96,6 @@ async function resolveCase(entry: ResolverCase) {
 
 const results: unknown[] = [];
 for (const entry of scenario.cases as ResolverCase[]) {
-  results.push(await resolveCase(entry));
+  results.push(await resolveReporting(entry));
 }
 process.stdout.write(`${JSON.stringify(results)}\n`);

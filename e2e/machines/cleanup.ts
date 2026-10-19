@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { providerIds } from '#core/ids';
+import { PROVIDER_IDS } from '#domain/ids';
 
 import { tail } from './cli';
 import { TEST_PREFIX } from './identity';
@@ -90,7 +90,7 @@ export interface BestEffortCleanup {
  * is set without the tailnet credentials
  */
 export function connectRunAccounts(redact: Redactor): RunAccounts | undefined {
-  const inventories = providerIds().flatMap((type) => {
+  const inventories = PROVIDER_IDS.flatMap((type) => {
     const token = process.env[credentialVariable(type)]?.trim() ?? '';
 
     return token === '' ? [] : [createMachineProvider(type, { token, redact })];
@@ -391,6 +391,7 @@ export function createMachineCleanup(
     remove,
     proveAbsent,
     devicesOf,
+    /** */
     async sweep() {
       const failures: string[] = [];
       for (let pass = 0; pass < SWEEP_PASSES; pass++) {

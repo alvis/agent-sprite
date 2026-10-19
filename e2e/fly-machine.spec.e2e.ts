@@ -10,12 +10,17 @@ import { promisify } from 'node:util';
 import { execa } from 'execa';
 import { describe, inject, it } from 'vitest';
 
-import { catalog } from '#core/catalog';
-import { harnessDrivers } from '#core/harnesses';
-import { providerPreflight } from '#core/preflight';
-import { defaultProfile } from '#core/profile';
-import { T3_SERVER_RECORD } from '#drivers/agents/t3/service';
-import { FlyApi } from '#drivers/providers/fly-machine/api';
+import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
+import { ENVIRONMENT_PATH, GUEST_ROOT } from '#adapters/guest/platform/layout';
+import { harnessDrivers } from '#application/catalog/harnesses';
+import { providerPreflight } from '#application/catalog/preflight';
+import { defaults } from '#composition/defaults';
+import { createHostPorts } from '#adapters/host/ports';
+import { registry } from '#composition/registry';
+import { defaultProfile } from '#domain/profile';
+import { summarizeProfile } from '#domain/recorded';
+import { T3_SERVER_RECORD } from '#adapters/drivers/agents/t3/service';
+import { FlyApi } from '#adapters/drivers/providers/fly-machine/api';
 import {
   BOOT_LOG,
   BOOT_READY_FILE,
@@ -24,18 +29,15 @@ import {
   PROFILE_PATH,
   ROOTFS_RESTORED,
   VOLUME_LAYOUT,
-} from '#drivers/providers/fly-machine/boot-layout';
+} from '#adapters/drivers/providers/fly-machine/boot-layout';
 import {
   decodeToken,
   deriveSshToken,
   FLYCTL,
   flyctlConfigDirectory,
-} from '#drivers/providers/fly-machine/flyctl';
-import { tokenScopeProblem } from '#drivers/providers/fly-machine/token-scope';
-import { summarizeProfile } from '#drivers/providers/recorded';
-import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import { ENVIRONMENT_PATH, GUEST_ROOT } from '#integrations/guest/layout';
-import { isRecord } from '#utilities/guards';
+} from '#adapters/drivers/providers/fly-machine/flyctl';
+import { tokenScopeProblem } from '#adapters/drivers/providers/fly-machine/token-scope';
+import { isRecord } from '#kernel/guards';
 
 import { successData } from './machines/cli';
 import {
@@ -59,10 +61,10 @@ import { credentialVariable } from './machines/providers';
 import { createRedactor } from './machines/redaction';
 import { describeWorkstationSuite } from './machines/workstation';
 
-import type { HarnessId } from '#core/catalog';
-import type { WorkstationProfile } from '#core/profile';
-import type { WorkstationRecord } from '#drivers/contracts';
-import type { GuestChannel } from '#drivers/guest-channel';
+import type { GuestChannel } from '#application/ports/guest-channel';
+import type { HarnessId } from '#domain/ids';
+import type { WorkstationProfile } from '#domain/profile';
+import type { WorkstationRecord } from '#domain/workstation';
 
 import type { MachineCli } from './machines/cli';
 import type { FlyMachineTarget } from './machines/fly';
@@ -100,7 +102,7 @@ interface BootStatus {
 const PORT = 8080;
 /** the variable the CLI reads the Fly token from, as the provider's prerequisites declare */
 const FLY_TOKEN =
-  catalog.providers['fly-machine'].prerequisites.credential.environment;
+  registry.providers['fly-machine'].prerequisites.credential.environment;
 /** a dotted release version anywhere in a version probe's output */
 const DOTTED_VERSION = /\b\d{1,4}\.\d{1,4}/u;
 const MINUTE_MS = 60_000;
@@ -456,7 +458,7 @@ async function readHarnessVersions(
   harnesses: readonly HarnessId[],
 ): Promise<Record<string, string>> {
   const versions: Record<string, string> = {};
-  for (const { tools } of harnessDrivers(harnesses)) {
+  for (const { tools } of harnessDrivers(registry, harnesses)) {
     const [tool] = tools;
     if (tool === undefined) {
       continue;
@@ -475,7 +477,7 @@ const harness = await createMachineHarness('fly-machine');
 // the harness has failed already when the run supplies no Fly token
 const token = process.env[credentialVariable('fly-machine')]?.trim() ?? '';
 const profile: WorkstationProfile = {
-  ...defaultProfile('none'),
+  ...defaultProfile(defaults, 'none'),
   provider: 'fly-machine',
 };
 
@@ -484,9 +486,9 @@ const profile: WorkstationProfile = {
  * @returns an authenticated provider
  */
 function flyProvider(): ReturnType<
-  (typeof catalog.providers)['fly-machine']['authenticate']
+  (typeof registry.providers)['fly-machine']['authenticate']
 > {
-  return catalog.providers['fly-machine'].authenticate({
+  return registry.providers['fly-machine'].authenticate({
     credential: token,
     restorableServices: [],
   });
@@ -777,10 +779,14 @@ describe('Fly Machine provider probe', () => {
   it('should accept the run token and flyctl through the real preflight', async ({
     expect,
   }) => {
-    const problems = await providerPreflight('fly-machine', {
-      token,
-      source: credentialVariable('fly-machine'),
-    });
+    const problems = await providerPreflight(
+      { registry, host: createHostPorts() },
+      'fly-machine',
+      {
+        token,
+        source: credentialVariable('fly-machine'),
+      },
+    );
 
     expect(problems).toEqual([]);
   });
@@ -790,7 +796,7 @@ describe('Fly Machine provider probe', () => {
   }) => {
     const credential = token;
     const name = harness.workstationName('fly');
-    const provider = catalog.providers['fly-machine'].authenticate({
+    const provider = registry.providers['fly-machine'].authenticate({
       credential,
       restorableServices: [],
     });
@@ -1301,11 +1307,12 @@ describe('Fly Machine provider probe', () => {
           installed: 'ii',
           brew: [`HOMEBREW_PREFIX: ${HOMEBREW.prefix}`],
           harnesses: Object.fromEntries(
-            harnessDrivers(environment.profile.harnesses).flatMap(({ tools }) =>
-              tools.map(({ version }) => [
-                basename(version.executable),
-                expect.stringMatching(DOTTED_VERSION) as string,
-              ]),
+            harnessDrivers(registry, environment.profile.harnesses).flatMap(
+              ({ tools }) =>
+                tools.map(({ version }) => [
+                  basename(version.executable),
+                  expect.stringMatching(DOTTED_VERSION) as string,
+                ]),
             ),
           ),
         });

@@ -1,9 +1,10 @@
-import { harnessDrivers, harnessIds } from '#core/harnesses';
-import { serviceLabels } from '#core/services';
+import { harnessDrivers } from '#application/catalog/harnesses';
+import { serviceLabels } from '#application/catalog/services';
+import { isJsonObject } from '#cli/serialization';
+import { registry } from '#composition/registry';
+import { harnessIds } from '#domain/harnesses';
 
-import { isJsonObject } from '../serialization';
-
-import type { JsonObject, JsonValue } from '../serialization';
+import type { JsonObject, JsonValue } from '#cli/serialization';
 
 /** every C0 and C1 control character */
 const CONTROL_CHARACTERS = /\p{Cc}/gu;
@@ -125,7 +126,7 @@ function inspectionDetails(value: JsonValue | undefined): JsonObject {
     'network': inspection.network,
     'cliproxyapi': inspection.hub,
     ...Object.fromEntries(
-      harnessDrivers(harnessIds()).map((driver) => {
+      harnessDrivers(registry, harnessIds()).map((driver) => {
         const state = asRecord(agentState[driver.id]);
 
         return [
@@ -344,7 +345,7 @@ function serviceDetails(value: JsonValue | undefined): JsonObject | undefined {
     return undefined;
   }
 
-  const labels = serviceLabels();
+  const labels = serviceLabels(registry);
 
   return Object.fromEntries(
     value.map((item: JsonValue) => {

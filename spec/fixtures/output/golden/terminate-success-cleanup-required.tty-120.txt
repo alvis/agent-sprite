@@ -1,0 +1,23 @@
+channel: stdout
+text-length: 322
+notes-length: none
+=== text ===
+Terminate
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Workstation
+    Status: deleted
+    ID: sprite-primary
+    Name: primary
+  Network
+    Status: cleanup required
+    Device ID: managed-node
+    Address: 100.64.0.7
+
+=== notes ===
+

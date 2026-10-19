@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 350
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"agent","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected","agentUrl":"https://primary.sprites.app/#token=v1-golden-pairing-token"},"pairing":{"status":"created","token":"v1-golden-pairing-token"}}}
+
+=== notes ===
+

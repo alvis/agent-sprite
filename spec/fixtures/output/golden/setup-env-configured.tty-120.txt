@@ -1,0 +1,19 @@
+channel: stdout
+text-length: 240
+notes-length: none
+=== text ===
+Setup
+  Section: env
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Runtime Environment
+    Status: configured
+    Names: API_BASE, REGION
+
+=== notes ===
+

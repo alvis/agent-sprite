@@ -1,0 +1,28 @@
+channel: stderr
+text-length: 560
+notes-length: none
+=== text ===
+Tailnet cleanup required
+Workstation: retained-machine
+Workstation ID: sprite-retained
+Setup is incomplete; run open-agent setup on this workstation.
+  Retry setup after checking the managed device
+Terminate
+  Workstation
+    ID: sprite-primary
+    Name: retained-machine
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Workstation
+    Status: deleted
+    ID: sprite-retained
+    Name: retained-machine
+  Network
+    Status: cleanup required
+    Device ID: managed-node
+    Agent URL: https://retained.sprites.app/
+
+=== notes ===
+

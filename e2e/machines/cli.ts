@@ -4,7 +4,7 @@ import { execa } from 'execa';
 
 import { TEST_PREFIX } from './identity';
 
-import type { CommandData } from '#command/data';
+import type { CommandData } from '#application/data';
 
 import type { Redactor } from './redaction';
 

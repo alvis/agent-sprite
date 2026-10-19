@@ -1,8 +1,10 @@
-import { PairingSecret } from '#utilities/pairing-secret';
-import { redactResolved } from '#utilities/redaction';
+import { PairingSecret } from '#kernel/pairing-secret';
+import { redactResolved } from '#kernel/redaction';
 
-import type { CommandResult } from '#command';
-import type { CommandError, CommandName } from '#command/contracts';
+import type { CommandName } from '#kernel/commands';
+
+import type { ResultOutput } from './output/envelope';
+import type { ErrorOutput } from './output/failure';
 
 /** JSON values after structural disclosure and registered credential redaction */
 export type JsonValue =
@@ -26,7 +28,7 @@ export type SerializedResult =
       schemaVersion: 1;
       command: CommandName | null;
       ok: false;
-      error: CommandError;
+      error: ErrorOutput;
       data?: JsonObject;
     };
 
@@ -35,7 +37,7 @@ export type SerializedResult =
  * @param result completed domain or parser result
  * @returns printable payload with no internal output controls or secret markers
  */
-export function serializeResult(result: CommandResult): SerializedResult {
+export function serializeResult(result: ResultOutput): SerializedResult {
   if (result.ok) {
     return {
       schemaVersion: 1,

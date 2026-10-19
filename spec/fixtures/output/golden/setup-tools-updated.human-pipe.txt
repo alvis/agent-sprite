@@ -1,0 +1,21 @@
+channel: stdout
+text-length: 245
+notes-length: none
+=== text ===
+Setup
+  Section: tools
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Components
+    Installed: 6
+    Skipped: 1
+    Failed: 1
+  Tools: updated
+
+=== notes ===
+

@@ -1,0 +1,13 @@
+channel: stderr
+text-length: 194
+notes-length: none
+=== text ===
+The UNEXPECTED failure message
+Workstation: primary
+Workstation ID: sprite-primary
+Setup is incomplete; run open-agent setup on this workstation.
+  UNEXPECTED detail one
+  UNEXPECTED detail two
+
+=== notes ===
+

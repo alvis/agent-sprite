@@ -77,20 +77,20 @@ A coding agent on your laptop stops when the lid closes, and putting one on a re
 
 ## 🚀 Key Features
 
-| Feature                           | What it gives you                                                                                                                                                                      |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A router client**               | T3 Code on its `stable` or `nightly` channel routes your sessions to the harnesses, served as the machine's only public HTTP service and kept serving across sleep, wake and restarts  |
-| **Claude Code and Codex**         | Both harnesses installed for the router client, each with its own native settings, hooks, plugins and optional proxy routing                                                           |
-| **Client pairing**                | Opt-in, five-minute native pairing codes on the agent URL, minted at creation or later for each new client                                                                             |
-| **Auto-suspend and wake**         | Heartbeat hooks in every harness turn keep the machine awake; it suspends after a configurable idle time and wakes on HTTP traffic to the router client                                |
-| **Persistent storage**            | Projects, harness memory, sessions, tools and network enrollment survive sleep: the Sprite's own disk, or a Fly volume that also survives cold boots                                   |
-| **Private networking**            | Join your tailnet with Tailscale to reach your other machines privately, route outbound traffic through an approved exit node, and reach a private CLIProxyAPI hub                     |
-| **Two providers**                 | Fly Sprites, or Fly Machines with a persistent volume; you set minimum CPUs and memory and the provider runs the smallest machine that fits                                            |
-| **Scheduled maintenance**         | Agent, harness and tool upgrades in place once an update is due (default one day, checked hourly), restarting no service |
-| **Independent native plugins**    | Repeatable marketplace and plugin actions for Claude and Codex, without converting one harness’s plugins into the other’s                                                              |
-| **Six commands**                  | Create, configure, list, show, diagnose, and permanently terminate managed workstations                                                                                                |
-| **Live provider discovery**       | Paginated provider queries and exact managed-target checks, without a local machine registry                                                                                           |
-| **Readable terminal interaction** | Searchable selectors, labelled back navigation, masked credential prompts, and grouped inspection results                                                                              |
+| Feature                           | What it gives you                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A router client**               | T3 Code on its `stable` or `nightly` channel routes your sessions to the harnesses, served as the machine's only public HTTP service and kept serving across sleep, wake and restarts |
+| **Claude Code and Codex**         | Both harnesses installed for the router client, each with its own native settings, hooks, plugins and optional proxy routing                                                          |
+| **Client pairing**                | Opt-in, five-minute native pairing codes on the agent URL, minted at creation or later for each new client                                                                            |
+| **Auto-suspend and wake**         | Heartbeat hooks in every harness turn keep the machine awake; it suspends after a configurable idle time and wakes on HTTP traffic to the router client                               |
+| **Persistent storage**            | Projects, harness memory, sessions, tools and network enrollment survive sleep: the Sprite's own disk, or a Fly volume that also survives cold boots                                  |
+| **Private networking**            | Join your tailnet with Tailscale to reach your other machines privately, route outbound traffic through an approved exit node, and reach a private CLIProxyAPI hub                    |
+| **Two providers**                 | Fly Sprites, or Fly Machines with a persistent volume; you set minimum CPUs and memory and the provider runs the smallest machine that fits                                           |
+| **Scheduled maintenance**         | Agent, harness and tool upgrades in place once an update is due (default one day, checked hourly), restarting no service                                                              |
+| **Independent native plugins**    | Repeatable marketplace and plugin actions for Claude and Codex, without converting one harness’s plugins into the other’s                                                             |
+| **Six commands**                  | Create, configure, list, show, diagnose, and permanently terminate managed workstations                                                                                               |
+| **Live provider discovery**       | Paginated provider queries and exact managed-target checks, without a local machine registry                                                                                          |
+| **Readable terminal interaction** | Searchable selectors, labelled back navigation, masked credential prompts, and grouped inspection results                                                                             |
 
 ---
 
@@ -241,30 +241,30 @@ Each provider declares the host tools and the management credential it needs. `c
 
 Pass `--env-file FILE` for dotenv input. The order is: explicit flags, credential references, selected dotenv values, the process environment, eligible profile/local defaults, prompts, and defaults; a value in the `--env-file` file therefore wins over the same name in the process environment. A malformed flag value is a `USAGE` error. Selection values from every source, option bounds and boolean environment values are then validated together before any provider call: every problem, such as an unknown driver, a malformed number or an out-of-range timeout, is reported in one `INPUT` error.
 
-| Variables                                     | Meaning                                                                                                   |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Variables                                     | Meaning                                                                                                                     |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `OPEN_AGENT_PROVIDER`, `OPEN_AGENT_AGENT`     | Provider and router client (ACP agent) for create; fixed after creation. Other commands take `--provider`; `list` reads all |
-| `OPEN_AGENT_HARNESSES`                        | Comma-separated harnesses the router client drives                                                        |
-| `OPEN_AGENT_NETWORK`                          | `none` or `tailscale`; `none` keeps the workstation off any private network                               |
-| `OPEN_AGENT_CPU`, `OPEN_AGENT_MEM`            | Minimum CPUs and minimum memory in GB, whole numbers from `1`; default `2` and `2`                        |
-| `OPEN_AGENT_IDLE_MINUTES`                     | Suspend after this many idle minutes; `0` never suspends                                                  |
-| `OPEN_AGENT_HOLD_MAX_MINUTES`                 | Turn-hold lifetime after its last refresh; never prompted                                                 |
-| `OPEN_AGENT_UPDATE_DUE_DAYS`                  | Days after the last update before another is due, `1` to `365`; never prompted                            |
-| `OPEN_AGENT_USE_EXIT_NODE`                    | Route egress through an exit node on the selected network                                                 |
-| `SPRITES_TOKEN`                               | Fly Sprite provider credential; see [Prerequisites](#-prerequisites)                                      |
-| `FLY_API_TOKEN`                               | Fly Machine provider credential; see [Prerequisites](#-prerequisites)                                     |
-| `OPEN_AGENT_FLY_REGION`                       | Fly region of new Fly Machine workstations; the nearest region when unset                                 |
-| `TAILSCALE_TAILNET`                           | Tailnet API ID, full DNS domain, or bare DNS subdomain; required with `--network tailscale`               |
-| `TAILSCALE_API_KEY`                           | Local management key for enrollment and authorized device cleanup                                         |
-| `TAILSCALE_AUTH_KEY`                          | Optional enrollment key; an auth key alone cannot authorize device deletion                               |
-| `TAILSCALE_EXIT_NODE`                         | Existing approved exit-node identity                                                                      |
-| `CLIPROXYAPI_ENABLED`                         | Enable or disable direct proxy routing for the selected harnesses                                         |
-| `CLIPROXYAPI_BASE_URL`, `CLIPROXYAPI_API_KEY` | Existing hub URL and its client key, required when proxy routing is enabled                               |
-| `GH_TOKEN`, `GITHUB_TOKEN`                    | Optional GitHub credential; `GH_TOKEN` wins within the same input source                                  |
-| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`         | Explicit Git/Jujutsu author identity                                                                      |
-| `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`   | Optional distinct committer identity                                                                      |
-| `NON_INTERACTIVE`, `CI`, `TERM`               | Interaction controls; automation markers or `TERM=dumb` disable prompts                                   |
-| `NO_COLOR`                                    | A nonempty value disables color                                                                           |
+| `OPEN_AGENT_HARNESSES`                        | Comma-separated harnesses the router client drives                                                                          |
+| `OPEN_AGENT_NETWORK`                          | `none` or `tailscale`; `none` keeps the workstation off any private network                                                 |
+| `OPEN_AGENT_CPU`, `OPEN_AGENT_MEM`            | Minimum CPUs and minimum memory in GB, whole numbers from `1`; default `2` and `2`                                          |
+| `OPEN_AGENT_IDLE_MINUTES`                     | Suspend after this many idle minutes; `0` never suspends                                                                    |
+| `OPEN_AGENT_HOLD_MAX_MINUTES`                 | Turn-hold lifetime after its last refresh; never prompted                                                                   |
+| `OPEN_AGENT_UPDATE_DUE_DAYS`                  | Days after the last update before another is due, `1` to `365`; never prompted                                              |
+| `OPEN_AGENT_USE_EXIT_NODE`                    | Route egress through an exit node on the selected network                                                                   |
+| `SPRITES_TOKEN`                               | Fly Sprite provider credential; see [Prerequisites](#-prerequisites)                                                        |
+| `FLY_API_TOKEN`                               | Fly Machine provider credential; see [Prerequisites](#-prerequisites)                                                       |
+| `OPEN_AGENT_FLY_REGION`                       | Fly region of new Fly Machine workstations; the nearest region when unset                                                   |
+| `TAILSCALE_TAILNET`                           | Tailnet API ID, full DNS domain, or bare DNS subdomain; required with `--network tailscale`                                 |
+| `TAILSCALE_API_KEY`                           | Local management key for enrollment and authorized device cleanup                                                           |
+| `TAILSCALE_AUTH_KEY`                          | Optional enrollment key; an auth key alone cannot authorize device deletion                                                 |
+| `TAILSCALE_EXIT_NODE`                         | Existing approved exit-node identity                                                                                        |
+| `CLIPROXYAPI_ENABLED`                         | Enable or disable direct proxy routing for the selected harnesses                                                           |
+| `CLIPROXYAPI_BASE_URL`, `CLIPROXYAPI_API_KEY` | Existing hub URL and its client key, required when proxy routing is enabled                                                 |
+| `GH_TOKEN`, `GITHUB_TOKEN`                    | Optional GitHub credential; `GH_TOKEN` wins within the same input source                                                    |
+| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`         | Explicit Git/Jujutsu author identity                                                                                        |
+| `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`   | Optional distinct committer identity                                                                                        |
+| `NON_INTERACTIVE`, `CI`, `TERM`               | Interaction controls; automation markers or `TERM=dumb` disable prompts                                                     |
+| `NO_COLOR`                                    | A nonempty value disables color                                                                                             |
 
 [.env.example](.env.example) also explains the process-only `XDG_CONFIG_HOME` and `WAYLAND_DISPLAY` settings. Extra non-reserved dotenv names become explicitly requested guest runtime variables. Process-injection variables and managed-routing overrides are rejected.
 
@@ -469,7 +469,7 @@ Successful results use `{ "schemaVersion": 1, "command": "…", "ok": true, "dat
 
 | Command     | Fields in `data`                                                                                                                                                                                                                       |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`    | `machine`, `preflight`, `integrations`, `readiness`, `network`, `hub`, `services`, `native`, `pairing`; optional `retainedCredentials`                                                                                                 |
+| `create`    | `machine`, `preflight`, `profile`, `readiness`, `network`, `hub`, `services`, `native`, `pairing`; optional `retainedCredentials`                                                                                                      |
 | `list`      | `machines`, an array of live workstation summaries each with its `provider` and, for one a newer open-agent set up, `newerRelease`, and `unavailable`, an array of `{ provider, code, reason }` for providers that could not be listed |
 | `show`      | `machine`; optional `inspection`, `pairing`, or interactive `action: "copy"`                                                                                                                                                           |
 | `setup`     | Guest setup: `machine`, `section`, the section fields below, and optional `retainedCredentials`. Local credential replacement: `localCredential` with `status`, `scope`, optional `storage` and `fallbackReason`; no `machine`         |

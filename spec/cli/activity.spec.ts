@@ -3,7 +3,7 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 
 import { createActivityController } from '#cli/activity';
-import { rememberSecret } from '#utilities/redaction';
+import { rememberSecret } from '#kernel/redaction';
 
 describe('fn:createActivityController', () => {
   it('should track nested live stages and leave redacted completion lines', () => {

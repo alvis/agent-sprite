@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 429
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"show","ok":true,"data":{"machine":{"id":"3d8d7e1f5a2e18","name":"atlas","organization":"personal","createdAt":"2026-10-12T08:30:00.000Z","state":"started","machine":{"label":"shared-cpu-2x","cpus":2,"memoryGb":4},"agentUrl":"https://atlas.fly.dev/","setup":"ready","profile":{"provider":"fly-machine","agent":"t3","harnesses":["claude","codex"],"network":"tailscale"},"readiness":"not inspected"}}}
+
+=== notes ===
+

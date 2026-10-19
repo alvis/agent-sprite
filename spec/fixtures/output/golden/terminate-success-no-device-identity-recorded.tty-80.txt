@@ -1,0 +1,21 @@
+channel: stdout
+text-length: 281
+notes-length: none
+=== text ===
+Terminate
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Workstation
+    Status: deleted
+    ID: sprite-primary
+    Name: primary
+  Network
+    Status: no device identity recorded
+
+=== notes ===
+

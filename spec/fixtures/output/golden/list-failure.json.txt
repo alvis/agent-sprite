@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 105
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"list","ok":false,"error":{"code":"PROVIDER","message":"List unavailable"}}
+
+=== notes ===
+

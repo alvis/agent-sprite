@@ -1,10 +1,5 @@
-import { catalog } from '#core/catalog';
-import { harnessDrivers } from '#core/harnesses';
-import { networkDriver } from '#core/networks';
-import { CLAUDE_SETTINGS } from '#drivers/harnesses/claude/paths';
-import { CODEX_HOOKS } from '#drivers/harnesses/codex/paths';
-import { AWAKE_COMMAND } from '#integrations/guest/awake';
-import { parseEnvironment } from '#integrations/guest/environment/contracts';
+import { parseEnvironment } from '#adapters/guest/environment/contracts';
+import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
 import {
   AGENT_HOME,
   ENVIRONMENT_PATH,
@@ -12,8 +7,14 @@ import {
   SESSION_LOCK,
   UPDATE_LOG,
   UPDATE_STATUS_PATH,
-} from '#integrations/guest/layout';
-import { parseUpdateStatus, UPDATE_JOB } from '#integrations/guest/updates';
+} from '#adapters/guest/platform/layout';
+import { UPDATE_JOB } from '#adapters/guest/updates';
+import { harnessDrivers } from '#application/catalog/harnesses';
+import { networkDriver } from '#application/catalog/networks';
+import { registry } from '#composition/registry';
+import { parseUpdateStatus } from '#domain/observations/updates';
+import { CLAUDE_SETTINGS } from '#adapters/drivers/harnesses/claude/paths';
+import { CODEX_HOOKS } from '#adapters/drivers/harnesses/codex/paths';
 
 import {
   AWAKE_DIRECTORY,
@@ -23,10 +24,10 @@ import {
   reportedGovernorState,
 } from './layout';
 
-import type { WorkstationProfile } from '#core/profile';
-import type { GuestEnvironment } from '#integrations/guest/environment/contracts';
-import type { UpdateStatus } from '#integrations/guest/updates';
-import type { ToolSpec } from '#tools/contracts';
+import type { GuestEnvironment } from '#domain/observations/environment';
+import type { UpdateStatus } from '#domain/observations/updates';
+import type { WorkstationProfile } from '#domain/profile';
+import type { ToolSpec } from '#domain/tools';
 
 import type { MachineProvider } from './providers';
 
@@ -83,6 +84,7 @@ export async function readEnvironment(
   name: string,
 ): Promise<GuestEnvironment> {
   return parseEnvironment(
+    registry,
     await provider.execute(name, `cat ${ENVIRONMENT_PATH}`),
   );
 }
@@ -386,13 +388,15 @@ export function exposedEntries(entries: readonly GuestEntry[]): GuestEntry[] {
 export function profileTools(
   profile: Pick<WorkstationProfile, 'agent' | 'harnesses' | 'network'>,
 ): string[] {
-  const agent = catalog.agents[profile.agent];
+  const agent = registry.agents[profile.agent];
   const tools: ToolSpec[] = [
-    ...networkDriver(profile.network).tools,
-    ...harnessDrivers(profile.harnesses).flatMap(({ tools, acpAdapter }) => [
-      ...tools,
-      ...(acpAdapter ? [acpAdapter.tool] : []),
-    ]),
+    ...networkDriver(registry, profile.network).tools,
+    ...harnessDrivers(registry, profile.harnesses).flatMap(
+      ({ tools, acpAdapter }) => [
+        ...tools,
+        ...(acpAdapter ? [acpAdapter.tool] : []),
+      ],
+    ),
     ...agent.tools,
   ];
 

@@ -1,0 +1,13 @@
+args: create --json --non-interactive
+exit-code: 1
+stdout-length: 849
+stderr-length: 154
+=== stdout ===
+{"schemaVersion":1,"command":"create","ok":false,"error":{"code":"INPUT","message":"Required provisioning inputs are missing","details":["workstation name (--name)","Git author identity is not set. Set GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL or pass --env-file FILE containing GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL; use --git-name NAME and --git-email EMAIL; or run in a TTY to enter it when prompted. Or pass --no-git-identity to leave it unset.","Sprites API token is not set. Set SPRITES_TOKEN or pass --env-file FILE containing SPRITES_TOKEN; use --provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; or run in a TTY to enter it when prompted. It needs a Sprites organization token for the organization that owns the workstations. Get one at https://sprites.dev/account; sign in with Fly and select the intended organization."]}}
+=== stderr ===
+environment: started
+environment: completed (<N> ms)
+command: started
+create.preflight: started
+create.preflight: failed (<N> ms)
+command: failed (<N> ms)

@@ -1,8 +1,8 @@
 import { PassThrough } from 'node:stream';
 
-import { createInteraction } from '../../src/cli/interaction';
+import { createInteraction } from '#cli/interaction';
 
-import type { Interaction } from '#command/contracts';
+import type { Interaction } from '#application/ports/interaction';
 
 export interface InkStep {
   waitFor: string;

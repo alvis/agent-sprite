@@ -18,7 +18,7 @@
   },
   "type": "module",
   "imports": {
-    "#components/*": "./src/components/*.tsx",
+    "#cli/components/*": "./src/cli/components/*.tsx",
     "#*": "./src/*.ts"
   },
   "bin": {
@@ -65,7 +65,6 @@
   "publishConfig": {
     "access": "public",
     "imports": {
-      "#components/*": "./lib/components/*.js",
       "#*": "./lib/*.js"
     }
   }

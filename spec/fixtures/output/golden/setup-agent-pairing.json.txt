@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 340
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"agent","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"service":"configured","pairing":{"status":"created","token":"v1-golden-pairing-token","expiresAt":"2026-10-09T01:00:00.000Z"}}}
+
+=== notes ===
+

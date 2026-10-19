@@ -1,0 +1,156 @@
+import { APIError, Sprite, SpritesClient } from '@fly/sprites';
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  MANAGED_LABEL,
+  SCHEMA_LABEL,
+} from '#adapters/drivers/providers/sprite/labels';
+import { creationOutcome } from '#application/create/failure';
+import { prepareResult } from '#cli/output';
+import { projectResult } from '#cli/output/project';
+import { serializeResult } from '#cli/serialization';
+
+import { rememberSecret } from '#kernel/redaction';
+
+import {
+  DEFAULT_AGENT_PORT,
+  DISABLED_NETWORK_PROFILE,
+} from '../../fixtures/profile';
+
+import { providerOf } from '../../mocks/sprites';
+
+describe('cmd:create failure', () => {
+  it('should retain verified preflight, exact name and immutable ID after an uncertain provider create', async () => {
+    const client = new SpritesClient('sdk-only-test-token');
+    const sprite = Object.assign(new Sprite('new-workstation', client), {
+      id: 'sprite-retained',
+      labels: [MANAGED_LABEL, SCHEMA_LABEL],
+    });
+    vi.spyOn(client, 'createSprite').mockRejectedValue(
+      new Error('provider timed out'),
+    );
+    vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
+    const preflight = {
+      checks: ['provider name was available'],
+      reminders: ['complete setup before use'],
+    };
+
+    const result = await providerOf(client)
+      .create(sprite.name, DISABLED_NETWORK_PROFILE, DEFAULT_AGENT_PORT)
+      .then(
+        () => {
+          throw new Error('Expected provider creation to fail');
+        },
+        (error: unknown) => creationOutcome(error, preflight),
+      );
+
+    expect(result).toMatchObject({
+      command: 'create',
+      ok: false,
+      error: {
+        code: 'PROVIDER',
+        machine: sprite.name,
+        machineId: sprite.id,
+        outcome: 'retained',
+        setupIncomplete: true,
+      },
+      data: { preflight },
+    });
+    expect(serializeResult(projectResult(result))).toMatchObject({
+      schemaVersion: 1,
+      data: { preflight },
+      error: { machine: sprite.name, machineId: sprite.id },
+    });
+  });
+
+  it('should report an unknown provider outcome without inventing an ID', async () => {
+    const client = new SpritesClient('sdk-only-test-token');
+    vi.spyOn(client, 'createSprite').mockRejectedValue(
+      new Error('provider timed out'),
+    );
+    vi.spyOn(client, 'getSprite').mockRejectedValue(
+      new Error('reconciliation unavailable'),
+    );
+
+    const result = await providerOf(client)
+      .create('new-workstation', DISABLED_NETWORK_PROFILE, DEFAULT_AGENT_PORT)
+      .then(
+        () => {
+          throw new Error('Expected provider creation to fail');
+        },
+        (error: unknown) =>
+          creationOutcome(error, {
+            checks: ['name was checked'],
+            reminders: [],
+          }),
+      );
+
+    expect(result).toMatchObject({
+      command: 'create',
+      ok: false,
+      error: {
+        code: 'PROVIDER',
+        machine: 'new-workstation',
+        outcome: 'unknown',
+      },
+      data: { preflight: { checks: ['name was checked'] } },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('Expected a create failure');
+    }
+    expect(result.error.machineId).toBeUndefined();
+  });
+
+  it('should report definite absence only after a rejected create and exact SDK APIError 404 lookup', async () => {
+    const client = new SpritesClient('sdk-only-test-token');
+    const secret = 'create-provider-sensitive-token';
+    rememberSecret(secret);
+    const cause = new Error(`provider rejected ${secret} ${'x'.repeat(700)}`);
+    const create = vi.spyOn(client, 'createSprite').mockRejectedValue(cause);
+    const lookup = vi
+      .spyOn(client, 'getSprite')
+      .mockRejectedValue(new APIError('missing', { statusCode: 404 }));
+    const preflight = { checks: ['name was checked'], reminders: [] };
+    const result = await providerOf(client)
+      .create('absent-machine', DISABLED_NETWORK_PROFILE, DEFAULT_AGENT_PORT)
+      .then(
+        () => {
+          throw new Error('Expected provider creation to fail');
+        },
+        (error: unknown) => creationOutcome(error, preflight),
+      );
+
+    expect(create).toHaveBeenCalledOnce();
+    expect(lookup).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      command: 'create',
+      ok: false,
+      error: { code: 'PROVIDER', machine: 'absent-machine', outcome: 'absent' },
+      data: { preflight },
+    });
+    if (result.ok) {
+      throw new Error('Expected a failed result');
+    }
+    expect(result.error.machineId).toBeUndefined();
+    expect(result.error.details?.[0]?.length).toBeLessThanOrEqual(
+      512 + 'Creation cause: '.length,
+    );
+    const human = prepareResult(result, {});
+    const json = prepareResult(result, { json: true });
+    expect(human.channel).toBe('stderr');
+    expect(human.text).toContain(
+      'Provider lookup confirmed this workstation is absent',
+    );
+    expect(json.channel).toBe('stdout');
+    expect(JSON.parse(json.text)).toMatchObject({
+      error: { outcome: 'absent' },
+    });
+    expect(json.text.trim().split('\n')).toHaveLength(1);
+    for (const output of [human.text, json.text]) {
+      expect(output).toContain('Creation cause: provider rejected [REDACTED]');
+      expect(output).not.toContain(secret);
+      expect(output).not.toContain('x'.repeat(600));
+    }
+  });
+});

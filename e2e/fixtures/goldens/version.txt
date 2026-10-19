@@ -1,0 +1,8 @@
+args: --version
+exit-code: 0
+stdout-length: 5
+stderr-length: 0
+=== stdout ===
+0.0.0
+=== stderr ===
+

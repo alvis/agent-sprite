@@ -1,0 +1,12 @@
+channel: stderr
+text-length: 188
+notes-length: none
+=== text ===
+Provider token was rejected
+Create
+  Preflight
+    Checks: Provider token verified, Workstation name is available
+    Reminders: Run open-agent show primary --inspect after the first boot
+
+=== notes ===
+

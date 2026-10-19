@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import { execa, execaSync } from 'execa';
 
-import { FLYCTL } from '#drivers/providers/fly-machine/flyctl';
+import { FLYCTL } from '#adapters/drivers/providers/fly-machine/flyctl';
 
 import {
   cleanUpBestEffort,

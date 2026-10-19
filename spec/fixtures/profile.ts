@@ -1,19 +1,28 @@
-import { defaultProfile } from '#core/profile';
-import { agentPort } from '#core/services';
-import { summarizeProfile } from '#drivers/providers/recorded';
+import { defaults } from '#composition/defaults';
+import { registry } from '#composition/registry';
+import { defaultProfile } from '#domain/profile';
+import { summarizeProfile } from '#domain/recorded';
+import { agentPort } from '#domain/services';
 
-import type { ProfileSummary, WorkstationProfile } from '#core/profile';
+import type { ProfileSummary, WorkstationProfile } from '#domain/profile';
 
 /** default profile of a workstation created without Tailscale */
-export const DISABLED_NETWORK_PROFILE: WorkstationProfile =
-  defaultProfile('none');
+export const DISABLED_NETWORK_PROFILE: WorkstationProfile = defaultProfile(
+  defaults,
+  'none',
+);
 
 /** ACP agent port of the default profile, which create declares to the provider */
-export const DEFAULT_AGENT_PORT = agentPort(DISABLED_NETWORK_PROFILE.agent);
+export const DEFAULT_AGENT_PORT = agentPort(
+  registry,
+  DISABLED_NETWORK_PROFILE.agent,
+);
 
 /** default profile of a workstation created with Tailscale */
-export const TAILSCALE_PROFILE: WorkstationProfile =
-  defaultProfile('tailscale');
+export const TAILSCALE_PROFILE: WorkstationProfile = defaultProfile(
+  defaults,
+  'tailscale',
+);
 
 /** profile summary a default workstation without Tailscale records */
 export const DISABLED_NETWORK_SUMMARY: ProfileSummary = summarizeProfile(
@@ -35,7 +44,10 @@ export interface FixtureIntegrations {
 export function profileWith(
   integrations: FixtureIntegrations,
 ): WorkstationProfile {
-  const profile = defaultProfile(integrations.network ? 'tailscale' : 'none');
+  const profile = defaultProfile(
+    defaults,
+    integrations.network ? 'tailscale' : 'none',
+  );
 
   return {
     ...profile,

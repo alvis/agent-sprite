@@ -1,0 +1,28 @@
+channel: stdout
+text-length: 917
+notes-length: none
+=== text ===
+Setup
+  Section: tools
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    State: running
+    Setup: ready
+    Readiness: not inspected
+  Tools
+    Status: recorded versions
+    Tools: Name: gh · Required: No · Account: linuxbrew · Executables: gh · Source: Kind: brew · Formula: gh, Name:
+    ripgrep · Required: No · Account: linuxbrew · Executables: rg · Source: Kind: brew · Formula: ripgrep
+    Skipped: Name: tmux · Reason: no source is usable on this system
+    Last Update
+      Started At: 2026-10-09T00:00:00.000Z
+      Finished At: 2026-10-09T00:01:00.000Z
+      Last Success: 2026-10-08T00:01:00.000Z
+      Tools: Name: ripgrep · Manager: brew · Required: No · Outcome: failed · Reason: no bottle, Name: gh · Manager:
+      brew · Required: No · Outcome: installed · From: 2.60.0 · To: 2.61.0
+      second line, Name: jq · Manager: brew · Required: Yes · Outcome: skipped
+
+=== notes ===
+

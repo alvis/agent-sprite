@@ -1,0 +1,38 @@
+channel: stdout
+text-length: 736
+notes-length: none
+=== text ===
+Workstation alpha
+ID: sprite-alpha
+Name: alpha
+Organization: org-one
+State: running
+Setup: ready
+Readiness: not inspected
+Provider: sprite
+Created At: 2026-10-09T12:00:00.000Z
+Agent URL: https://alpha.sprites.app/
+Workstation beta
+ID: sprite-beta
+Name: beta
+Organization: org-two
+State: cold
+Setup: not recorded
+Readiness: not inspected
+Provider: sprite
+Workstation atlas
+ID: 3d8d7e1f5a2e18
+Name: atlas
+Organization: personal
+Created At: 2026-10-12T08:30:00.000Z
+State: started
+Workstation: {"label":"shared-cpu-2x","cpus":2,"memoryGb":4}
+Agent URL: https://atlas.fly.dev/
+Setup: ready
+Profile: {"provider":"fly-machine","agent":"t3","harnesses":["claude","codex"],"
+network":"tailscale"}
+Readiness: not inspected
+Provider: fly-machine
+
+=== notes ===
+

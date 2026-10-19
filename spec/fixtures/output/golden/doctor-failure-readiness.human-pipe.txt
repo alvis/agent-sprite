@@ -1,0 +1,50 @@
+channel: stderr
+text-length: 1203
+notes-length: none
+=== text ===
+Readiness check failed
+Workstation: primary
+Doctor
+  Workstation
+    ID: sprite-primary
+    Name: primary
+    Organization: example
+    Provider state before inspection: cold
+    Setup: ready
+  Readiness
+    Ready: No
+    Failures: T3 environment endpoint
+    Skipped: None
+    Unavailable probes: None
+    Services
+    Network
+      Online: No
+      DNS ready: No
+      Skipped: Yes
+      Reason: No private network is selected
+      Exit node: home-router
+    CLIProxyAPI
+      Skipped: Yes
+      Reachable: No
+      Reason: CLIProxyAPI is disabled
+    Claude Code
+      Proxy configured: No
+      Model discovery enabled: No
+      Native plugin inventory available: No
+      Awake hooks installed: No
+      Authentication: not-configured
+      Selected Plugins: None
+    Codex
+      Proxy configured: No
+      Model discovery enabled: No
+      Native plugin inventory available: No
+      Awake hooks installed: No
+      Authentication: not-configured
+      Selected Plugins: None
+    Machine requirement: at least 2 CPUs, 2 GB
+    Installed tools
+    Idle governor: last heartbeat 2026-10-09T00:10:00.000Z; 0 open holds; awake
+    until 2026-10-09T00:15:00.000Z, then the provider's idle rules apply
+
+=== notes ===
+

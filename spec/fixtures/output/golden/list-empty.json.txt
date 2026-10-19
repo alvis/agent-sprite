@@ -1,0 +1,8 @@
+channel: stdout
+text-length: 87
+notes-length: none
+=== text ===
+{"schemaVersion":1,"command":"list","ok":true,"data":{"machines":[],"unavailable":[]}}
+
+=== notes ===
+

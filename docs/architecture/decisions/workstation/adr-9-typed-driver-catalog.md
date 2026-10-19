@@ -4,7 +4,7 @@
 
 Model every provider, harness, ACP agent and network as a typed driver registered in one compile-time catalog. Core branches only on declared provider capabilities, and each workstation is described by a profile validated before any provider call.
 
-- Status: `Accepted`, partly superseded by [ADR-16](adr-16-host-driven-guest-setup.md): the `servicesMode` axis is replaced by each provider's `serviceBackend`, and the guest-leaf registry exception no longer applies
+- Status: `Accepted`, partly superseded by [ADR-16](adr-16-host-driven-guest-setup.md): the `servicesMode` axis is replaced by each provider's `serviceBackend`, and the guest-leaf registry exception no longer applies; and by [ADR-17](adr-17-layer-map-and-output-projection.md): identifiers are declared in the domain and the registry lives in composition
 - Date: `2026-10-13`
 
 ## 🎯 Motivation

@@ -1,8 +1,9 @@
 import { buildChoiceParser } from '@stricli/core';
 
-import { harnessIds } from '#core/harnesses';
-import { agentIds, providerIds, releaseChannelIds } from '#core/ids';
-import { networkIds } from '#core/networks';
+import { registry } from '#composition/registry';
+import { harnessIds } from '#domain/harnesses';
+import { AGENT_IDS, PROVIDER_IDS, releaseChannelIds } from '#domain/ids';
+import { networkIds } from '#domain/networks';
 
 import { machineFlags } from './machine-flags';
 import { parseWholeNumber } from './whole-number';
@@ -109,10 +110,10 @@ export const pairingFlags = {
 export const providerFlags = {
   provider: {
     kind: 'parsed',
-    parse: buildChoiceParser(providerIds()),
+    parse: buildChoiceParser(PROVIDER_IDS),
     optional: true,
     placeholder: 'PROVIDER',
-    brief: `PROVIDER · ${providerIds().join(', ')}`,
+    brief: `PROVIDER · ${PROVIDER_IDS.join(', ')}`,
   },
 } as const;
 
@@ -122,17 +123,17 @@ export const selectionFlags = {
   ...machineFlags,
   agent: {
     kind: 'parsed',
-    parse: buildChoiceParser(agentIds()),
+    parse: buildChoiceParser(AGENT_IDS),
     optional: true,
     placeholder: 'AGENT',
-    brief: `AGENT · ACP agent: ${agentIds().join(', ')}`,
+    brief: `AGENT · ACP agent: ${AGENT_IDS.join(', ')}`,
   },
   release: {
     kind: 'parsed',
-    parse: buildChoiceParser(releaseChannelIds()),
+    parse: buildChoiceParser(releaseChannelIds(registry)),
     optional: true,
     placeholder: 'CHANNEL',
-    brief: `CHANNEL · ACP agent release channel: ${releaseChannelIds().join(', ')}; the agent's default when omitted`,
+    brief: `CHANNEL · ACP agent release channel: ${releaseChannelIds(registry).join(', ')}; the agent's default when omitted`,
   },
   harness: {
     kind: 'parsed',

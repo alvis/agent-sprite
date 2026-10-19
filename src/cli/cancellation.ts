@@ -1,4 +1,4 @@
-import { cancellationReason } from '#operation';
+import { cancellationReason } from '#kernel/operation';
 
 import { flushOutput } from './streams';
 
