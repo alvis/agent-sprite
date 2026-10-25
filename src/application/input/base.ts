@@ -57,7 +57,7 @@ interface ManagementSecretSelection {
 export interface ResolveBaseInputsParams {
   /** parsed explicit values and secret references */
   options: CommandOptions;
-  /** process, dotenv, and profile values */
+  /** process, credential file, and profile values */
   sources: InputSources;
   /** resolved profile and selected local credential fallback */
   selection?: BaseInputSelection;
@@ -78,7 +78,10 @@ export async function resolveBaseInputs(
   const names = declaredNames(dependencies, profile);
   const sourceNames: Record<string, string> = {};
   const value = sourceReader(options, sources, sourceNames);
-  const runtimeEnv = runtimeEnvironment(dependencies, sources.fileEnv);
+  const runtimeEnv = runtimeEnvironment(
+    dependencies,
+    sources.runtimeFileEnv ?? {},
+  );
   const secrets = await resolveSelectedSecrets(dependencies, {
     options,
     value,
@@ -140,8 +143,8 @@ function declaredNames(
 }
 
 /**
- * selects non-secret values in explicit, dotenv, process, profile order
- * @param options parsed selected dotenv path
+ * selects non-secret values in explicit, credential file, process, profile order
+ * @param options parsed selected credential file path
  * @param sources process, dotenv, and profile values
  * @param names output map of selected source descriptions
  * @returns a precedence-aware value reader
@@ -156,7 +159,7 @@ function sourceReader(
       { value: explicit, description: 'flag' },
       {
         value: sources.fileEnv[name],
-        description: options.envFile ?? 'env file',
+        description: options.credentialFile ?? 'credential file',
       },
       { value: sources.processEnv[name], description: 'process environment' },
       { value: sources.profile[name], description: 'saved profile' },
@@ -178,7 +181,7 @@ interface ResolveSelectedSecretsParams {
   value: SourceReader;
   /** driver selection whose provider credential is read */
   profile: WorkstationProfile;
-  /** process and env file values */
+  /** process and credential file values */
   sources: InputSources;
   /** credential names the selected drivers declare */
   names: DeclaredNames;

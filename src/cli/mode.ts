@@ -90,7 +90,7 @@ function terminalBlocker(facts: TerminalFacts): string | undefined {
 /**
  * resolves the CLI process streams and selected environment once per command
  * @param options parsed command controls
- * @param modeEnv effective environment after selected env-file resolution
+ * @param modeEnv effective environment after selected credential-file resolution
  * @returns effective options and implicit prompt blocker
  */
 export function resolveProcessExecutionOptions(

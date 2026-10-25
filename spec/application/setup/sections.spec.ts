@@ -167,7 +167,7 @@ describe('fn:setupGit', () => {
       code: 'INPUT',
       message: 'Required setup inputs are missing',
       details: [
-        'Git author identity is not set. Set GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL or pass --env-file FILE ' +
+        'Git author identity is not set. Set GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL or pass --credential-file FILE ' +
           'containing GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL; use --git-name NAME and --git-email EMAIL; ' +
           'or run in a TTY to enter it when prompted. Or pass --no-git-identity to leave it unset.',
       ],

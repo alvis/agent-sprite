@@ -179,13 +179,16 @@ export interface GuestNativeConfiguration {
     target: GithubTarget,
   ): Promise<void>;
   /**
-   * stores only explicitly requested application runtime variables
+   * stores only explicitly requested application runtime variables, for the
+   * agent service and every shell of the agent and the provider shell accounts
    * @param guest target guest
    * @param environment approved runtime variables
+   * @param shellAccounts provider shell accounts whose shells also read them
    */
   configureRuntimeEnv(
     guest: GuestChannel,
     environment: Record<string, string>,
+    shellAccounts: readonly string[],
   ): Promise<void>;
   /**
    * refuses runtime variables that would override a credential, the

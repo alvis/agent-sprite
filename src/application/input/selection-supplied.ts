@@ -101,7 +101,7 @@ export function suppliedSelectionViolations(
 }
 
 /**
- * reads every field a run owns from its flag, then the selected env file,
+ * reads every field a run owns from its flag, then the selected credential file,
  * then the process environment; the provider and agent flags are always read
  * @param dependencies the registered drivers, which declare the selection inputs
  * @param context flags and sources

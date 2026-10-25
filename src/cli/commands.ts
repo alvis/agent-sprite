@@ -24,6 +24,7 @@ import {
   selectionFlags,
   setupFlags,
 } from './flags';
+import { guestFileFlags } from './guest-file-flags';
 import {
   harnessPluginChangeFlags,
   harnessPluginFlags,
@@ -65,6 +66,7 @@ type ConfigurationFlags = FlagsFor<
     typeof pairingFlags &
     typeof selectionFlags &
     typeof integrationFlags &
+    typeof guestFileFlags &
     typeof providerCredentialFlags &
     typeof networkCredentialFlags &
     typeof integrationCredentialFlags &
@@ -129,6 +131,7 @@ const createCommand = buildCommand({
       ...pairingFlags,
       ...selectionFlags,
       ...integrationFlags,
+      ...guestFileFlags,
       ...providerCredentialFlags,
       ...networkCredentialFlags,
       ...integrationCredentialFlags,
@@ -168,6 +171,7 @@ const setupCommand = buildCommand({
       ...pairingFlags,
       ...selectionFlags,
       ...integrationFlags,
+      ...guestFileFlags,
       ...providerCredentialFlags,
       ...networkCredentialFlags,
       ...integrationCredentialFlags,

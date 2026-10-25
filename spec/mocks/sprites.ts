@@ -1,6 +1,7 @@
 import {
   access,
   chmod,
+  lstat,
   mkdir,
   readFile,
   rm,
@@ -78,10 +79,14 @@ const FILE_STEP_NAME = 'oa-file';
 const FILE_INSTALL_START = 'umask';
 /** name the home files program runs under */
 const HOME_FILES_NAME = 'oa-home-files';
+/** name the shell startup file read runs under */
+const STARTUP_READ_NAME = 'oa-read-startup';
 /** name the release guard's read runs under */
 const RELEASE_NAME = 'open-agent-release';
 /** status the release guard's read exits with when nothing is recorded */
 const ABSENT_STATUS = 3;
+/** status the startup file read exits with for a link */
+const LINKED_STATUS = 3;
 /** the radix the write program reads a mode in */
 const OCTAL = 8;
 /** mode the home files program makes a directory with */
@@ -298,6 +303,7 @@ export function createFilesystemSprite(params: FilesystemSpriteParams): Sprite {
     },
   } satisfies Partial<SpriteFilesystem>);
   const run: GuestExecute = async (file, args = [], options) =>
+    (await emulateStartupRead(root, guestCommand(file, args))) ??
     (await emulateGuestFiles(root, guestCommand(file, args), options?.input)) ??
     execute(file, args, options);
 
@@ -442,6 +448,35 @@ async function emulateGuestFiles(
   }
 
   return undefined;
+}
+
+/**
+ * carries out the shell startup file read below the root, printing nothing
+ * for an absent file
+ * @param root directory standing for the guest filesystem
+ * @param command the guest command with its privilege prefix stripped
+ * @returns the read's outcome, or nothing when the command is another
+ */
+async function emulateStartupRead(
+  root: string,
+  command: readonly string[],
+): Promise<ExecResult | undefined> {
+  const [path] = programArguments(command, STARTUP_READ_NAME) ?? [];
+
+  if (path === undefined) {
+    return undefined;
+  }
+  const target = join(root, path);
+  if (
+    await lstat(target).then(
+      (entry) => entry.isSymbolicLink(),
+      () => false,
+    )
+  ) {
+    return { stdout: '', stderr: '', exitCode: LINKED_STATUS };
+  }
+
+  return succeeded(await readFile(target, 'utf8').catch(() => ''));
 }
 
 /**

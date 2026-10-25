@@ -41,7 +41,7 @@ describe('fn:readInputSources', () => {
 
     try {
       const sources = await readInputSources(dependencies, {
-        envFile: envPath,
+        credentialFile: envPath,
       });
 
       expect({

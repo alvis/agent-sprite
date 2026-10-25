@@ -74,8 +74,11 @@ export function createGuestMechanics(
         native.inspectAgentEnvironment(guest, agent),
       configureGit,
       configureGithub,
-      configureRuntimeEnv: async (guest, variables) =>
-        configureRuntimeEnv(registry, guest, variables),
+      configureRuntimeEnv: async (guest, variables, shellAccounts) =>
+        configureRuntimeEnv(registry, guest, {
+          environment: variables,
+          shellAccounts,
+        }),
       assertRuntimeEnv: (variables) => {
         assertRuntimeEnv(registry, variables);
       },

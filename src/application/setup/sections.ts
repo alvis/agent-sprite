@@ -264,7 +264,11 @@ export async function setupEnvironment(
     requirementSelection: [],
   });
   mutation.started = true;
-  await dependencies.guest.native.configureRuntimeEnv(guest, input.runtimeEnv);
+  await dependencies.guest.native.configureRuntimeEnv(
+    guest,
+    input.runtimeEnv,
+    dependencies.registry.providers[context.profile.provider].shellAccounts,
+  );
 
   return {
     runtimeEnvironment: {

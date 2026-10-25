@@ -1,7 +1,10 @@
 import { APIError, SpritesClient } from '@fly/sprites';
 
 import { registry } from '#composition/registry';
-import { MANAGED_LABEL, SCHEMA_LABEL } from '#adapters/drivers/providers/sprite/labels';
+import {
+  MANAGED_LABEL,
+  SCHEMA_LABEL,
+} from '#adapters/drivers/providers/sprite/labels';
 
 import { tail } from './cli';
 import { createFlyInventory, flyMachineMetadata } from './fly';

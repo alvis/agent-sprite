@@ -61,7 +61,7 @@ export interface CommandSession {
  * @example
  * const result = await runCommand(createDependencies(), {
  *   command: 'list',
- *   options: { envFile: '.env', nonInteractive: true },
+ *   options: { credentialFile: '.env', nonInteractive: true },
  * });
  */
 export async function runCommand(

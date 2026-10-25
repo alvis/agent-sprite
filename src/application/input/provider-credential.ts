@@ -19,7 +19,7 @@ export interface ProviderCredential {
 interface ProviderCredentialSources {
   /** the explicit secret reference that names this provider's credential */
   reference?: string;
-  /** process and env file values, read from the options when omitted */
+  /** process and credential file values, read from the options when omitted */
   sources?: Pick<InputSources, 'processEnv' | 'fileEnv'>;
   /** explicitly selected real credential store */
   credentialStore?: CredentialStoreLocation;
@@ -37,7 +37,7 @@ export interface ResolveProviderCredentialParams {
 
 /**
  * resolves a provider's management credential from its declared sources, in
- * explicit reference, env file, process environment, then local store order
+ * explicit reference, credential file, process environment, then local store order
  * @param dependencies the registered drivers, what this computer provides
  * @param params the call's inputs: options, provider, selection
  * @returns the credential and where it came from, if any source holds one
@@ -61,7 +61,7 @@ export async function resolveProviderCredential(
   const candidates = [
     {
       value: sources.fileEnv[credential.environment],
-      source: `${credential.environment} in ${options.envFile ?? 'the env file'}`,
+      source: `${credential.environment} in ${options.credentialFile ?? 'the credential file'}`,
     },
     {
       value: sources.processEnv[credential.environment],

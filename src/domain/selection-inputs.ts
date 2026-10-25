@@ -4,7 +4,7 @@ import type { ProductDeclarations } from '#domain/declarations';
 interface SelectionInput {
   /** command-line flag */
   flag: string;
-  /** environment variable read from the process, then the selected env file */
+  /** environment variable read from the process, then the selected credential file */
   environment: string;
 }
 
