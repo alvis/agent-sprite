@@ -191,6 +191,12 @@ export interface GuestNativeConfiguration {
     shellAccounts: readonly string[],
   ): Promise<void>;
   /**
+   * copies a setup file to the guest's /tmp, runs it once as root and removes it
+   * @param guest target guest, running over a setup session
+   * @param contents the setup file's exact bytes
+   */
+  runSetupFile(guest: GuestChannel, contents: Buffer): Promise<void>;
+  /**
    * refuses runtime variables that would override a credential, the
    * environment open-agent sets or the OA_* names its guest programs reserve
    * @param environment requested runtime variables

@@ -1,4 +1,4 @@
-import { mkdtempDisposable } from 'node:fs/promises';
+import { mkdtempDisposable, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,13 +8,14 @@ import {
   setupAgent,
   setupEnvironment,
   setupGit,
+  setupSystem,
 } from '#application/setup/sections';
 
 import { PairingSecret } from '#kernel/pairing-secret';
 
 import { DISABLED_NETWORK_PROFILE } from '../../fixtures/profile';
 
-import { dependencies } from '../../mocks/dependencies';
+import { dependencies, dependenciesWith } from '../../mocks/dependencies';
 import {
   createFilesystemSprite,
   holdServices,
@@ -107,6 +108,22 @@ describe('fn:setupAgent', () => {
 });
 
 /**
+ * the real wiring whose setup file runner is replaced
+ * @param runSetupFile the runner to observe
+ * @returns dependencies setup runs on
+ */
+function withSetupRunner(
+  runSetupFile: typeof dependencies.guest.native.runSetupFile,
+): typeof dependencies {
+  return dependenciesWith({
+    guest: {
+      ...dependencies.guest,
+      native: { ...dependencies.guest.native, runSetupFile },
+    },
+  });
+}
+
+/**
  * builds a setup context over a guest that runs nothing
  * @param options parsed setup flags
  * @returns the context and its guest
@@ -145,6 +162,60 @@ describe('fn:setupEnvironment', () => {
 
     expect(result).toEqual({ runtimeEnvironment: { status: 'skipped' } });
     expect(context.mutation.started).toBe(false);
+  });
+});
+
+describe('fn:setupSystem', () => {
+  it('should skip the section without a setup file when it cannot prompt', async () => {
+    const { context, guest } = await quietSetup({ nonInteractive: true });
+    const runSetupFile = vi.fn<typeof dependencies.guest.native.runSetupFile>(
+      async () => undefined,
+    );
+
+    const result = await setupSystem(
+      withSetupRunner(runSetupFile),
+      guest,
+      context,
+    );
+
+    expect({
+      result,
+      calls: runSetupFile.mock.calls,
+      started: context.mutation.started,
+    }).toEqual({
+      result: { setupFile: 'skipped' },
+      calls: [],
+      started: false,
+    });
+  });
+
+  it('should run the selected setup file with its exact bytes', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-setup-system-'),
+    );
+    const path = join(directory.path, 'setup.sh');
+    const bytes = Buffer.from('#!/bin/sh\nexit 0\n');
+    await writeFile(path, bytes);
+    const { context, guest } = await quietSetup({ setupFile: path });
+    const runSetupFile = vi.fn<typeof dependencies.guest.native.runSetupFile>(
+      async () => undefined,
+    );
+
+    const result = await setupSystem(
+      withSetupRunner(runSetupFile),
+      guest,
+      context,
+    );
+
+    expect({
+      result,
+      calls: runSetupFile.mock.calls,
+      started: context.mutation.started,
+    }).toEqual({
+      result: { setupFile: 'ran' },
+      calls: [[guest, bytes]],
+      started: true,
+    });
   });
 });
 

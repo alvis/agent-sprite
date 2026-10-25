@@ -12,6 +12,7 @@ export type SetupSection =
   | 'git'
   | 'proxy'
   | 'env'
+  | 'system'
   | 'plugins'
   | 'tools';
 
@@ -39,6 +40,8 @@ export interface CommandOptions {
   credentialFile?: string;
   /** dotenv file of variables for the agent and the shell accounts' shells, from --env-file */
   envFile?: string;
+  /** executable run once as root on the guest during setup, from --setup-file */
+  setupFile?: string;
   /** setup section to configure */
   section?: SetupSection;
   /** harness whose plugins the setup plugins section changes */

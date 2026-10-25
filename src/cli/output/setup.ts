@@ -59,6 +59,7 @@ export interface SetupDataOutput {
   proxy?: { status: 'configured'; baseUrl?: string } | { status: 'disabled' };
   runtimeEnvironment?:
     { status: 'configured'; names: readonly string[] } | { status: 'skipped' };
+  setupFile?: 'ran' | 'skipped';
   plugins?: Record<string, string>;
   components?: ComponentCountsOutput;
   tools?: ToolsSetupOutput;
@@ -150,6 +151,7 @@ export function projectSetup(data: SetupData): SetupDataOutput {
     network: projectNetworkOutcome,
     github: same,
     gitIdentity: same,
+    setupFile: same,
     proxy: (proxy) =>
       proxy.status === 'configured'
         ? projectFields<typeof proxy, NonNullable<SetupDataOutput['proxy']>>(

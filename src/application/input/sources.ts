@@ -20,6 +20,8 @@ export interface InputSources {
   fileEnv: Record<string, string>;
   /** entries of the selected guest env file; absent without --env-file */
   runtimeFileEnv?: Record<string, string>;
+  /** exact bytes of the selected setup file; absent without --setup-file */
+  setupFile?: Buffer;
   profile: Record<string, string>;
 }
 
@@ -157,6 +159,9 @@ export async function readInputSources(
   const runtimeFileEnv = options.envFile
     ? parse(await readInputText(dependencies, options.envFile, 'env file'))
     : undefined;
+  const setupFile = options.setupFile
+    ? await readSetupFile(dependencies, options.setupFile)
+    : undefined;
   const profilePath = join(
     dependencies.host.environment.homeDirectory(),
     '.config',
@@ -194,7 +199,7 @@ export async function readInputSources(
     ),
   );
 
-  return { ...environment, runtimeFileEnv, profile };
+  return { ...environment, runtimeFileEnv, setupFile, profile };
 }
 
 /**
@@ -342,6 +347,37 @@ async function readInputText(
       causeVisibility: 'private',
     });
   }
+}
+
+/**
+ * reads the selected setup file's exact bytes, refusing an empty one
+ * @param dependencies what this computer provides
+ * @param path selected setup file
+ * @returns the file's contents
+ */
+export async function readSetupFile(
+  dependencies: Pick<ApplicationDependencies, 'host'>,
+  path: string,
+): Promise<Buffer> {
+  const contents = await dependencies.host
+    .readInputBytes(path)
+    .catch((cause: unknown) => {
+      checkOperation();
+      throw new CommandFault({
+        code: 'INPUT',
+        message: `Selected setup file ${JSON.stringify(path)} must be a readable regular file.`,
+        cause,
+        causeVisibility: 'private',
+      });
+    });
+  if (!contents.length) {
+    throw new CommandFault({
+      code: 'INPUT',
+      message: `Selected setup file ${JSON.stringify(path)} is empty.`,
+    });
+  }
+
+  return contents;
 }
 
 /**

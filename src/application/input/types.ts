@@ -27,6 +27,8 @@ export interface ResolvedInputs {
   /** driver selection and options this run resolved */
   profile: WorkstationProfile;
   runtimeEnv: Record<string, string>;
+  /** exact bytes of the setup file run once as root on the guest */
+  setupFile?: Buffer;
   sources: Record<string, string>;
   missing: string[];
   retainedCredentials?: Partial<

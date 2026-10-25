@@ -436,10 +436,13 @@ describe('workflow:installed CLI', () => {
     expect(result.stdout).not.toContain('ENOENT');
   });
 
-  it('should confine the guest env file to its setup section before any provider call', async () => {
+  it('should confine the guest env and setup files to their setup sections before any provider call', async () => {
     const results = await withIsolatedCli(async (cwd, env) =>
       Promise.all(
-        [['--env-file', join(cwd, 'guest.env')]].map(async (file) =>
+        [
+          ['--env-file', join(cwd, 'guest.env')],
+          ['--setup-file', join(cwd, 'setup.sh')],
+        ].map(async (file) =>
           execa(
             packedBin,
             [
@@ -466,6 +469,7 @@ describe('workflow:installed CLI', () => {
       })),
     ).toEqual([
       { failed: true, error: expect.stringContaining('--section env') },
+      { failed: true, error: expect.stringContaining('--section system') },
     ]);
   });
 

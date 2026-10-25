@@ -144,6 +144,11 @@ export interface EnvironmentSetupData {
     { status: 'configured'; names: string[] } | { status: 'skipped' };
 }
 
+/** whether the selected setup file ran */
+export interface SystemSetupData {
+  setupFile: 'ran' | 'skipped';
+}
+
 /** selected plugin changes by native harness */
 export interface PluginsSetupData {
   plugins: Record<HarnessId, 'applied' | 'preserved'>;
@@ -185,6 +190,7 @@ export interface AllSetupData
     Partial<GithubSetupData>,
     Partial<GitSetupData>,
     Partial<EnvironmentSetupData>,
+    Partial<SystemSetupData>,
     Partial<PluginsSetupData>,
     NetworkSetupData,
     ProxySetupData,
@@ -199,6 +205,7 @@ interface SetupSectionData {
   git: GitSetupData;
   proxy: ProxySetupData;
   env: EnvironmentSetupData;
+  system: SystemSetupData;
   plugins: PluginsSetupData;
   tools: ToolsSetupData;
 }

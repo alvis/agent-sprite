@@ -21,6 +21,7 @@ import {
   setupGithub,
   setupAgent,
   setupProxy,
+  setupSystem,
 } from './setup/sections';
 import { selectSetupSection } from './setup/selection';
 import { setupTools } from './setup/tools';
@@ -351,6 +352,11 @@ async function applySection(
         return {
           section,
           ...(await setupEnvironment(dependencies, guest, context)),
+        };
+      case 'system':
+        return {
+          section,
+          ...(await setupSystem(dependencies, guest, context)),
         };
       case 'plugins':
         return {
