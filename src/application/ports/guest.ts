@@ -25,6 +25,17 @@ import type {
 } from './plan';
 import type { SetupConnectionParams, SetupSession } from './session';
 
+/**
+ * what the guest tells of the agent's own CLI against its release channel:
+ * untracked when the CLI follows no channel on npm, known with the version
+ * installed (absent when none can be read) and the one the channel's
+ * dist-tag names now, or unknown when the registry could not be asked
+ */
+export type AgentReleaseState =
+  | { status: 'untracked' }
+  | { status: 'known'; installed?: string; tagged: string }
+  | { status: 'unknown'; reason: string };
+
 /** the fixed places and commands the guest programs are reached at */
 export interface GuestFacts {
   /** the idle governor's command, run by hooks and holds */
@@ -207,8 +218,8 @@ export interface GuestNativeConfiguration {
 
 /**
  * everything the application asks of a guest's mechanics: the setup session,
- * the plan and its steps, the recorded environment, the inspection probes
- * and the native configuration. The adapters implement it; the application
+ * the plan and its steps, the installed tools, the recorded environment, the
+ * inspection probes and the native configuration. The adapters implement it; the application
  * decides when each runs
  */
 export interface GuestMechanics {
@@ -265,6 +276,19 @@ export interface GuestMechanics {
       provider: Pick<ProviderDriver, 'images' | 'serviceBackend'>,
       profile: WorkstationProfile,
     ): void;
+  };
+  tools: {
+    /**
+     * reads the version of the agent's own CLI the guest has installed and
+     * the one its release channel names now
+     * @param session the setup session, opened when it is not
+     * @param profile the selection, whose agent and release channel are read
+     * @returns both versions, or why the channel's could not be read
+     */
+    inspectAgentRelease(
+      session: SetupSession,
+      profile: WorkstationProfile,
+    ): Promise<AgentReleaseState>;
   };
   services: {
     /**

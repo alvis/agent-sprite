@@ -2,7 +2,11 @@ import { networkDriver } from '#application/catalog/networks';
 import { pairAgent } from '#application/catalog/services';
 import { commandError } from '#application/failures';
 import { requireWorkstationUrl } from '#application/machine';
-import { ReadinessFault, assessReadiness } from '#application/readiness';
+import {
+  ReadinessFault,
+  assessReadiness,
+  servedVersionMismatch,
+} from '#application/readiness';
 import { inspectUntilServing } from '#application/serving';
 import { agentPort } from '#domain/services';
 import { sanitizeGuestDiagnostic } from '#kernel/diagnostics';
@@ -281,10 +285,12 @@ function readyError(error: unknown): unknown {
 }
 
 /**
- * withholds public exposure unless the selected route and every current gate pass
+ * withholds public exposure unless the selected route and every current gate
+ * pass, and the agent serves the version installed
  * @param dependencies the registered drivers
  * @param observed fresh guest inspection
  * @param selectedExitNode explicit user exit-node IP or hostname
+ * @throws {ReadinessFault} when a gate fails or the agent serves another version than the one installed
  */
 function assertCreateReadiness(
   dependencies: Pick<ApplicationDependencies, 'registry'>,
@@ -302,6 +308,10 @@ function assertCreateReadiness(
     !network.matchesExitNode(selectedExitNode, observed.network)
   ) {
     failures.push('selected exit node');
+  }
+  const mismatch = servedVersionMismatch(dependencies, observed);
+  if (mismatch) {
+    failures.push(mismatch);
   }
   if (failures.length) {
     throw new ReadinessFault({ ...readiness, ready: false });

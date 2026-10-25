@@ -68,6 +68,34 @@ export function assessReadiness(
 }
 
 /**
+ * names the mismatch between the version the agent's running server reports
+ * and the version its CLI's manager reported installed, which a restart that
+ * left an earlier server running shows; an agent whose server reports no
+ * version, or a CLI with no recorded version, is not compared
+ * @param dependencies the registered drivers
+ * @param inspection fresh guest inspection, made once the agent was started
+ * @returns the failure naming both versions, or nothing when they agree or either is unknown
+ */
+export function servedVersionMismatch(
+  dependencies: Pick<ApplicationDependencies, 'registry'>,
+  inspection: GuestInspection,
+): string | undefined {
+  const { displayName, tools } =
+    dependencies.registry.agents[inspection.environment.profile.agent];
+  const served = inspection.native?.agentEnvironment;
+  const installed = inspection.environment.tools.find(
+    ({ name }) => name === tools[0]?.name,
+  )?.version;
+  if (!served?.ok || installed === undefined) {
+    return undefined;
+  }
+
+  return served.serverVersion === installed
+    ? undefined
+    : `${displayName} serves ${served.serverVersion} but ${installed} is installed`;
+}
+
+/**
  * builds required service, environment, and enabled-integration checks,
  * interleaving the agent, network, gateway and harness findings in reporting order
  * @param dependencies the registered drivers

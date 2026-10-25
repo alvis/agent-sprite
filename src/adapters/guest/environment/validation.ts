@@ -141,6 +141,7 @@ const TRAILING_FIELDS: Readonly<Record<string, Check>> = {
       account: oneOf('root', 'linuxbrew', 'agent'),
       executables: listOf(text),
       source,
+      version: optional(text),
     }),
   ),
   schedule: shape({ dueDays: atLeast(1) }),

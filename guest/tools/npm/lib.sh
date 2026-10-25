@@ -74,6 +74,22 @@ oa_npm_current() {
   test -n "$oa_current_tagged" && test "$oa_current_installed" = "$oa_current_tagged"
 }
 
+# prints the installed version of a package and the version its dist-tag
+# names now, as installed=VERSION and tagged=VERSION lines; installed is
+# empty when the package is not installed or its version cannot be read. It
+# fails, printing nothing, when the registry names no version for the tag
+# arguments: package name, dist-tag
+oa_npm_release() {
+  oa_npm_names "$1" "$2" || return 1
+  oa_release_tagged=$(oa_npm_run npm view "$1@$2" version) || return 1
+  if test -z "$oa_release_tagged"; then
+    echo "npm names no version for $1@$2" >&2
+    return 1
+  fi
+  oa_release_installed=$(oa_npm_version "$1" 2>/dev/null) || oa_release_installed=
+  printf 'installed=%s\ntagged=%s\n' "$oa_release_installed" "$oa_release_tagged"
+}
+
 # fetches the runtime the t3 package downloads on its first run, as the agent,
 # so the first start after an install or update does not wait for ~300 MB: the
 # package's wrapper keeps each version's runtime under the T3 home and

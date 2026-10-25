@@ -8,7 +8,8 @@
 # the setup session's lock without waiting, and skips the hour, noting it in
 # update.log, while a session holds it, and the workstation is kept awake
 # while the update runs by a managed hold keyed by the gate's own process. The updater runs in a shell of its own, with the family's library
-# and update fragment, the tool helpers and the link helpers sourced first,
+# and update fragment, the tool helpers, the link helpers and the version
+# record sourced first,
 # once every one is root's alone; it records the run in update-status.json,
 # and the run's output goes to update.log. It exits 0 when no update was due
 # or the run was recorded, whatever each tool's outcome, and 1 otherwise.
@@ -85,20 +86,22 @@ EOF
 }
 
 # runs the updater in a shell of its own once the family's library and update
-# fragment, the tool helpers and the updater are all root's alone
+# fragment, the tool helpers, the link helpers, the version record and the
+# updater are all root's alone
 # arguments: the OS family
 oa_gate_update() {
   set -- "$OA_GUEST_ROOT/os/$1/lib.sh" "$OA_GUEST_ROOT/os/$1/update-system.sh" \
     "$OA_GATE_TOOLS/homebrew/lib.sh" "$OA_GATE_TOOLS/npm/lib.sh" \
-    "$OA_GATE_TOOLS/rustup/lib.sh" "$OA_GATE_TOOLS/links.sh" "$OA_GATE_UPDATER"
+    "$OA_GATE_TOOLS/rustup/lib.sh" "$OA_GATE_TOOLS/links.sh" "$OA_GATE_TOOLS/versions.sh" \
+    "$OA_GATE_UPDATER"
   for oa_gate_library; do
     if ! oa_gate_trusted "$oa_gate_library"; then
       echo "Refusing $oa_gate_library: it is missing or not root's alone"
       return 1
     fi
   done
-  /bin/sh -c '. "$1" && . "$2" && . "$3" && . "$4" && . "$5" && . "$6" && . "$7" &&
-    shift 7 && oa_update_run "$@"' oa-updater "$@" \
+  /bin/sh -c '. "$1" && . "$2" && . "$3" && . "$4" && . "$5" && . "$6" && . "$7" && . "$8" &&
+    shift 8 && oa_update_run "$@"' oa-updater "$@" \
     "$OA_ENVIRONMENT_PATH" "$OA_UPDATE_STATUS_PATH" "$oa_gate_jq" "$OA_GATE_AWAKE" "$$"
 }
 

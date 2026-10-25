@@ -13,14 +13,14 @@ import { familyOf } from '#adapters/guest/os/families';
 import { ENVIRONMENT_PATH } from '#adapters/guest/platform/layout';
 import { backendSteps, backendTools } from '#adapters/guest/services/backends';
 import { BASE_TOOLS } from '#adapters/guest/tools/base';
+import { agentCli } from '#adapters/guest/tools/channel';
 import { resolveTools } from '#adapters/guest/tools/resolve';
-import { selectedChannel } from '#domain/release-channels';
 import { agentService } from '#domain/services';
 
 import { BOOTSTRAP_STEP, foundationSteps } from './foundation';
 import { fileStep } from './steps/file';
 import { HOMEBREW_STEP } from './steps/homebrew';
-import { toolSteps } from './steps/tools';
+import { toolSteps, versionsStep } from './steps/tools';
 
 import type {
   DriverRegistry,
@@ -56,14 +56,8 @@ function workstationTools(
   provider: Pick<PlanProvider, 'serviceBackend'>,
 ): ToolSpec[] {
   const agent = registry.agents[profile.agent];
-  const channel = selectedChannel(
-    agent.releaseChannels,
-    profile.options.agentRelease,
-  );
-  const [cli, ...runtime] = agent.tools;
-  const agentTools = cli
-    ? [channel ? atDistTag(cli, channel.distTag) : cli, ...runtime]
-    : [];
+  const cli = agentCli(agent, profile.options.agentRelease);
+  const agentTools = cli ? [cli, ...agent.tools.slice(1)] : [];
   const harnessTools = profile.harnesses
     .map((id) => registry.harnesses[id])
     .flatMap((driver) => [
@@ -115,7 +109,8 @@ export function assertImageTools(
  * assembles a workstation's setup plan: the guest libraries and assets, the
  * provider's boot hook before any package step, the agent account, the
  * bootstrap packages, Homebrew and the ping sysctl, then every resolved tool,
- * the idle governor's directories and environment.json; the services and
+ * the idle governor's directories, environment.json and the version each
+ * tool's manager reports installed, recorded into it; the services and
  * cron jobs the backend installs and starts are a plan of their own, so the
  * caller can configure the workstation before anything starts
  * @param registry every registered driver
@@ -174,6 +169,10 @@ export async function assemblePlan(
         mode: ENVIRONMENT_MODE,
         needs: [IDLE_STEP, ...required],
       }),
+      versionsStep(family, {
+        path: ENVIRONMENT_PATH,
+        needs: [ENVIRONMENT_STEP],
+      }),
     ],
     // they run once environment.json is written, which the steps include
     services: backendSteps(provider.serviceBackend, { family, needs: [] }),
@@ -226,20 +225,6 @@ function assembleEnvironment(
     jobs: guestJobs(provider.capabilities),
     ...(params.networkIdentity && { networkIdentity: params.networkIdentity }),
   });
-}
-
-/**
- * sets the dist-tag an agent's npm tool installs and updates from
- * @param tool the agent's own CLI
- * @param distTag its release channel's dist-tag
- * @returns the tool, its npm sources at the dist-tag
- */
-function atDistTag(tool: ToolSpec, distTag: string): ToolSpec {
-  const [first, ...rest] = tool.sources.map((source) =>
-    source.kind === 'npm' ? { ...source, distTag } : source,
-  );
-
-  return first ? { ...tool, sources: [first, ...rest] } : tool;
 }
 
 /**

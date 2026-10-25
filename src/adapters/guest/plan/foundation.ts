@@ -14,6 +14,7 @@ import {
   LINKS_LIBRARY,
   NPM_LIBRARY,
   RUSTUP_LIBRARY,
+  VERSIONS_LIBRARY,
 } from '#adapters/guest/tools/libraries';
 
 import { UPDATE_GATE_ASSET, UPDATER_ASSET } from '#adapters/guest/updates';
@@ -149,6 +150,7 @@ function guestAssets(
     NPM_LIBRARY,
     RUSTUP_LIBRARY,
     LINKS_LIBRARY,
+    VERSIONS_LIBRARY,
     ...backendAssets(provider.serviceBackend),
     AWAKE_ASSET,
     ...(provider.awakeAsset ? [provider.awakeAsset] : []),
