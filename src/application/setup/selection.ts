@@ -44,6 +44,11 @@ const SETUP_SECTIONS: Array<InteractionChoice<SetupSection>> = [
     description: 'Configure variables for the agent and every shell',
   },
   {
+    value: 'system',
+    label: 'Setup file',
+    description: 'Run an executable once as root for system-wide settings',
+  },
+  {
     value: 'plugins',
     label: 'Native plugins',
     description: 'Manage harness marketplaces and plugins',
@@ -89,6 +94,9 @@ export async function selectSetupSection(
   }
   if (explicitPlugins) {
     return 'plugins';
+  }
+  if (options.setupFile) {
+    return 'system';
   }
   if (options.envFile) {
     return 'env';

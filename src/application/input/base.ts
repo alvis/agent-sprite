@@ -116,6 +116,7 @@ export async function resolveBaseInputs(
     proxyApiKey: secrets.proxyApiKey,
     profile,
     runtimeEnv,
+    setupFile: sources.setupFile,
     sources: sourceNames,
     missing: [],
   };

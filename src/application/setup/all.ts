@@ -10,6 +10,7 @@ import {
   setupGithub,
   setupProxy,
   setupAgent,
+  setupSystem,
   stopService,
 } from './sections';
 import { exposeWhenServing } from './serving';
@@ -23,7 +24,8 @@ import type { SetupContext } from './context';
 /**
  * reconciles every managed guest section: the setup plan installs the tools,
  * then the guest is named after its workstation and the network, accounts,
- * gateway, runtime environment and plugins are configured before the plan
+ * gateway, runtime environment and plugins are configured and the setup
+ * file is run before the plan
  * installs and starts the services and jobs, the
  * agent is verified to serve and exposed, and only then is the installation
  * recorded ready
@@ -106,6 +108,9 @@ async function configureSections(
     options.plugins === false
       ? undefined
       : await setupPlugins(dependencies, guest, context);
+  const system = options.setupFile
+    ? await setupSystem(dependencies, guest, context)
+    : undefined;
 
   return {
     ...network,
@@ -114,5 +119,6 @@ async function configureSections(
     ...proxy,
     ...environment,
     ...plugins,
+    ...system,
   };
 }

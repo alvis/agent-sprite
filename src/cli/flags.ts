@@ -298,13 +298,14 @@ export const setupFlags = {
       'git',
       'proxy',
       'env',
+      'system',
       'plugins',
       'tools',
     ] as const),
     optional: true,
     placeholder: 'SECTION',
     brief:
-      'SECTION · all, agent, network, github, git, proxy, env, plugins, or tools',
+      'SECTION · all, agent, network, github, git, proxy, env, system, plugins, or tools',
   },
   pluginHarness: {
     kind: 'parsed',

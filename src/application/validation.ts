@@ -183,6 +183,7 @@ function validateSetupOptions(
     !explicit &&
     !options.withPairCode &&
     !options.envFile &&
+    !options.setupFile &&
     options.nonInteractive
   ) {
     throw new CommandValidationError({
@@ -250,6 +251,11 @@ export function validateSetupIntegrationOptions(
   if (section !== 'env' && options.envFile !== undefined) {
     throw new CommandValidationError({
       message: 'The env file requires --section env or --section all',
+    });
+  }
+  if (section !== 'system' && options.setupFile !== undefined) {
+    throw new CommandValidationError({
+      message: 'The setup file requires --section system or --section all',
     });
   }
   if (section !== 'proxy' && options.proxy !== undefined) {

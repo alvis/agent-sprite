@@ -14,6 +14,20 @@ export async function readInputFile(
   path: string,
   operation = currentOperation(),
 ): Promise<string> {
+  return (await readInputBytes(path, operation)).toString('utf8');
+}
+
+/**
+ * reads a regular input file's exact bytes, such as an executable, without
+ * blocking on a named pipe or device
+ * @param path selected input file
+ * @param operation originating invocation, including pre-workflow mode resolution
+ * @returns the file's complete contents without logging them
+ */
+export async function readInputBytes(
+  path: string,
+  operation = currentOperation(),
+): Promise<Buffer> {
   return runBoundedIO(async (signal) => {
     const file = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
     try {
@@ -28,7 +42,7 @@ export async function readInputFile(
         });
       }
 
-      return await file.readFile({ encoding: 'utf8', signal });
+      return await file.readFile({ signal });
     } finally {
       await file.close();
     }

@@ -124,6 +124,7 @@ async function configureAndFinalize(
       githubHost: context.options.githubHost,
       gitIdentity: context.input.gitIdentity,
       runtimeEnv: context.input.runtimeEnv,
+      setupFile: context.input.setupFile,
       plugins: context.plugins,
     },
   });

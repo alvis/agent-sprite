@@ -14,6 +14,7 @@ import { needsBottleProbe, probeBottles } from './plan/bottles';
 import { runPlan } from './plan/plan';
 import { AWAKE_COMMAND } from './platform/awake';
 import { ENVIRONMENT_PATH, UPDATE_LOG } from './platform/layout';
+import { runSetupFile } from './platform/setup-file';
 import { assertSupportedRelease, newerMetadataRelease } from './release-guard';
 import { installProviderServices } from './services/provider';
 import { SetupConnection } from './session/connection';
@@ -79,6 +80,7 @@ export function createGuestMechanics(
           environment: variables,
           shellAccounts,
         }),
+      runSetupFile,
       assertRuntimeEnv: (variables) => {
         assertRuntimeEnv(registry, variables);
       },

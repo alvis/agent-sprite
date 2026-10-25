@@ -59,6 +59,8 @@ export interface HostPorts {
   sendInput(params: LocalInputParams): Promise<void>;
   /** reads a regular input file without blocking on a pipe or device */
   readInputFile(path: string, operation?: OperationContext): Promise<string>;
+  /** reads a regular input file's exact bytes, such as an executable, without blocking on a pipe or device */
+  readInputBytes(path: string, operation?: OperationContext): Promise<Buffer>;
   clipboard: {
     /** copies one URL through the platform clipboard tool */
     copyUrl(url: string): Promise<void>;
