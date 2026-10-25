@@ -10,12 +10,13 @@ import { parseWholeNumber } from './whole-number';
 
 /** local provider credential selection shared by every operation */
 export const providerCredentialFlags = {
-  envFile: {
+  credentialFile: {
     kind: 'parsed',
     parse: String,
     optional: true,
     placeholder: 'FILE',
-    brief: 'FILE · explicit env file',
+    brief:
+      'FILE · dotenv file of authentication credentials, read on this computer only',
   },
   providerTokenSource: {
     kind: 'parsed',

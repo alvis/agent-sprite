@@ -50,13 +50,13 @@ describe('fn:resolveBaseInputs', () => {
     });
   });
 
-  it('should resolve flag, dotenv, process, and profile precedence without forwarding credentials', async () => {
+  it('should resolve flag, credential file, process, and profile precedence and forward only the guest env file', async () => {
     const resolved = await resolveBaseInputs(dependencies, {
       options: {
         name: 'chosen',
         networkAccount: 'flag-tailnet',
         localCredentials: false,
-        envFile: 'selected.env',
+        credentialFile: 'selected.env',
       },
       sources: {
         processEnv: {
@@ -69,8 +69,9 @@ describe('fn:resolveBaseInputs', () => {
           SPRITES_TOKEN: 'file-management-token',
           TAILSCALE_EXIT_NODE: 'file-exit',
           CLIPROXYAPI_BASE_URL: 'https://file.example.test',
-          APP_TOKEN: 'runtime-secret-value',
+          CREDENTIAL_ONLY: 'credential-file-value',
         },
+        runtimeFileEnv: { APP_TOKEN: 'runtime-secret-value' },
         profile: {
           TAILSCALE_TAILNET: 'profile-tailnet',
           TAILSCALE_EXIT_NODE: 'profile-exit',
@@ -157,8 +158,8 @@ describe('fn:resolveBaseInputs', () => {
             TAILSCALE_API_KEY: 'explicit secret reference',
             CLIPROXYAPI_API_KEY: 'explicit secret reference',
             GH_TOKEN: 'explicit secret reference',
-            TAILSCALE_AUTH_KEY: 'env file',
-            TAILSCALE_TAILNET: 'env file',
+            TAILSCALE_AUTH_KEY: 'credential file',
+            TAILSCALE_TAILNET: 'credential file',
             TAILSCALE_EXIT_NODE: 'saved profile',
             CLIPROXYAPI_BASE_URL: 'saved profile',
           },
@@ -195,7 +196,7 @@ describe('fn:resolveBaseInputs', () => {
     }).toEqual({
       disabled: undefined,
       selected: 'legacy-github-secret',
-      sources: { GITHUB_TOKEN: 'env file' },
+      sources: { GITHUB_TOKEN: 'credential file' },
     });
   });
 });

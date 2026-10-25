@@ -16,11 +16,19 @@ import type { GuestAsset } from '#domain/guest';
 import type { GuestRunResult } from './run';
 
 /** a non-root guest account and the provider shell accounts it may be one of */
-interface NativeAccountOwner {
+export interface NativeAccountOwner {
   /** account that owns the path */
   user: string;
   /** provider shell accounts core may manage besides the agent account */
   shellAccounts: readonly string[];
+}
+
+/** a file written into an account's home */
+export interface AccountFile {
+  /** absolute path inside the owning account's home */
+  path: string;
+  /** the file's complete contents */
+  contents: string;
 }
 
 /** arguments for an operation confined to one native account home */
@@ -93,6 +101,21 @@ export async function writeOwnedFile(
   contents: string,
 ): Promise<void> {
   await runNativeFileCommand({ guest, path, operation: 'write', contents });
+}
+
+/**
+ * writes a private file owned by the agent or a provider shell account;
+ * contents that hold a credential go as a secret input
+ * @param guest target guest
+ * @param owner account that owns the file
+ * @param file absolute path inside the owner's home and its contents
+ */
+export async function writeAccountFile(
+  guest: GuestChannel,
+  owner: NativeAccountOwner,
+  file: AccountFile,
+): Promise<void> {
+  await runNativeFileCommand({ guest, owner, operation: 'write', ...file });
 }
 
 /**

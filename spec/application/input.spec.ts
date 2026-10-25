@@ -53,20 +53,20 @@ describe('fn:resolveInputs', () => {
     expect([input.missing, defaults.missing]).toEqual([
       [
         expect.stringContaining('--name'),
-        'Tailscale management API key is not set. Set TAILSCALE_API_KEY or pass --env-file FILE containing TAILSCALE_API_KEY; ' +
+        'Tailscale management API key is not set. Set TAILSCALE_API_KEY or pass --credential-file FILE containing TAILSCALE_API_KEY; ' +
           'use --network-key-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; or run in a TTY to enter it when prompted. ' +
           'Or set TAILSCALE_AUTH_KEY (--network-auth-key-source SOURCE) to enrol with a single-use key.',
         expect.stringMatching(
-          /^Tailscale tailnet .* is not set\. Set TAILSCALE_TAILNET or pass --env-file FILE containing TAILSCALE_TAILNET; use --network-account ACCOUNT;/u,
+          /^Tailscale tailnet .* is not set\. Set TAILSCALE_TAILNET or pass --credential-file FILE containing TAILSCALE_TAILNET; use --network-account ACCOUNT;/u,
         ),
         expect.stringContaining(
-          'Set TAILSCALE_EXIT_NODE or pass --env-file FILE containing TAILSCALE_EXIT_NODE; use --exit-node NODE;',
+          'Set TAILSCALE_EXIT_NODE or pass --credential-file FILE containing TAILSCALE_EXIT_NODE; use --exit-node NODE;',
         ),
         expect.stringContaining(
-          'Set CLIPROXYAPI_BASE_URL or pass --env-file FILE containing CLIPROXYAPI_BASE_URL; use --proxy-url URL;',
+          'Set CLIPROXYAPI_BASE_URL or pass --credential-file FILE containing CLIPROXYAPI_BASE_URL; use --proxy-url URL;',
         ),
         expect.stringContaining(
-          'Set CLIPROXYAPI_API_KEY or pass --env-file FILE containing CLIPROXYAPI_API_KEY;',
+          'Set CLIPROXYAPI_API_KEY or pass --credential-file FILE containing CLIPROXYAPI_API_KEY;',
         ),
       ],
       [expect.stringContaining('--name')],
@@ -266,11 +266,11 @@ describe('fn:resolveInputs', () => {
     try {
       const values = [
         await resolveProviderCredential(dependencies, {
-          options: { envFile: path, localCredentials: false },
+          options: { credentialFile: path, localCredentials: false },
           provider: 'sprite',
         }),
         await resolveProviderCredential(dependencies, {
-          options: { envFile: path, localCredentials: false },
+          options: { credentialFile: path, localCredentials: false },
           provider: 'sprite',
           selection: { reference: `file:${secretPath}` },
         }),

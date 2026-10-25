@@ -137,7 +137,7 @@ export function defaultHarnesses(
  * picks the first network whose declared inputs the caller supplied
  * @param dependencies the registered drivers
  * @param options parsed flags
- * @param sources process, env file and profile values
+ * @param sources process, credential file and profile values
  * @returns the network those inputs select, if any
  */
 export function inferNetwork(
@@ -168,7 +168,7 @@ export function inferNetwork(
 export interface InferredOptionsParams {
   /** parsed flags */
   options: CommandOptions;
-  /** process, env file and profile values */
+  /** process, credential file and profile values */
   sources: InputSources;
   /** network the options select; ignored unless it names a registered network */
   network: string | undefined;

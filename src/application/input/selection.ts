@@ -157,7 +157,7 @@ function readCreateSelection(
  * resolves a new workstation's selection in dependency order: provider, ACP
  * agent, harnesses the agent supports, network, then the options the selected
  * drivers support; each step takes the flag, the environment, the selected
- * env file, a prompt, then the default, and a step with one choice is skipped;
+ * credential file, a prompt, then the default, and a step with one choice is skipped;
  * every supplied value is read before the first prompt, and an unreadable one
  * suppresses prompting so it is reported at once
  * @param dependencies the registered drivers, the profile defaults

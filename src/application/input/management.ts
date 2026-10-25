@@ -35,7 +35,7 @@ export async function resolveEnrollmentKey(
   >,
 ): Promise<Secret> {
   if (input.enrollmentKey) {
-    return Secret.fromHost('env-file', input.enrollmentKey);
+    return Secret.fromHost('credential-file', input.enrollmentKey);
   }
   const management = networkManagement(input);
   const key = management?.account

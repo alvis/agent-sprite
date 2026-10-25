@@ -136,13 +136,13 @@ describe('fn:management credential precedence', () => {
     };
 
     const credential = await resolveProviderCredential(dependencies, {
-      options: { envFile: 'selected.env', localCredentials: false },
+      options: { credentialFile: 'selected.env', localCredentials: false },
       provider: 'sprite',
       selection: { sources },
     });
     const { input } = await resolveBaseInputs(dependencies, {
       options: {
-        envFile: 'selected.env',
+        credentialFile: 'selected.env',
         localCredentials: false,
         github: false,
       },

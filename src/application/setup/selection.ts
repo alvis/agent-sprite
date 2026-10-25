@@ -41,7 +41,7 @@ const SETUP_SECTIONS: Array<InteractionChoice<SetupSection>> = [
   {
     value: 'env',
     label: 'Environment variables',
-    description: 'Configure guest runtime variables',
+    description: 'Configure variables for the agent and every shell',
   },
   {
     value: 'plugins',
@@ -89,6 +89,9 @@ export async function selectSetupSection(
   }
   if (explicitPlugins) {
     return 'plugins';
+  }
+  if (options.envFile) {
+    return 'env';
   }
   if (!interaction || options.nonInteractive) {
     throw new Error(

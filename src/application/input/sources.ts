@@ -16,7 +16,10 @@ import type { ApplicationDependencies } from '#application/ports/dependencies';
 
 export interface InputSources {
   processEnv: NodeJS.ProcessEnv;
+  /** entries of the selected credential file */
   fileEnv: Record<string, string>;
+  /** entries of the selected guest env file; absent without --env-file */
+  runtimeFileEnv?: Record<string, string>;
   profile: Record<string, string>;
 }
 
@@ -109,9 +112,9 @@ function rejectedEnv(
 const KEYCHAIN_REFERENCE_PARTS = 2;
 
 /**
- * filters a dotenv file to runtime variables safe to forward to the guest
+ * filters the guest env file to runtime variables safe to forward to the guest
  * @param dependencies the registered drivers
- * @param fileEnv parsed entries from the selected dotenv file
+ * @param fileEnv parsed entries from the selected guest env file
  * @returns variables permitted in the guest runtime environment
  */
 export function runtimeEnvironment(
@@ -141,9 +144,9 @@ export function runtimeEnvironment(
 }
 
 /**
- * reads process, selected dotenv, and non-secret profile values
+ * reads process, selected credential and guest env files, and non-secret profile values
  * @param dependencies the registered drivers, what this computer provides
- * @param options parsed environment-file option
+ * @param options parsed credential-file and env-file options
  * @returns sources in documented precedence order
  */
 export async function readInputSources(
@@ -151,6 +154,9 @@ export async function readInputSources(
   options: CommandOptions,
 ): Promise<InputSources> {
   const environment = await readEnvironmentSources(dependencies, options);
+  const runtimeFileEnv = options.envFile
+    ? parse(await readInputText(dependencies, options.envFile, 'env file'))
+    : undefined;
   const profilePath = join(
     dependencies.host.environment.homeDirectory(),
     '.config',
@@ -188,21 +194,27 @@ export async function readInputSources(
     ),
   );
 
-  return { ...environment, profile };
+  return { ...environment, runtimeFileEnv, profile };
 }
 
 /**
  * reads credential environment sources without unrelated integration profiles
  * @param dependencies what this computer provides
- * @param options explicitly selected dotenv file
+ * @param options explicitly selected credential file
  * @returns process and file values; the file takes precedence
  */
 export async function readEnvironmentSources(
   dependencies: Pick<ApplicationDependencies, 'host'>,
   options: CommandOptions,
 ): Promise<Pick<InputSources, 'processEnv' | 'fileEnv'>> {
-  const fileEnv = options.envFile
-    ? parse(await readInputText(dependencies, options.envFile, 'env file'))
+  const fileEnv = options.credentialFile
+    ? parse(
+        await readInputText(
+          dependencies,
+          options.credentialFile,
+          'credential file',
+        ),
+      )
     : {};
 
   return { processEnv: dependencies.host.environment.variables(), fileEnv };

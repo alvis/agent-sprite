@@ -28,11 +28,11 @@ export interface Resolved<T> {
 interface StepSources {
   /** explicit flag value */
   flag?: string;
-  /** environment variable read from the process, then the selected env file; none when only the flag applies */
+  /** environment variable read from the process, then the selected credential file; none when only the flag applies */
   environment?: string;
 }
 
-/** precedence-aware reader of flag, env file and process environment values */
+/** precedence-aware reader of flag, credential file and process environment values */
 interface EnvironmentReader {
   /**
    * reads one driver id
@@ -69,8 +69,8 @@ interface EnvironmentReader {
 }
 
 /**
- * reads flag, env file, then process environment values in that order
- * @param sources process and env file values
+ * reads flag, credential file, then process environment values in that order
+ * @param sources process and credential file values
  * @param scope whether environment values apply to this run
  * @param scope.isEnabled false when only flags apply
  * @returns accessors for ids, lists, booleans and whole numbers
@@ -248,8 +248,8 @@ export function activePrompts(context: SelectionContext): Prompts | undefined {
 }
 
 /**
- * tells whether a process or env file value is nonblank
- * @param sources process and env file values
+ * tells whether a process or credential file value is nonblank
+ * @param sources process and credential file values
  * @param name environment variable
  * @returns true when either source has text
  */

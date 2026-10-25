@@ -46,7 +46,7 @@ open-agent create --name my-agent --with-pair-code
 
 Interactive creation asks, in order, for the provider, the minimum CPUs and the minimum memory in GB (both default to 2; asked again with the reason when the provider offers no machine that large), the router client (the ACP agent), its release channel (only when the agent declares more than one; T3 Code offers `stable` and `nightly`), harnesses (only those the agent supports), network, then the options those drivers support: an exit node only when the network supports one, CLIProxyAPI only when a selected harness supports it, and idle minutes only when the provider keeps workstations awake. A step with a single choice is skipped. GitHub authentication and Git/Jujutsu identity are separate choices.
 
-To keep credentials for automation in one place, write them to a protected dotenv file (`chmod 600 .env`) and pass it with `--env-file .env`; dotenv files are never loaded otherwise. [.env.example](.env.example) lists every supported environment input and its meaning.
+To keep credentials for automation in one place, write them to a protected dotenv file (`chmod 600 .env`) and pass it with `--credential-file .env`; dotenv files are never loaded otherwise. The credential file is read on this computer only and never reaches the workstation. [.env.example](.env.example) lists every supported environment input and its meaning.
 
 ---
 
@@ -201,7 +201,7 @@ With `--network tailscale`, the workstation joins your tailnet as its own device
 - **Persistent enrollment**: Tailscale's node state survives sleep and, on a Fly Machine, cold boots; `setup --section network` re-enrolls a daemon that has logged out, and `terminate` removes the device when the API key authorizes it
 
 ```bash
-open-agent create --name my-agent --env-file .env \
+open-agent create --name my-agent --credential-file .env \
   --network tailscale --use-exit-node --exit-node home-server --proxy
 ```
 
@@ -239,7 +239,7 @@ Each provider declares the host tools and the management credential it needs. `c
 
 ### CLI Runtime
 
-Pass `--env-file FILE` for dotenv input. The order is: explicit flags, credential references, selected dotenv values, the process environment, eligible profile/local defaults, prompts, and defaults; a value in the `--env-file` file therefore wins over the same name in the process environment. A malformed flag value is a `USAGE` error. Selection values from every source, option bounds and boolean environment values are then validated together before any provider call: every problem, such as an unknown driver, a malformed number or an out-of-range timeout, is reported in one `INPUT` error.
+Pass `--credential-file FILE` for dotenv input. The order is: explicit flags, credential references, selected credential file values, the process environment, eligible profile/local defaults, prompts, and defaults; a value in the `--credential-file` file therefore wins over the same name in the process environment. A malformed flag value is a `USAGE` error. Selection values from every source, option bounds and boolean environment values are then validated together before any provider call: every problem, such as an unknown driver, a malformed number or an out-of-range timeout, is reported in one `INPUT` error.
 
 | Variables                                     | Meaning                                                                                                                     |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -278,7 +278,7 @@ Pass `--env-file FILE` for dotenv input. The order is: explicit flags, credentia
 
 Interactive creation asks unresolved selection questions. Non-interactive creation infers the network and options from supplied inputs unless an explicit flag or `OPEN_AGENT_*` value overrides them. Setup preserves the recorded profile when omitted; `setup --section all` can change the release channel, harnesses, network and options, and `setup --section agent --release CHANNEL` changes only the release channel, while a different provider or ACP agent is refused because it needs a new workstation. `setup --cpu N --mem GB` (either flag, in any section) resizes the machine to the smallest size meeting the minimums and records them; an omitted one keeps its recorded value. Fly restarts the machine to apply a size, so setup warns that "Resizing NAME to SIZE restarts the machine to take effect; running sessions and processes stop", asks (default no) when interactive, proceeds with `--yes`, and otherwise fails with a usage error before changing anything.
 
-Preflight aggregates determinable issues before provisioning and reminds users about routing, DNS, policy, enrollment expiry, GitHub/Git identity, proxy access, and disruptive updates. Every adapter declares the credentials and tools it needs: the provider's token and host tools, the network's keys and account, the CLIProxyAPI base URL and key, and setup's GitHub token and Git identity. Each command checks the ones it uses, setup included, before it changes anything, and reports every absent input at once, for example `Set SPRITES_TOKEN or pass --env-file FILE containing SPRITES_TOKEN; use --provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; or run in a TTY to enter it when prompted.` Passing preflight does not replace guest readiness checks.
+Preflight aggregates determinable issues before provisioning and reminds users about routing, DNS, policy, enrollment expiry, GitHub/Git identity, proxy access, and disruptive updates. Every adapter declares the credentials and tools it needs: the provider's token and host tools, the network's keys and account, the CLIProxyAPI base URL and key, and setup's GitHub token and Git identity. Each command checks the ones it uses, setup included, before it changes anything, and reports every absent input at once, for example `Set SPRITES_TOKEN or pass --credential-file FILE containing SPRITES_TOKEN; use --provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; or run in a TTY to enter it when prompted.` Passing preflight does not replace guest readiness checks.
 
 ---
 
@@ -344,7 +344,8 @@ Run `open-agent COMMAND --help` for the complete command-specific flag list.
 
 | Flags                                                                                                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--env-file FILE`                                                                                                  | Select a dotenv file explicitly; no dotenv file is read otherwise, and its values override the process environment                                                                                                                                                                                                                                                                                                                                                               |
+| `--credential-file FILE`                                                                                           | Select a dotenv file of authentication credentials explicitly; it is read on this computer only, no dotenv file is read otherwise, and its values override the process environment                                                                                                                                                                                                                                                                                               |
+| `--env-file FILE`                                                                                                  | On create/setup, a dotenv file of variables for the agent service and every shell of the agent and provider shell accounts, kept in `~/.config/open-agent/env.sh` and read from `.zshenv`, `.profile` and `.bashrc`                                                                                                                                                                                                                                                              |
 | `--json`, `--non-interactive`                                                                                      | Disable prompts; JSON emits one structured final result on stdout                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `--yes`                                                                                                            | On create/setup/terminate, approve already-selected actions; termination still requires an explicit target                                                                                                                                                                                                                                                                                                                                                                       |
 | `--color` / `--no-color`, `--quiet`, `--verbose`                                                                   | Color, routine-progress suppression and redacted timings                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -390,10 +391,10 @@ The **Network** section separates guest networking from **Replace saved API key 
 List managed workstations, read provider details, then request live readiness or pair a new client with the agent:
 
 ```bash
-open-agent list --env-file .env --json
-open-agent show my-agent --env-file .env --json
-open-agent doctor my-agent --env-file .env --json
-open-agent show my-agent --env-file .env --with-pair-code
+open-agent list --credential-file .env --json
+open-agent show my-agent --credential-file .env --json
+open-agent doctor my-agent --credential-file .env --json
+open-agent show my-agent --credential-file .env --with-pair-code
 ```
 
 `list` and ordinary `show` do not wake the guest. A full setup takes about 32 to 40 minutes on Fly and about 7 minutes on a Sprite; without a terminal it streams each step as a status line on stderr. Add `--inspect` to show for explicit guest checks, or `--json` to the pairing command for structured output. The executable flushes both streams before exiting.
@@ -403,7 +404,7 @@ open-agent show my-agent --env-file .env --with-pair-code
 Register the same GitHub marketplace independently for both harnesses, then enable the selected native plugin identities:
 
 ```bash
-open-agent setup my-agent --env-file .env \
+open-agent setup my-agent --credential-file .env \
   --claude-marketplace alvis/.agents --codex-marketplace alvis/.agents \
   --claude-plugin essential@alvis --claude-plugin coding@alvis \
   --claude-plugin specification@alvis --claude-plugin governance@alvis \
@@ -414,7 +415,7 @@ open-agent setup my-agent --env-file .env \
 Explicit plugin actions infer `--section plugins`; a conflicting section errors. All four marketplace/plugin input flags and every removal/disable/uninstall action are repeatable. A selection for one harness does not select it for the other.
 
 ```bash
-open-agent setup my-agent --env-file .env \
+open-agent setup my-agent --credential-file .env \
   --disable-claude-plugin coding@alvis \
   --uninstall-codex-plugin coding@alvis
 ```
@@ -426,11 +427,11 @@ open-agent setup my-agent --env-file .env \
 Recover an incomplete installation or explicitly refresh managed tools:
 
 ```bash
-open-agent setup my-agent --env-file .env --section all
-open-agent setup my-agent --env-file .env --section tools --update
+open-agent setup my-agent --credential-file .env --section all
+open-agent setup my-agent --credential-file .env --section tools --update
 ```
 
-Full setup updates tools and configures all areas. `--section env` writes the runtime environment file that `--env-file` names to the guest; without `--env-file` it asks for a file path in a terminal, and without a terminal it skips the section, reports it as skipped and exits 0 (`--section all` behaves as before). For a smaller repair, select the relevant section, such as `--section github`. Failures include bounded redacted diagnostics, the failed section, and a retry command. A successful targeted retry does not establish full readiness or clear the global incomplete-setup marker.
+Full setup updates tools and configures all areas, writing the `--env-file` variables when it is given. `--section env` writes the variables of the file `--env-file` names for the agent service and every shell account. Without the file, it asks for a path in a terminal, and without a terminal it skips the section, reports it as skipped and exits 0. `--env-file` alone selects that section; with another section it errors. For a smaller repair, select the relevant section, such as `--section github`. Failures include bounded redacted diagnostics, the failed section, and a retry command. A successful targeted retry does not establish full readiness or clear the global incomplete-setup marker.
 
 A failed create retains a visible resource and reports its identity. Recover it instead of creating another machine blindly. Interactive full setup preserves the recorded profile as Enter defaults; new creation defaults to no network and no proxy when unresolved. Explicitly disable managed routing with `--no-proxy` or `--network none`.
 

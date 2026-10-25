@@ -159,7 +159,7 @@ async function runScopedCommand({
 }
 
 /**
- * rejects supplied syntax and known automation constraints before env-file reads
+ * rejects supplied syntax and known automation constraints before credential-file reads
  * @param request parsed command before selected dotenv mode values are available
  * @param operation invocation that records the actual prompt blocker
  */
@@ -233,11 +233,11 @@ function forcedCancellation(
 }
 
 /**
- * reads the explicitly selected env file before choosing interaction mode
+ * reads the explicitly selected credential file before choosing interaction mode
  * @param dependencies what the workflows run on
  * @param options command options
  * @param operation captured invocation before the workflow scope
- * @returns merged mode facts, the selected env file taking precedence
+ * @returns merged mode facts, the selected credential file taking precedence
  */
 async function readModeEnvironment(
   dependencies: ApplicationDependencies,
@@ -245,8 +245,13 @@ async function readModeEnvironment(
   operation: OperationContext,
 ): Promise<NodeJS.ProcessEnv> {
   try {
-    const selectedEnv = options.envFile
-      ? parse(await dependencies.host.readInputFile(options.envFile, operation))
+    const selectedEnv = options.credentialFile
+      ? parse(
+          await dependencies.host.readInputFile(
+            options.credentialFile,
+            operation,
+          ),
+        )
       : {};
 
     return { ...process.env, ...selectedEnv };
@@ -254,7 +259,7 @@ async function readModeEnvironment(
     checkOperation(operation);
     throw new CommandFault({
       code: 'INPUT',
-      message: `Selected env file ${JSON.stringify(options.envFile)} must be a readable regular file.`,
+      message: `Selected credential file ${JSON.stringify(options.credentialFile)} must be a readable regular file.`,
       cause,
       causeVisibility: 'private',
     });

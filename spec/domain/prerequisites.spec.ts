@@ -172,7 +172,7 @@ describe('fn:missingInput', () => {
       subject: 'EXAMPLE_ACCOUNT',
       problem: 'Example account is not set',
       fix:
-        'Set EXAMPLE_ACCOUNT or pass --env-file FILE containing EXAMPLE_ACCOUNT; ' +
+        'Set EXAMPLE_ACCOUNT or pass --credential-file FILE containing EXAMPLE_ACCOUNT; ' +
         'use --example-account ACCOUNT; or run in a TTY to enter it when prompted. ' +
         'Or pass --no-example to skip it.',
     });

@@ -8,7 +8,7 @@ import { rememberSecret } from '#kernel/redaction';
  */
 type HostCredentialSource =
   | 'credential-store'
-  | 'env-file'
+  | 'credential-file'
   | 'prompt'
   | 'provider-api'
   | 'github'

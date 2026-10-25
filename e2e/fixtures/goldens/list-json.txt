@@ -1,9 +1,9 @@
 args: list --json
 exit-code: 1
-stdout-length: 551
+stdout-length: 558
 stderr-length: 94
 === stdout ===
-{"schemaVersion":1,"command":"list","ok":false,"error":{"code":"INPUT","message":"Provider prerequisites are missing or misconfigured","details":["Sprites API token is not set. Set SPRITES_TOKEN or pass --env-file FILE containing SPRITES_TOKEN; use --provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; or run in a TTY to enter it when prompted. It needs a Sprites organization token for the organization that owns the workstations. Get one at https://sprites.dev/account; sign in with Fly and select the intended organization."]}}
+{"schemaVersion":1,"command":"list","ok":false,"error":{"code":"INPUT","message":"Provider prerequisites are missing or misconfigured","details":["Sprites API token is not set. Set SPRITES_TOKEN or pass --credential-file FILE containing SPRITES_TOKEN; use --provider-token-source env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT; or run in a TTY to enter it when prompted. It needs a Sprites organization token for the organization that owns the workstations. Get one at https://sprites.dev/account; sign in with Fly and select the intended organization."]}}
 === stderr ===
 environment: started
 environment: completed (<N> ms)

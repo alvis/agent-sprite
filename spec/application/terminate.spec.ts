@@ -70,7 +70,7 @@ async function createTerminationBoundary(root: string): Promise<{
     command: 'terminate',
     machine: sprite.name,
     options: {
-      envFile: envPath,
+      credentialFile: envPath,
       yes: true,
       nonInteractive: true,
       localCredentials: false,

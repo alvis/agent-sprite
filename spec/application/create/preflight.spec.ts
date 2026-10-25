@@ -67,7 +67,7 @@ describe('fn:prepareCreate consent', () => {
         expect.stringContaining('SPRITES_TOKEN'),
       ]);
       for (const route of [
-        '--env-file FILE',
+        '--credential-file FILE',
         'env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT',
         'TTY',
         'https://sprites.dev/account',

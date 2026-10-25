@@ -152,6 +152,7 @@ async function configureNative(
   await dependencies.guest.native.configureRuntimeEnv(
     guest,
     configuration.runtimeEnv,
+    dependencies.registry.providers[profile.provider].shellAccounts,
   );
   if (githubToken) {
     await dependencies.guest.native.configureGithub(

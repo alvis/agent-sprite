@@ -35,7 +35,9 @@ export interface HarnessPluginOptions {
 export interface CommandOptions {
   /** workstation name, from --name */
   name?: string;
-  /** explicit env file read before the ambient environment, from --env-file */
+  /** explicit credential dotenv file read before the ambient environment, from --credential-file */
+  credentialFile?: string;
+  /** dotenv file of variables for the agent and the shell accounts' shells, from --env-file */
   envFile?: string;
   /** setup section to configure */
   section?: SetupSection;

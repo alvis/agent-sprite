@@ -25,7 +25,7 @@ interface RefusedCredential {
 export interface CredentialPrerequisite {
   /** human-readable credential name */
   label: string;
-  /** environment variable read from the process or the selected env file */
+  /** environment variable read from the process or the selected credential file */
   environment: string;
   /** entry name in the local credential store */
   store: string;
@@ -49,7 +49,7 @@ export interface ProviderPrerequisites {
 
 /** a caller-side input an adapter requires: where it is read from and asked for */
 export interface InputPrerequisite {
-  /** environment variable read from the process or the selected env file */
+  /** environment variable read from the process or the selected credential file */
   environment: string;
   /** what the input is, also the prompt shown when an interactive run lacks it */
   prompt: string;
@@ -164,7 +164,7 @@ export function missingInput(
     subject: input.environment,
     problem: `${input.prompt} is not set`,
     fix: [
-      `Set ${input.environment} or pass --env-file FILE containing ${input.environment};`,
+      `Set ${input.environment} or pass --credential-file FILE containing ${input.environment};`,
       `use ${input.flag};`,
       'or run in a TTY to enter it when prompted.',
       ...(guidance ? [guidance] : []),

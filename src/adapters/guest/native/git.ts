@@ -21,6 +21,8 @@ import { HARNESS_IDS } from '#domain/ids';
 import { CommandFault } from '#kernel/faults';
 import { redactResolved, rememberSecret } from '#kernel/redaction';
 
+import { configureShellEnv } from './shell-env';
+
 import type { GithubTarget } from '#application/ports/guest';
 import type { GuestChannel } from '#application/ports/guest-channel';
 import type { ProductDeclarations } from '#domain/declarations';
@@ -28,6 +30,14 @@ import type { GitIdentity } from '#domain/git';
 import type { Secret } from '#kernel/secret';
 
 const GITHUB_DIAGNOSTIC_LIMIT = 1200;
+
+/** approved runtime variables and the shell accounts that also read them */
+export interface RuntimeEnvTarget {
+  /** approved runtime variables */
+  environment: Record<string, string>;
+  /** provider shell accounts whose shells also read them */
+  shellAccounts: readonly string[];
+}
 
 /**
  * sets the selected Git and Jujutsu identity for the non-root runtime account
@@ -116,25 +126,33 @@ export async function configureGithub(
 }
 
 /**
- * stores only explicitly requested application runtime variables; each value
- * is registered for redaction, so the file reaches the guest as a secret input
+ * stores only explicitly requested application runtime variables, for the
+ * agent service and for every shell of the agent and the provider shell
+ * accounts; each value is registered for redaction, as it is and as JSON
+ * escapes it, so the files reach the guest as secret inputs
  * @param declarations the data every registered driver declares
  * @param guest target guest
- * @param environment approved runtime variables
+ * @param target approved runtime variables and the provider shell accounts
  */
 export async function configureRuntimeEnv(
   declarations: ProductDeclarations,
   guest: GuestChannel,
-  environment: Record<string, string>,
+  target: RuntimeEnvTarget,
 ): Promise<void> {
+  const { environment, shellAccounts } = target;
   assertRuntimeEnv(declarations, environment);
-  Object.values(environment).forEach(rememberSecret);
+  for (const value of Object.values(environment)) {
+    rememberSecret(value);
+    // JSON escapes a quote, a backslash or a control character in the value
+    rememberSecret(JSON.stringify(value).slice(1, -1));
+  }
   await ensurePrivateDirectory(guest, AGENT_CONFIG);
   await writeOwnedFile(
     guest,
     RUNTIME_ENV_PATH,
     `${JSON.stringify(environment)}\n`,
   );
+  await configureShellEnv(guest, environment, shellAccounts);
 }
 
 /**
@@ -161,6 +179,13 @@ export function assertRuntimeEnv(
     'LD_PRELOAD',
   ]);
   const names = Object.keys(environment);
+  const malformed = names.filter((name) => !/^[A-Z_a-z]\w*$/.test(name));
+  if (malformed.length) {
+    throw new CommandFault({
+      code: 'INPUT',
+      message: `Runtime environment contains names a shell cannot export: ${malformed.join(', ')}`,
+    });
+  }
   const rejected = names.filter((name) => forbidden.has(name));
   if (rejected.length) {
     throw new CommandFault({

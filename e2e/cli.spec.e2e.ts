@@ -246,12 +246,18 @@ describe('workflow:installed CLI', () => {
     { command: 'show', args: ['Bad_Name'] },
     { command: 'terminate', args: ['Bad_Name', '--yes'] },
   ])(
-    'should reject an invalid $command name before opening a selected env file',
+    'should reject an invalid $command name before opening a selected credential file',
     async ({ command, args }) => {
       const result = await withIsolatedCli(async (cwd, env) =>
         execa(
           packedBin,
-          [command, ...args, '--json', '--env-file', join(cwd, 'missing.env')],
+          [
+            command,
+            ...args,
+            '--json',
+            '--credential-file',
+            join(cwd, 'missing.env'),
+          ],
           { cwd, env, extendEnv: false, reject: false },
         ),
       );
@@ -268,15 +274,19 @@ describe('workflow:installed CLI', () => {
     },
   );
 
-  it('should require exact termination consent before env-file access when process mode disables prompts', async () => {
+  it('should require exact termination consent before credential-file access when process mode disables prompts', async () => {
     const result = await withIsolatedCli(async (cwd, env) =>
-      execa(packedBin, ['terminate', '--env-file', join(cwd, 'missing.env')], {
-        cwd,
-        env: { ...env, CI: 'true' },
-        extendEnv: false,
-        reject: false,
-        all: true,
-      }),
+      execa(
+        packedBin,
+        ['terminate', '--credential-file', join(cwd, 'missing.env')],
+        {
+          cwd,
+          env: { ...env, CI: 'true' },
+          extendEnv: false,
+          reject: false,
+          all: true,
+        },
+      ),
     );
 
     expect(result.exitCode).toBe(2);
@@ -294,7 +304,7 @@ describe('workflow:installed CLI', () => {
       const result = await withIsolatedCli(async (cwd, env) =>
         execa(
           packedBin,
-          [...args, '--json', '--env-file', join(cwd, 'missing.env')],
+          [...args, '--json', '--credential-file', join(cwd, 'missing.env')],
           {
             cwd,
             env,
@@ -338,7 +348,9 @@ describe('workflow:installed CLI', () => {
       error: {
         code: 'INPUT',
         details: expect.arrayContaining([
-          expect.stringContaining('SPRITES_TOKEN or pass --env-file FILE'),
+          expect.stringContaining(
+            'SPRITES_TOKEN or pass --credential-file FILE',
+          ),
           expect.stringContaining(
             'env:NAME, file:PATH, or keychain:SERVICE/ACCOUNT',
           ),
@@ -397,7 +409,7 @@ describe('workflow:installed CLI', () => {
     },
   );
 
-  it('should identify an unreadable selected env file without exposing its raw read failure', async () => {
+  it('should identify an unreadable selected credential file without exposing its raw read failure', async () => {
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(
         packedBin,
@@ -405,7 +417,7 @@ describe('workflow:installed CLI', () => {
           'list',
           '--json',
           '--no-local-credentials',
-          '--env-file',
+          '--credential-file',
           join(cwd, 'missing.env'),
         ],
         { cwd, env, extendEnv: false, reject: false },
@@ -422,6 +434,39 @@ describe('workflow:installed CLI', () => {
     expect(parsed.error.message).toContain('missing.env');
     expect(parsed.error.details).toBeUndefined();
     expect(result.stdout).not.toContain('ENOENT');
+  });
+
+  it('should confine the guest env file to its setup section before any provider call', async () => {
+    const results = await withIsolatedCli(async (cwd, env) =>
+      Promise.all(
+        [['--env-file', join(cwd, 'guest.env')]].map(async (file) =>
+          execa(
+            packedBin,
+            [
+              'setup',
+              'oa-guest-files',
+              '--section',
+              'git',
+              ...file,
+              '--json',
+              '--non-interactive',
+              '--no-local-credentials',
+            ],
+            { cwd, env, extendEnv: false, reject: false },
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      results.map((result) => ({
+        failed: result.exitCode !== 0,
+        error: (JSON.parse(result.stdout) as { error: { message: string } })
+          .error.message,
+      })),
+    ).toEqual([
+      { failed: true, error: expect.stringContaining('--section env') },
+    ]);
   });
 
   it('should print the installed manifest version and bare help on stdout', async () => {
@@ -530,7 +575,7 @@ describe('workflow:installed CLI', () => {
           '--verbose',
           '--non-interactive',
           '--no-local-credentials',
-          '--env-file',
+          '--credential-file',
           envPath,
         ],
         { cwd, env, extendEnv: false, reject: false },
@@ -725,10 +770,10 @@ describe('workflow:installed CLI', () => {
         message: 'Required provisioning inputs are missing',
         details: expect.arrayContaining([
           expect.stringMatching(
-            /^CLIProxyAPI base URL is not set\. Set CLIPROXYAPI_BASE_URL or pass --env-file FILE containing CLIPROXYAPI_BASE_URL; use --proxy-url URL; or run in a TTY/u,
+            /^CLIProxyAPI base URL is not set\. Set CLIPROXYAPI_BASE_URL or pass --credential-file FILE containing CLIPROXYAPI_BASE_URL; use --proxy-url URL; or run in a TTY/u,
           ),
           expect.stringContaining(
-            'Set CLIPROXYAPI_API_KEY or pass --env-file FILE containing CLIPROXYAPI_API_KEY',
+            'Set CLIPROXYAPI_API_KEY or pass --credential-file FILE containing CLIPROXYAPI_API_KEY',
           ),
         ]),
       },
@@ -1705,9 +1750,7 @@ describe('workflow:installed CLI', () => {
 
   it('should prepare one JSON fallback with recovery identity for cyclic diagnostic data', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/emit.js'),
-    ).href;
+    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const state = { emitted: false, command: 'show', errors: [] };
@@ -1751,9 +1794,7 @@ describe('workflow:installed CLI', () => {
 
   it('should keep a created machine recoverable when success data cannot be rendered', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/emit.js'),
-    ).href;
+    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
@@ -1790,9 +1831,7 @@ describe('workflow:installed CLI', () => {
 
   it('should preserve deletion guidance without claiming a retained Sprite after render failure', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/emit.js'),
-    ).href;
+    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
@@ -1833,9 +1872,7 @@ describe('workflow:installed CLI', () => {
 
   it('should keep local-credential setup and list recovery machine-free', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/emit.js'),
-    ).href;
+    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
@@ -1875,9 +1912,7 @@ describe('workflow:installed CLI', () => {
 
   it('should own a result after one write attempt to a closed OS stdout pipe', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(
-      join(packageRoot, 'lib/cli/emit.js'),
-    ).href;
+    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       let writeErrors = 0;
@@ -2039,7 +2074,7 @@ describe('workflow:installed CLI', () => {
     expect(result.stderr).toContain('--invalid-human-flag');
   });
 
-  it('should separate unknown parser flags from an unreadable selected env file', async () => {
+  it('should separate unknown parser flags from an unreadable selected credential file', async () => {
     const [unknownFlag, missingEnv] = await withIsolatedCli(async (cwd, env) =>
       Promise.all([
         execa(packedBin, ['show', '--json', '--unknown-flag'], {
@@ -2051,7 +2086,7 @@ describe('workflow:installed CLI', () => {
         }),
         execa(
           packedBin,
-          ['show', '--json', '--env-file', join(cwd, 'absent.env')],
+          ['show', '--json', '--credential-file', join(cwd, 'absent.env')],
           {
             cwd,
             env,
@@ -2155,8 +2190,10 @@ describe('workflow:installed CLI', () => {
     expect(result.stdout).toContain(
       'setup [<workstation>] [--section SECTION]',
     );
-    expect(result.stdout).toContain('[--env-file]');
-    expect(result.stdout).toContain('FILE · explicit env file');
+    expect(result.stdout).toContain('[--credential-file]');
+    expect(result.stdout).toContain(
+      'FILE · dotenv file of authentication credentials',
+    );
     expect(result.stdout).toContain('ARGUMENTS\n  [workstation]');
   });
 

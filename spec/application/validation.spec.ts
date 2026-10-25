@@ -113,6 +113,21 @@ describe('fn:validateCommandRequest', () => {
     ).not.toThrow();
   });
 
+  it('should accept a non-interactive setup whose env file selects its section', () => {
+    expect(() =>
+      validateCommandRequest({
+        command: 'setup',
+        options: { envFile: 'guest.env', nonInteractive: true },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateCommandRequest({
+        command: 'setup',
+        options: { nonInteractive: true },
+      }),
+    ).toThrow(expect.objectContaining({ code: 'USAGE' }));
+  });
+
   it('should refuse a pairing code for a non-pairing section', () => {
     expect(() =>
       validateCommandRequest({
