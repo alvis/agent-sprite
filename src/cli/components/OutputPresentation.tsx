@@ -7,7 +7,7 @@ import type { ReactElement } from 'react';
  * creates the human-readable machine table element
  * @param machines already selected machine rows
  * @param columns available terminal width
- * @returns Ink node laid out for the available terminal width
+ * @returns terminal node laid out for the available terminal width
  */
 export function machineTableElement(
   machines: ReadonlyArray<Record<string, string>>,

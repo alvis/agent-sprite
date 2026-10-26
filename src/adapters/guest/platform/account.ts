@@ -40,8 +40,10 @@ interface NativeFileCommandParams {
   contents?: string;
 }
 
+/** account used for the agent's native guest commands */
 export const USER = 'agent';
 
+/** home directory of the agent's native guest account */
 export const HOME = AGENT_HOME;
 
 /** the program that changes one file in an account's home as that account, read from the package and run inline */

@@ -46,7 +46,6 @@ export interface CreateData {
   pairing: PairingData;
 }
 
-/** live control-plane list merged across every provider with credentials */
 /** a provider list could not query, with the normalized failure code */
 export interface UnavailableProvider {
   /** provider that could not be queried */
@@ -57,6 +56,7 @@ export interface UnavailableProvider {
   reason: string;
 }
 
+/** live control-plane list merged across every provider with credentials */
 export interface ListData {
   machines: Array<
     MachineSummary & {

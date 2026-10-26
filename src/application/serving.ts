@@ -2,12 +2,13 @@ import { checkOperation, runOperation } from '#kernel/operation';
 
 import type { GuestInspection } from '#domain/observations/inspection';
 
+const MILLISECONDS_PER_MINUTE = 60_000;
+
 /**
  * a freshly started agent answers its environment endpoint only after it has
- * opened its state, which a 2-CPU shared guest needed up to about four
- * minutes for, its event loop stalling for seconds while it started
+ * opened its state, which may take minutes on a shared guest while its event
+ * loop stalls during startup
  */
-const MILLISECONDS_PER_MINUTE = 60_000;
 const SERVING_WAIT_MINUTES = 4;
 const SERVING_WAIT_MS = SERVING_WAIT_MINUTES * MILLISECONDS_PER_MINUTE;
 const SERVING_RETRY_MS = 10_000;

@@ -20,9 +20,9 @@ import type {
 import type { GuestChannel } from '#application/ports/guest-channel';
 
 /**
- * longest Codex waits on a `SessionEnd` or `Interrupt` hook, in seconds:
- * Codex clamps their `timeout` to 1 to 3 seconds, defaulting to 1, and keeps
- * other events' `timeout` as set (openai/codex rust-v0.162.1,
+ * longest Codex waits on a `SessionEnd` or `Interrupt` hook, in seconds: the
+ * Codex runtime clamps their `timeout` to 1 to 3 seconds, defaulting to 1,
+ * and keeps other events' `timeout` as set (openai/codex rust-v0.162.1,
  * codex-rs/hooks/src/engine/discovery.rs `normalize_command_hook` and
  * codex-rs/hooks/src/events/session_end.rs `SESSION_END_MAX_TIMEOUT_SEC`)
  */

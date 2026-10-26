@@ -1,6 +1,6 @@
 import type { SystemRepository, ToolSpec } from '#domain/tools';
 
-/** Tailscale's signing key, pinned to its primary key's fingerprint; one key signs every distribution's repository */
+/** the Tailscale signing key, pinned to its primary key's fingerprint; one key signs every distribution's repository */
 const TAILSCALE_KEY: SystemRepository['key'] = {
   url: 'https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg',
   fingerprints: ['2596A99EAAB33821893C0A79458CA832957F5868'],
@@ -25,12 +25,13 @@ function tailscaleRepository(distribution: string): SystemRepository {
 }
 
 /**
- * Tailscale while a workstation selects it: Homebrew's bottle first; where it
- * has none, Tailscale's signed package, whose own `tailscaled` unit is masked
- * so only open-agent's daemon service runs. The probe finds the tool on the
- * PATH, as the link to the bottle or the package's own `/usr/bin/tailscale`.
- * Its launcher and exit-route probe run `ip`, so `iproute2`, optional on its
- * own, is needed whenever this network is selected
+ * the Tailscale client while a workstation selects it: Homebrew's bottle
+ * first; where it has none, Tailscale's signed package, whose own
+ * `tailscaled` unit is masked so only open-agent's daemon service runs. The
+ * probe finds the tool on the PATH, as the link to the bottle or the
+ * package's own `/usr/bin/tailscale`; its launcher and exit-route probe run
+ * `ip`, so `iproute2`, optional on its own, is needed whenever this network
+ * is selected
  */
 export const tailscaleTool: ToolSpec = {
   name: 'tailscale',

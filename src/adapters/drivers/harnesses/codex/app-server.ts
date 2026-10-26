@@ -29,7 +29,6 @@ const OUTPUT_LIMIT_CHARS = 4_194_304;
  * @param guest target guest
  * @param exchange the requests to make once the server is initialized
  * @returns what the exchange returns
- * @throws {Error} when a request fails, the server misbehaves or time runs out
  */
 export async function withCodexAppServer<T>(
   guest: GuestChannel,

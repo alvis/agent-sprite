@@ -3,7 +3,7 @@ import { isRecord } from '#kernel/guards';
 
 import type { PluginInventory } from '#adapters/drivers/harnesses/shared/plugin-state';
 
-/** Codex configuration directory, also its `CODEX_HOME` */
+/** the Codex configuration directory, also its `CODEX_HOME` */
 export const CODEX_HOME = `${AGENT_HOME}/.codex`;
 
 /** environment the ACP agent passes when spawning Codex */
@@ -17,13 +17,13 @@ export const CODEX_RESERVED_ENVIRONMENT = [
   'OPENAI_API_KEY',
 ] as const;
 
-/** Codex user configuration */
+/** the Codex user configuration */
 export const CODEX_CONFIG = `${CODEX_HOME}/config.toml`;
 
 /** private file holding the CLIProxyAPI credential Codex reads */
 export const CODEX_TOKEN = `${CODEX_HOME}/cliproxyapi-token`;
 
-/** Codex user hook definitions */
+/** the Codex user hook definitions */
 export const CODEX_HOOKS = `${CODEX_HOME}/hooks.json`;
 
 /** open-agent's record of the Codex plugin identities it manages */

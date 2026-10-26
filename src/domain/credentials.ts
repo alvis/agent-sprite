@@ -6,7 +6,7 @@ export type CredentialStoreLocation =
   | { backend: 'protected-file'; path: string }
   | { backend: 'keychain'; path: string; fallbackFilePath?: string };
 
-/** Actual persistence backend and a fixed, non-secret fallback explanation. */
+/** actual persistence backend and a fixed, non-secret fallback explanation */
 export interface CredentialSaveResult {
   storage: 'keychain' | 'protected-file';
   fallbackReason?:

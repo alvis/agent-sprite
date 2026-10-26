@@ -85,7 +85,8 @@ export const LOGIN_PROFILE_PATH = '/etc/profile.d/open-agent.sh';
 /**
  * the login profile's text: root's PATH puts the system's commands ahead of
  * the tool links, and an ordinary account's its own commands, then
- * Homebrew's, ahead of the system's; the Fly boot hook writes the same text
+ * the Homebrew account's, ahead of the system's; the Fly boot hook writes the
+ * same text
  */
 export const LOGIN_PROFILE = [
   "# open-agent: the system's commands ahead of the tool links for root; its own",

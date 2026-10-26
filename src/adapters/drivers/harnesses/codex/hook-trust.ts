@@ -97,7 +97,6 @@ async function trustOwnedHooks(
  * @param result native hooks/list result
  * @param expected each owned hook's camel-case event and exact command
  * @returns exact owned hook records
- * @throws {Error} when an owned hook is missing or not unique
  */
 function ownedHooks(
   result: Record<string, unknown>,

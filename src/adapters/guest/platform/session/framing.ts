@@ -226,7 +226,6 @@ interface CommandFrame {
  * group's leader, so its pid is the group's id that the record keeps
  * @param frame the command, its marker, account prefix and shell
  * @returns the framed script
- * @throws {Error} when the command cannot be framed safely
  */
 export function commandScript(frame: CommandFrame): string {
   const { command, marker, runAs, shell } = frame;

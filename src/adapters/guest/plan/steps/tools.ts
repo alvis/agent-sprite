@@ -64,7 +64,6 @@ function toolStepId(tool: string): string {
  * @param tools the tools the resolutions are for
  * @param context the family, the Homebrew step and the steps every tool needs
  * @returns one step per installable tool
- * @throws {Error} when a resolution names a tool not given
  */
 export function toolSteps(
   resolutions: readonly Resolution[],

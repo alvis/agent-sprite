@@ -70,13 +70,13 @@ export interface GuestAsset {
 /** the outcome of asking a family whether a release can run Homebrew */
 export type HomebrewSupport =
   | {
-      /** Homebrew runs on the release */
+      /** release runs Homebrew */
       supported: true;
       /** system packages Homebrew needs before its installer runs */
       prerequisites: readonly string[];
     }
   | {
-      /** Homebrew does not run on the release */
+      /** release cannot run Homebrew */
       supported: false;
       /** why, as reported to the user */
       reason: string;

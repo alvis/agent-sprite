@@ -101,7 +101,6 @@ export async function inspectHub(guest: GuestChannel): Promise<HubStatus> {
  * renders curl options as a configuration file, quoting each value
  * @param options option names and their values
  * @returns the configuration
- * @throws {Error} when a value holds a line break or another control character
  */
 function curlConfig(options: Readonly<Record<string, string>>): string {
   return Object.entries(options)

@@ -1,5 +1,5 @@
 /**
- * Checks whether an unknown value is a non-array object.
+ * checks whether an unknown value is a non-array object
  * @param value unknown candidate
  * @returns whether the value is a non-array object
  */

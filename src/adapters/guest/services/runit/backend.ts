@@ -42,7 +42,7 @@ const STATUSES: ReadonlySet<unknown> = new Set([
 
 /**
  * runit, the supervisor of a guest whose provider runs no services itself;
- * Homebrew's formula first, the distribution's package where none is poured
+ * the Homebrew formula first, the distribution's package where none is poured
  */
 const RUNIT_TOOL: ToolSpec = {
   name: 'runit',

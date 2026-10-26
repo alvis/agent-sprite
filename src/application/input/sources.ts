@@ -14,6 +14,7 @@ import { rememberSecret } from '#kernel/redaction';
 import type { CommandOptions } from '#application/contracts';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 
+/** process, file, and profile inputs available to selection resolution */
 export interface InputSources {
   processEnv: NodeJS.ProcessEnv;
   /** entries of the selected credential file */

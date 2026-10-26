@@ -7,9 +7,9 @@ interface Gate {
 }
 
 /**
- * Fly refuses guest commands above a burst of about a dozen requests and then
- * admits roughly one in four, so the parallel probes of one inspection would
- * be refused unless only a few are in flight at once
+ * the Fly API refuses guest commands above a burst of about a dozen requests
+ * and then admits roughly one in four, so the parallel probes of one
+ * inspection would be refused unless only a few are in flight at once
  */
 const MAX_IN_FLIGHT = 3;
 const EXEC_PATH = /^\/apps\/([^/]+)\/machines\/[^/]+\/exec$/u;

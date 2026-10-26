@@ -1,6 +1,6 @@
 import type { OwnedConfigurationValue } from '#adapters/drivers/harnesses/shared/proxy-ownership';
 
-/** Codex configuration fields whose ownership open-agent tracks */
+/** the Codex configuration fields whose ownership open-agent tracks */
 export const CODEX_PROXY_FIELDS = [
   'providersContainer',
   'providerContainer',

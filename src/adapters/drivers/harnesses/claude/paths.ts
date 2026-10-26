@@ -2,13 +2,13 @@ import { AGENT_HOME, GUEST_ROOT } from '#adapters/guest/platform/layout';
 
 import type { PluginInventory } from '#adapters/drivers/harnesses/shared/plugin-state';
 
-/** Claude Code user settings, including environment and hooks */
+/** the Claude Code user settings, including environment and hooks */
 export const CLAUDE_SETTINGS = `${AGENT_HOME}/.claude/settings.json`;
 
 /** open-agent's record of the Claude plugin identities it manages */
 export const CLAUDE_PLUGIN_STATE = `${GUEST_ROOT}/claude-plugins.json`;
 
-/** Claude Code configuration directory */
+/** the Claude Code configuration directory */
 export const CLAUDE_CONFIG_DIR = `${AGENT_HOME}/.claude`;
 
 /** environment the ACP agent passes when spawning Claude Code */
