@@ -166,7 +166,7 @@ async function recoverCreateStep(
   } catch (failure) {
     return {
       status: 'unconfirmed',
-      primary: retainRecoveryFailure(primary, step, failure),
+      primary: retainRecoveryFailure({ primary, step, failure }),
     };
   }
 }

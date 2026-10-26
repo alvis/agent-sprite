@@ -9,7 +9,7 @@ import { describe, expect, inject, it } from 'vitest';
 
 const packedBin = inject('packedBin');
 
-describe('workflow:installed CLI automation reporting', () => {
+describe('installed CLI automation reporting', () => {
   it('should retain redacted warnings and errors while quiet suppresses routine status', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
     const reportingUrl = pathToFileURL(
@@ -62,7 +62,7 @@ describe('workflow:installed CLI automation reporting', () => {
       const secret = 'pol03-selected-env-private-value';
       const envPath = join(cwd, 'selected.env');
       await writeFile(envPath, `UNRELATED_PRIVATE_VALUE=${secret}\n`);
-      const env = {
+      const environment = {
         PATH: process.env.PATH,
         HOME: cwd,
         TMPDIR: cwd,
@@ -79,19 +79,19 @@ describe('workflow:installed CLI automation reporting', () => {
         await Promise.all([
           execa(packedBin, args, {
             cwd,
-            env,
+            env: environment,
             extendEnv: false,
             reject: false,
           }),
           execa(packedBin, [...args, '--quiet'], {
             cwd,
-            env,
+            env: environment,
             extendEnv: false,
             reject: false,
           }),
           execa(packedBin, [...args, '--quiet', '--verbose'], {
             cwd,
-            env,
+            env: environment,
             extendEnv: false,
             reject: false,
           }),
@@ -100,7 +100,7 @@ describe('workflow:installed CLI automation reporting', () => {
             ['list', '--no-local-credentials', '--credential-file', envPath],
             {
               cwd,
-              env,
+              env: environment,
               extendEnv: false,
               reject: false,
             },
@@ -114,7 +114,7 @@ describe('workflow:installed CLI automation reporting', () => {
               '--credential-file',
               envPath,
             ],
-            { cwd, env, extendEnv: false, reject: false },
+            { cwd, env: environment, extendEnv: false, reject: false },
           ),
         ]);
 
@@ -158,7 +158,7 @@ describe('workflow:installed CLI automation reporting', () => {
   it('should explain a non-terminal stdin only when it implicitly blocks a needed prompt', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'open-agent-prompt-mode-'));
     try {
-      const env = {
+      const environment = {
         PATH: process.env.PATH,
         HOME: cwd,
         TMPDIR: cwd,
@@ -166,7 +166,7 @@ describe('workflow:installed CLI automation reporting', () => {
       };
       const human = await execa(packedBin, ['terminate', 'review-check'], {
         cwd,
-        env,
+        env: environment,
         extendEnv: false,
         reject: false,
       });
@@ -180,7 +180,7 @@ describe('workflow:installed CLI automation reporting', () => {
       const explicit = await execa(
         packedBin,
         ['terminate', 'review-check', '--json'],
-        { cwd, env, extendEnv: false, reject: false },
+        { cwd, env: environment, extendEnv: false, reject: false },
       );
       expect(explicit.exitCode).toBe(2);
       expect(explicit.stderr).toBe('');

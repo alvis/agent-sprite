@@ -104,7 +104,11 @@ async function recoverIncompleteLabel(
 
     return 'confirmed';
   } catch (failure) {
-    retainRecoveryFailure(primary, 'incomplete label', failure);
+    retainRecoveryFailure({
+      primary,
+      step: 'incomplete label',
+      failure,
+    });
 
     return 'unconfirmed';
   }

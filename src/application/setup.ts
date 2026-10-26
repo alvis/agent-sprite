@@ -229,12 +229,14 @@ export async function prepareGuestSection(
   dependencies: ApplicationDependencies,
   params: GuestPreparationParams,
 ): ReturnType<typeof prepareSetupContext> {
-  return traceStage('setup.preparation', async () =>
-    prepareSetupContext(dependencies, {
-      ...params,
-      guest: await params.connection.guest(),
-    }),
-  );
+  return traceStage({
+    stage: 'setup.preparation',
+    action: async () =>
+      prepareSetupContext(dependencies, {
+        ...params,
+        guest: await params.connection.guest(),
+      }),
+  });
 }
 
 /**
@@ -363,5 +365,5 @@ async function applySection(
     }),
   } satisfies Record<SetupSection, () => Promise<AppliedSetupSection>>;
 
-  return traceStage(`setup.${section}`, actions[section]);
+  return traceStage({ stage: `setup.${section}`, action: actions[section] });
 }

@@ -28,6 +28,21 @@ export interface StageEvent {
   targetKnown: boolean;
 }
 
+/** workflow stage action and its originating invocation */
+export interface TraceStageParams<T> {
+  /** whitelisted workflow stage name */
+  stage: string;
+  /** real workflow action */
+  action: () => Promise<T>;
+  /** originating invocation or stage settings */
+  context?:
+    | OperationContext
+    | {
+        operation?: OperationContext;
+        succeeded?: (result: T) => boolean;
+      };
+}
+
 const operationScope = new AsyncLocalStorage<OperationContext>();
 const RECOVERY_TIMEOUT_MS = 30_000;
 const IO_TIMEOUT_MS = 30_000;
@@ -179,23 +194,17 @@ export function promptUnavailableDetail(): string | undefined {
 
 /**
  * times an actual workflow action within its originating invocation
- * @param stage whitelisted workflow stage name
- * @param action real workflow action
- * @param context originating invocation or stage settings
- * @param context.operation explicit originating invocation
- * @param context.succeeded optional result success check
+ * @param params workflow stage, action and optional invocation settings
+ * @param params.stage workflow stage name
+ * @param params.action stage action to run
+ * @param params.context originating invocation or stage settings; operation selects an explicit originating invocation and succeeded optionally checks result success
  * @returns completed action value
  */
-export async function traceStage<T>(
-  stage: string,
-  action: () => Promise<T>,
-  context:
-    | OperationContext
-    | {
-        operation?: OperationContext;
-        succeeded?: (result: T) => boolean;
-      } = {},
-): Promise<T> {
+export async function traceStage<T>({
+  stage,
+  action,
+  context = {},
+}: TraceStageParams<T>): Promise<T> {
   const operation =
     context instanceof OperationContext
       ? context

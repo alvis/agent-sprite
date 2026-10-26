@@ -14,11 +14,11 @@ describe('fn:recordOf', () => {
 describe('fn:recordFrom', () => {
   it('should key and value each item by its own derivation', () => {
     expect(
-      recordFrom(
-        ['claude', 'codex'],
-        (id) => `${id}Plugins` as const,
-        (id) => id.toUpperCase(),
-      ),
+      recordFrom({
+        items: ['claude', 'codex'],
+        keyOf: (id) => `${id}Plugins` as const,
+        valueOf: (id) => id.toUpperCase(),
+      }),
     ).toEqual({ claudePlugins: 'CLAUDE', codexPlugins: 'CODEX' });
   });
 });

@@ -30,14 +30,16 @@ export async function installSetupPlan(
   );
   mutation.started = true;
 
-  return traceStage('setup.install', async () =>
-    installWorkstation(dependencies.guest, {
-      provider,
-      connection,
-      profile,
-      ...(previous ? { previous } : {}),
-      interaction,
-      beforeServices,
-    }),
-  );
+  return traceStage({
+    stage: 'setup.install',
+    action: async () =>
+      installWorkstation(dependencies.guest, {
+        provider,
+        connection,
+        profile,
+        ...(previous ? { previous } : {}),
+        interaction,
+        beforeServices,
+      }),
+  });
 }
