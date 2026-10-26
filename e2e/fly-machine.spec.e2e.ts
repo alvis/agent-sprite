@@ -19,7 +19,7 @@ import {
   PROFILE_PATH,
   ROOTFS_RESTORED,
   VOLUME_LAYOUT,
-} from '#adapters/drivers/providers/fly-machine/boot-layout';
+} from '#adapters/drivers/providers/fly-machine/boot';
 import {
   decodeToken,
   deriveSshToken,

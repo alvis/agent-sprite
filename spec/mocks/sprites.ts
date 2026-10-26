@@ -19,8 +19,8 @@ import {
 } from '@fly/sprites';
 import { vi } from 'vitest';
 
+import { SpriteProvider } from '#adapters/drivers/providers/sprite';
 import { SpriteGuestChannel } from '#adapters/drivers/providers/sprite/channel';
-import { SpriteProvider } from '#adapters/drivers/providers/sprite/provider';
 import { toRecord } from '#adapters/drivers/providers/sprite/records';
 import { sessionGuest } from '#adapters/guest/platform/session/channel';
 import { HOMEBREW_GH } from '#adapters/guest/tools/accounts';

@@ -10,7 +10,7 @@ import {
 } from '#kernel/operation';
 import { ProviderFault } from '#kernel/provider-fault';
 
-import { BOOT_STUB } from './boot-layout';
+import { BOOT_STUB } from './boot';
 import { machineSpec, VOLUME_NAME, VOLUME_SIZE_GB } from './machine-config';
 import { FLY_MACHINES } from './machines';
 import { creationMetadata } from './metadata';

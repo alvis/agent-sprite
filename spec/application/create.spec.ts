@@ -5,13 +5,13 @@ import { join } from 'node:path';
 import { SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
+import { SpriteProvider } from '#adapters/drivers/providers/sprite';
 import {
   MANAGED_LABEL,
   SCHEMA_LABEL,
   SETUP_INCOMPLETE_LABEL,
   SETUP_READY_LABEL,
 } from '#adapters/drivers/providers/sprite/labels';
-import { SpriteProvider } from '#adapters/drivers/providers/sprite/provider';
 import { createWorkstation } from '#application/create';
 import { OperationContext, withOperation } from '#kernel/operation';
 import { ProviderFault } from '#kernel/provider-fault';

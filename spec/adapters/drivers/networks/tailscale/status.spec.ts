@@ -4,8 +4,10 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { inspectTailscale } from '#adapters/drivers/networks/tailscale/status';
-import { parseTailnetStatus } from '#adapters/drivers/networks/tailscale/status-parser';
+import {
+  inspectTailscale,
+  parseTailnetStatus,
+} from '#adapters/drivers/networks/tailscale/status';
 import { OperationContext, withOperation } from '#kernel/operation';
 import { rememberSecret } from '#kernel/redaction';
 
