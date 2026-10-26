@@ -115,7 +115,7 @@ async function attemptRequest(
           authorization,
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        body: JSON.stringify(body),
         signal: operationSignal(timeoutMs),
       }).catch((error: unknown) => {
         throw new ProviderFault({

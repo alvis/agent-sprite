@@ -331,9 +331,7 @@ export class FlyApi {
             ...current.config,
             guest: { ...current.guest, ...wireGuest(guest) },
           },
-          ...(current.instanceId
-            ? { current_version: current.instanceId }
-            : {}),
+          current_version: current.instanceId,
         },
       }),
     );

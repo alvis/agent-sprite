@@ -59,6 +59,25 @@ function createServiceSprite(services: ServiceWithState[]): Sprite {
 }
 
 describe('mt:SpriteServiceControl.ensure', () => {
+  it('should forward an HTTP port when registering a supervised service', async () => {
+    const sprite = createServiceSprite([]);
+
+    await guestOf(sprite).services.ensure({
+      name: 'agent',
+      command: '/opt/open-agent/start',
+      arguments: [],
+      account: 'root',
+      needs: [],
+      httpPort: 3773,
+    });
+
+    expect(sprite.createService).toHaveBeenCalledExactlyOnceWith(
+      'agent',
+      expect.objectContaining({ httpPort: 3773 }),
+      '5s',
+    );
+  });
+
   it('should report a supervised error with its service identity and no event payload', async () => {
     const sprite = createServiceSprite([]);
     vi.mocked(sprite.createService).mockResolvedValueOnce(

@@ -83,7 +83,7 @@ export async function inspectCodex(
  * @param evidence.hooks parsed Codex user hook definitions
  * @param evidence.plugins native plugin-list command result
  * @param evidence.authenticated whether native credentials exist
- * @returns Codex's configuration flags
+ * @returns the Codex configuration flags
  */
 function codexConfiguration(evidence: {
   settings: TomlTable;
@@ -101,13 +101,12 @@ function codexConfiguration(evidence: {
     settings.model_provider === 'cliproxyapi' &&
     proxy.wire_api === 'responses' &&
     typeof proxy.base_url === 'string';
-  let authentication: NativeHarnessInspection['authentication'] =
-    'not-configured';
-  if (isProxyConfigured) {
-    authentication = 'managed-proxy';
-  } else if (authenticated) {
-    authentication = 'native';
-  }
+  const authentication: NativeHarnessInspection['authentication'] =
+    isProxyConfigured
+      ? 'managed-proxy'
+      : authenticated
+        ? 'native'
+        : 'not-configured';
 
   return {
     gatewayConfigured: isProxyConfigured,

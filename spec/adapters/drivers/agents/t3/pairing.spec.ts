@@ -13,11 +13,12 @@ describe('fn:pairT3', () => {
       'saf08-pairing',
       new SpritesClient('sdk-unit-token'),
     );
-    const execFile = vi.spyOn(sprite, 'execFile').mockResolvedValue({
+    const execFile = vi.fn<Sprite['execFile']>(async () => ({
       stdout: `Token: ${token}\nExpires: in five minutes\n`,
       stderr: '',
       exitCode: 0,
-    });
+    }));
+    Object.assign(sprite, { execFile } satisfies Partial<Sprite>);
     const pairing = await pairT3(guestOf(sprite));
 
     expect(pairing).toMatchObject({ token, expiresAt: 'in five minutes' });

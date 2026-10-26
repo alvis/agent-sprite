@@ -75,7 +75,7 @@ export async function inspectClaude(
  * @param evidence.settings parsed Claude user settings
  * @param evidence.plugins native plugin-list command result
  * @param evidence.authenticated whether native credentials exist
- * @returns Claude's configuration flags
+ * @returns the Claude configuration flags
  */
 function claudeConfiguration(evidence: {
   settings: Record<string, unknown>;
@@ -87,13 +87,12 @@ function claudeConfiguration(evidence: {
   const isProxyConfigured =
     typeof env.ANTHROPIC_BASE_URL === 'string' &&
     typeof env.ANTHROPIC_AUTH_TOKEN === 'string';
-  let authentication: NativeHarnessInspection['authentication'] =
-    'not-configured';
-  if (isProxyConfigured) {
-    authentication = 'managed-proxy';
-  } else if (authenticated) {
-    authentication = 'native';
-  }
+  const authentication: NativeHarnessInspection['authentication'] =
+    isProxyConfigured
+      ? 'managed-proxy'
+      : authenticated
+        ? 'native'
+        : 'not-configured';
 
   return {
     gatewayConfigured: isProxyConfigured,

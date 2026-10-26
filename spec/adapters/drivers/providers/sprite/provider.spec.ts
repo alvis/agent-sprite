@@ -1,6 +1,7 @@
-import { Sprite, SpritesClient } from '@fly/sprites';
+import { Sprite, SpriteCommand, SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
+import { sprite as unboundProvider } from '#adapters/drivers/providers/sprite';
 import {
   MANAGED_LABEL,
   SCHEMA_LABEL,
@@ -8,7 +9,6 @@ import {
   SETUP_READY_LABEL,
   profileSummaryLabels,
 } from '#adapters/drivers/providers/sprite/labels';
-import { sprite as unboundProvider } from '#adapters/drivers/providers/sprite/provider';
 
 import { OperationContext, withOperation } from '#kernel/operation';
 
@@ -102,6 +102,45 @@ function createProviderSprite(fields: Partial<Sprite> = {}): Sprite {
   } satisfies Partial<Sprite>);
 }
 
+/**
+ * binds a provider to one observed Sprite handle
+ * @param sprite handle returned by lookups
+ * @returns provider using the supplied observation
+ */
+function providerWithSprite(sprite: Sprite) {
+  const observedClient = Object.assign(new SpritesClient('test-token'), {
+    getSprite: vi.fn<SpritesClient['getSprite']>(async () => sprite),
+  } satisfies Partial<SpritesClient>);
+
+  return providerOf(observedClient);
+}
+
+describe('mt:SpriteProvider.preflight', () => {
+  it('should report a missing Sprites credential and reject a Fly API token offline', async () => {
+    const host = {
+      findTool: async () => undefined,
+      readVersion: async () => undefined,
+    };
+
+    const missing = await unboundProvider.preflight(host);
+    const refused = await unboundProvider.preflight({
+      ...host,
+      credential: 'FlyV1 wrong-provider-token',
+      credentialSource: 'test input',
+    });
+
+    expect(missing).toEqual([
+      expect.objectContaining({ subject: 'SPRITES_TOKEN' }),
+    ]);
+    expect(refused).toEqual([
+      expect.objectContaining({
+        subject: 'SPRITES_TOKEN',
+        problem: expect.stringContaining('Fly API token'),
+      }),
+    ]);
+  });
+});
+
 describe('mt:SpriteProvider.list', () => {
   it('should map both provider pages and exclude workstations without the ownership label', async () => {
     const workstations = await provider.list();
@@ -139,6 +178,13 @@ describe('mt:SpriteProvider.list', () => {
       code: 'authentication',
       message: 'SPRITES_TOKEN is required.',
     });
+  });
+});
+
+describe('mt:SpriteProvider.isNameTaken', () => {
+  it('should reserve unmanaged names and leave absent names available', async () => {
+    expect(await provider.isNameTaken('unmanaged')).toBe(true);
+    expect(await provider.isNameTaken('available')).toBe(false);
   });
 });
 
@@ -330,10 +376,10 @@ describe('mt:SpriteProvider.setMetadata', () => {
         SETUP_READY_LABEL,
       ],
     });
-    boundary.getSprite.mockResolvedValueOnce(sprite);
-    const workstation = await provider.get('primary');
+    const subject = providerWithSprite(sprite);
+    const workstation = await subject.get('primary');
 
-    const updated = await provider.setMetadata(workstation, {
+    const updated = await subject.setMetadata(workstation, {
       setup: 'ready',
     });
 
@@ -343,12 +389,13 @@ describe('mt:SpriteProvider.setMetadata', () => {
 
   it('should reject an unmanaged target before changing labels', async () => {
     const unmanaged = createProviderSprite({ labels: [] });
-    boundary.getSprite.mockResolvedValueOnce(createProviderSprite());
-    const workstation = await provider.get('primary');
-    boundary.getSprite.mockResolvedValueOnce(unmanaged);
+    const subject = providerWithSprite(unmanaged);
+    const workstation = await providerWithSprite(createProviderSprite()).get(
+      'primary',
+    );
 
     await expect(
-      providerOf(client).setMetadata(workstation, { setup: 'ready' }),
+      subject.setMetadata(workstation, { setup: 'ready' }),
     ).rejects.toMatchObject({ code: 'ownership-mismatch' });
     expect(unmanaged.update).not.toHaveBeenCalled();
   });
@@ -357,16 +404,98 @@ describe('mt:SpriteProvider.setMetadata', () => {
 describe('mt:SpriteProvider.expose', () => {
   it('should expose a managed URL and restore provider authentication for private visibility', async () => {
     const sprite = createProviderSprite();
-    boundary.getSprite.mockResolvedValueOnce(sprite);
-    const workstation = await provider.get('primary');
+    const subject = providerWithSprite(sprite);
+    const workstation = await subject.get('primary');
 
-    await provider.expose(workstation, 3773, 'public');
+    await subject.expose(workstation, 3773, 'public');
 
     expect(sprite.urlSettings).toEqual({ auth: 'public' });
 
-    await provider.expose(workstation, 3773, 'private');
+    await subject.expose(workstation, 3773, 'private');
 
     expect(sprite.urlSettings).toEqual({ auth: 'sprite' });
+  });
+});
+
+describe('mt:SpriteProvider.resize', () => {
+  it('should keep the same workstation because a Sprite has no configurable size', async () => {
+    const workstation = await provider.get('primary');
+
+    expect(await unboundProvider.resize(workstation)).toBe(workstation);
+  });
+});
+
+describe('mt:SpriteProvider.openGuest', () => {
+  it('should share one guest channel for repeated opens of a workstation', async () => {
+    const subject = providerWithSprite(createProviderSprite());
+    const workstation = await subject.get('primary');
+
+    const first = await subject.openGuest(workstation);
+    const second = await subject.openGuest(workstation);
+
+    expect(second).toBe(first);
+  });
+
+  it('should refetch an external record and reject it when its immutable identity changed', async () => {
+    const workstation = await providerWithSprite(createProviderSprite()).get(
+      'primary',
+    );
+    const matched = createProviderSprite();
+    const execute = vi.spyOn(matched, 'execFile').mockResolvedValue({
+      exitCode: 0,
+      stdout: 'refetched\n',
+      stderr: '',
+    });
+
+    const channel = await providerWithSprite(matched).openGuest(workstation);
+    const result = await channel.exec({
+      program: '/bin/true',
+      arguments: [],
+    });
+
+    expect(result).toMatchObject({ exitCode: 0, stdout: 'refetched\n' });
+    expect(execute).toHaveBeenCalledOnce();
+
+    const changed = providerWithSprite(
+      createProviderSprite({ id: 'replacement' }),
+    );
+    await expect(changed.openGuest(workstation)).rejects.toMatchObject({
+      code: 'ownership-mismatch',
+    });
+  });
+});
+
+describe('mt:SpriteProvider.openRootShell', () => {
+  it('should start the requested shell through the Sprite privileged exec boundary', async () => {
+    const sprite = createProviderSprite();
+    const command = new SpriteCommand(sprite, '/usr/bin/sudo', [
+      '-n',
+      '-E',
+      '--',
+      '/bin/sh',
+    ]);
+    const spawn = vi.spyOn(sprite, 'spawn').mockReturnValue(command);
+    const subject = providerWithSprite(sprite);
+    const workstation = await subject.get('primary');
+
+    const shell = await subject.openRootShell(workstation, '/bin/sh');
+
+    expect(spawn).toHaveBeenCalledExactlyOnceWith(
+      '/usr/bin/sudo',
+      ['-n', '-E', '--', '/bin/sh'],
+      { tty: false },
+    );
+    expect(shell.stdout).toBe(command.stdout);
+  });
+});
+
+describe('mt:SpriteProvider.awaitGuestReady', () => {
+  it('should return without a boot probe because Sprite exec performs its wake-up', async () => {
+    const workstation = await provider.get('primary');
+
+    await expect(
+      unboundProvider.awaitGuestReady(workstation),
+    ).resolves.toBeUndefined();
   });
 });
 

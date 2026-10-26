@@ -19,11 +19,12 @@ describe('fn:runGuest', () => {
     const envSecret = 'env-private-unique';
     const inputSecret = 'input-private-unique';
     const stderr = `old-diagnostic-${'x'.repeat(520)}\u001b[31m${secret}\u001b[0m\u0000final-marker`;
-    const execute = vi.spyOn(sprite, 'execFileHTTP').mockResolvedValue({
+    const execute = vi.fn<Sprite['execFileHTTP']>(async () => ({
       stdout: 'stdout-private-unique',
       stderr,
       exitCode: 23,
-    });
+    }));
+    Object.assign(sprite, { execFileHTTP: execute } satisfies Partial<Sprite>);
 
     const failure = await runGuest(
       guestOf(sprite),
@@ -65,16 +66,20 @@ describe('fn:runGuestResult cancellation', () => {
       'disposable',
       new SpritesClient('sdk-only-exec-token'),
     );
-    const exec = vi.spyOn(sprite, 'execFile').mockResolvedValue({
+    const exec = vi.fn<Sprite['execFile']>(async () => ({
       stdout: 'regular',
       stderr: '',
       exitCode: 0,
-    });
-    const http = vi.spyOn(sprite, 'execFileHTTP').mockResolvedValue({
+    }));
+    const http = vi.fn<Sprite['execFileHTTP']>(async () => ({
       stdout: 'http',
       stderr: '',
       exitCode: 0,
-    });
+    }));
+    Object.assign(sprite, {
+      execFile: exec,
+      execFileHTTP: http,
+    } satisfies Partial<Sprite>);
     const context = new OperationContext({
       signal: new AbortController().signal,
     });

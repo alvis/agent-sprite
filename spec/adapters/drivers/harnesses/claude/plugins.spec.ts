@@ -13,6 +13,8 @@ import {
   guestOf,
 } from '../../../../mocks/sprites';
 
+import type { InstalledPlugin } from '#adapters/drivers/harnesses/shared/plugin-state';
+
 import type { NativeCommandResponse } from '../../../../mocks/sprites';
 
 const applyClaudePlugins = claudePlugins.apply;
@@ -44,8 +46,8 @@ interface ClaudePluginScenario {
   actions: Parameters<typeof applyClaudePlugins>[1];
   initialMarketplaces?: Array<Record<string, unknown>>;
   currentMarketplaces?: Array<Record<string, unknown>>;
-  initialPlugins?: Array<{ id: string; enabled: boolean }>;
-  finalPlugins?: Array<{ id: string; enabled: boolean }>;
+  initialPlugins?: InstalledPlugin[];
+  finalPlugins?: InstalledPlugin[];
   addedMarketplaces?: string[];
   changedPlugins?: Array<[string, string]>;
   removedMarketplaces?: string[];
