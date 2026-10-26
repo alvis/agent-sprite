@@ -106,15 +106,22 @@ export function cliEnvironment(home: string): Record<string, string> {
  */
 export function createMachineCli(options: MachineCliOptions): MachineCli {
   const { bin, home, redact } = options;
-  const env = cliEnvironment(home);
+  const environment = cliEnvironment(home);
 
   return {
+    /**
+     * runs a non-interactive CLI command and redacts its result
+     * @param args command arguments
+     * @param timeoutMs execution limit in milliseconds
+     * @param signal cancellation signal
+     * @returns parsed and redacted CLI outcome
+     */
     async json(args, timeoutMs, signal) {
       const result = await execa(
         bin,
         [...args, '--json', '--non-interactive', ...SHARED_FLAGS],
         {
-          env,
+          env: environment,
           extendEnv: false,
           reject: false,
           timeout: timeoutMs,

@@ -21,6 +21,9 @@ export const AWAKE_DIRECTORY = 'run/awake';
 /** root's awake directory, relative to the guest root */
 export const MANAGED_AWAKE_DIRECTORY = 'run/awake-root';
 
+/** the installed schedule entry read by the update proof */
+export const CRON_ENTRY_PATH = '/etc/cron.d/open-agent';
+
 /**
  * root's command that prints the newer of the governor states root and the
  * agent each record in their own awake directory, as `{recorded, state}`

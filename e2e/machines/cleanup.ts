@@ -8,11 +8,14 @@ import { isScopedWorkstation } from './ownership';
 import { createMachineProvider, credentialVariable } from './providers';
 import { createRedactor } from './redaction';
 import { connectTailnet, isWorkstationDevice } from './tailnet';
+import { SECOND_MS } from './timing';
 
 import type { MachineCli } from './cli';
 import type { MachineInventory } from './providers';
 import type { Redactor } from './redaction';
 import type { Tailnet, TailnetDevice } from './tailnet';
+
+export { createMachineCleanup } from './cleanup/scoped';
 
 /** guaranteed removal and absence proof for the workstations of one cleanup scope */
 export interface MachineCleanup {
@@ -50,16 +53,15 @@ export interface MachineCleanupOptions {
   redact: Redactor;
 }
 
-const TERMINATE_TIMEOUT_MS = 8 * 60_000;
-const ABSENCE_TIMEOUT_MS = 3 * 60_000;
-const ABSENCE_POLL_MS = 5_000;
-const SWEEP_PASSES = 2;
-/** how often a best-effort cleanup looks again for what it deleted */
-const CONFIRM_POLL_MS = 1_000;
-/** what to do about a workstation a best-effort cleanup could not confirm gone */
-export const MANUAL_CHECK =
-  'check them with `pnpm run -s local -- list` and the tailnet admin console, ' +
-  'or rerun `pnpm test:e2e cli` with the same TEST_* credentials: its start sweep removes every oa-e2e-* workstation';
+/** inputs used to gather one run's cleanup targets */
+interface BestEffortTargetsParams {
+  /** provider accounts and tailnet searched during cleanup */
+  accounts: RunAccounts;
+  /** run-specific workstation prefix */
+  scope: string;
+  /** bounds each listing request */
+  within: <T>(work: () => Promise<T>, fallback: T) => Promise<T>;
+}
 
 /** the provider accounts and tailnet a run's cleanup reaches */
 export interface RunAccounts {
@@ -81,13 +83,18 @@ export interface BestEffortCleanup {
   redact: Redactor;
 }
 
+/** how often a best-effort cleanup looks again for what it deleted */
+const CONFIRM_POLL_MS = 1_000;
+/** what to do about a workstation a best-effort cleanup could not confirm gone */
+export const MANUAL_CHECK =
+  'check them with `pnpm run -s local -- list` and the tailnet admin console, ' +
+  'or rerun `pnpm test:e2e cli` with the same TEST_* credentials: its start sweep removes every oa-e2e-* workstation';
+
 /**
  * connects every provider account the run has a `TEST_*` token for, and the tailnet
  * @param redact removes credential values from guest output
  * @returns the accounts, or undefined when no provider token is set and
  * nothing can have been created
- * @throws {Error} naming the variable, never a value, when a provider token
- * is set without the tailnet credentials
  */
 export function connectRunAccounts(redact: Redactor): RunAccounts | undefined {
   const inventories = PROVIDER_IDS.flatMap((type) => {
@@ -133,26 +140,11 @@ export async function cleanUpBestEffort(
       return fallback;
     });
 
-  const [devices, ...listed] = await Promise.all([
-    within<TailnetDevice[] | undefined>(
-      async () => tailnet.listDevices(),
-      undefined,
-    ),
-    ...inventories.map(async (inventory) =>
-      within(async () => inventory.listWorkstations(scope), []),
-    ),
-  ]);
-  const names = [
-    ...new Set([
-      ...listed.flat(),
-      ...(devices ?? []).flatMap((device) => [
-        device.hostname,
-        device.shortName,
-      ]),
-    ]),
-  ]
-    .filter((name) => isScopedWorkstation(name, scope))
-    .sort();
+  const { devices, names } = await bestEffortTargets({
+    accounts,
+    scope,
+    within,
+  });
   if (signal) {
     report(
       names.length > 0
@@ -192,9 +184,42 @@ export async function cleanUpBestEffort(
     report('cleanup successful');
   } else {
     report(
-      `could not confirm within ${limitMs / 1_000}s that ${remaining.join(', ')} ${remaining.length === 1 ? 'is' : 'are'} gone; ${MANUAL_CHECK}`,
+      `could not confirm within ${limitMs / SECOND_MS}s that ${remaining.join(', ')} ${remaining.length === 1 ? 'is' : 'are'} gone; ${MANUAL_CHECK}`,
     );
   }
+}
+
+/**
+ * gathers provider names and tailnet devices that fall within the run scope
+ * @param params run accounts, workstation scope and bounded listing requests
+ * @returns devices and sorted workstation names to remove
+ */
+async function bestEffortTargets(
+  params: BestEffortTargetsParams,
+): Promise<{ devices: TailnetDevice[] | undefined; names: string[] }> {
+  const { accounts, scope, within } = params;
+  const [devices, ...listed] = await Promise.all([
+    within<TailnetDevice[] | undefined>(
+      async () => accounts.tailnet.listDevices(),
+      undefined,
+    ),
+    ...accounts.inventories.map(async (inventory) =>
+      within(async () => inventory.listWorkstations(scope), []),
+    ),
+  ]);
+  const names = [
+    ...new Set([
+      ...listed.flat(),
+      ...(devices ?? []).flatMap((device) => [
+        device.hostname,
+        device.shortName,
+      ]),
+    ]),
+  ]
+    .filter((name) => isScopedWorkstation(name, scope))
+    .sort();
+
+  return { devices, names };
 }
 
 /**
@@ -260,161 +285,6 @@ async function stillPresent(
       devices === undefined ||
       devices.some((device) => isWorkstationDevice(device, name)),
   );
-}
-
-/**
- * creates cleanup bound to one scope
- * @param options CLI, provider inventories, tailnet, scope and redaction
- * @returns scoped cleanup
- * @throws {Error} for a malformed scope, which could reach foreign workstations
- */
-export function createMachineCleanup(
-  options: MachineCleanupOptions,
-): MachineCleanup {
-  const { cli, inventories, tailnet, scope, redact } = options;
-  if (!isScopedWorkstation(scope, scope)) {
-    throw new Error(
-      `Refusing a cleanup scope outside the e2e prefix: ${scope}`,
-    );
-  }
-  const describe = (error: unknown): string =>
-    redact(tail((error as Error).message));
-  const report = (message: string): void => {
-    process.stderr.write(`[e2e] ${redact(message)}\n`);
-  };
-  const devicesOf = async (name: string): Promise<TailnetDevice[]> =>
-    (await tailnet.listDevices()).filter((device) =>
-      isWorkstationDevice(device, name),
-    );
-  const scopedNames = async (): Promise<string[]> => {
-    const [devices, ...listed] = await Promise.all([
-      tailnet.listDevices(),
-      ...inventories.map(async (inventory) =>
-        inventory.listWorkstations(scope),
-      ),
-    ]);
-    const workstations = listed.flat();
-    const deviceNames = devices
-      .flatMap((device) => [device.hostname, device.shortName])
-      .filter((name) => isScopedWorkstation(name, scope));
-
-    return [...new Set([...workstations, ...deviceNames])].sort();
-  };
-  const proveAbsent = async (name: string): Promise<void> => {
-    const deadline = Date.now() + ABSENCE_TIMEOUT_MS;
-    for (;;) {
-      // a transient API failure is an unknown state, never proof either way
-      const observation = await Promise.all([
-        devicesOf(name),
-        ...inventories.map(async (inventory) => inventory.hasWorkstation(name)),
-      ]).then(
-        ([devices, ...presence]) => ({
-          present: presence.some(Boolean),
-          devices: devices.length,
-        }),
-        (error: unknown) => ({ error: describe(error) }),
-      );
-      if (
-        'present' in observation &&
-        !observation.present &&
-        observation.devices === 0
-      ) {
-        return;
-      }
-      if (Date.now() >= deadline) {
-        throw new Error(
-          'present' in observation
-            ? `${name} remains after cleanup: provider ${observation.present ? 'present' : 'absent'}, ` +
-                `${observation.devices} tailnet device(s)`
-            : `${name} absence could not be confirmed: ${observation.error}`,
-        );
-      }
-      await delay(ABSENCE_POLL_MS);
-    }
-  };
-  const terminate = async (
-    name: string,
-    inventory: MachineInventory,
-  ): Promise<boolean> =>
-    cli
-      .json(
-        ['terminate', name, '--provider', inventory.name, '--yes'],
-        TERMINATE_TIMEOUT_MS,
-      )
-      .then(
-        (outcome) => {
-          if (!outcome.envelope.ok) {
-            report(
-              `terminate ${name} failed: ${JSON.stringify(outcome.envelope.error)}`,
-            );
-          }
-
-          return outcome.envelope.ok;
-        },
-        (error: unknown) => {
-          report(`terminate ${name} failed: ${describe(error)}`);
-
-          return false;
-        },
-      );
-  const remove = async (name: string): Promise<void> => {
-    if (!isScopedWorkstation(name, scope)) {
-      throw new Error(`Refusing to clean up ${name} outside ${scope}*`);
-    }
-    // deletion attempts may race another cleanup; the absence proof decides
-    for (const inventory of inventories) {
-      if (
-        (await inventory.hasWorkstation(name)) &&
-        (!(await terminate(name, inventory)) ||
-          (await inventory.hasWorkstation(name)))
-      ) {
-        report(`deleting ${name} directly through ${inventory.name}`);
-        await inventory
-          .deleteWorkstation(name, scope)
-          .catch((error: unknown) =>
-            report(`direct deletion of ${name} failed: ${describe(error)}`),
-          );
-      }
-    }
-    for (const device of await devicesOf(name)) {
-      report(`deleting leftover tailnet device ${name}`);
-      await tailnet
-        .deleteDevice(device.id)
-        .catch((error: unknown) =>
-          report(`tailnet deletion of ${name} failed: ${describe(error)}`),
-        );
-    }
-    await proveAbsent(name);
-  };
-
-  return {
-    remove,
-    proveAbsent,
-    devicesOf,
-    /** */
-    async sweep() {
-      const failures: string[] = [];
-      for (let pass = 0; pass < SWEEP_PASSES; pass++) {
-        const names = await scopedNames();
-        if (names.length === 0) {
-          return;
-        }
-        const results = await Promise.allSettled(names.map(remove));
-        failures.push(
-          ...results.flatMap((result) =>
-            result.status === 'rejected' ? [describe(result.reason)] : [],
-          ),
-        );
-      }
-      const remaining = await scopedNames();
-      if (remaining.length > 0) {
-        throw new Error(
-          `Cleanup of ${scope}* left workstations behind: ${remaining.join(', ')}; ` +
-            failures.join('; '),
-        );
-      }
-    },
-  };
 }
 
 /**

@@ -35,7 +35,15 @@ export interface FlyMachineTarget {
 /** the token's own description */
 interface FlyTokenSummary {
   /** organizations the token is bound to */
-  tokens?: Array<{ org_slug?: string }>;
+  tokens?: Array<Partial<Record<'org_slug', string>>>;
+}
+
+/** token-bound operations used by the Fly inventory */
+interface FlyRequests {
+  request: (path: string, method?: string) => Promise<Response>;
+  json: <T>(path: string) => Promise<T>;
+  organization: () => Promise<string>;
+  hasApp: (name: string) => Promise<boolean>;
 }
 
 const API_URL = 'https://api.machines.dev/v1';
@@ -45,6 +53,7 @@ const MANAGED_KEY = 'open-agent';
 const MANAGED_VALUE = 'managed';
 const NOT_FOUND_STATUS = 404;
 const REQUEST_TIMEOUT_MS = 30_000;
+const LONG_REQUEST_TIMEOUT_MS = 90_000;
 
 /**
  * a Fly Machines inventory the e2e cleanup sweeps and deletes through,
@@ -53,44 +62,15 @@ const REQUEST_TIMEOUT_MS = 30_000;
  * @returns inventory of the token's organization
  */
 export function createFlyInventory(token: string): MachineInventory {
-  const authorization = authorizationOf(token);
-  const request = async (path: string, method = 'GET'): Promise<Response> =>
-    fetch(`${API_URL}${path}`, {
-      method,
-      headers: { authorization },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-  const json = async <T>(path: string): Promise<T> => {
-    const response = await request(path);
-    if (!response.ok) {
-      throw new Error(`Fly ${path} answered ${response.status}`);
-    }
-
-    return (await response.json()) as T;
-  };
-  const organization = async (): Promise<string> => {
-    const { tokens } = await json<FlyTokenSummary>('/tokens/current');
-    const slug = tokens?.[0]?.org_slug;
-    if (!slug) {
-      throw new Error('The e2e Fly token names no organization');
-    }
-
-    return slug;
-  };
-  const hasApp = async (name: string): Promise<boolean> => {
-    const response = await request(`/apps/${encodeURIComponent(name)}`);
-    if (response.status === NOT_FOUND_STATUS) {
-      return false;
-    }
-    if (!response.ok) {
-      throw new Error(`Fly app lookup of ${name} answered ${response.status}`);
-    }
-
-    return true;
-  };
+  const { request, json, organization, hasApp } = flyRequests(token);
 
   return {
     name: 'fly-machine',
+    /**
+     * lists Fly apps whose names match the run's prefix
+     * @param prefix run-scoped workstation name prefix
+     * @returns matching workstation names
+     */
     async listWorkstations(prefix) {
       const { apps } = await json<{ apps?: FlyAppSummary[] }>(
         `/apps?org_slug=${encodeURIComponent(await organization())}`,
@@ -101,6 +81,12 @@ export function createFlyInventory(token: string): MachineInventory {
         .filter((name) => name.startsWith(prefix));
     },
     hasWorkstation: hasApp,
+    /**
+     * deletes a scoped Fly app after checking its machine ownership
+     * @param name exact workstation name
+     * @param scope run-scoped workstation name prefix
+     * @returns when deletion completes
+     */
     async deleteWorkstation(name, scope) {
       if (!isScopedWorkstation(name, scope)) {
         throw new Error(`Refusing to delete Fly app ${name} outside ${scope}*`);
@@ -127,6 +113,51 @@ export function createFlyInventory(token: string): MachineInventory {
       }
     },
   };
+}
+
+/**
+ * binds Fly API requests and organization discovery to one token
+ * @param token Fly organization token
+ * @returns request helpers for the inventory
+ */
+function flyRequests(token: string): FlyRequests {
+  const authorization = authorizationOf(token);
+  const request = async (path: string, method = 'GET'): Promise<Response> =>
+    fetch(`${API_URL}${path}`, {
+      method,
+      headers: { authorization },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  const json = async <T>(path: string): Promise<T> => {
+    const response = await request(path);
+    if (!response.ok) {
+      throw new Error(`Fly ${path} answered ${response.status}`);
+    }
+
+    return (await response.json()) as T;
+  };
+  const organization = async (): Promise<string> => {
+    const { tokens } = await json<FlyTokenSummary>('/tokens/current');
+    const { org_slug: slug } = tokens?.[0] ?? {};
+    if (!slug) {
+      throw new Error('The e2e Fly token names no organization');
+    }
+
+    return slug;
+  };
+  const hasApp = async (name: string): Promise<boolean> => {
+    const response = await request(`/apps/${encodeURIComponent(name)}`);
+    if (response.status === NOT_FOUND_STATUS) {
+      return false;
+    }
+    if (!response.ok) {
+      throw new Error(`Fly app lookup of ${name} answered ${response.status}`);
+    }
+
+    return true;
+  };
+
+  return { request, json, organization, hasApp };
 }
 
 /**
@@ -326,13 +357,15 @@ export async function flyMachineMemory(
   machine: string,
 ): Promise<number | undefined> {
   const { config } = await flyJson<{
-    config: { guest?: { memory_mb?: number } };
+    config: { guest?: Partial<Record<'memory_mb', number>> };
   }>(
     token,
     `/apps/${encodeURIComponent(name)}/machines/${encodeURIComponent(machine)}`,
   );
 
-  return config.guest?.memory_mb;
+  const { memory_mb: memoryMb } = config.guest ?? {};
+
+  return memoryMb;
 }
 
 /**
@@ -358,7 +391,7 @@ async function flyJson<T>(
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     // a wait may be held open for a minute
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS * 3),
+    signal: AbortSignal.timeout(LONG_REQUEST_TIMEOUT_MS),
   });
   const text = await response.text();
   if (!response.ok) {

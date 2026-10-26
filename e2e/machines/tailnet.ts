@@ -53,6 +53,10 @@ export function connectTailnet(access: TailnetAccess): Tailnet {
   ];
 
   return {
+    /**
+     * lists devices from the configured tailnet
+     * @returns tailnet device identities
+     */
     async listDevices() {
       for (const candidate of candidates) {
         const response = await request(
@@ -78,6 +82,11 @@ export function connectTailnet(access: TailnetAccess): Tailnet {
         'Tailscale API could not find the configured TAILSCALE_TAILNET',
       );
     },
+    /**
+     * deletes one tailnet device when it still exists
+     * @param id tailnet device identity
+     * @returns when deletion completes
+     */
     async deleteDevice(id) {
       const response = await request(
         access.apiKey,
