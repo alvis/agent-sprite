@@ -6,10 +6,16 @@ import { parseProfile } from '#domain/profile';
 import { isRecord } from '#kernel/guards';
 
 import type { ProductDeclarations } from '#domain/declarations';
-import type { GuestEnvironment } from '#domain/observations/environment';
+import type {
+  EnvironmentSchema,
+  GuestEnvironment,
+} from '#domain/observations/environment';
 
 /** tells whether a value has a shape */
 type Check = (value: unknown) => boolean;
+
+/** the record's format version */
+export const ENVIRONMENT_SCHEMA: EnvironmentSchema = 1;
 
 /** a service, job or tool name a guest path or cron entry can carry */
 const NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
@@ -237,15 +243,57 @@ export function environmentProblem(
   declarations: ProductDeclarations,
   candidate: object,
 ): string | undefined {
-  const value = candidate as Record<string, unknown>;
-  const malformed = fieldChecks(declarations).find(
-    ([field, check]) => !check(value[field]),
-  );
-  if (malformed) {
-    return `${malformed[0]} is malformed`;
+  if (!hasEnvironmentFields(declarations, candidate)) {
+    return malformedField(declarations, candidate);
   }
 
-  return consistencyProblem(value as unknown as GuestEnvironment);
+  return consistencyProblem(candidate);
+}
+
+/**
+ * narrows a parsed record with a supported schema and valid fields
+ * @param declarations the data every registered driver declares
+ * @param candidate the parsed record
+ * @returns whether its fields and references form a guest environment
+ */
+export function isGuestEnvironment(
+  declarations: ProductDeclarations,
+  candidate: object,
+): candidate is GuestEnvironment {
+  return (
+    Reflect.get(candidate, 'schema') === ENVIRONMENT_SCHEMA &&
+    environmentProblem(declarations, candidate) === undefined
+  );
+}
+
+/**
+ * narrows the fields used by consistency checks
+ * @param declarations the data every registered driver declares
+ * @param candidate the record being validated
+ * @returns whether every field has its declared shape
+ */
+function hasEnvironmentFields(
+  declarations: ProductDeclarations,
+  candidate: object,
+): candidate is Omit<GuestEnvironment, 'schema'> {
+  return malformedField(declarations, candidate) === undefined;
+}
+
+/**
+ * finds the first field whose value fails its shape check
+ * @param declarations the data every registered driver declares
+ * @param candidate the record being validated
+ * @returns the first malformed field, or nothing when every field passes
+ */
+function malformedField(
+  declarations: ProductDeclarations,
+  candidate: object,
+): string | undefined {
+  const malformed = fieldChecks(declarations).find(
+    ([field, check]) => !check(Reflect.get(candidate, field)),
+  );
+
+  return malformed === undefined ? undefined : `${malformed[0]} is malformed`;
 }
 
 /**
@@ -253,7 +301,12 @@ export function environmentProblem(
  * @param environment a record whose every field is well formed
  * @returns what is inconsistent, or nothing
  */
-function consistencyProblem(environment: GuestEnvironment): string | undefined {
+function consistencyProblem(
+  environment: Pick<
+    GuestEnvironment,
+    'services' | 'agent' | 'network' | 'tools'
+  >,
+): string | undefined {
   const { services, agent, network, tools } = environment;
   const names = new Set(services.map((service) => service.name));
   if (names.size !== services.length) {

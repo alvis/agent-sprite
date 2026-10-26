@@ -63,8 +63,6 @@ export function createEnvironmentAccess(
  * @param declarations the data every registered driver declares
  * @param guest target guest
  * @returns the record
- * @throws {CommandFault} when its format version is unknown
- * @throws {Error} when it is missing or malformed
  */
 async function readGuestEnvironment(
   declarations: ProductDeclarations,

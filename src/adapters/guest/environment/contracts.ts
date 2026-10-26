@@ -5,19 +5,19 @@
 import { CommandFault } from '#kernel/faults';
 import { isRecord } from '#kernel/guards';
 
-import { environmentProblem } from './validation';
+import {
+  ENVIRONMENT_SCHEMA,
+  environmentProblem,
+  isGuestEnvironment,
+} from './validation';
 
 import type { ProductDeclarations } from '#domain/declarations';
-import type {
-  EnvironmentSchema,
-  GuestEnvironment,
-} from '#domain/observations/environment';
+import type { GuestEnvironment } from '#domain/observations/environment';
+
+export { ENVIRONMENT_SCHEMA } from './validation';
 
 /** the record's mode: root writes it, every account reads it */
 export const ENVIRONMENT_MODE = 0o644;
-
-/** the record's format version */
-export const ENVIRONMENT_SCHEMA: EnvironmentSchema = 1;
 
 /**
  * renders the record as the file setup writes
@@ -54,10 +54,10 @@ export function parseEnvironment(
   if (!isRecord(value) || value.schema !== ENVIRONMENT_SCHEMA) {
     throw new Error('The guest environment is malformed: it has no schema');
   }
-  const problem = environmentProblem(declarations, value);
-  if (problem) {
+  if (!isGuestEnvironment(declarations, value)) {
+    const problem = environmentProblem(declarations, value);
     throw new Error(`The guest environment is malformed: ${problem}`);
   }
 
-  return value as unknown as GuestEnvironment;
+  return value;
 }
