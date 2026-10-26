@@ -10,22 +10,12 @@ import { promisify } from 'node:util';
 import { execa } from 'execa';
 import { describe, inject, it } from 'vitest';
 
-import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
-import { ENVIRONMENT_PATH, GUEST_ROOT } from '#adapters/guest/platform/layout';
-import { harnessDrivers } from '#application/catalog/harnesses';
-import { providerPreflight } from '#application/catalog/preflight';
-import { defaults } from '#composition/defaults';
-import { createHostPorts } from '#adapters/host/ports';
-import { registry } from '#composition/registry';
-import { defaultProfile } from '#domain/profile';
-import { summarizeProfile } from '#domain/recorded';
 import { T3_SERVER_RECORD } from '#adapters/drivers/agents/t3/service';
 import { FlyApi } from '#adapters/drivers/providers/fly-machine/api';
 import {
   BOOT_LOG,
   BOOT_READY_FILE,
   BOOT_STATUS,
-  BOOT_STEPS,
   PROFILE_PATH,
   ROOTFS_RESTORED,
   VOLUME_LAYOUT,
@@ -37,8 +27,18 @@ import {
   flyctlConfigDirectory,
 } from '#adapters/drivers/providers/fly-machine/flyctl';
 import { tokenScopeProblem } from '#adapters/drivers/providers/fly-machine/token-scope';
+import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
+import { ENVIRONMENT_PATH, GUEST_ROOT } from '#adapters/guest/platform/layout';
+import { createHostPorts } from '#adapters/host/ports';
+import { harnessDrivers } from '#application/catalog/harnesses';
+import { providerPreflight } from '#application/catalog/preflight';
+import { defaults } from '#composition/defaults';
+import { registry } from '#composition/registry';
+import { defaultProfile } from '#domain/profile';
+import { summarizeProfile } from '#domain/recorded';
 import { isRecord } from '#kernel/guards';
 
+import { BOOT_STEPS } from './fixtures/boot';
 import { successData } from './machines/cli';
 import {
   createFlyInventory,

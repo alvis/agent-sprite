@@ -49,9 +49,10 @@ export async function setupAll(
     // a workstation whose create stopped short has no name recorded yet
     await dependencies.guest.label.write(guest, context.workstation.name);
     configured.resolve(
-      await traceStage('setup.native.configuration', async () =>
-        configureSections(dependencies, guest, context),
-      ),
+      await traceStage({
+        stage: 'setup.native.configuration',
+        action: async () => configureSections(dependencies, guest, context),
+      }),
     );
     if (context.isReleaseChanged) {
       // stopped only once every section is configured, so a section that

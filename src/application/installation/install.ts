@@ -71,13 +71,15 @@ export async function installWorkstation(
   await params.beforeServices?.(await connection.guest());
   await runSteps(mechanics, params, assembly.services);
   if (provider.serviceBackend === 'provider') {
-    await traceStage('setup.services', async () =>
-      mechanics.services.installProvider({
-        control: (await connection.guest()).services,
-        services: assembly.environment.services,
-        previous: previous?.services.map(({ name }) => name) ?? [],
-      }),
-    );
+    await traceStage({
+      stage: 'setup.services',
+      action: async () =>
+        mechanics.services.installProvider({
+          control: (await connection.guest()).services,
+          services: assembly.environment.services,
+          previous: previous?.services.map(({ name }) => name) ?? [],
+        }),
+    });
   }
 
   return assembly.environment;
@@ -122,15 +124,17 @@ async function runSteps(
   steps: readonly SetupStep[],
 ): Promise<void> {
   const { connection, interaction } = params;
-  const report = await traceStage('setup.plan', async () =>
-    mechanics.plan.run({
-      steps,
-      openSession: async (supersedes) => connection.lend(supersedes),
-      onProgress: (event) => {
-        reportProgress(event, interaction);
-      },
-    }),
-  );
+  const report = await traceStage({
+    stage: 'setup.plan',
+    action: async () =>
+      mechanics.plan.run({
+        steps,
+        openSession: async (supersedes) => connection.lend(supersedes),
+        onProgress: (event) => {
+          reportProgress(event, interaction);
+        },
+      }),
+  });
   if (!report.isComplete) {
     const failed = report.steps.filter(
       ({ status, step }) => status === 'failed' && step.critical,
