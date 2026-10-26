@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 167
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":null,"ok":false,"error":{"code":"USAGE","message":"Unknown command \"frobnicate\"","details":["Run open-agent --help for the commands"]}}
-
-=== notes ===
-

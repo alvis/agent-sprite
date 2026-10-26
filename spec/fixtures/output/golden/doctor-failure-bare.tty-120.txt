@@ -1,8 +1,0 @@
-channel: stderr
-text-length: 36
-notes-length: none
-=== text ===
-Workstation "missing" was not found
-
-=== notes ===
-

@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 238
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"git","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"gitIdentity":"configured"}}
-
-=== notes ===
-

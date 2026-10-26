@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 707
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"create","ok":false,"error":{"code":"PROVIDER","message":"Setup stopped before it finished","machine":"primary","machineId":"sprite-primary","setupIncomplete":true,"details":["Run open-agent setup primary to resume","Nothing was exposed"]},"data":{"preflight":{"checks":["Provider token verified","Workstation name is available"],"reminders":["Run open-agent show primary --inspect after the first boot"]},"readiness":{"ready":false,"failures":["T3 environment endpoint","network inspection unavailable"],"skipped":[],"probeFailures":[{"probe":"network","reason":"tailscale status timed out"}]},"setup":"ready","recovery":{"privacy":"confirmed","incompleteLabel":"confirmed"}}}
-
-=== notes ===
-

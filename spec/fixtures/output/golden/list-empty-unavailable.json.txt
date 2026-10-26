@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 152
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"list","ok":true,"data":{"machines":[],"unavailable":[{"provider":"fly-machine","code":"PROVIDER","reason":"timed out"}]}}
-
-=== notes ===
-

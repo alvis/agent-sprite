@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 253
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"env","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"runtimeEnvironment":{"status":"skipped"}}}
-
-=== notes ===
-

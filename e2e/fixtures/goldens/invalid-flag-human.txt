@@ -1,8 +1,0 @@
-args: list --no-such-flag
-exit-code: 2
-stdout-length: 0
-stderr-length: 37
-=== stdout ===
-
-=== stderr ===
-No flag registered for --no-such-flag

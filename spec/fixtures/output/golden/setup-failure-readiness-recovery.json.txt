@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 488
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"setup","ok":false,"error":{"code":"PREFLIGHT","message":"Setup finished but the workstation is not ready","machine":"primary","machineId":"sprite-primary","setupIncomplete":true,"details":["Inspect the T3 service"]},"data":{"readiness":{"ready":false,"failures":["T3 environment endpoint","network inspection unavailable"],"skipped":[],"probeFailures":[{"probe":"network","reason":"tailscale status timed out"}]},"recovery":{"incompleteLabel":"confirmed"}}}
-
-=== notes ===
-

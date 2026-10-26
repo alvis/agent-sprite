@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 701
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"all","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"retainedCredentials":{"network":{"storage":"keychain"}},"service":"configured","pairing":{"status":"not requested"},"github":"configured","gitIdentity":"preserved","runtimeEnvironment":{"status":"configured","names":["API_BASE","REGION"]},"plugins":{"claude":"applied","codex":"preserved"},"network":{"status":"configured","exitNode":"home-router"},"proxy":{"status":"configured","baseUrl":"https://hub.example.test/"},"components":{"installed":6,"skipped":1,"failed":1},"tools":"updated"}}
-
-=== notes ===
-

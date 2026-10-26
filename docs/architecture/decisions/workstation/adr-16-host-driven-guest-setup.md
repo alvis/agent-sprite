@@ -46,7 +46,7 @@ Lint uses the shared Presetter defaults for `src` and `spec`. The executable wra
 
 Each provider driver owns what is specific to its machines:
 
-- provisioning, guest channel, capabilities and the awake adapter (ADR-9 and ADR-17, ADR-13);
+- provisioning, guest channel, capabilities and the awake adapter (ADR-9 and ADR-18, ADR-13);
 - `openRootShell` and `awaitGuestReady` (a cloud VM, for example, waits for `cloud-init`);
 - `images`: the OS images it can create, each with its OS family, release and architectures (Fly: `debian` family, Debian 12, `x86_64`);
 - `serviceBackend`: `provider` (Sprite services) or `runit` (init-less machines such as Fly). A provider whose machines boot systemd adds a `systemd` backend when it is introduced;

@@ -21,7 +21,7 @@ import type { CommandErrorCode } from '#kernel/faults';
 
 /** one characterized result and the output controls it is rendered with */
 export interface CorpusCase {
-  /** unique kebab-case identity, used as the golden file stem */
+  /** unique kebab-case identity used in runtime contract test names */
   name: string;
   /** the completed result handed to the output layer */
   result: CommandResult;
@@ -163,11 +163,9 @@ const ONLINE_NETWORK: GuestInspection['network'] = {
   dnsReady: true,
   skipped: false,
   deviceId: 'node-1234',
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a tailnet address in a fixture, never connected to
-  ip: '100.64.0.7',
+  ip: '192.0.2.7',
   exitNode: 'home-router',
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a tailnet address in a fixture, never connected to
-  exitNodeIp: '100.64.0.2',
+  exitNodeIp: '192.0.2.2',
   exitNodeName: 'home-router',
   routeDevice: 'tailscale0',
   egressIp: '203.0.113.9',
@@ -1039,8 +1037,7 @@ export const CORPUS: readonly CorpusCase[] = [
         network:
           status === 'no device identity recorded'
             ? { status }
-            : // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a tailnet address in a fixture, never connected to
-              { status, deviceId: 'managed-node', address: '100.64.0.7' },
+            : { status, deviceId: 'managed-node', address: '192.0.2.7' },
       },
     }),
   ),

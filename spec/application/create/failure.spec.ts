@@ -136,8 +136,8 @@ describe('cmd:create failure', () => {
     expect(result.error.details?.[0]?.length).toBeLessThanOrEqual(
       512 + 'Creation cause: '.length,
     );
-    const human = prepareResult(result, {});
-    const json = prepareResult(result, { json: true });
+    const human = prepareResult({ result, options: {} });
+    const json = prepareResult({ result, options: { json: true } });
     expect(human.channel).toBe('stderr');
     expect(human.text).toContain(
       'Provider lookup confirmed this workstation is absent',

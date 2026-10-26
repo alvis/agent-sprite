@@ -9,7 +9,6 @@ import type { CommandError } from '#application/failures';
 import type { CommandResult, CommandSuccess } from '#application/result';
 
 import type { PreparedResult } from './output';
-import type { ExecutionState } from './parser';
 
 const RENDER_FAILURE_MESSAGE =
   'The command result could not be rendered safely.';
@@ -18,39 +17,19 @@ const RENDER_FAILURE_MESSAGE =
  * owns the ordinary result object and its mode-independent exit status
  * @param result completed command or parser failure
  * @param options selected output mode
- * @param state invocation-local emission ownership
  */
 export function emitResult(
   result: CommandResult,
   options: CommandOptions,
-  state: ExecutionState,
 ): void {
-  if (state.emitted) {
-    return;
-  }
   let completed = result;
   let prepared: PreparedResult;
   try {
-    prepared = prepareResult(result, options);
+    prepared = prepareResult({ result, options });
   } catch {
     completed = preparationFailure(result);
-    try {
-      prepared = prepareResult(completed, options);
-    } catch {
-      completed = {
-        command: state.command,
-        ok: false,
-        error: { code: 'UNEXPECTED', message: RENDER_FAILURE_MESSAGE },
-      };
-      prepared = options.json
-        ? {
-            channel: 'stdout',
-            text: `${JSON.stringify({ schemaVersion: 1, ...completed })}\n`,
-          }
-        : { channel: 'stderr', text: `${RENDER_FAILURE_MESSAGE}\n` };
-    }
+    prepared = prepareResult({ result: completed, options });
   }
-  state.emitted = true;
   process.exitCode = resultExitCode(completed);
   writePreparedResult(prepared);
 }

@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 403
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"list","ok":true,"data":{"unavailable":[],"machines":[{"id":"sprite-future","name":"future","organization":"example","state":"running","setup":"ready","readiness":"not inspected","provider":"sprite","newerRelease":"9.9.9"},{"id":"sprite-current","name":"current","organization":"example","state":"running","setup":"ready","readiness":"not inspected","provider":"sprite"}]}}
-
-=== notes ===
-

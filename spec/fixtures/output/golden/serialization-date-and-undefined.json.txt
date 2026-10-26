@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 369
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"list","ok":true,"data":{"unavailable":[],"machines":[{"id":"sprite-primary","name":"dated","organization":"example","state":"running","setup":"ready","readiness":"not inspected","provider":"sprite","createdAt":"2026-10-09T12:00:00.000Z","profile":{"provider":"sprite","agent":"t3","harnesses":["claude",null,"codex"],"network":"none"}}]}}
-
-=== notes ===
-

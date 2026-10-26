@@ -47,11 +47,8 @@ export async function execute(
       operation.close();
       void session?.dispose().catch(() => undefined);
       if (!state.emitted) {
-        emitResult(
-          forcedCancellation(request, operation),
-          request.options,
-          state,
-        );
+        state.emitted = true;
+        emitResult(forcedCancellation(request, operation), request.options);
       }
     },
   });
@@ -81,7 +78,8 @@ export async function execute(
       result = forcedCancellation(request, operation, false);
     }
     if (!state.emitted) {
-      emitResult(result, request.options, state);
+      state.emitted = true;
+      emitResult(result, request.options);
     }
     await flushOutput();
   } finally {
