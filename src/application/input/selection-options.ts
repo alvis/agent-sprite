@@ -1,6 +1,6 @@
 import { isHarnessId } from '#domain/harnesses';
 import { isNetworkId } from '#domain/networks';
-import { machineViolations, isDriverId } from '#domain/profile-rules';
+import { machineViolations, isDriverId } from '#domain/profile';
 
 import { releaseChoices } from './selection-choices';
 

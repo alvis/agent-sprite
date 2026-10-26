@@ -8,8 +8,7 @@ import {
 } from '#application/input/selection';
 import { suppliedSelectionViolations } from '#application/input/selection-supplied';
 import { defaults } from '#composition/defaults';
-import { defaultProfile } from '#domain/profile';
-import { MAX_UPDATE_DUE_DAYS } from '#domain/profile-rules';
+import { defaultProfile, MAX_UPDATE_DUE_DAYS } from '#domain/profile';
 
 import { dependencies } from '../../mocks/dependencies';
 

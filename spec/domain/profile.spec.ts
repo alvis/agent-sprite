@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { defaults } from '#composition/defaults';
 import { registry } from '#composition/registry';
-import { defaultProfile, parseProfile, validateProfile } from '#domain/profile';
-import { MAX_UPDATE_DUE_DAYS } from '#domain/profile-rules';
+import {
+  defaultProfile,
+  parseProfile,
+  registeredSummary,
+  validateProfile,
+  MAX_UPDATE_DUE_DAYS,
+} from '#domain/profile';
 
 import type {
   AgentDeclaration,
@@ -211,12 +216,85 @@ describe('fn:defaultProfile', () => {
   });
 });
 
+describe('fn:registeredSummary', () => {
+  it.each([
+    {
+      reason: 'the provider record is absent',
+      recorded: undefined,
+    },
+    {
+      reason: 'the provider is unknown',
+      recorded: {
+        provider: 'unknown-provider',
+        agent: 't3',
+        harnesses: ['claude'],
+        network: 'none',
+      },
+    },
+    {
+      reason: 'the agent is unknown',
+      recorded: {
+        provider: 'sprite',
+        agent: 'unknown-agent',
+        harnesses: ['claude'],
+        network: 'none',
+      },
+    },
+    {
+      reason: 'the network is unknown',
+      recorded: {
+        provider: 'sprite',
+        agent: 't3',
+        harnesses: ['claude'],
+        network: 'unknown-network',
+      },
+    },
+    {
+      reason: 'no known harness remains',
+      recorded: {
+        provider: 'sprite',
+        agent: 't3',
+        harnesses: ['unknown-harness'],
+        network: 'none',
+      },
+    },
+  ])('should withhold a summary when $reason', ({ recorded }) => {
+    expect(registeredSummary(registry, recorded)).toBeUndefined();
+  });
+});
+
 describe('fn:validateProfile', () => {
   it('should accept the default profile and an idle timeout of 0', () => {
     expect(violationCodes({})).toEqual([]);
     expect(
       violationCodes({ options: { ...valid.options, idleTimeoutMinutes: 0 } }),
     ).toEqual([]);
+  });
+
+  it('should accept the largest offered machine and explain an unavailable minimum', () => {
+    const options = {
+      ...valid.options,
+      minCpus: 8,
+      minMemoryGb: 16,
+    };
+
+    expect(violationCodes({ options })).toEqual([]);
+    expect(
+      validateProfile(registry, {
+        ...valid,
+        options: { ...options, minCpus: 9 },
+      }),
+    ).toMatchObject({
+      isValid: false,
+      violations: [
+        {
+          code: 'undeclared-capability',
+          fields: ['provider', 'minCpus', 'minMemoryGb'],
+          message:
+            'Sprite offers no machine with 9 CPUs and 16 GB; it offers at most 8 CPUs and 16 GB',
+        },
+      ],
+    });
   });
 
   it.each([
