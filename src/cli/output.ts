@@ -18,6 +18,16 @@ import type { CommandResult } from '#application/result';
 
 import type { JsonObject, JsonValue, SerializedResult } from './serialization';
 
+interface ResultStream extends Writable {
+  isTTY?: boolean;
+  columns?: number;
+}
+
+interface ResultStreams {
+  stdout: ResultStream;
+  stderr: ResultStream;
+}
+
 interface MachineRows {
   entries: JsonValue[];
   rows: Array<Record<string, string>>;
@@ -28,16 +38,6 @@ export interface PrepareResultParams {
   result: CommandResult;
   options: CommandOptions;
   streams?: ResultStreams;
-}
-
-interface ResultStream extends Writable {
-  isTTY?: boolean;
-  columns?: number;
-}
-
-interface ResultStreams {
-  stdout: ResultStream;
-  stderr: ResultStream;
 }
 
 /** fully rendered output with one selected destination */

@@ -6,7 +6,7 @@ import { createDependencies } from '#composition/dependencies';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
 
 import { commandRoutes } from './commands';
-import { emitResult } from './emit';
+import { emitResult } from './emission';
 import { applicationText, parseApplication, requestedCommand } from './parser';
 
 import type { Application, RouteMap } from '@stricli/core';
@@ -16,77 +16,6 @@ import type { DriverRegistry } from '#application/ports/drivers';
 import type { ExecutionState, InvocationContext } from './parser';
 
 const ENVIRONMENT_NAME_WIDTH = 19;
-
-/**
- * describes the environment each registered provider reads
- * @param registry the registered drivers
- * @returns the environment and documentation guidance after the command table
- */
-function rootHelpFooter(registry: DriverRegistry): string {
-  return `ENVIRONMENT
-${Object.values(registry.providers)
-  .map(
-    ({ displayName, prerequisites: { credential } }) =>
-      `  ${credential.environment.padEnd(ENVIRONMENT_NAME_WIDTH)} ${displayName} credential; --provider-token-source selects another source.`,
-  )
-  .join('\n')}
-  OPEN_AGENT_*        Driver and option selection; see open-agent create --help.
-  CI, NON_INTERACTIVE Disable prompts when set to 1, true, yes, or on.
-  NO_COLOR            Disable color unless --color is selected.
-
-LEARN MORE
-${Object.values(registry.providers)
-  .flatMap(({ prerequisites: { documentation } }) => documentation)
-  .map((link) => `  ${link}`)
-  .join('\n')}`;
-}
-
-/**
- * appends environment guidance after Stricli's complete root command table
- * @param root supported route map with the built-in help formatter
- * @param footer root-only help text
- * @returns equivalent route map with a root-only help footer
- */
-function withRootHelpFooter(
-  root: RouteMap<InvocationContext>,
-  footer: string,
-): RouteMap<InvocationContext> {
-  return {
-    ...root,
-    formatHelp: (args) => `${root.formatHelp(args).trimEnd()}\n\n${footer}\n`,
-  };
-}
-
-/**
- * binds parser diagnostics to one invocation while sharing immutable routes
- * @param state invocation-local parser and result ownership
- * @param registry the registered drivers the help describes
- * @returns configured Stricli application
- */
-function createApplication(
-  state: ExecutionState,
-  registry: DriverRegistry,
-): Application<InvocationContext> {
-  return buildApplication(
-    withRootHelpFooter(
-      buildRouteMap({
-        routes: commandRoutes,
-        docs: { brief: 'manage persistent coding workstations' },
-      }),
-      rootHelpFooter(registry),
-    ),
-    {
-      name: 'open-agent',
-      versionInfo: { currentVersion: OPEN_AGENT_VERSION },
-      localization: { text: applicationText(state) },
-      scanner: { caseStyle: 'allow-kebab-for-camel' },
-      documentation: {
-        caseStyle: 'convert-camel-to-kebab',
-        onlyRequiredInUsageLine: true,
-      },
-    },
-  );
-}
 
 /**
  * executes the compiled Stricli application
@@ -148,6 +77,37 @@ export async function cli(argv: string[]): Promise<void> {
 }
 
 /**
+ * binds parser diagnostics to one invocation while sharing immutable routes
+ * @param state invocation-local parser and result ownership
+ * @param registry the registered drivers the help describes
+ * @returns configured Stricli application
+ */
+function createApplication(
+  state: ExecutionState,
+  registry: DriverRegistry,
+): Application<InvocationContext> {
+  return buildApplication(
+    withRootHelpFooter(
+      buildRouteMap({
+        routes: commandRoutes,
+        docs: { brief: 'manage persistent coding workstations' },
+      }),
+      rootHelpFooter(registry),
+    ),
+    {
+      name: 'open-agent',
+      versionInfo: { currentVersion: OPEN_AGENT_VERSION },
+      localization: { text: applicationText(state) },
+      scanner: { caseStyle: 'allow-kebab-for-camel' },
+      documentation: {
+        caseStyle: 'convert-camel-to-kebab',
+        onlyRequiredInUsageLine: true,
+      },
+    },
+  );
+}
+
+/**
  * refuses machine output combined with human-only help or version output
  * @param state invocation-local result ownership
  */
@@ -187,4 +147,44 @@ function emitApplicationFailure(
     options: { json: jsonRequested },
     state,
   });
+}
+
+/**
+ * appends environment guidance after Stricli's complete root command table
+ * @param root supported route map with the built-in help formatter
+ * @param footer root-only help text
+ * @returns equivalent route map with a root-only help footer
+ */
+function withRootHelpFooter(
+  root: RouteMap<InvocationContext>,
+  footer: string,
+): RouteMap<InvocationContext> {
+  return {
+    ...root,
+    formatHelp: (args) => `${root.formatHelp(args).trimEnd()}\n\n${footer}\n`,
+  };
+}
+
+/**
+ * describes the environment each registered provider reads
+ * @param registry the registered drivers
+ * @returns the environment and documentation guidance after the command table
+ */
+function rootHelpFooter(registry: DriverRegistry): string {
+  return `ENVIRONMENT
+${Object.values(registry.providers)
+  .map(
+    ({ displayName, prerequisites: { credential } }) =>
+      `  ${credential.environment.padEnd(ENVIRONMENT_NAME_WIDTH)} ${displayName} credential; --provider-token-source selects another source.`,
+  )
+  .join('\n')}
+  OPEN_AGENT_*        Driver and option selection; see open-agent create --help.
+  CI, NON_INTERACTIVE Disable prompts when set to 1, true, yes, or on.
+  NO_COLOR            Disable color unless --color is selected.
+
+LEARN MORE
+${Object.values(registry.providers)
+  .flatMap(({ prerequisites: { documentation } }) => documentation)
+  .map((link) => `  ${link}`)
+  .join('\n')}`;
 }

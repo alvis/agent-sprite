@@ -9,13 +9,6 @@ import type { Dispatch, SetStateAction } from 'react';
 
 import type { InteractionChoice } from '#application/ports/interaction';
 
-/** input chunk and current multiple-choice selection state */
-interface MultiSelectInputParams<V extends string> {
-  input: string;
-  key: InputKey;
-  context: MultiSelectInputContext<V>;
-}
-
 /** props for a searchable compatibility-aware multiple choice */
 type MultiSelectProps<V extends string> = {
   label: string;
@@ -41,6 +34,13 @@ interface MultiSelectInputContext<V extends string> {
   setConfirmEmpty: Dispatch<SetStateAction<boolean>>;
   onSubmit: (values: V[]) => void;
   onCancel: (back?: boolean) => void;
+}
+
+/** input chunk and current multiple-choice selection state */
+interface MultiSelectInputParams<V extends string> {
+  input: string;
+  key: InputKey;
+  context: MultiSelectInputContext<V>;
 }
 
 /**

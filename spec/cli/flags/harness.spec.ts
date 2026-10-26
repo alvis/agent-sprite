@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   harnessPluginOptions,
   harnessPluginToggleNames,
-} from '#cli/harness-flags';
+} from '#cli/flags/harness';
 
 describe('fn:harnessPluginOptions', () => {
   it('should omit harnesses whose flags were not supplied', () => {

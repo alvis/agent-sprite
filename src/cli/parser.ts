@@ -13,7 +13,7 @@ import { pairingAgentIds } from '#domain/ids';
 import { ensureError } from '#kernel/faults';
 import { redactResolved } from '#kernel/redaction';
 
-import { harnessPluginToggleNames } from './harness-flags';
+import { harnessPluginToggleNames } from './flags/harness';
 
 import type {
   Application,

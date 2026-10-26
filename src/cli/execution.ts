@@ -15,7 +15,7 @@ import {
 } from '#kernel/operation';
 
 import { createCommandCancellation } from './cancellation';
-import { emitResult } from './emit';
+import { emitResult } from './emission';
 import { createInteraction } from './interaction';
 import { resolveProcessExecutionOptions } from './mode';
 import { createStageReporter, createStatusReporter } from './reporting';

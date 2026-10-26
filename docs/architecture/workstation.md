@@ -111,8 +111,8 @@ src
   cli                         # Layer 5: Stricli commands, output and real terminal adapters; imports everything except adapters
     application.ts            # Application metadata and supported help formatting
     commands.ts               # Six command definitions and examples
-    execute.ts                # Command-owned mode, cancellation and output lifetime
-    emit.ts                   # Result emission and recovery wording
+    execution.ts              # Command-owned mode, cancellation and output lifetime
+    emission.ts               # Result emission and recovery wording
     exit.ts                   # Exit-code policy
     flags.ts                  # Command-specific flags and value placeholders
     interaction.ts            # One Ink root and queued prompts
@@ -143,7 +143,7 @@ spec
 ## Main components
 
 - **CLI entry point** (`bin/cli.mjs`, `src/cli/index.ts`, `src/cli/application.ts`): the bin statically imports the compiled entry, which runs the Stricli application and flushes output; the bin reports an unhandled failure generically, then sets the exit status and exits. The package exposes only its executable; internal workflow functions are not a public SDK.
-- **Execution boundary** (`src/cli/execute.ts`, `src/kernel/operation.ts`): resolves interaction before effects, owns cancellation and retains observed resource identity for recovery. One invocation-scoped context prevents work from starting after its owner closes.
+- **Execution boundary** (`src/cli/execution.ts`, `src/kernel/operation.ts`): resolves interaction before effects, owns cancellation and retains observed resource identity for recovery. One invocation-scoped context prevents work from starting after its owner closes.
 - **Interactive session** (`src/cli/interaction.ts`, `src/cli/components/InteractionRoot.tsx`): keeps one Ink root mounted across a prompt queue. Rendered components collect input and display state; workflows own cloud mutations.
 - **Inputs and validation** (`src/application/input.ts`, `src/application/validation.ts`): apply one source order (flags, credential references, the `--credential-file` dotenv file, the process environment, the saved profile, prompts, defaults), resolve eligible fallback credentials lazily and aggregate determinable preflight issues before provisioning. Each adapter declares the inputs it needs (the provider's credential and tools, the network's keys and account, the gateway's URL and key, the GitHub token and Git identity), and every command that uses one checks it before it mutates anything, naming the absent input and the ways to supply it.
 - **Workstation workflows** (`src/application/create.ts`, `src/application/setup.ts`): share ordered native configuration steps, preserve unrelated settings and retain failed resources for recovery.

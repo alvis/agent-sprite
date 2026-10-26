@@ -20,13 +20,13 @@ import {
   harnessPluginChangeFlags,
   harnessPluginFlags,
   harnessPluginOptions,
-} from '#cli/harness-flags';
+} from '#cli/flags/harness';
 
 import type { StricliProcess } from '@stricli/core';
 
 import type { CommandOptions } from '#application/contracts';
 import type { HarnessPluginActions } from '#application/plugins';
-import type { HarnessPluginFlagValues } from '#cli/harness-flags';
+import type { HarnessPluginFlagValues } from '#cli/flags/harness';
 
 type ParsedValues = CommandOptions & HarnessPluginFlagValues;
 
