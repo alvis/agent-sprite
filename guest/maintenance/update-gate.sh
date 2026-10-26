@@ -31,7 +31,7 @@ OA_GATE_TOOLS=$OA_GUEST_ROOT/tools
 # the system's jq, which root reads JSON with, never a tool link
 OA_GATE_JQ=/usr/bin/jq
 # the due interval's default and limit, in days: updateDueIntervalDays in
-# src/core/profile.ts and MAX_UPDATE_DUE_DAYS in src/core/profile-rules.ts
+# src/composition/defaults.ts and MAX_UPDATE_DUE_DAYS in src/domain/profile/options.ts
 OA_GATE_DEFAULT_DAYS=1
 OA_GATE_MAX_DAYS=365
 # the source and session the awake hold is recorded under
