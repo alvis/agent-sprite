@@ -9,9 +9,9 @@ import {
   configureRuntimeEnv,
 } from './native/git';
 import { createNativeInspection } from './native/inspection';
-import { assertImageTools, assemblePlan } from './plan/assemble';
+import { assertImageTools, assemblePlan } from './plan/assembly';
 import { needsBottleProbe, probeBottles } from './plan/bottles';
-import { runPlan } from './plan/plan';
+import { runPlan } from './plan/execution';
 import { AWAKE_COMMAND } from './platform/awake';
 import { ENVIRONMENT_PATH, UPDATE_LOG } from './platform/layout';
 import { runSetupFile } from './platform/setup-file';

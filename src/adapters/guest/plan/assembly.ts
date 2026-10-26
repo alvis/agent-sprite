@@ -35,7 +35,6 @@ import type { OsImage, OsRelease } from '#domain/guest';
 import type { GuestEnvironment } from '#domain/observations/environment';
 import type { WorkstationProfile } from '#domain/profile';
 import type { Resolution, ToolSpec } from '#domain/tools';
-import type { CommandFault } from '#kernel/faults';
 
 /** id of the step that writes environment.json */
 const ENVIRONMENT_STEP = 'environment';
@@ -88,7 +87,6 @@ function workstationTools(
  * @param registry every registered driver
  * @param provider the provider, whose default image is checked
  * @param profile the selection
- * @throws {CommandFault} when a required tool has no usable source on the image
  */
 export function assertImageTools(
   registry: DriverRegistry,
@@ -116,7 +114,6 @@ export function assertImageTools(
  * @param registry every registered driver
  * @param params the provider, profile, probed release and version
  * @returns the steps, the resolved tools and the environment they record
- * @throws {CommandFault} when a required tool has no usable source on the guest
  */
 export async function assemblePlan(
   registry: DriverRegistry,
