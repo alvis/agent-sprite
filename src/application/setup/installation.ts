@@ -1,7 +1,7 @@
-import { installWorkstation } from '#application/installation/install';
+import { installWorkstation } from '#application/installation';
 import { traceStage } from '#kernel/operation';
 
-import type { InstallParams } from '#application/installation/install';
+import type { InstallParams } from '#application/installation';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { GuestEnvironment } from '#domain/observations/environment';
 
@@ -37,7 +37,7 @@ export async function installSetupPlan(
         provider,
         connection,
         profile,
-        ...(previous ? { previous } : {}),
+        previous,
         interaction,
         beforeServices,
       }),

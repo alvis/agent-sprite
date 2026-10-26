@@ -13,11 +13,11 @@ import {
 
 import { toRecord } from '#adapters/drivers/providers/sprite/records';
 
-import { configureNewWorkstation } from '#application/create/configure';
+import { configureNewWorkstation } from '#application/create/configuration';
 
 import { markCreateIncomplete } from '#application/create/failure';
 
-import { finalizeCreate, finishCreate } from '#application/create/finish';
+import { finalizeCreate, finishCreate } from '#application/create/finalization';
 
 import {
   normalizePluginOptions,
@@ -66,17 +66,17 @@ import type { GuestInspection } from '#domain/observations/inspection';
 import type { WorkstationRecord } from '#domain/workstation';
 
 vi.mock(
-  '#application/create/configure',
+  '#application/create/configuration',
   async (importOriginal) =>
     ({
       ...(await importOriginal<
-        typeof import('#application/create/configure')
+        typeof import('#application/create/configuration')
       >()),
       configureNewWorkstation:
         vi.fn<
-          typeof import('#application/create/configure').configureNewWorkstation
+          typeof import('#application/create/configuration').configureNewWorkstation
         >(),
-    }) satisfies Partial<typeof import('#application/create/configure')>,
+    }) satisfies Partial<typeof import('#application/create/configuration')>,
 );
 
 vi.mock(

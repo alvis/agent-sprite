@@ -1,7 +1,7 @@
 import { requireValidSuppliedSelection } from '#application/input';
 import { readSetupSelection } from '#application/input/selection';
 import { readInputSources } from '#application/input/sources';
-import { selectManagedMachine } from '#application/inspect';
+import { selectManagedMachine } from '#application/inspection';
 import { summarizeMachine } from '#application/machine';
 import { withBackNavigation } from '#application/navigation';
 import { validateSetupIntegrationOptions } from '#application/validation';
@@ -14,7 +14,7 @@ import { setupFailure } from './setup/failure';
 import { recordSetupMetadata } from './setup/metadata';
 import { setupNetwork } from './setup/network';
 import { setupPlugins } from './setup/plugins';
-import { prepareSetupContext } from './setup/prepare';
+import { prepareGuestSection } from './setup/preparation';
 import {
   setupEnvironment,
   setupGit,
@@ -33,7 +33,7 @@ import type {
   WorkstationCommandParams,
 } from '#application/contracts';
 import type { AppliedSetupSection } from '#application/data';
-import type { SuppliedSelection } from '#application/input/selection-supplied';
+import type { SuppliedSelection } from '#application/input/selection/supplied';
 import type { InputSources } from '#application/input/sources';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { ProviderDriver } from '#application/ports/drivers';
@@ -213,31 +213,6 @@ async function setupGuestSection(
     await connection.close();
   }
 }
-/** setup inputs before a guest channel exists */
-type GuestPreparationParams = Omit<
-  Parameters<typeof prepareSetupContext>[1],
-  'guest'
->;
-
-/**
- * opens the root guest channel and prepares the requested setup section
- * @param dependencies application facilities
- * @param params section inputs before a guest channel exists
- * @returns prepared setup context and guest channel
- */
-export async function prepareGuestSection(
-  dependencies: ApplicationDependencies,
-  params: GuestPreparationParams,
-): ReturnType<typeof prepareSetupContext> {
-  return traceStage({
-    stage: 'setup.preparation',
-    action: async () =>
-      prepareSetupContext(dependencies, {
-        ...params,
-        guest: await params.connection.guest(),
-      }),
-  });
-}
 
 /**
  * reads and validates every static setup input before any provider or guest
@@ -365,5 +340,8 @@ async function applySection(
     }),
   } satisfies Record<SetupSection, () => Promise<AppliedSetupSection>>;
 
-  return traceStage({ stage: `setup.${section}`, action: actions[section] });
+  return traceStage({
+    stage: `setup.${section}`,
+    action: actions[section],
+  });
 }

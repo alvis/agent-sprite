@@ -19,7 +19,7 @@ import {
 import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
 import { ENVIRONMENT_PATH } from '#adapters/guest/platform/layout';
 import { awakeHookCommand } from '#application/catalog/awake';
-import { doctorWorkstation, showWorkstation } from '#application/inspect';
+import { doctorWorkstation, showWorkstation } from '#application/inspection';
 import { runCommand } from '#application/workstation';
 import { chooseWorkstationAction } from '#application/workstation/actions';
 import { resultExitCode } from '#cli/exit';

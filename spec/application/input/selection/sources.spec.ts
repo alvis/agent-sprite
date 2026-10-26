@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   activePrompts,
   environmentReader,
-} from '#application/input/selection-sources';
+} from '#application/input/selection/sources';
 
 import type { InputSources } from '#application/input/sources';
 import type { Interaction } from '#application/ports/interaction';

@@ -5,7 +5,7 @@ import { InteractionExit } from '#kernel/navigation';
 import { publishStatus } from '#kernel/operation';
 
 import type { CommandOptions } from '#application/contracts';
-import type { SuppliedSelection } from '#application/input/selection-supplied';
+import type { SuppliedSelection } from '#application/input/selection/supplied';
 import type { ProviderDriver } from '#application/ports/drivers';
 import type { Interaction } from '#application/ports/interaction';
 import type { MachineOffer } from '#domain/declarations';
@@ -36,8 +36,6 @@ interface ResizeParams {
  * is warned about first, and is not resized until the caller consents
  * @param params provider, workstation, validated selection and consent inputs
  * @returns the workstation as recorded after the resize, or unchanged when none applies
- * @throws {CommandValidationError} when a restart needs consent a non-interactive run has not given
- * @throws {InteractionExit} when the caller declines the restart
  */
 export async function resizeWhenRequested(
   params: ResizeParams,

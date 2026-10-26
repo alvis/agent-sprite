@@ -2,7 +2,7 @@ import { agentPort } from '#domain/services';
 import { traceStage } from '#kernel/operation';
 
 import { creationOutcome, markCreateIncomplete } from './create/failure';
-import { finishCreate } from './create/finish';
+import { finishCreate } from './create/finalization';
 import { prepareCreate } from './create/preflight';
 
 import type { CommandRequest } from '#application/contracts';

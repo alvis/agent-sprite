@@ -7,7 +7,7 @@ import { AGENT_IDS, PROVIDER_IDS } from '#domain/ids';
 import { isNetworkId, networkIds } from '#domain/networks';
 import { isDriverId } from '#domain/profile';
 
-import { hasValue } from './selection-sources';
+import { hasValue } from './sources';
 
 import type { CommandOptions } from '#application/contracts';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
@@ -15,7 +15,7 @@ import type { InteractionChoice } from '#application/ports/interaction';
 import type { ReleaseChannels } from '#domain/declarations';
 import type { AgentId, HarnessId, NetworkId, ProviderId } from '#domain/ids';
 
-import type { InputSources } from './sources';
+import type { InputSources } from '../sources';
 
 /**
  * offers every registered provider

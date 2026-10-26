@@ -2,14 +2,14 @@ import { isHarnessId } from '#domain/harnesses';
 import { isNetworkId } from '#domain/networks';
 import { machineViolations, isDriverId } from '#domain/profile';
 
-import { releaseChoices } from './selection-choices';
+import { releaseChoices } from './choices';
 
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { ProfileOptions } from '#domain/profile';
 import type { SelectionField } from '#domain/selection-inputs';
 
-import type { Prompts } from './selection-sources';
-import type { SuppliedSelection } from './selection-supplied';
+import type { Prompts } from './sources';
+import type { SuppliedSelection } from './supplied';
 
 /** facts the option steps depend on */
 interface OptionContext {

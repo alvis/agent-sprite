@@ -1,5 +1,5 @@
 import { commandError } from '#application/failures';
-import { selectManagedMachine, showWorkstation } from '#application/inspect';
+import { selectManagedMachine, showWorkstation } from '#application/inspection';
 import { summarizeMachine } from '#application/machine';
 import { withBackNavigation } from '#application/navigation';
 import { setupWorkstation } from '#application/setup';

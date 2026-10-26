@@ -7,8 +7,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { none } from '#adapters/drivers/networks/none';
 import { debianFamily } from '#adapters/guest/os/debian/family';
 import { ENVIRONMENT_PATH } from '#adapters/guest/platform/layout';
-import { disableNetwork } from '#application/setup/disable-network';
-import { setupNetwork, verifySetupExitNode } from '#application/setup/network';
+import {
+  disableNetwork,
+  setupNetwork,
+  verifySetupExitNode,
+} from '#application/setup/network';
 import { registry } from '#composition/registry';
 
 import { revealSecret } from '#kernel/secret';

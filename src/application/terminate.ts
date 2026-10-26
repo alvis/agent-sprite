@@ -11,7 +11,7 @@ import { CommandFault } from '#kernel/faults';
 import { runBoundedIO, traceStage } from '#kernel/operation';
 
 import { commandError } from './failures';
-import { selectManagedMachine } from './inspect';
+import { selectManagedMachine } from './inspection';
 
 import { summarizeMachine } from './machine';
 

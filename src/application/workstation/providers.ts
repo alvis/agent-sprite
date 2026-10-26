@@ -7,7 +7,7 @@ import { CommandFault } from '#kernel/faults';
 
 import type { CommandRequest } from '#application/contracts';
 import type { ProviderCredential } from '#application/input/provider-credential';
-import type { ProviderAvailability } from '#application/inspect';
+import type { ProviderAvailability } from '#application/inspection';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { Interaction } from '#application/ports/interaction';
 import type { ProviderId } from '#domain/ids';

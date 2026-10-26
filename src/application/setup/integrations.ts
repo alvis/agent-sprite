@@ -1,6 +1,6 @@
 import { networksWithDaemon } from '#application/catalog/networks';
 import { sectionFields } from '#application/input/selection';
-import { disableNetwork } from '#application/setup/disable-network';
+import { disableNetwork } from '#application/setup/network';
 import { NO_NETWORK } from '#domain/ids';
 
 import type { NetworkWithDaemon } from '#application/catalog/networks';
