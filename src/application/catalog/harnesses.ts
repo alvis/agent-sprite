@@ -9,11 +9,29 @@ import type {
   GatewayDriver,
   ProxyRoute,
 } from '#application/ports/drivers';
+import type { GuestMechanics } from '#application/ports/guest';
 import type { GuestChannel } from '#application/ports/guest-channel';
 import type { HarnessId } from '#domain/ids';
 
 /** every registered harness driver */
 export type AnyHarnessDriver = DriverRegistry['harnesses'][HarnessId];
+
+/** inputs for the optional harness proxy route */
+interface ProxyRouteParams {
+  enabled: boolean;
+  gateway: GatewayDriver;
+  drivers: readonly AnyHarnessDriver[];
+  url?: string;
+  apiKey?: string;
+}
+
+/** harnesses and guest facilities needed to configure them */
+interface ConfigureHarnessesParams {
+  drivers: readonly AnyHarnessDriver[];
+  hub: GuestMechanics['hub'];
+  awakeHook: AwakeHookCommand;
+  proxy?: ProxyRoute;
+}
 
 /**
  * resolves harness drivers by identifier
@@ -52,13 +70,7 @@ export function mapHarnesses<Value>(
  * @returns the route, or undefined to restore native authentication; its key
  * is registered for redaction
  */
-export function proxyRoute(params: {
-  enabled: boolean;
-  gateway: GatewayDriver;
-  url?: string;
-  apiKey?: string;
-  drivers: readonly AnyHarnessDriver[];
-}): ProxyRoute | undefined {
+export function proxyRoute(params: ProxyRouteParams): ProxyRoute | undefined {
   const { enabled, gateway, url, apiKey, drivers } = params;
   if (!enabled) {
     return undefined;
@@ -92,12 +104,7 @@ export function proxyRoute(params: {
  */
 export async function configureHarnesses(
   guest: GuestChannel,
-  params: {
-    drivers: readonly AnyHarnessDriver[];
-    proxy?: ProxyRoute;
-    hub: { record(guest: GuestChannel, route?: ProxyRoute): Promise<unknown> };
-    awakeHook: AwakeHookCommand;
-  },
+  params: ConfigureHarnessesParams,
 ): Promise<void> {
   await params.hub.record(guest, params.proxy);
   for (const driver of params.drivers) {

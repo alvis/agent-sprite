@@ -12,6 +12,12 @@ import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { Interaction } from '#application/ports/interaction';
 import type { ProviderId } from '#domain/ids';
 
+/** a provider with its resolved management credential */
+interface AvailableProviderCredential {
+  id: ProviderId;
+  credential: ProviderCredential;
+}
+
 /**
  * notes that a provider's workstations could not be listed because it has no credential
  * @param dependencies the registered drivers
@@ -106,7 +112,7 @@ export async function locateProvider(
  */
 export async function providerAvailability(
   dependencies: Pick<ApplicationDependencies, 'registry' | 'host'>,
-  available: ReadonlyArray<{ id: ProviderId; credential: ProviderCredential }>,
+  available: readonly AvailableProviderCredential[],
 ): Promise<ProviderAvailability[]> {
   return Promise.all(
     available.map(async ({ id, credential }) => {

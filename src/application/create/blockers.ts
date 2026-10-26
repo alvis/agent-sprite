@@ -3,12 +3,16 @@ import { machineNameProblem } from '#application/machine';
 import { prerequisiteDetails } from '#domain/prerequisites';
 import { promptUnavailableDetail } from '#kernel/operation';
 
+import type { CommandError } from '#application/failures';
 import type { ResolvedInputs } from '#application/input/types';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { PrerequisiteProblem } from '#domain/prerequisites';
 import type { CommandErrorCode } from '#kernel/faults';
 
 import type { CreatePreparation } from './context';
+
+/** optional details of a blocked create preparation */
+type BlockedPreparationExtra = Pick<CommandError, 'machine' | 'details'>;
 
 /**
  * reports missing inputs, an invalid workstation name and provider
@@ -104,7 +108,7 @@ function missingCreateDetails(
 export function blockedPreparation(
   code: CommandErrorCode,
   message: string,
-  extra: { machine?: string; details?: string[] } = {},
+  extra: BlockedPreparationExtra = {},
 ): CreatePreparation {
   return {
     kind: 'result',
