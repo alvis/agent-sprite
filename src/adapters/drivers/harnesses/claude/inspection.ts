@@ -83,10 +83,10 @@ function claudeConfiguration(evidence: {
   authenticated: boolean;
 }): NativeHarnessInspection {
   const { settings, plugins, authenticated } = evidence;
-  const env = isRecord(settings.env) ? settings.env : {};
+  const environment = isRecord(settings.env) ? settings.env : {};
   const isProxyConfigured =
-    typeof env.ANTHROPIC_BASE_URL === 'string' &&
-    typeof env.ANTHROPIC_AUTH_TOKEN === 'string';
+    typeof environment.ANTHROPIC_BASE_URL === 'string' &&
+    typeof environment.ANTHROPIC_AUTH_TOKEN === 'string';
   const authentication: NativeHarnessInspection['authentication'] =
     isProxyConfigured
       ? 'managed-proxy'
@@ -97,7 +97,7 @@ function claudeConfiguration(evidence: {
   return {
     gatewayConfigured: isProxyConfigured,
     modelDiscoveryEnabled:
-      env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY === '1',
+      environment.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY === '1',
     pluginListAvailable: plugins.exitCode === 0,
     awakeHooksInstalled: hasWorkHooks(settings.hooks, {
       owned: CLAUDE_WORK_HOOKS,

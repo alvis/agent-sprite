@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { FlyApi } from '#adapters/drivers/providers/fly-machine/api';
 import {
+  flyBootHookStep,
   inspectFlyBoot,
   startAndBoot,
   waitForBoot,
 } from '#adapters/drivers/providers/fly-machine/boot';
-import { flyBootHookStep } from '#adapters/drivers/providers/fly-machine/boot-hook-step';
 
 import type { FlyMachineTarget } from '#adapters/drivers/providers/fly-machine/api';
 import type { GuestChannel } from '#application/ports/guest-channel';

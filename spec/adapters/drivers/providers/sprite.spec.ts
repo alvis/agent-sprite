@@ -16,9 +16,9 @@ import {
   DEFAULT_AGENT_PORT,
   DISABLED_NETWORK_PROFILE,
   DISABLED_NETWORK_SUMMARY,
-} from '../../../../fixtures/profile';
+} from '../../../fixtures/profile';
 
-import { providerOf } from '../../../../mocks/sprites';
+import { providerOf } from '../../../mocks/sprites';
 
 import type {
   CreateSpriteOptions,

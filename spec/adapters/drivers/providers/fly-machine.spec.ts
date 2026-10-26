@@ -16,7 +16,7 @@ import { summarizeProfile } from '#domain/recorded';
 
 import { ProviderFault } from '#kernel/provider-fault';
 
-import { DISABLED_NETWORK_PROFILE } from '../../../../fixtures/profile';
+import { DISABLED_NETWORK_PROFILE } from '../../../fixtures/profile';
 
 import type { GuestProcess } from '#application/ports/guest-channel';
 import type { WorkstationProfile } from '#domain/profile';

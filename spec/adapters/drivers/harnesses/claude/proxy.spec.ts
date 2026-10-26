@@ -8,7 +8,7 @@ import '#adapters/drivers/harnesses/claude';
 import {
   claudeReadiness,
   inspectClaude,
-} from '#adapters/drivers/harnesses/claude/inspect';
+} from '#adapters/drivers/harnesses/claude/inspection';
 import { CLAUDE_SETTINGS } from '#adapters/drivers/harnesses/claude/paths';
 import { proxyOwnershipPath } from '#adapters/drivers/harnesses/shared/proxy-ownership';
 import { recordHub } from '#adapters/guest/hub';

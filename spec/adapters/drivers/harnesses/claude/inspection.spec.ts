@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { inspectClaude } from '#adapters/drivers/harnesses/claude/inspect';
+import { inspectClaude } from '#adapters/drivers/harnesses/claude/inspection';
 import { CLAUDE_SETTINGS } from '#adapters/drivers/harnesses/claude/paths';
 import { HOME } from '#adapters/guest/platform/account';
 
