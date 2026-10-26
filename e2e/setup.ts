@@ -231,7 +231,7 @@ async function prepare(
  * entirely synchronously, under one deadline: the cleanup runs in a child
  * process, which may wait on requests where this one may only block, then
  * the flyctl agents stop and the run home goes. On SIGHUP, which vitest
- * leaves alone, it exits itself.
+ * leaves alone, it exits itself
  * @param run the run's home, scope, signal and whether it has provider accounts
  * @param run.runHome the run's isolated home
  * @param run.scope the run's `<run id>-` scope
@@ -247,7 +247,7 @@ function interruptRun(run: {
 }): void {
   const { runHome, scope, signal, hasAccounts } = run;
   const deadline = Date.now() + INTERRUPT_LIMIT_MS;
-  const timeout = deadline - AGENT_STOPS_MS - Date.now();
+  const timeoutMs = deadline - AGENT_STOPS_MS - Date.now();
   const cleanup =
     hasAccounts &&
     spawnSync(
@@ -257,13 +257,17 @@ function interruptRun(run: {
         '--eval',
         CLEANUP_BOOTSTRAP,
         CLEANUP_MODULE,
-        JSON.stringify({ scope, limitMs: timeout - CHILD_STARTUP_MS, signal }),
+        JSON.stringify({
+          scope,
+          limitMs: timeoutMs - CHILD_STARTUP_MS,
+          signal,
+        }),
       ],
       {
         cwd: projectRoot,
         env: process.env,
         stdio: ['ignore', 'ignore', 'inherit'],
-        timeout,
+        timeout: timeoutMs,
         killSignal: 'SIGKILL',
       },
     );
@@ -297,8 +301,8 @@ function stopFlyctlAgents(runHome: string, deadline: number): void {
   for (const home of homes) {
     const directory = join(home, '.config', PRODUCT, 'flyctl');
     // a zero timeout would be none at all
-    const timeout = Math.min(AGENT_STOP_MS, deadline - Date.now());
-    if (timeout <= 0) {
+    const timeoutMs = Math.min(AGENT_STOP_MS, deadline - Date.now());
+    if (timeoutMs <= 0) {
       return;
     }
     if (existsSync(directory)) {
@@ -312,7 +316,7 @@ function stopFlyctlAgents(runHome: string, deadline: number): void {
         },
         extendEnv: false,
         stdio: 'ignore',
-        timeout,
+        timeout: timeoutMs,
         killSignal: 'SIGKILL',
         reject: false,
       });
