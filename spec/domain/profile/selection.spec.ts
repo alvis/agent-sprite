@@ -14,7 +14,9 @@ describe('fn:releaseViolations', () => {
       agents: { ...registry.agents, t3: agent },
     } satisfies ProductDeclarations;
 
-    expect(releaseViolations(declarations, 't3', 'stable')).toMatchObject([
+    expect(
+      releaseViolations({ declarations, agent: 't3', release: 'stable' }),
+    ).toMatchObject([
       {
         code: 'undeclared-capability',
         fields: ['agent', 'agentRelease'],
@@ -23,7 +25,13 @@ describe('fn:releaseViolations', () => {
   });
 
   it('should reject an unknown channel for an agent that declares channels', () => {
-    expect(releaseViolations(registry, 't3', 'preview')).toMatchObject([
+    expect(
+      releaseViolations({
+        declarations: registry,
+        agent: 't3',
+        release: 'preview',
+      }),
+    ).toMatchObject([
       {
         code: 'invalid-option',
         fields: ['agent', 'agentRelease'],

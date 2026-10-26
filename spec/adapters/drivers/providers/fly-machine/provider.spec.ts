@@ -1,6 +1,16 @@
+import {
+  chmod,
+  mkdtempDisposable,
+  readFile,
+  writeFile,
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { text } from 'node:stream/consumers';
+
 import { describe, expect, it, vi } from 'vitest';
 
-import { flyMachine } from '#adapters/drivers/providers/fly-machine/provider';
+import { flyMachine } from '#adapters/drivers/providers/fly-machine';
 import { WorkstationCreationFault } from '#domain/creation';
 import { summarizeProfile } from '#domain/recorded';
 
@@ -8,6 +18,7 @@ import { ProviderFault } from '#kernel/provider-fault';
 
 import { DISABLED_NETWORK_PROFILE } from '../../../../fixtures/profile';
 
+import type { GuestProcess } from '#application/ports/guest-channel';
 import type { WorkstationProfile } from '#domain/profile';
 
 /** an app the fake Machines API holds */
@@ -63,6 +74,79 @@ const AGENT_SERVICE = {
 };
 const NOT_FOUND: FakeResponse = { status: 404, body: { error: 'not found' } };
 const OK: FakeResponse = { status: 200 };
+const FLYCTL_STAND_IN = [
+  '#!/bin/sh',
+  'here=$(dirname "$0")',
+  'if [ "$1" = tokens ] && [ "$2" = attenuate ]; then',
+  '  payload=$(cat)',
+  '  echo attenuate >> "$here/attenuations"',
+  '  if [ -f "$here/fail-first-attenuation" ]; then',
+  '    rm "$here/fail-first-attenuation"',
+  '    exit 2',
+  '  fi',
+  '  case "$payload" in',
+  `    *'"type":"Action"'*) printf 'FlyV1 read,discharge\\n' ;;`,
+  `    *'"type":"Mutations"'*) printf 'FlyV1 mutate,discharge\\n' ;;`,
+  '    *) exit 2 ;;',
+  '  esac',
+  '  exit 0',
+  'fi',
+  'if [ "$1" = tokens ] && [ "$2" = debug ]; then',
+  `  printf '[{"location":"https://api.fly.io/v1","caveats":[]},{"location":"https://api.fly.io/v1","caveats":[]},{"location":"https://discharge.fly.io","caveats":[]}]\\n'`,
+  '  exit 0',
+  'fi',
+  'if [ "$1" = agent ]; then exit 0; fi',
+  'if [ "$1" = ssh ]; then',
+  '  echo ssh >> "$here/sessions"',
+  '  for line; do :; done',
+  '  /bin/sh -c "$line"',
+  '  exit $?',
+  'fi',
+  'exit 2',
+].join('\n');
+
+/**
+ * installs a local flyctl stand-in for the provider's real SSH path
+ * @param directory temporary executable and configuration directory
+ * @param failFirstAttenuation whether the first token derivation fails
+ */
+async function installFlyctl(
+  directory: string,
+  failFirstAttenuation = false,
+): Promise<void> {
+  const program = join(directory, 'fly');
+  await writeFile(program, FLYCTL_STAND_IN);
+  await chmod(program, 0o755);
+  if (failFirstAttenuation) {
+    await writeFile(join(directory, 'fail-first-attenuation'), 'once');
+  }
+  vi.stubEnv('PATH', `${directory}:${process.env.PATH ?? ''}`);
+  vi.stubEnv('XDG_CONFIG_HOME', join(directory, 'config'));
+}
+
+/**
+ * collects one streaming guest shell's supported result
+ * @param guest process opened by the provider
+ * @returns exit or error and captured streams
+ */
+async function finished(guest: GuestProcess): Promise<{
+  outcome: { exit: number } | { error: unknown };
+  stdout: string;
+  stderr: string;
+}> {
+  const outcome = new Promise<{ exit: number } | { error: unknown }>(
+    (resolve) => {
+      guest.on('exit', (exit) => resolve({ exit }));
+      guest.on('error', (error) => resolve({ error }));
+    },
+  );
+  const [stdout, stderr] = await Promise.all([
+    text(guest.stdout),
+    text(guest.stderr),
+  ]);
+
+  return { outcome: await outcome, stdout, stderr };
+}
 
 /** a Machines API keeping apps, machines and addresses in memory */
 class FakeMachinesApi {
@@ -227,6 +311,16 @@ function machines(app: FakeApp, request: FakeRequest): FakeResponse {
   if (!machine) {
     return NOT_FOUND;
   }
+  if (request.action === undefined && request.method === 'GET') {
+    return { status: 200, body: machine };
+  }
+  if (request.action === undefined && request.method === 'POST') {
+    machine.config = request.body.config;
+    machine.state = 'started';
+    machine.instance_id = 'resized-run';
+
+    return { status: 200, body: machine };
+  }
   if (request.action === 'metadata') {
     const config = machine.config as { metadata: Record<string, string> };
     const update = request.body.metadata as Record<string, string>;
@@ -373,37 +467,22 @@ function bound(
 }
 
 describe('cl:FlyMachineProvider', () => {
-  it('should declare the capabilities of a supervised, governed Fly Machine', () => {
-    expect({
-      capabilities: flyMachine.capabilities,
-      shellAccounts: flyMachine.shellAccounts,
-      serviceBackend: flyMachine.serviceBackend,
-      images: flyMachine.images,
-    }).toEqual({
-      capabilities: {
-        guestChannel: 'ssh',
-        transportNetworks: ['172.16.0.0/12', 'fdaa::/16'],
-        keepAwakeMode: 'governed',
-        idleForms: ['memory-suspend', 'stop'],
-        wakeMode: 'url-traffic',
-        supportsCliWakeSleep: false,
-        maxAwakeDeadlineMinutes: null,
-        persistence: 'volume',
-        exposure: 'provider-service',
-        discovery: 'provider-metadata',
-        resizeRestarts: true,
-      },
-      shellAccounts: [],
-      serviceBackend: 'runit',
-      images: [
-        {
-          id: 'debian-12',
-          ref: 'debian:bookworm-slim',
-          family: 'debian',
-          release: { id: 'debian', versionId: '12' },
-          arch: ['x86_64'],
-        },
-      ],
+  it('should report missing host prerequisites before contacting Fly', async () => {
+    const result = await flyMachine.preflight({
+      findTool: async () => undefined,
+      readVersion: async () => undefined,
+    });
+
+    expect(result.map(({ subject }) => subject)).toEqual([
+      'fly',
+      'FLY_API_TOKEN',
+    ]);
+  });
+
+  it('should refuse a provider operation before a management token is bound', async () => {
+    await expect(flyMachine.get('alpha')).rejects.toMatchObject({
+      code: 'authentication',
+      message: 'FLY_API_TOKEN is required.',
     });
   });
 
@@ -598,6 +677,34 @@ describe('cl:FlyMachineProvider', () => {
   });
 
   describe('reading workstations', () => {
+    it('should resolve the organization again after the first token lookup fails', async () => {
+      const api = new FakeMachinesApi({
+        alpha: heldApp({
+          metadata: MANAGED_METADATA,
+          services: [AGENT_SERVICE],
+        }),
+      });
+      const refusals = [
+        new Response(JSON.stringify({ error: 'token refused' }), {
+          status: 401,
+        }),
+      ];
+      const provider = bound(
+        interposed(api, (path) =>
+          path === '/v1/tokens/current' ? refusals.shift() : undefined,
+        ),
+      );
+
+      await expect(provider.get('alpha')).rejects.toMatchObject({
+        code: 'authentication',
+      });
+      await expect(provider.get('alpha')).resolves.toMatchObject({
+        id: 'machine-1',
+        organization: ORGANIZATION,
+      });
+      expect(refusals).toEqual([]);
+    });
+
     it('should neither start nor wake a stopped machine while listing and fetching it', async () => {
       const app = heldApp({
         metadata: MANAGED_METADATA,
@@ -674,6 +781,24 @@ describe('cl:FlyMachineProvider', () => {
   });
 
   describe('mt:openGuest', () => {
+    it('should reuse an opened channel without restarting or probing its boot again', async () => {
+      const api = new FakeMachinesApi({
+        alpha: heldApp({
+          metadata: MANAGED_METADATA,
+          services: [AGENT_SERVICE],
+        }),
+      });
+      const provider = bound(api);
+      const workstation = await provider.get('alpha');
+
+      const first = await provider.openGuest(workstation);
+      const requestsAfterOpen = api.fetch.mock.calls.length;
+      const second = await provider.openGuest(workstation);
+
+      expect(second).toBe(first);
+      expect(api.fetch.mock.calls).toHaveLength(requestsAfterOpen);
+    });
+
     it.each([
       ['a starting machine without starting it again', 'starting', undefined],
       [
@@ -779,6 +904,104 @@ describe('cl:FlyMachineProvider', () => {
     });
   });
 
+  describe('mt:openRootShell', () => {
+    it('should stream through a root shell and reuse the app-scoped SSH token for a second shell', async () => {
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-fly-provider-shell-'),
+      );
+      await installFlyctl(directory.path);
+      const api = new FakeMachinesApi({
+        alpha: heldApp({
+          metadata: MANAGED_METADATA,
+          services: [AGENT_SERVICE],
+        }),
+      });
+      const provider = bound(api);
+      const workstation = await provider.get('alpha');
+
+      const first = await provider.openRootShell(workstation, '/bin/sh');
+      const firstResult = finished(first);
+      first.stdin.end('echo first-shell\nexit 0\n');
+      const second = await provider.openRootShell(workstation, '/bin/sh');
+      const secondResult = finished(second);
+      second.stdin.end('echo second-shell\nexit 0\n');
+
+      expect([await firstResult, await secondResult]).toEqual([
+        { outcome: { exit: 0 }, stdout: 'first-shell\n', stderr: '' },
+        { outcome: { exit: 0 }, stdout: 'second-shell\n', stderr: '' },
+      ]);
+      expect(
+        (await readFile(join(directory.path, 'attenuations'), 'utf8'))
+          .trim()
+          .split('\n'),
+      ).toEqual(['attenuate', 'attenuate']);
+    });
+
+    it('should retry SSH token derivation after one attenuation failure', async () => {
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-fly-provider-token-retry-'),
+      );
+      await installFlyctl(directory.path, true);
+      const api = new FakeMachinesApi({
+        alpha: heldApp({
+          metadata: MANAGED_METADATA,
+          services: [AGENT_SERVICE],
+        }),
+      });
+      const provider = bound(api);
+      const workstation = await provider.get('alpha');
+
+      const first = await provider.openRootShell(workstation, '/bin/sh');
+      const firstResult = finished(first);
+      first.stdin.end();
+      const rejected = await firstResult;
+      const second = await provider.openRootShell(workstation, '/bin/sh');
+      const secondResult = finished(second);
+      second.stdin.end('echo recovered\nexit 0\n');
+
+      expect(rejected).toMatchObject({
+        outcome: { error: { code: 'failed' } },
+        stdout: '',
+      });
+      const recovered = await secondResult;
+      expect(recovered).toMatchObject({
+        outcome: { exit: 0 },
+        stdout: 'recovered\n',
+      });
+      expect(recovered.stderr.trim()).toBe('');
+      expect(
+        (await readFile(join(directory.path, 'attenuations'), 'utf8'))
+          .trim()
+          .split('\n'),
+      ).toEqual(['attenuate', 'attenuate', 'attenuate']);
+    });
+  });
+
+  describe('mt:awaitGuestReady', () => {
+    it('should return after the current boot answers and an SSH probe reaches the guest', async () => {
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-fly-provider-ready-'),
+      );
+      await installFlyctl(directory.path);
+      const api = new FakeMachinesApi({
+        alpha: heldApp({
+          metadata: MANAGED_METADATA,
+          services: [AGENT_SERVICE],
+        }),
+      });
+      const provider = bound(api);
+      const workstation = await provider.get('alpha');
+
+      await expect(
+        provider.awaitGuestReady(workstation),
+      ).resolves.toBeUndefined();
+
+      expect(await readFile(join(directory.path, 'sessions'), 'utf8')).toBe(
+        'ssh\n',
+      );
+    });
+  });
+
   describe('mt:setMetadata', () => {
     it('should record setup state and profile summary that list and get read back', async () => {
       const api = new FakeMachinesApi({
@@ -808,6 +1031,70 @@ describe('cl:FlyMachineProvider', () => {
         recorded: metadata,
         listed: [{ name: 'alpha', read: metadata }],
         cleared: { setup: 'not recorded', profile: SUMMARY },
+      });
+    });
+  });
+
+  describe('mt:resize', () => {
+    it('should leave a machine already on the requested size untouched', async () => {
+      const app = heldApp({
+        metadata: MANAGED_METADATA,
+        services: [AGENT_SERVICE],
+      });
+      const machine = app.machines[0]!;
+      machine.config = {
+        ...(machine.config as Record<string, unknown>),
+        guest: { cpu_kind: 'shared', cpus: 2, memory_mb: 2048 },
+      };
+      const api = new FakeMachinesApi({ alpha: app });
+      const provider = bound(api);
+      const workstation = await provider.get('alpha');
+
+      const resized = await provider.resize(workstation, {
+        label: 'shared-cpu-2x',
+        cpus: 2,
+        memoryGb: 2,
+      });
+
+      expect(resized).toEqual(workstation);
+      expect(
+        api.fetch.mock.calls
+          .map(([input, init]) => ({
+            path: new URL(requestUrl(input)).pathname,
+            method: init?.method ?? 'GET',
+          }))
+          .filter(({ method }) => method === 'POST'),
+      ).toEqual([]);
+    });
+
+    it('should change only the guest size and return the restarted machine', async () => {
+      const app = heldApp({
+        metadata: MANAGED_METADATA,
+        services: [AGENT_SERVICE],
+      });
+      const api = new FakeMachinesApi({ alpha: app });
+      const provider = bound(api);
+      const workstation = await provider.get('alpha');
+
+      const resized = await provider.resize(workstation, {
+        label: 'shared-cpu-4x',
+        cpus: 4,
+        memoryGb: 4,
+      });
+
+      expect(resized).toMatchObject({
+        id: workstation.id,
+        name: 'alpha',
+        machine: { label: 'shared-cpu-4x', cpus: 4, memoryGb: 4 },
+        metadata: workstation.metadata,
+      });
+      expect(app.machines[0]).toMatchObject({
+        state: 'started',
+        config: {
+          metadata: MANAGED_METADATA,
+          services: [AGENT_SERVICE],
+          guest: { cpu_kind: 'shared', cpus: 4, memory_mb: 4096 },
+        },
       });
     });
   });
@@ -848,6 +1135,22 @@ describe('cl:FlyMachineProvider', () => {
   });
 
   describe('mt:isNameTaken', () => {
+    it('should preserve a non-access API failure when checking a name', async () => {
+      const provider = bound(
+        interposed(new FakeMachinesApi(), (path) =>
+          path === '/v1/apps/ava'
+            ? new Response(JSON.stringify({ error: 'malformed request' }), {
+                status: 422,
+              })
+            : undefined,
+        ),
+      );
+
+      await expect(provider.isNameTaken('ava')).rejects.toMatchObject({
+        code: 'failed',
+      });
+    });
+
     it('should report a name another Fly account holds as a conflict, not an authentication failure', async () => {
       const provider = bound(
         interposed(new FakeMachinesApi(), (path) =>

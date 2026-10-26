@@ -1,4 +1,4 @@
-import { AGENT_IDS, PROVIDER_IDS } from '#domain/ids';
+import { AGENT_IDS } from '#domain/ids';
 import { validateProfile } from '#domain/profile';
 import { selectionInputs } from '#domain/selection-inputs';
 
@@ -58,27 +58,22 @@ export function suppliedSelectionViolations(
   supplied: SuppliedSelection,
   requests: Pick<ProfileValidationOptions, 'isPairingRequested'>,
 ): ProfileViolation[] {
-  const [onlyProvider, ...otherProviders]: readonly string[] = PROVIDER_IDS;
-  const [onlyAgent, ...otherAgents]: readonly string[] = AGENT_IDS;
-  const provider =
-    supplied.provider ??
-    (otherProviders.length === 0 ? onlyProvider : undefined);
-  const agent =
-    supplied.agent ?? (otherAgents.length === 0 ? onlyAgent : undefined);
+  const provider = supplied.provider;
+  const agent = supplied.agent ?? AGENT_IDS[0];
   const determined = new Set<ProfileField>([
     ...(provider === undefined ? [] : (['provider'] as const)),
-    ...(agent === undefined ? [] : (['agent'] as const)),
+    'agent',
     ...(supplied.harnesses === undefined ? [] : (['harnesses'] as const)),
     ...(supplied.network === undefined ? [] : (['network'] as const)),
     ...SELECTABLE_OPTIONS.filter(
       (field) => supplied.options[field] !== undefined,
     ),
   ]);
-  const validation = validateProfile(
-    dependencies.registry,
-    {
+  const validation = validateProfile({
+    declarations: dependencies.registry,
+    candidate: {
       provider: provider ?? dependencies.defaults.selection.provider,
-      agent: agent ?? dependencies.defaults.selection.agent,
+      agent,
       harnesses:
         supplied.harnesses ?? dependencies.defaults.selection.harnesses,
       network: supplied.network ?? dependencies.defaults.selection.network,
@@ -87,11 +82,11 @@ export function suppliedSelectionViolations(
         ...definedOptions(supplied),
       },
     },
-    {
+    options: {
       ...requests,
       isIdleTimeoutRequested: supplied.options.idleTimeoutMinutes !== undefined,
     },
-  );
+  });
 
   return validation.isValid
     ? []

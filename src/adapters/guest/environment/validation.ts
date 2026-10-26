@@ -227,7 +227,7 @@ function fieldChecks(
 ): Array<[string, Check]> {
   return [
     ...Object.entries(LEADING_FIELDS),
-    ['profile', (value) => parseProfile(declarations, value).isValid],
+    ['profile', (value) => parseProfile({ declarations, value }).isValid],
     ...Object.entries(TRAILING_FIELDS),
   ];
 }

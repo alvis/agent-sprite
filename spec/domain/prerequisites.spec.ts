@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { registry } from '#composition/registry';
 import {
   checkDeclaredPrerequisites,
+  enteredCredentialProblem,
   missingInput,
+  prerequisiteDetails,
   refusedCredential,
 } from '#domain/prerequisites';
 
@@ -109,6 +112,66 @@ describe('fn:checkDeclaredPrerequisites', () => {
     ]);
   });
 
+  it('should accept an installed tool when no minimum version is declared', async () => {
+    const problems = await checkDeclaredPrerequisites(
+      {
+        ...prerequisites,
+        tools: [{ command: 'exampletool', fix: 'Install exampletool.' }],
+      },
+      host({ path: '/bin/exampletool', token: 'example' }),
+    );
+
+    expect(problems).toEqual([]);
+  });
+
+  it('should report an installed tool whose version output has no dotted version', async () => {
+    const problems = await checkDeclaredPrerequisites(
+      prerequisites,
+      host({
+        path: '/bin/exampletool',
+        version: 'exampletool development build',
+        token: 'example',
+      }),
+    );
+
+    expect(problems.map(({ problem }) => problem)).toEqual([
+      'exampletool did not report a version; 1.9.0 or later is required',
+    ]);
+  });
+
+  it('should accept the minimum version and a newer patch against a shorter requirement', async () => {
+    const atMinimum = await checkDeclaredPrerequisites(
+      prerequisites,
+      host({
+        path: '/bin/exampletool',
+        version: 'exampletool 1.9.0',
+        token: 'example',
+      }),
+    );
+    const newerPatch = await checkDeclaredPrerequisites(
+      {
+        ...prerequisites,
+        tools: [
+          {
+            command: 'exampletool',
+            minimumVersion: '1.9',
+            fix: 'Upgrade exampletool.',
+          },
+        ],
+      },
+      host({
+        path: '/bin/exampletool',
+        version: 'exampletool 1.9.2',
+        token: 'example',
+      }),
+    );
+
+    expect({ atMinimum, newerPatch }).toEqual({
+      atMinimum: [],
+      newerPatch: [],
+    });
+  });
+
   it('should report a missing credential with every source it is read from', async () => {
     const problems = await checkDeclaredPrerequisites(
       { ...prerequisites, tools: [] },
@@ -176,5 +239,52 @@ describe('fn:missingInput', () => {
         'use --example-account ACCOUNT; or run in a TTY to enter it when prompted. ' +
         'Or pass --no-example to skip it.',
     });
+  });
+
+  it('should omit extra guidance for a plain missing input', () => {
+    const problem = missingInput({
+      environment: 'EXAMPLE_ACCOUNT',
+      prompt: 'Example account',
+      flag: '--example-account ACCOUNT',
+    });
+
+    expect(problem).toMatchObject({
+      subject: 'EXAMPLE_ACCOUNT',
+      problem: 'Example account is not set',
+      fix: expect.stringContaining('--example-account ACCOUNT'),
+    });
+    expect(problem.fix).not.toContain('undefined');
+  });
+});
+
+describe('fn:enteredCredentialProblem', () => {
+  it('should reject a token known to belong to another provider and accept an unrecognized shape for later verification', () => {
+    const wrongProvider = enteredCredentialProblem({
+      declarations: registry,
+      provider: 'sprite',
+      token: 'FlyV1 fm2_wrong',
+    });
+    const mayBelongToProvider = enteredCredentialProblem({
+      declarations: registry,
+      provider: 'sprite',
+      token: 'sprite-organization-token',
+    });
+
+    expect(wrongProvider).toContain('a Fly API token');
+    expect(mayBelongToProvider).toBeUndefined();
+  });
+});
+
+describe('fn:prerequisiteDetails', () => {
+  it('should pair each reported problem with its fix in order', () => {
+    const details = prerequisiteDetails([
+      { subject: 'exampletool', problem: 'Tool is absent', fix: 'Install it' },
+      { subject: 'EXAMPLE_TOKEN', problem: 'Token is absent', fix: 'Enter it' },
+    ]);
+
+    expect(details).toEqual([
+      'Tool is absent. Install it',
+      'Token is absent. Enter it',
+    ]);
   });
 });

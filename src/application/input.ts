@@ -159,7 +159,6 @@ async function withLocalIdentity(
  * @param options parsed flags and explicit input sources
  * @param interaction optional inline choice prompts
  * @returns create inputs with requirements derived from the resolved selection
- * @throws {CommandFault} when the selection violates the catalog or a driver capability
  */
 export async function resolveCreateInputs(
   dependencies: Pick<ApplicationDependencies, 'registry' | 'defaults' | 'host'>,
@@ -204,9 +203,13 @@ export function requireValidProfile(
   options: CommandOptions,
 ): WorkstationProfile {
   const { candidate, problems, isIdleTimeoutRequested } = resolution;
-  const validation = validateProfile(dependencies.registry, candidate, {
-    isPairingRequested: options.withPairCode === true,
-    isIdleTimeoutRequested,
+  const validation = validateProfile({
+    declarations: dependencies.registry,
+    candidate,
+    options: {
+      isPairingRequested: options.withPairCode === true,
+      isIdleTimeoutRequested,
+    },
   });
   if (!validation.isValid || problems.length > 0) {
     throw selectionFault([

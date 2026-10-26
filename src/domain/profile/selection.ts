@@ -9,6 +9,26 @@ import type {
   ProfileViolation,
 } from '../profile';
 
+/** catalog section used to narrow a requested driver id */
+export interface DriverIdContext<Kind extends DriverKind> {
+  declarations: ProductDeclarations;
+  kind: Kind;
+}
+
+/** known agent selection and validation requests */
+export interface AgentViolationsParams {
+  declarations: ProductDeclarations;
+  selected: { agent: AgentId; harnesses: readonly HarnessId[] };
+  options: ProfileValidationOptions;
+}
+
+/** release selection to check against an agent's declarations */
+export interface ReleaseViolationsParams {
+  declarations: ProductDeclarations;
+  agent: AgentId;
+  release: string | undefined;
+}
+
 /** one driver id a selection requests */
 interface RequestedDriver {
   /** catalog section the id belongs to */
@@ -23,15 +43,15 @@ interface RequestedDriver {
 
 /**
  * tells whether an id names a registered driver of one kind
- * @param declarations the data every registered driver declares
- * @param kind catalog section to look in
  * @param id identifier requested by a flag, prompt or stored profile
+ * @param context catalog and section to look in
+ * @param context.declarations the data every registered driver declares
+ * @param context.kind registry section checked for the identifier
  * @returns true when the catalog registers the id under the kind
  */
 export function isDriverId<Kind extends DriverKind>(
-  declarations: ProductDeclarations,
-  kind: Kind,
   id: string,
+  { declarations, kind }: DriverIdContext<Kind>,
 ): id is DriverId<Kind> & string {
   return Object.hasOwn(declarations[kind], id);
 }
@@ -74,7 +94,7 @@ export function unknownDriverViolations(
   ];
 
   return requested
-    .filter(({ kind, id }) => !isDriverId(declarations, kind, id))
+    .filter(({ kind, id }) => !isDriverId(id, { declarations, kind }))
     .map(({ kind, field, label, id }) => ({
       code: 'unknown-driver',
       message: `Unknown ${label} "${id}"; available: ${Object.keys(declarations[kind]).join(', ')}`,
@@ -114,18 +134,17 @@ export function harnessSetViolations(
 
 /**
  * checks harness support, ACP adapter availability and pairing for the agent
- * @param declarations the data every registered driver declares
- * @param selected the known ACP agent id and known requested harness ids
- * @param selected.agent known ACP agent id
- * @param selected.harnesses known requested harness ids
- * @param options requests validated alongside the profile
+ * @param params known ACP agent, harness ids and validation requests
+ * @param params.declarations the data every registered driver declares
+ * @param params.selected agent is the known ACP agent id; harnesses are known requested ids
+ * @param params.options requests validated alongside the profile
  * @returns violations the selected ACP agent's declarations raise
  */
-export function agentViolations(
-  declarations: ProductDeclarations,
-  selected: { agent: AgentId; harnesses: readonly HarnessId[] },
-  options: ProfileValidationOptions,
-): ProfileViolation[] {
+export function agentViolations({
+  declarations,
+  selected,
+  options,
+}: AgentViolationsParams): ProfileViolation[] {
   const { agent, harnesses } = selected;
   const declaration = declarations.agents[agent];
 
@@ -160,16 +179,17 @@ export function agentViolations(
 
 /**
  * checks the release channel against the channels the ACP agent declares
- * @param declarations the data every registered driver declares
- * @param agent known ACP agent id
- * @param release requested release channel, absent for the agent's default
+ * @param params known ACP agent and requested release channel
+ * @param params.declarations the data every registered driver declares
+ * @param params.agent known ACP agent id
+ * @param params.release requested release channel, absent for the agent's default
  * @returns a violation when the agent declares no channels or not this one
  */
-export function releaseViolations(
-  declarations: ProductDeclarations,
-  agent: AgentId,
-  release: string | undefined,
-): ProfileViolation[] {
+export function releaseViolations({
+  declarations,
+  agent,
+  release,
+}: ReleaseViolationsParams): ProfileViolation[] {
   if (release === undefined) {
     return [];
   }
