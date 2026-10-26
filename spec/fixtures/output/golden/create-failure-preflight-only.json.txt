@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 286
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"create","ok":false,"error":{"code":"PREFLIGHT","message":"Provider token was rejected"},"data":{"preflight":{"checks":["Provider token verified","Workstation name is available"],"reminders":["Run open-agent show primary --inspect after the first boot"]}}}
-
-=== notes ===
-

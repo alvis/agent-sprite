@@ -1,10 +1,10 @@
 import { PassThrough } from 'node:stream';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { commandError } from '#application/failures';
 import { resolveSecret } from '#application/input/sources';
-import { prepareResult, writePreparedResult, writeResult } from '#cli/output';
+import { prepareResult, writePreparedResult } from '#cli/output';
 import { projectResult } from '#cli/output/project';
 import { serializeResult } from '#cli/serialization';
 
@@ -103,7 +103,7 @@ function failedUpdate(name: string, reason: string): UpdateToolOutcome {
 }
 
 /**
- * Captures writes to the real output stream seam.
+ * captures writes to the real output stream seam
  * @param result completed command result
  * @param options output controls
  * @returns text written to each channel
@@ -115,35 +115,107 @@ function captureResult(
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   let out = '';
-  let err = '';
+  let errorOutput = '';
   stdout.on('data', (chunk: Buffer) => {
     out += chunk.toString();
   });
   stderr.on('data', (chunk: Buffer) => {
-    err += chunk.toString();
+    errorOutput += chunk.toString();
   });
   try {
-    writeResult(result, options, { stdout, stderr });
+    const streams = { stdout, stderr };
+    writePreparedResult(prepareResult({ result, options, streams }), streams);
   } finally {
     stdout.destroy();
     stderr.destroy();
   }
 
-  return { stdout: out, stderr: err };
+  return { stdout: out, stderr: errorOutput };
 }
 
-describe('fn:writeResult', () => {
+describe('fn:prepareResult', () => {
+  it('should omit command data from a parser failure JSON envelope', () => {
+    const result: CommandResult = {
+      command: null,
+      ok: false,
+      error: { code: 'USAGE', message: 'unknown-command-observation' },
+    };
+
+    const prepared = prepareResult({ result, options: { json: true } });
+
+    expect(JSON.parse(prepared.text)).toEqual({
+      schemaVersion: 1,
+      command: null,
+      ok: false,
+      error: result.error,
+    });
+  });
+
+  it('should retain a null workstation observation as a TSV row and leave nullable optional cells blank', () => {
+    const observed = { ...machine, name: 'observed' };
+    Reflect.set(observed, 'createdAt', null);
+    const machines = [observed, { ...machine }];
+    Reflect.set(machines, 1, null);
+
+    const output = captureResult(
+      { command: 'list', ok: true, data: { machines, unavailable: [] } },
+      {},
+    );
+
+    expect(output).toEqual({
+      stdout: `${[
+        [
+          'observed',
+          'sprite-primary',
+          'running',
+          '',
+          '',
+          'ready',
+          'example',
+          'sprite',
+        ],
+        ['null', '', '', '', '', '', '', ''],
+      ]
+        .map((row) => row.join('\t'))
+        .join('\n')}\n`,
+      stderr: '',
+    });
+  });
+
+  it('should render workstation details when the terminal does not report its width', () => {
+    const result: CommandResult = {
+      command: 'show',
+      ok: true,
+      data: { machine: { ...machine, name: 'missing-width-workstation' } },
+    };
+    const streams = {
+      stdout: Object.assign(new PassThrough(), { isTTY: true }),
+      stderr: new PassThrough(),
+    };
+    try {
+      const prepared = prepareResult({ result, options: {}, streams });
+
+      expect(prepared).toEqual({
+        channel: 'stdout',
+        text: expect.stringContaining('missing-width-workstation'),
+      });
+    } finally {
+      streams.stdout.destroy();
+      streams.stderr.destroy();
+    }
+  });
+
   it('should prepare and writes headerless pipe TSV in workstation column order with blank optional fields', () => {
     const stdout = new PassThrough();
     const stderr = new PassThrough();
     const streams = { stdout, stderr };
     let out = '';
-    let err = '';
+    let errorOutput = '';
     stdout.on('data', (chunk: Buffer) => {
       out += chunk.toString();
     });
     stderr.on('data', (chunk: Buffer) => {
-      err += chunk.toString();
+      errorOutput += chunk.toString();
     });
     const result: CommandResult = {
       command: 'list',
@@ -164,22 +236,20 @@ describe('fn:writeResult', () => {
             name: 'beta',
             id: 'sprite-beta',
             state: 'cold',
-            createdAt: undefined,
-            agentUrl: undefined,
             setup: 'not recorded',
             organization: 'org-two',
           },
         ],
       },
     };
-    const prepared = prepareResult(result, {}, streams);
+    const prepared = prepareResult({ result, options: {}, streams });
     const expected =
       'alpha\tsprite-alpha\trunning\t2026-10-09T12:00:00.000Z\thttps://alpha.sprites.app/\tready\torg-one\tsprite\n' +
       'beta\tsprite-beta\tcold\t\t\tnot recorded\torg-two\tsprite\n';
 
-    expect(prepared).toEqual({ channel: 'stdout', text: expected });
+    expect(prepared).toMatchObject({ channel: 'stdout', text: expected });
     writePreparedResult(prepared, streams);
-    expect({ stdout: out, stderr: err }).toEqual({
+    expect({ stdout: out, stderr: errorOutput }).toEqual({
       stdout: expected,
       stderr: '',
     });
@@ -217,6 +287,35 @@ describe('fn:writeResult', () => {
     expect(output).toEqual({ stdout: '', stderr: '' });
   });
 
+  it('should preserve null, undefined, and sparse service positions as JSON nulls', () => {
+    const services: GuestInspection['services'] = [
+      { name: 'first', needs: [] },
+      { name: 'undefined', needs: [] },
+      { name: 'null', needs: [] },
+      { name: 'hole', needs: [] },
+    ];
+    Reflect.set(services, 1, undefined);
+    Reflect.set(services, 2, null);
+    Reflect.deleteProperty(services, '3');
+
+    const output = captureResult(
+      {
+        command: 'show',
+        ok: true,
+        data: { machine, inspection: { ...inspection, services } },
+      },
+      { json: true },
+    );
+
+    expect(output.stderr).toBe('');
+    expect(JSON.parse(output.stdout).data.inspection.services).toEqual([
+      { name: 'first', needs: [] },
+      null,
+      null,
+      null,
+    ]);
+  });
+
   it('should escape delimiters and terminal controls after redacting pipe TSV fields', () => {
     const secret = 'generated-list-secret';
     rememberSecret(secret);
@@ -232,7 +331,6 @@ describe('fn:writeResult', () => {
               name: 'tab\tline\nslash\\tail',
               id: 'sprite-\u001b[31m',
               state: 'run\rring',
-              createdAt: undefined,
               agentUrl: `https://primary.sprites.app/#token=${secret}`,
               organization: 'org\u009b[0m',
             },
@@ -440,44 +538,42 @@ describe('fn:writeResult', () => {
 
   describe('idle governor line by keep-awake mode', () => {
     const NOW = Date.parse('2026-10-09T00:12:00.000Z');
+    const { deadline: _deadline, ...NO_DEADLINE_GOVERNOR } = RECORDED_GOVERNOR;
     /**
      * shows a machine whose governor state differs from the fixture's
-     * @param state fields replacing the fixture's recorded state
+     * @param state recorded state to render
+     * @param now time used for relative deadline rendering
      * @returns the flattened human output
      */
-    const governorOutput = (state: Partial<GovernorState>): string => {
-      const output = captureResult(
-        {
-          command: 'show',
-          ok: true,
-          data: {
-            machine,
-            inspection: {
-              ...inspection,
-              governor: {
-                recorded: true,
-                state: {
-                  ...RECORDED_GOVERNOR,
-                  ...state,
+    const governorOutput = (state: GovernorState, now = NOW): string => {
+      vi.useFakeTimers({ toFake: ['Date'], now });
+      try {
+        const output = captureResult(
+          {
+            command: 'show',
+            ok: true,
+            data: {
+              machine,
+              inspection: {
+                ...inspection,
+                governor: {
+                  recorded: true,
+                  state,
                 },
               },
             },
           },
-        },
-        {},
-      );
+          {},
+        );
 
-      return output.stdout.replaceAll(/\s+/g, ' ');
+        return output.stdout.replaceAll(/\s+/g, ' ');
+      } finally {
+        vi.useRealTimers();
+      }
     };
 
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
     it('should show a native-deadline provider as awake until the deadline and then on its own idle rules, never as sleep not permitted', () => {
-      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
-
-      const output = governorOutput({});
+      const output = governorOutput(RECORDED_GOVERNOR);
 
       expect(output).toMatch(
         /Idle governor.*last heartbeat 2026-10-09T00:10:00\.000Z; 0 open holds; awake until 2026-10-09T00:15:00\.000Z, then the provider's idle rules apply/,
@@ -487,18 +583,15 @@ describe('fn:writeResult', () => {
     });
 
     it('should mark a passed deadline as passed', () => {
-      vi.useFakeTimers({ toFake: ['Date'], now: NOW + 10 * 60_000 });
-
-      expect(governorOutput({})).toMatch(
+      expect(governorOutput(RECORDED_GOVERNOR, NOW + 10 * 60_000)).toMatch(
         /awake deadline 2026-10-09T00:15:00\.000Z passed, the provider's idle rules apply/,
       );
     });
 
     it('should show a native-deadline provider with nothing keeping it awake and a released task', () => {
-      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
       expect(
         governorOutput({
-          deadline: undefined,
+          ...NO_DEADLINE_GOVERNOR,
           adapter: {
             at: '2026-10-09T00:10:00.000Z',
             action: 'apply-deadline',
@@ -511,13 +604,18 @@ describe('fn:writeResult', () => {
     });
 
     it('should keep the sleep wording for a governed provider and mark its passed deadline', () => {
-      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
-      const governed = governorOutput({ keepAwakeMode: 'governed' });
-      vi.setSystemTime(NOW + 10 * 60_000);
-      const passed = governorOutput({
+      const governed = governorOutput({
+        ...RECORDED_GOVERNOR,
         keepAwakeMode: 'governed',
-        sleepPermitted: true,
       });
+      const passed = governorOutput(
+        {
+          ...RECORDED_GOVERNOR,
+          keepAwakeMode: 'governed',
+          sleepPermitted: true,
+        },
+        NOW + 10 * 60_000,
+      );
 
       expect(governed).toMatch(
         /awake until 2026-10-09T00:15:00\.000Z; sleep not permitted/,
@@ -528,11 +626,9 @@ describe('fn:writeResult', () => {
     });
 
     it('should show a provider that never keeps the workstation awake as not governed', () => {
-      vi.useFakeTimers({ toFake: ['Date'], now: NOW });
-
       const output = governorOutput({
+        ...NO_DEADLINE_GOVERNOR,
         keepAwakeMode: 'none',
-        deadline: undefined,
       });
 
       expect(output).toMatch(/0 open holds; not governed/);

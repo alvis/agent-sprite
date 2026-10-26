@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 111
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"setup","ok":false,"error":{"code":"AUTH","message":"GitHub rejected the token"}}
-
-=== notes ===
-

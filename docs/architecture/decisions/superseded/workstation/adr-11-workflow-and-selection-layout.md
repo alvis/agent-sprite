@@ -1,6 +1,6 @@
 > **Status:** Superseded
 >
-> **Superseded by:** [ADR-17 — Layer map, ID ownership, import matrix, guest split and v1 output projection](../../workstation/adr-17-layer-map-and-output-projection.md)
+> **Superseded by:** [ADR-18 — Layer boundaries and runtime output contracts](../../workstation/adr-18-layer-boundaries-and-runtime-output-contracts.md)
 >
 > **What changed:** Workflows, selection and shared options now live in the application and domain layers; the guest-leaf registry is the composition registry.
 

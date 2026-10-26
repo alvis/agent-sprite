@@ -127,9 +127,9 @@ e2e
   sprite.spec.e2e.ts          # Real Sprite workstations: the shared suite and the awake task
   fly-machine.spec.e2e.ts     # Real Fly Machines: the shared suite and the provider probe
   machines                    # workstation.ts (the shared suite) and the helpers the machine specs share
-  fixtures                    # Network-block helper for the offline specs
+  fixtures                    # Network-block helper for offline specs and boot.ts steps for provider probes
 spec
-  fixtures                    # Real stream and temporary-file helpers; output/ holds the output golden corpus
+  fixtures                    # Real stream and temporary-file helpers; output holds runtime output inputs
   mocks                       # Unit-only official Sprites SDK mock
   kernel                      # Source-mirrored kernel unit specs
   domain                      # Source-mirrored domain unit specs
@@ -185,7 +185,7 @@ flowchart LR
 5. Make T3 public after readiness succeeds and mark `environment.json` ready. Mint a native code last only for an explicit pairing request.
 6. Ordinary list/show read the control plane. `list` lists a workstation a newer open-agent set up and marks it (see the downgrade refusal below). `list` covers every registered provider with a credential and reports the rest as unavailable with unknown workstation status, naming the token that would list them; a command without `--provider` asks each ready provider for the workstation (`src/application/workstation/providers.ts`) and refuses only when the name exists on several. `--provider` on `setup`, `show`, `doctor` and `terminate` skips that search, and on every command, `list` included, it names the provider a `--provider-token-source` belongs to (`sprite` when omitted). Explicit inspection and doctor execute guest checks and may wake the workstation.
 
-Adapters may depend on the kernel, the domain and application ports, but cannot import application policy, composition or CLI implementations. Guest programs are `.sh` files under `guest/` that the host reads as assets through `src/adapters/guest/platform/assets.ts` and sends to the guest; no host module imports or runs one locally. Every guest path a program needs, such as the guest root and the agent's home, is defined once in `src/adapters/guest/platform/layout.ts`, and `readAsset` assigns it to the program as an `OA_*` variable right after its shebang, since `sh` cannot import it. Components never own cloud effects. The layer matrix is reviewed as an architectural constraint ([ADR-17](decisions/workstation/adr-17-layer-map-and-output-projection.md)); the project registers no ESLint boundary rule. Package subpath imports resolve module locations and do not enforce dependency direction.
+Adapters may depend on the kernel, the domain and application ports, but cannot import application policy, composition or CLI implementations. Guest programs are `.sh` files under `guest/` that the host reads as assets through `src/adapters/guest/platform/assets.ts` and sends to the guest; no host module imports or runs one locally. Every guest path a program needs, such as the guest root and the agent's home, is defined once in `src/adapters/guest/platform/layout.ts`, and `readAsset` assigns it to the program as an `OA_*` variable right after its shebang, since `sh` cannot import it. Components never own cloud effects. The layer matrix is reviewed as an architectural constraint ([ADR-18](decisions/workstation/adr-18-layer-boundaries-and-runtime-output-contracts.md)); the project registers no ESLint boundary rule. Package subpath imports resolve module locations and do not enforce dependency direction.
 
 ## Packaging and local execution
 

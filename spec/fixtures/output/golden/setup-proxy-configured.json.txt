@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 283
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"proxy","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"proxy":{"status":"configured","baseUrl":"https://hub.example.test/"}}}
-
-=== notes ===
-

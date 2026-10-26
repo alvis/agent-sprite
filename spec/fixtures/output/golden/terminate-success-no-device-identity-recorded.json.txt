@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 324
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"terminate","ok":true,"data":{"machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"workstation":{"status":"deleted","id":"sprite-primary","name":"primary"},"network":{"status":"no device identity recorded"}}}
-
-=== notes ===
-

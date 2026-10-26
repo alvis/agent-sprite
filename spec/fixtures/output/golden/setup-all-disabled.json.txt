@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 315
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"setup","ok":true,"data":{"section":"all","machine":{"id":"sprite-primary","name":"primary","organization":"example","state":"running","setup":"ready","readiness":"not inspected"},"network":{"status":"disabled","readiness":"skipped"},"proxy":{"status":"disabled"},"tools":"unchanged"}}
-
-=== notes ===
-

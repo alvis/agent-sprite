@@ -1,9 +1,0 @@
-channel: stderr
-text-length: 70
-notes-length: none
-=== text ===
-Unknown command "frobnicate"
-  Run open-agent --help for the commands
-
-=== notes ===
-

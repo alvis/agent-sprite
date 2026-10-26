@@ -18,6 +18,18 @@ import type { CommandResult } from '#application/result';
 
 import type { JsonObject, JsonValue, SerializedResult } from './serialization';
 
+interface MachineRows {
+  entries: JsonValue[];
+  rows: Array<Record<string, string>>;
+}
+
+/** completed result and output controls used to prepare one payload */
+export interface PrepareResultParams {
+  result: CommandResult;
+  options: CommandOptions;
+  streams?: ResultStreams;
+}
+
 interface ResultStream extends Writable {
   isTTY?: boolean;
   columns?: number;
@@ -51,16 +63,17 @@ const LIST_TSV_COLUMNS = [
 
 /**
  * prepares the entire redacted result before any output is written
- * @param result completed application result
- * @param options resolved output controls
- * @param streams real output streams used only for terminal width
+ * @param params completed result, output controls and optional real streams
+ * @param params.result completed application result
+ * @param params.options resolved output controls
+ * @param params.streams real output streams used only for terminal width
  * @returns one complete payload and its destination
  */
-export function prepareResult(
-  result: CommandResult,
-  options: CommandOptions,
-  streams: ResultStreams = DEFAULT_STREAMS,
-): PreparedResult {
+export function prepareResult({
+  result,
+  options,
+  streams = DEFAULT_STREAMS,
+}: PrepareResultParams): PreparedResult {
   const safe = serializeResult(projectResult(result));
   if (options.json) {
     return { channel: 'stdout', text: `${JSON.stringify(safe)}\n` };
@@ -68,12 +81,12 @@ export function prepareResult(
   if (safe.ok && safe.command === 'list' && !streams.stdout.isTTY) {
     const rows = machineRows(safe.data);
     if (rows) {
-      const notes = listNotes(safe.data);
+      const notes = listNotes(safe.data, rows.entries);
 
       return {
         channel: 'stdout',
-        text: formatListTsv(rows),
-        ...(notes ? { notes } : {}),
+        text: formatListTsv(rows.rows),
+        notes,
       };
     }
   }
@@ -102,20 +115,6 @@ export function writePreparedResult(
 }
 
 /**
- * emits one prepared success or JSON result on stdout, or human failure on stderr
- * @param result completed application result
- * @param options resolved output controls
- * @param streams real output streams, defaulting to the current process
- */
-export function writeResult(
-  result: CommandResult,
-  options: CommandOptions,
-  streams: ResultStreams = DEFAULT_STREAMS,
-): void {
-  writePreparedResult(prepareResult(result, options, streams), streams);
-}
-
-/**
  * renders a completed result for a human reader
  * @param result redacted application result
  * @param columns available terminal width
@@ -123,31 +122,19 @@ export function writeResult(
  */
 function humanResult(result: SerializedResult, columns: number): string {
   const error = result.ok ? '' : humanError(result);
-  if (!result.ok) {
-    if (result.data === undefined) {
-      return error;
-    }
+  if (result.command === null || result.data === undefined) {
+    return error;
   }
   const machines = machineRows(result.data);
   if (result.command === 'list' && machines) {
-    return `${error}${renderToString(machineTableElement(machines, columns))}\n${listNotes(result.data)}`;
+    return `${error}${renderToString(machineTableElement(machines.rows, columns))}\n${listNotes(result.data, machines.entries)}`;
   }
-  if (result.data) {
-    const details = renderToString(
-      resultDetailsElement(
-        result.command ?? 'command',
-        humanResultDetails(result.data),
-      ),
-      { columns },
-    );
+  const details = renderToString(
+    resultDetailsElement(result.command, humanResultDetails(result.data)),
+    { columns },
+  );
 
-    return `${error}${details}\n${humanConnection(result.data)}`;
-  }
-  if (!result.ok) {
-    return `${error}${String(result.data)}\n`;
-  }
-
-  return `${result.command}: complete\n`;
+  return `${error}${details}\n${humanConnection(result.data)}`;
 }
 
 /**
@@ -240,11 +227,11 @@ function escapeTsvCell(value: string): string {
  * names what a list leaves out or cannot manage, so a missing or refused
  * workstation is not mistaken for an absent or ordinary one
  * @param data list command data
+ * @param machines raw entries from the list's machines array
  * @returns one line per unavailable provider and per workstation a newer open-agent set up
  */
-function listNotes(data: JsonObject | undefined): string {
-  const unavailable = Array.isArray(data?.unavailable) ? data.unavailable : [];
-  const machines = Array.isArray(data?.machines) ? data.machines : [];
+function listNotes(data: JsonObject, machines: JsonValue[]): string {
+  const unavailable = Array.isArray(data.unavailable) ? data.unavailable : [];
 
   return [
     ...unavailable
@@ -268,34 +255,33 @@ function listNotes(data: JsonObject | undefined): string {
 /**
  * selects machine rows from the application result
  * @param data command data
- * @returns printable machine rows, when present
+ * @returns raw and printable machine rows, when present
  */
-function machineRows(
-  data: JsonObject | undefined,
-): Array<Record<string, string>> | undefined {
+function machineRows(data: JsonObject | undefined): MachineRows | undefined {
   const candidate = data?.machines;
   if (!Array.isArray(candidate)) {
     return undefined;
   }
 
-  const rows: JsonValue[] = candidate;
+  const entries: JsonValue[] = candidate;
 
-  return rows.map((item) => {
-    if (!isJsonObject(item)) {
-      return {
-        name: typeof item === 'object' ? JSON.stringify(item) : String(item),
-      };
-    }
+  return {
+    entries,
+    rows: entries.map((item) => {
+      if (!isJsonObject(item)) {
+        return { name: 'null' };
+      }
 
-    return Object.fromEntries(
-      Object.entries(item).map(([key, value]) => [
-        key,
-        value === null || value === undefined
-          ? ''
-          : typeof value === 'object'
-            ? JSON.stringify(value)
-            : String(value),
-      ]),
-    );
-  });
+      return Object.fromEntries(
+        Object.entries(item).map(([key, value]) => [
+          key,
+          value === null || value === undefined
+            ? ''
+            : typeof value === 'object'
+              ? JSON.stringify(value)
+              : String(value),
+        ]),
+      );
+    }),
+  };
 }

@@ -9,7 +9,7 @@ import { SpritesClient } from '@fly/sprites';
 import { describe, expect, it } from 'vitest';
 
 import { commandError } from '#application/failures';
-import { writeResult } from '#cli/output';
+import { prepareResult, writePreparedResult } from '#cli/output';
 import { CommandFault } from '#kernel/faults';
 
 import { createFilesystemSprite, guestOf } from '../../../../../mocks/sprites';
@@ -170,7 +170,14 @@ describe('mt:SpriteServiceControl.list private cause boundary', () => {
         err += chunk.toString();
       });
       try {
-        writeResult(result, { json }, { stdout, stderr });
+        writePreparedResult(
+          prepareResult({
+            result,
+            options: { json },
+            streams: { stdout, stderr },
+          }),
+          { stdout, stderr },
+        );
         const output = json ? out : err;
         expect(output).toContain('Service registry response could not be read');
         expect(output).not.toContain('PRIVATE_PR');

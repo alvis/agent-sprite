@@ -23,7 +23,7 @@ import { doctorWorkstation, showWorkstation } from '#application/inspect';
 import { runCommand } from '#application/workstation';
 import { chooseWorkstationAction } from '#application/workstation/actions';
 import { resultExitCode } from '#cli/exit';
-import { writeResult } from '#cli/output';
+import { prepareResult, writePreparedResult } from '#cli/output';
 import { projectResult } from '#cli/output/project';
 import { serializeResult } from '#cli/serialization';
 import { summarizeProfile } from '#domain/recorded';
@@ -168,7 +168,14 @@ describe('cmd:show', () => {
       diagnostic += chunk.toString();
     });
     try {
-      writeResult(result, { json: true }, { stdout, stderr });
+      writePreparedResult(
+        prepareResult({
+          result,
+          options: { json: true },
+          streams: { stdout, stderr },
+        }),
+        { stdout, stderr },
+      );
     } finally {
       stdout.destroy();
       stderr.destroy();
@@ -407,7 +414,14 @@ describe('cmd:show', () => {
       stderr.on('data', (chunk: Buffer) => {
         err += chunk.toString();
       });
-      writeResult(result, { json }, { stdout, stderr });
+      writePreparedResult(
+        prepareResult({
+          result,
+          options: { json },
+          streams: { stdout, stderr },
+        }),
+        { stdout, stderr },
+      );
       stdout.destroy();
       stderr.destroy();
       expect(out + err).toContain('services');
@@ -704,7 +718,14 @@ describe('cmd:show', () => {
       diagnostic += chunk.toString();
     });
     try {
-      writeResult(observed.result, {}, { stdout, stderr });
+      writePreparedResult(
+        prepareResult({
+          result: observed.result,
+          options: {},
+          streams: { stdout, stderr },
+        }),
+        { stdout, stderr },
+      );
     } finally {
       stdout.destroy();
       stderr.destroy();

@@ -96,14 +96,14 @@ async function withIsolatedCli<T>(
   run: (cwd: string, env: NodeJS.ProcessEnv) => Promise<T>,
 ): Promise<T> {
   const cwd = await mkdtemp(join(tmpdir(), 'open-agent-e2e-'));
-  const env = {
+  const environment = {
     PATH: process.env.PATH,
     HOME: cwd,
     TMPDIR: cwd,
     NO_COLOR: '1',
   };
   try {
-    return await run(cwd, env);
+    return await run(cwd, environment);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -134,7 +134,7 @@ async function waitForOutput(
   });
 }
 
-describe('workflow:installed CLI', () => {
+describe('installed CLI', () => {
   it.each(
     [
       'color',
@@ -1764,8 +1764,8 @@ describe('workflow:installed CLI', () => {
         machineId: 'sprite-retained', setupIncomplete: true,
         outcome: 'unknown', details: ['Inspect retained machine']
       } };
-      emitResult(result, { json: true }, state);
-      emitResult(result, { json: true }, state);
+      emitResult({ result, options: { json: true }, state });
+      emitResult({ result, options: { json: true }, state });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(execPath, ['--input-type=module', '-e', source], {
@@ -1802,10 +1802,10 @@ describe('workflow:installed CLI', () => {
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
-      emitResult({ command: 'create', ok: true, data: {
+      emitResult({ result: { command: 'create', ok: true, data: {
         machine: { name: 'retained-created', id: 'sprite-created' },
         preflight: { checks: cyclic, reminders: [] },
-      } }, { json: true }, { emitted: false, command: 'create', errors: [] });
+      } }, options: { json: true }, state: { emitted: false, command: 'create', errors: [] } });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(execPath, ['--input-type=module', '-e', source], {
@@ -1839,11 +1839,11 @@ describe('workflow:installed CLI', () => {
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
-      emitResult({ command: 'terminate', ok: true, data: {
+      emitResult({ result: { command: 'terminate', ok: true, data: {
         machine: { name: 'deleted-machine', id: 'sprite-deleted' },
         workstation: { status: 'deleted', id: 'sprite-deleted', name: 'deleted-machine' },
         network: { status: 'cleanup required', deviceId: cyclic },
-      } }, { json: true }, { emitted: false, command: 'terminate', errors: [] });
+      } }, options: { json: true }, state: { emitted: false, command: 'terminate', errors: [] } });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(execPath, ['--input-type=module', '-e', source], {
@@ -1881,10 +1881,10 @@ describe('workflow:installed CLI', () => {
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
       const localCredential = { status: 'replaced', scope: 'this computer; all workstations', fallbackReason: cyclic };
-      emitResult({ command: 'setup', ok: true, data: { localCredential } },
-        { json: true }, { emitted: false, command: 'setup', errors: [] });
-      emitResult({ command: 'list', ok: true, data: { machines: [{ name: 'listed', newerRelease: cyclic }] } },
-        { json: true }, { emitted: false, command: 'list', errors: [] });
+      emitResult({ result: { command: 'setup', ok: true, data: { localCredential } },
+        options: { json: true }, state: { emitted: false, command: 'setup', errors: [] } });
+      emitResult({ result: { command: 'list', ok: true, data: { machines: [{ name: 'listed', newerRelease: cyclic }] } },
+        options: { json: true }, state: { emitted: false, command: 'list', errors: [] } });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(execPath, ['--input-type=module', '-e', source], {
@@ -1923,9 +1923,9 @@ describe('workflow:installed CLI', () => {
       process.stdout.on('error', () => { writeErrors += 1; });
       process.stdin.once('data', () => {
         const state = { emitted: false, command: 'show', errors: [] };
-        emitResult({ command: 'show', ok: false, error: {
+        emitResult({ result: { command: 'show', ok: false, error: {
           code: 'PROVIDER', message: 'provider failed', machine: 'known-machine'
-        } }, { json: true }, state);
+        } }, options: { json: true }, state });
         setTimeout(() => process.stderr.write(JSON.stringify({
           emitted: state.emitted, exitCode: process.exitCode, writeErrors
         }) + '\\n'), 30);

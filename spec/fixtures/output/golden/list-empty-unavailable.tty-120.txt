@@ -1,9 +1,0 @@
-channel: stdout
-text-length: 45
-notes-length: none
-=== text ===
-
-Unavailable provider fly-machine: timed out
-
-=== notes ===
-

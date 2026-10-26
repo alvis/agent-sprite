@@ -117,8 +117,8 @@ export async function cli(argv: string[]): Promise<void> {
     );
     if (!state.emitted && state.errors.length > 0) {
       const first = state.errors[0]!;
-      emitResult(
-        {
+      emitResult({
+        result: {
           command: state.command,
           ok: false,
           error: {
@@ -126,19 +126,19 @@ export async function cli(argv: string[]): Promise<void> {
             message: state.errors.map((error) => error.message).join('\n'),
           },
         },
-        { json: jsonRequested },
+        options: { json: jsonRequested },
         state,
-      );
+      });
     } else if (!state.emitted && !helpRequested && argv.length > 0) {
-      emitResult(
-        {
+      emitResult({
+        result: {
           command: state.command,
           ok: false,
           error: { code: 'USAGE', message: 'A command is required.' },
         },
-        { json: jsonRequested },
+        options: { json: jsonRequested },
         state,
-      );
+      });
     }
   } catch {
     if (!state.emitted) {
@@ -152,8 +152,8 @@ export async function cli(argv: string[]): Promise<void> {
  * @param state invocation-local result ownership
  */
 function emitJsonWithHelpFailure(state: ExecutionState): void {
-  emitResult(
-    {
+  emitResult({
+    result: {
       command: state.command,
       ok: false,
       error: {
@@ -161,9 +161,9 @@ function emitJsonWithHelpFailure(state: ExecutionState): void {
         message: '--json cannot be combined with help or version.',
       },
     },
-    { json: true },
+    options: { json: true },
     state,
-  );
+  });
 }
 
 /**
@@ -175,8 +175,8 @@ function emitApplicationFailure(
   state: ExecutionState,
   jsonRequested: boolean,
 ): void {
-  emitResult(
-    {
+  emitResult({
+    result: {
       command: state.command,
       ok: false,
       error: {
@@ -184,7 +184,7 @@ function emitApplicationFailure(
         message: 'The command could not complete safely.',
       },
     },
-    { json: jsonRequested },
+    options: { json: jsonRequested },
     state,
-  );
+  });
 }

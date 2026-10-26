@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 119
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"terminate","ok":false,"error":{"code":"CANCELLED","message":"Typed name did not match"}}
-
-=== notes ===
-

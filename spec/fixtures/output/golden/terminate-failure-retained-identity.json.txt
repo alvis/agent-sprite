@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 609
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"terminate","ok":false,"error":{"code":"PROVIDER","message":"Tailnet cleanup required","machine":"retained-machine","machineId":"sprite-retained","setupIncomplete":true,"details":["Retry setup after checking the managed device"]},"data":{"machine":{"id":"sprite-primary","name":"retained-machine","organization":"example","state":"running","setup":"ready","readiness":"not inspected","agentUrl":"https://retained.sprites.app/"},"workstation":{"status":"deleted","id":"sprite-retained","name":"retained-machine"},"network":{"status":"cleanup required","deviceId":"managed-node"}}}
-
-=== notes ===
-

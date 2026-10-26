@@ -71,7 +71,7 @@ describe('fn:setupFailure', () => {
       expect.stringMatching(new RegExp(`^${VERSION_LABEL_PREFIX}`, 'u')),
     ]);
     expect(update).toHaveBeenCalledOnce();
-    expect(prepareResult(result, {}).text).toContain(
+    expect(prepareResult({ result, options: {} }).text).toContain(
       'Incomplete label: confirmed',
     );
   });
@@ -125,8 +125,8 @@ describe('fn:setupFailure', () => {
       prior,
       labelFailure,
     ]);
-    const human = prepareResult(result, {});
-    const json = prepareResult(result, { json: true });
+    const human = prepareResult({ result, options: {} });
+    const json = prepareResult({ result, options: { json: true } });
     expect(human.channel).toBe('stderr');
     expect(human.text).toContain('Incomplete label: unconfirmed');
     expect(human.text).toContain('label write refused');
