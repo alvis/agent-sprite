@@ -8,7 +8,7 @@ import {
   showDocumentation,
   terminateDocumentation,
 } from './documentation';
-import { execute } from './execute';
+import { execute } from './execution';
 import {
   commonFlags,
   consentFlags,
@@ -24,12 +24,12 @@ import {
   selectionFlags,
   setupFlags,
 } from './flags';
-import { guestFileFlags } from './guest-file-flags';
 import {
   harnessPluginChangeFlags,
   harnessPluginFlags,
   harnessPluginOptions,
-} from './harness-flags';
+} from './flags/harness';
+import { guestFileFlags } from './guest-file-flags';
 
 import type { Command } from '@stricli/core';
 
@@ -38,7 +38,7 @@ import type { CommandOptions } from '#application/contracts';
 import type {
   HarnessPluginFlagValues,
   HarnessPluginSelectionValues,
-} from './harness-flags';
+} from './flags/harness';
 import type { InvocationContext } from './parser';
 
 type BooleanKeys<T> = {

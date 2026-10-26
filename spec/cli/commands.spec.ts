@@ -2,7 +2,7 @@ import { buildApplication, buildRouteMap, run } from '@stricli/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import { commandRoutes } from '#cli/commands';
-import { execute } from '#cli/execute';
+import { execute } from '#cli/execution';
 import { PROVIDER_IDS } from '#domain/ids';
 
 import { dependencies } from '../mocks/dependencies';
@@ -12,11 +12,11 @@ import type { StricliProcess } from '@stricli/core';
 import type { InvocationContext } from '#cli/parser';
 
 vi.mock(
-  '#cli/execute',
+  '#cli/execution',
   () =>
     ({
       execute: vi.fn<typeof execute>(async () => undefined),
-    }) satisfies Partial<typeof import('#cli/execute')>,
+    }) satisfies Partial<typeof import('#cli/execution')>,
 );
 
 const executeCommand = vi.mocked(execute);

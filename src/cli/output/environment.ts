@@ -124,6 +124,46 @@ type EnvironmentAgent = GuestEnvironment['agent'];
 type EnvironmentCommand = NonNullable<EnvironmentHarness['adapter']>['launch'];
 
 /**
+ * projects the environment record of a guest
+ * @param environment internal environment
+ * @returns output environment
+ */
+export function projectEnvironment(
+  environment: GuestEnvironment,
+): EnvironmentOutput {
+  return projectFields<GuestEnvironment, EnvironmentOutput>(environment, {
+    schema: same,
+    openAgent: (openAgent) =>
+      projectFields<typeof openAgent, EnvironmentOutput['openAgent']>(
+        openAgent,
+        {
+          version: same,
+          setupAt: same,
+        },
+      ),
+    setup: (setup) =>
+      projectFields<typeof setup, EnvironmentOutput['setup']>(setup, {
+        state: same,
+        skipped: each(projectSkippedTool),
+      }),
+    os: (os) =>
+      projectFields<typeof os, EnvironmentOutput['os']>(os, { family: same }),
+    profile: projectProfile,
+    tools: each(projectTool),
+    schedule: (schedule) =>
+      projectFields<typeof schedule, EnvironmentOutput['schedule']>(schedule, {
+        dueDays: same,
+      }),
+    provider: projectProvider,
+    agent: projectAgent,
+    network: (network) => (network === null ? null : projectNetwork(network)),
+    services: each(projectServiceDefinition),
+    jobs: each(projectJob),
+    networkIdentity: projectNetworkIdentity,
+  });
+}
+
+/**
  * projects a recorded command
  * @param command internal command
  * @returns output command
@@ -289,45 +329,5 @@ function projectNetworkIdentity(
     network: same,
     deviceId: same,
     ip: same,
-  });
-}
-
-/**
- * projects the environment record of a guest
- * @param environment internal environment
- * @returns output environment
- */
-export function projectEnvironment(
-  environment: GuestEnvironment,
-): EnvironmentOutput {
-  return projectFields<GuestEnvironment, EnvironmentOutput>(environment, {
-    schema: same,
-    openAgent: (openAgent) =>
-      projectFields<typeof openAgent, EnvironmentOutput['openAgent']>(
-        openAgent,
-        {
-          version: same,
-          setupAt: same,
-        },
-      ),
-    setup: (setup) =>
-      projectFields<typeof setup, EnvironmentOutput['setup']>(setup, {
-        state: same,
-        skipped: each(projectSkippedTool),
-      }),
-    os: (os) =>
-      projectFields<typeof os, EnvironmentOutput['os']>(os, { family: same }),
-    profile: projectProfile,
-    tools: each(projectTool),
-    schedule: (schedule) =>
-      projectFields<typeof schedule, EnvironmentOutput['schedule']>(schedule, {
-        dueDays: same,
-      }),
-    provider: projectProvider,
-    agent: projectAgent,
-    network: (network) => (network === null ? null : projectNetwork(network)),
-    services: each(projectServiceDefinition),
-    jobs: each(projectJob),
-    networkIdentity: projectNetworkIdentity,
   });
 }
