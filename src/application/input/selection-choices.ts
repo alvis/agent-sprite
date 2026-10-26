@@ -5,7 +5,7 @@ import {
 import { harnessIds } from '#domain/harnesses';
 import { AGENT_IDS, PROVIDER_IDS } from '#domain/ids';
 import { isNetworkId, networkIds } from '#domain/networks';
-import { isDriverId } from '#domain/profile-rules';
+import { isDriverId } from '#domain/profile';
 
 import { hasValue } from './selection-sources';
 

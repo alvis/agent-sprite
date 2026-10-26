@@ -92,33 +92,29 @@ export async function markCreateIncomplete(
 ): Promise<CommandResult> {
   const { workstation, context, error } = params;
   let primary = ensureError(error);
-  const privacy = await recoverOperation(async () =>
-    context.provider.expose(
-      workstation,
-      agentPort(dependencies.registry, context.input.profile.agent),
-      'private',
-    ),
-  ).then(
-    () => 'confirmed' as const,
-    (failure: unknown) => {
-      primary = retainRecoveryFailure(primary, 'private visibility', failure);
-
-      return 'unconfirmed' as const;
-    },
-  );
-  const incompleteLabel = await recoverOperation(async () =>
-    context.provider.setMetadata(workstation, {
-      setup: 'incomplete',
-      version: OPEN_AGENT_VERSION,
-    }),
-  ).then(
-    () => 'confirmed' as const,
-    (failure: unknown) => {
-      primary = retainRecoveryFailure(primary, 'incomplete label', failure);
-
-      return 'unconfirmed' as const;
-    },
-  );
+  const privacyRecovery = await recoverCreateStep({
+    primary,
+    step: 'private visibility',
+    action: async () =>
+      context.provider.expose(
+        workstation,
+        agentPort(dependencies.registry, context.input.profile.agent),
+        'private',
+      ),
+  });
+  primary = privacyRecovery.primary;
+  const labelRecovery = await recoverCreateStep({
+    primary,
+    step: 'incomplete label',
+    action: async () =>
+      context.provider.setMetadata(workstation, {
+        setup: 'incomplete',
+        version: OPEN_AGENT_VERSION,
+      }),
+  });
+  primary = labelRecovery.primary;
+  const privacy = privacyRecovery.status;
+  const incompleteLabel = labelRecovery.status;
   const failure = commandError(primary);
 
   return {
@@ -190,4 +186,32 @@ function unconfirmedRecovery(
       ? ['The incomplete label could not be confirmed; inspect provider state.']
       : []),
   ];
+}
+
+/** inputs of one create-recovery action */
+interface RecoverCreateStepParams {
+  /** original create failure */
+  primary: Error;
+  /** recovery step for diagnostics */
+  step: string;
+  /** provider mutation attempted during recovery */
+  action: () => Promise<unknown>;
+}
+/**
+ * observes one original recovery promise without changing its failure identity
+ * @param params original failure, diagnostic step and provider recovery action
+ * @returns confirmation and the original failure with any recovery cause
+ */
+async function recoverCreateStep(
+  params: RecoverCreateStepParams,
+): Promise<{ status: 'confirmed' | 'unconfirmed'; primary: Error }> {
+  const { primary, step, action } = params;
+
+  return recoverOperation(action).then(
+    () => ({ status: 'confirmed' as const, primary }),
+    (failure) => ({
+      status: 'unconfirmed' as const,
+      primary: retainRecoveryFailure(primary, step, failure),
+    }),
+  );
 }

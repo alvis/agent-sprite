@@ -1,19 +1,34 @@
 import { isRecord } from '#kernel/guards';
 
+import { OPTION_BOUNDS, optionViolations } from './profile/options';
+import { providerViolations } from './profile/provider';
 import {
   agentViolations,
   harnessSetViolations,
   isDriverId,
-  OPTION_BOUNDS,
-  optionViolations,
-  providerViolations,
   releaseViolations,
   unknownDriverViolations,
-} from './profile-rules';
+} from './profile/selection';
 
 import type { ProductDeclarations } from '#domain/declarations';
 import type { AgentId, HarnessId, NetworkId, ProviderId } from '#domain/ids';
 import type { RecordedProfile } from '#domain/recorded';
+
+export {
+  MAX_UPDATE_DUE_DAYS,
+  OPTION_BOUNDS,
+  optionViolations,
+} from './profile/options';
+
+export { machineViolations, providerViolations } from './profile/provider';
+
+export {
+  agentViolations,
+  harnessSetViolations,
+  isDriverId,
+  releaseViolations,
+  unknownDriverViolations,
+} from './profile/selection';
 
 /** a workstation's complete driver selection */
 export interface WorkstationProfile {
@@ -214,33 +229,6 @@ export function parseProfile(
 }
 
 /**
- * reports the incompatibilities the selected provider declares against a fully known selection
- * @param declarations the data every registered driver declares
- * @param profile fully known selection
- * @returns one violation per declared incompatibility that applies
- */
-function incompatibilityViolations(
-  declarations: ProductDeclarations,
-  profile: WorkstationProfile,
-): ProfileViolation[] {
-  return declarations.providers[profile.provider].incompatibilities
-    .filter((incompatibility) => incompatibility.appliesTo(profile))
-    .map(({ reason }) => ({
-      code: 'incompatible' as const,
-      message: reason,
-      fields: [
-        'provider' as const,
-        'agent' as const,
-        'harnesses' as const,
-        'network' as const,
-        ...OPTION_BOUNDS.map(({ key }) => key),
-        'isExitNodeEnabled' as const,
-        'isProxyEnabled' as const,
-      ],
-    }));
-}
-
-/**
  * checks a resolved selection against the catalog and every selected driver's
  * declared capabilities, aggregating all violations, before any provider call
  * @param declarations the data every registered driver declares
@@ -305,6 +293,33 @@ export function validateProfile(
   return profile && allViolations.length === 0
     ? { isValid: true, profile }
     : { isValid: false, violations: allViolations };
+}
+
+/**
+ * reports the incompatibilities the selected provider declares against a fully known selection
+ * @param declarations the data every registered driver declares
+ * @param profile fully known selection
+ * @returns one violation per declared incompatibility that applies
+ */
+function incompatibilityViolations(
+  declarations: ProductDeclarations,
+  profile: WorkstationProfile,
+): ProfileViolation[] {
+  return declarations.providers[profile.provider].incompatibilities
+    .filter((incompatibility) => incompatibility.appliesTo(profile))
+    .map(({ reason }) => ({
+      code: 'incompatible' as const,
+      message: reason,
+      fields: [
+        'provider' as const,
+        'agent' as const,
+        'harnesses' as const,
+        'network' as const,
+        ...OPTION_BOUNDS.map(({ key }) => key),
+        'isExitNodeEnabled' as const,
+        'isProxyEnabled' as const,
+      ],
+    }));
 }
 
 /**

@@ -1,29 +1,19 @@
 import { stderr, stdin } from 'node:process';
 
-import { render, renderToString } from 'ink';
+import { render } from 'ink';
 
-import {
-  confirmPromptElement,
-  inputPromptElement,
-  interactionRootElement,
-  multiselectPromptElement,
-  secretPromptElement,
-  selectPromptElement,
-  statusElement,
-} from '#cli/components/InteractionPresentation';
+import { interactionRootElement } from '#cli/components/InteractionPresentation';
 import { InteractionExit } from '#kernel/navigation';
-import { redactResolved } from '#kernel/redaction';
 
 import { createActivityController } from './activity';
+import { createPromptMethods } from './interaction/prompts';
 
 import type { ReactElement } from 'react';
 
-import type {
-  Interaction,
-  ProgressUpdate,
-} from '#application/ports/interaction';
+import type { Interaction } from '#application/ports/interaction';
 
 import type { ActivityOptions } from './activity';
+import type { PresentPrompt } from './interaction/prompts';
 
 /** Ink streams used by the interaction boundary */
 interface InteractionIO {
@@ -47,14 +37,6 @@ export interface InteractionSession extends Interaction {
   dispose(): Promise<void>;
 }
 
-interface PromptMethodsParams {
-  noColor: boolean;
-  output: NodeJS.WritableStream;
-  active: () => boolean;
-  quiet: boolean;
-  publishProgress: (update: ProgressUpdate) => void;
-}
-
 interface PromptRequest {
   element: ReactElement;
   reject: (error: InteractionExit) => void;
@@ -65,14 +47,6 @@ interface PromptQueueState {
   active?: PromptRequest;
   disposed: boolean;
 }
-
-type PresentPrompt = <T>(
-  build: (
-    submit: (value: T) => void,
-    cancel: (back?: boolean) => void,
-  ) => ReactElement,
-  backLabel?: string,
-) => Promise<T>;
 
 /**
  * creates one command-lifetime Ink root and an ordered prompt queue
@@ -172,25 +146,15 @@ function createPromptPresenter(
     }
 
     return new Promise<T>((resolve, reject) => {
-      let settled = false;
       const request: PromptRequest = {
         element: build(submit, cancel),
         reject: (error): void => settle(() => reject(error)),
       };
       const settle = (complete: () => void): void => {
-        if (settled) {
-          return;
-        }
-        settled = true;
         if (state.active === request) {
           state.active = undefined;
           show();
           queueMicrotask(activateNext);
-        } else {
-          const index = state.queue.indexOf(request);
-          if (index >= 0) {
-            state.queue.splice(index, 1);
-          }
         }
         complete();
       };
@@ -264,84 +228,6 @@ function createLocalCancellationPort(): InteractionCancellationPort {
     cancel: () => controller.abort(),
     interrupt: () => controller.abort(),
   };
-}
-
-/**
- * binds typed workflow prompts to the one active session
- * @param present queue-backed prompt presentation
- * @param params status rendering and active-session ownership
- * @param params.noColor whether to suppress status colors
- * @param params.output status output stream
- * @param params.active whether the session can publish progress
- * @param params.quiet whether routine status is suppressed
- * @param params.publishProgress command-lifetime activity reporter
- * @returns Interaction callbacks
- */
-function createPromptMethods(
-  present: PresentPrompt,
-  { noColor, output, active, quiet, publishProgress }: PromptMethodsParams,
-): Interaction {
-  return {
-    input: async (prompt) =>
-      present(
-        (submit, cancel) =>
-          inputPromptElement(prompt, noColor, {
-            onSubmit: submit,
-            onCancel: cancel,
-          }),
-        prompt.backLabel,
-      ),
-    secret: async (prompt) =>
-      present(
-        (submit, cancel) =>
-          secretPromptElement(prompt, noColor, {
-            onSubmit: submit,
-            onCancel: cancel,
-          }),
-        prompt.backLabel,
-      ),
-    select: async (prompt, choices) =>
-      present(
-        (submit, cancel) =>
-          selectPromptElement(prompt, choices, {
-            onSubmit: submit,
-            onCancel: cancel,
-          }),
-        prompt.backLabel,
-      ),
-    multiselect: async (prompt, choices) =>
-      present(
-        (submit, cancel) =>
-          multiselectPromptElement(prompt, choices, {
-            onSubmit: submit,
-            onCancel: cancel,
-          }),
-        prompt.backLabel,
-      ),
-    confirm: async (prompt) =>
-      present(
-        (submit, cancel) => confirmPromptElement(prompt, submit, cancel),
-        prompt.backLabel,
-      ),
-    progress: publishProgress,
-    status: (update) => {
-      if (active() && !(quiet && ['info', 'success'].includes(update.kind))) {
-        writeStatus(statusElement(update, noColor), output);
-      }
-    },
-  };
-}
-
-/**
- * prints a completed, non-secret status line to stderr
- * @param element completed status element
- * @param output destination for status output
- */
-function writeStatus(
-  element: ReactElement,
-  output: NodeJS.WritableStream,
-): void {
-  output.write(`${redactResolved(renderToString(element))}\n`);
 }
 
 /**
