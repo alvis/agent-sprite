@@ -24,9 +24,9 @@ describe('fn:providerViolations', () => {
     } satisfies ProductDeclarations;
 
     expect(
-      providerViolations(
+      providerViolations({
         declarations,
-        {
+        selected: {
           provider: 'sprite',
           options: {
             ...defaults.options,
@@ -34,8 +34,8 @@ describe('fn:providerViolations', () => {
             holdMaxMinutes: 61,
           },
         },
-        { isIdleTimeoutRequested: true },
-      ),
+        options: { isIdleTimeoutRequested: true },
+      }),
     ).toMatchObject([
       {
         code: 'undeclared-capability',

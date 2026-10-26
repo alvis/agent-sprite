@@ -33,6 +33,16 @@ interface OptionContext {
   enables?: 'proxy';
 }
 
+/** release inputs and the selected agent */
+type ReleaseContext = Pick<OptionContext, 'supplied' | 'prompts' | 'base'> & {
+  agent: string;
+};
+
+/** machine-size inputs and the selected provider */
+type MachineContext = Pick<OptionContext, 'supplied' | 'prompts' | 'base'> & {
+  provider: string;
+};
+
 /**
  * resolves the capability-driven options the run owns: exit node only when
  * the network supports one, CLIProxyAPI only when a selected harness supports
@@ -85,15 +95,16 @@ export async function resolveOptions(
  */
 export async function resolveRelease(
   dependencies: Pick<ApplicationDependencies, 'registry'>,
-  context: Pick<OptionContext, 'supplied' | 'prompts' | 'base'> & {
-    agent: string;
-  },
+  context: ReleaseContext,
 ): Promise<string | undefined> {
   const { agent, supplied, prompts, base } = context;
   if (supplied.agentRelease !== undefined) {
     return supplied.agentRelease;
   }
-  const channels = isDriverId(dependencies.registry, 'agents', agent)
+  const channels = isDriverId(agent, {
+    declarations: dependencies.registry,
+    kind: 'agents',
+  })
     ? dependencies.registry.agents[agent].releaseChannels
     : undefined;
   if (channels === undefined) {
@@ -120,18 +131,20 @@ export async function resolveRelease(
  */
 export async function resolveMachine(
   dependencies: Pick<ApplicationDependencies, 'registry'>,
-  context: Pick<OptionContext, 'supplied' | 'prompts' | 'base'> & {
-    provider: string;
-  },
+  context: MachineContext,
 ): Promise<Pick<ProfileOptions, 'minCpus' | 'minMemoryGb'>> {
   const { provider, supplied, prompts, base } = context;
   const refusal = (
     requirement: Pick<ProfileOptions, 'minCpus' | 'minMemoryGb'>,
   ): string | undefined =>
-    isDriverId(dependencies.registry, 'providers', provider)
-      ? machineViolations(dependencies.registry, provider, {
-          ...base,
-          ...requirement,
+    isDriverId(provider, {
+      declarations: dependencies.registry,
+      kind: 'providers',
+    })
+      ? machineViolations({
+          declarations: dependencies.registry,
+          provider,
+          options: { ...base, ...requirement },
         })[0]?.message
       : undefined;
   const minCpus =
@@ -227,11 +240,10 @@ async function resolveIdleMinutes(
   if (supplied.idleTimeoutMinutes !== undefined) {
     return supplied.idleTimeoutMinutes;
   }
-  const keepsAwake = isDriverId(
-    dependencies.registry,
-    'providers',
-    selected.provider,
-  )
+  const keepsAwake = isDriverId(selected.provider, {
+    declarations: dependencies.registry,
+    kind: 'providers',
+  })
     ? dependencies.registry.providers[selected.provider].capabilities
         .keepAwakeMode !== 'none'
     : false;

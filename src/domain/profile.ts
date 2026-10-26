@@ -19,15 +19,23 @@ export {
   OPTION_BOUNDS,
   optionViolations,
 } from './profile/options';
-
 export { machineViolations, providerViolations } from './profile/provider';
-
 export {
   agentViolations,
   harnessSetViolations,
   isDriverId,
   releaseViolations,
   unknownDriverViolations,
+} from './profile/selection';
+export type { OptionViolationsParams } from './profile/options';
+export type {
+  MachineViolationsParams,
+  ProviderViolationsParams,
+} from './profile/provider';
+export type {
+  AgentViolationsParams,
+  DriverIdContext,
+  ReleaseViolationsParams,
 } from './profile/selection';
 
 /** a workstation's complete driver selection */
@@ -112,6 +120,20 @@ export interface ProfileValidationOptions {
   isIdleTimeoutRequested?: boolean;
 }
 
+/** decoded value and catalog used for untrusted profile validation */
+export interface ParseProfileParams {
+  declarations: ProductDeclarations;
+  value: unknown;
+  options?: ProfileValidationOptions;
+}
+
+/** candidate selection and catalog used for profile validation */
+export interface ValidateProfileParams {
+  declarations: ProductDeclarations;
+  candidate: ProfileCandidate;
+  options?: ProfileValidationOptions;
+}
+
 /** a profile field a violation can be attributed to */
 export type ProfileField =
   'provider' | 'agent' | 'harnesses' | 'network' | keyof ProfileOptions;
@@ -191,12 +213,12 @@ export function registeredSummary(
   }
   const { provider, agent, network } = recorded;
   const harnesses = recorded.harnesses.filter((id) =>
-    isDriverId(declarations, 'harnesses', id),
+    isDriverId(id, { declarations, kind: 'harnesses' }),
   );
 
-  return isDriverId(declarations, 'providers', provider) &&
-    isDriverId(declarations, 'agents', agent) &&
-    isDriverId(declarations, 'networks', network) &&
+  return isDriverId(provider, { declarations, kind: 'providers' }) &&
+    isDriverId(agent, { declarations, kind: 'agents' }) &&
+    isDriverId(network, { declarations, kind: 'networks' }) &&
     harnesses.length > 0
     ? { provider, agent, harnesses, network }
     : undefined;
@@ -204,18 +226,19 @@ export function registeredSummary(
 
 /**
  * validates an untrusted decoded value, such as the profile environment.json stores
- * @param declarations the data every registered driver declares
- * @param value decoded value
- * @param options requests validated alongside the profile
+ * @param params declarations, decoded value and validation requests
+ * @param params.declarations the data every registered driver declares
+ * @param params.value value to process
+ * @param params.options requests validated alongside the profile
  * @returns the validated profile, or every violation found
  */
-export function parseProfile(
-  declarations: ProductDeclarations,
-  value: unknown,
-  options?: ProfileValidationOptions,
-): ProfileValidation {
+export function parseProfile({
+  declarations,
+  value,
+  options,
+}: ParseProfileParams): ProfileValidation {
   return isProfileCandidate(value)
-    ? validateProfile(declarations, value, options)
+    ? validateProfile({ declarations, candidate: value, options })
     : {
         isValid: false,
         violations: [
@@ -231,51 +254,57 @@ export function parseProfile(
 /**
  * checks a resolved selection against the catalog and every selected driver's
  * declared capabilities, aggregating all violations, before any provider call
- * @param declarations the data every registered driver declares
- * @param candidate selection resolved from flags, environment, prompts and defaults
- * @param options requests validated alongside the profile
+ * @param params resolved candidate, catalog and validation requests
+ * @param params.declarations the data every registered driver declares
+ * @param params.candidate profile candidate to validate
+ * @param params.options requests validated alongside the profile
  * @returns the validated profile, or every violation found
  */
-export function validateProfile(
-  declarations: ProductDeclarations,
-  candidate: ProfileCandidate,
-  options: ProfileValidationOptions = {},
-): ProfileValidation {
+export function validateProfile({
+  declarations,
+  candidate,
+  options = {},
+}: ValidateProfileParams): ProfileValidation {
   const { provider, agent, network } = candidate;
   const harnesses = candidate.harnesses.filter((id) =>
-    isDriverId(declarations, 'harnesses', id),
+    isDriverId(id, { declarations, kind: 'harnesses' }),
   );
   const violations = [
     ...unknownDriverViolations(declarations, candidate),
     ...harnessSetViolations(candidate.harnesses),
-    ...(isDriverId(declarations, 'agents', agent)
+    ...(isDriverId(agent, { declarations, kind: 'agents' })
       ? [
-          ...agentViolations(declarations, { agent, harnesses }, options),
-          ...releaseViolations(
+          ...agentViolations({
+            declarations,
+            selected: { agent, harnesses },
+            options,
+          }),
+          ...releaseViolations({
             declarations,
             agent,
-            candidate.options.agentRelease,
-          ),
+            release: candidate.options.agentRelease,
+          }),
         ]
       : []),
-    ...(isDriverId(declarations, 'providers', provider)
-      ? providerViolations(
+    ...(isDriverId(provider, { declarations, kind: 'providers' })
+      ? providerViolations({
           declarations,
-          { provider, options: candidate.options },
+          selected: { provider, options: candidate.options },
           options,
-        )
+        })
       : []),
-    ...optionViolations(declarations, candidate.options, {
-      network,
-      harnesses,
+    ...optionViolations({
+      declarations,
+      options: candidate.options,
+      selected: { network, harnesses },
     }),
   ];
   // incompatibilities are declared against a fully known selection, so they
   // are checked whenever every id resolves, alongside any other violation
   const profile: WorkstationProfile | undefined =
-    isDriverId(declarations, 'providers', provider) &&
-    isDriverId(declarations, 'agents', agent) &&
-    isDriverId(declarations, 'networks', network) &&
+    isDriverId(provider, { declarations, kind: 'providers' }) &&
+    isDriverId(agent, { declarations, kind: 'agents' }) &&
+    isDriverId(network, { declarations, kind: 'networks' }) &&
     harnesses.length === candidate.harnesses.length
       ? {
           provider,

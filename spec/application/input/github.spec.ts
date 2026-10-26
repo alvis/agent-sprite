@@ -20,7 +20,7 @@ const resolverChild = fileURLToPath(
 );
 const emptySources = { processEnv: {}, fileEnv: {}, profile: {} };
 
-/** Builds a disposable trusted HTTPS GitHub Enterprise endpoint. */
+/** builds a disposable trusted HTTPS GitHub Enterprise endpoint. */
 async function githubServer() {
   const directory = await mkdtempDisposable(
     join(tmpdir(), 'open-agent-github-https-'),
@@ -118,7 +118,7 @@ async function githubServer() {
 }
 
 /**
- * Captures the actual source resolver's stdout and stderr in a bounded child.
+ * captures the actual source resolver's stdout and stderr in a bounded child.
  * @param endpoint disposable HTTPS server and certificate
  * @param cases source resolver calls to execute
  * @param environment isolated child process environment
@@ -131,21 +131,21 @@ async function runResolver(
 ) {
   const scenarioPath = join(endpoint.directory.path, 'scenario.json');
   await writeFile(scenarioPath, JSON.stringify({ cases }), { mode: 0o600 });
-  const env: NodeJS.ProcessEnv = {
+  const processEnvironment: NodeJS.ProcessEnv = {
     ...process.env,
     ...environment,
     NODE_EXTRA_CA_CERTS: endpoint.certificate,
   };
-  delete env.NODE_TLS_REJECT_UNAUTHORIZED;
-  for (const [name, value] of Object.entries(env)) {
+  delete processEnvironment.NODE_TLS_REJECT_UNAUTHORIZED;
+  for (const [name, value] of Object.entries(processEnvironment)) {
     if (value === undefined) {
-      delete env[name];
+      delete processEnvironment[name];
     }
   }
   const { stdout, stderr } = await execute(
     process.execPath,
     [resolverChild, scenarioPath],
-    { cwd: process.cwd(), env, timeout: 15_000 },
+    { cwd: process.cwd(), env: processEnvironment, timeout: 15_000 },
   );
   const results: unknown = JSON.parse(stdout);
   if (!Array.isArray(results)) {
