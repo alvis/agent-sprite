@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
 import { debianFamily } from '#adapters/guest/os/debian/family';
-import { ShellSession } from '#adapters/guest/platform/session/session';
+import { ShellSession } from '#adapters/guest/platform/session/shell';
 import { OperationContext, withOperation } from '#kernel/operation';
 import { rememberSecret } from '#kernel/redaction';
 

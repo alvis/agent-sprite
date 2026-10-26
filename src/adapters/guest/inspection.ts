@@ -2,7 +2,7 @@ import { inspectGovernor } from '#adapters/guest/governor';
 import { inspectHub } from '#adapters/guest/hub';
 import { checkOperation, traceStage } from '#kernel/operation';
 
-import { settleInspectionResults } from './results';
+import { settleInspectionResults } from './inspection/results';
 
 import type { NativeInspection } from '#adapters/guest/native/inspection';
 import type { DriverRegistry } from '#application/ports/drivers';

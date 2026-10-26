@@ -7,8 +7,8 @@ import type {
 } from '#domain/tools';
 
 /**
- * the Google Linux package repository, which serves Chrome; its key is pinned to
- * the primary key of "Google Inc. (Linux Packages Signing Authority)"
+ * the Google Linux package repository, which serves Chrome; its key is pinned
+ * to the primary key of "Google Inc. (Linux Packages Signing Authority)"
  */
 const GOOGLE_CHROME_REPOSITORY: SystemRepository = {
   id: 'google-chrome',
