@@ -4,7 +4,7 @@ import {
   defaultHarnesses,
   harnessChoices,
   inferredOptions,
-} from '#application/input/selection-choices';
+} from '#application/input/selection/choices';
 
 import { dependencies } from '../../../mocks/dependencies';
 

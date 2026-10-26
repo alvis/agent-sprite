@@ -2,7 +2,7 @@ import { markInstallationReady } from '#application/installation/readiness';
 import { CommandFault } from '#kernel/faults';
 import { promptUnavailableDetail } from '#kernel/operation';
 
-import { installSetupPlan } from './install';
+import { installSetupPlan } from './installation';
 
 import type { ComponentCounts, ToolsSetupData } from '#application/data';
 import type { ApplicationDependencies } from '#application/ports/dependencies';

@@ -4,12 +4,12 @@ import {
   resolveMachine,
   resolveOptions,
   resolveRelease,
-} from '#application/input/selection-options';
+} from '#application/input/selection/options';
 import { defaults } from '#composition/defaults';
 
 import { dependencies } from '../../../mocks/dependencies';
 
-import type { Prompts } from '#application/input/selection-sources';
+import type { Prompts } from '#application/input/selection/sources';
 
 describe('fn:resolveRelease', () => {
   it('should preserve a recorded channel while an unknown agent choice awaits validation', async () => {

@@ -12,8 +12,8 @@ import { CommandFault } from '#kernel/faults';
 import { PairingSecret } from '#kernel/pairing-secret';
 import { Secret } from '#kernel/secret';
 
-import { installSetupPlan } from './install';
-import { missingSetupInputs } from './prepare';
+import { installSetupPlan } from './installation';
+import { missingSetupInputs } from './preparation';
 import { exposeWhenServing } from './serving';
 
 import type {

@@ -72,7 +72,7 @@ src
     create                    # Preflight, configuration, create hold, completion and recovery
     input.ts                  # Input-resolution entry point
     input                     # Credentials, source precedence and optional choices
-    inspect.ts                # Live list/show and current doctor observations
+    inspection.ts             # Live list/show and current doctor observations
     machine.ts                # Provider-derived workstation summaries and names
     plugins.ts                # Per-harness plugin selection contract
     readiness.ts              # Observed readiness assessment
@@ -149,7 +149,7 @@ spec
 - **Workstation workflows** (`src/application/create.ts`, `src/application/setup.ts`): share ordered native configuration steps, preserve unrelated settings and retain failed resources for recovery.
 - **Provider drivers** (`src/adapters/drivers/providers/sprite.ts`, `src/adapters/drivers/providers/fly-machine.ts`): authenticate, paginate live records and check management/organization identity through the Sprites SDK or the Fly Machines API. Each also declares its OS images, service backend, root shell, ready gate and, where it needs one, a boot hook step. Termination revalidates the immutable target identity immediately before deletion.
 - **Guest session** (`src/adapters/guest/platform/session/`): the `GuestSession`, a root shell the host drives one framed command at a time.
-- **Setup plan** (`src/adapters/guest/plan/`, `src/application/installation/install.ts`): assembles the typed steps from the provider, the OS family and the tool list, and runs them in a session.
+- **Setup plan** (`src/adapters/guest/plan/`, `src/application/installation.ts`): assembles the typed steps from the provider, the OS family and the tool list, and runs them in a session.
 - **OS family and service backends** (`src/adapters/guest/os/`, `src/adapters/guest/services/`, `guest/os/`, `guest/services/`): the shared `lib.sh` of a distribution family, and the runit, cron and provider-run service layers.
 - **Tool contract** (`src/domain/tools.ts`, `src/adapters/guest/tools/`): one `ToolSpec` per tool, its sources and the resolver that picks among them.
 - **Guest environment** (`src/adapters/guest/environment/`, `src/adapters/guest/release-guard.ts`): the one record setup leaves on the guest and the refusal to manage a workstation a newer open-agent set up.

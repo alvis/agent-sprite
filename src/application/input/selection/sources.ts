@@ -4,7 +4,7 @@ import type {
   InteractionChoice,
 } from '#application/ports/interaction';
 
-import type { InputSources } from './sources';
+import type { InputSources } from '../sources';
 
 /** what a selection is resolved from */
 export interface SelectionContext {

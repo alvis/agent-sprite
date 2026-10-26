@@ -11,14 +11,14 @@ import {
   inferredOptions,
   networkChoices,
   providerChoices,
-} from './selection-choices';
+} from './selection/choices';
 import {
   resolveMachine,
   resolveOptions,
   resolveRelease,
-} from './selection-options';
-import { activePrompts } from './selection-sources';
-import { readSelection } from './selection-supplied';
+} from './selection/options';
+import { activePrompts } from './selection/sources';
+import { readSelection } from './selection/supplied';
 
 import type { SetupSection } from '#application/contracts';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
@@ -26,8 +26,8 @@ import type { NetworkId } from '#domain/ids';
 import type { ProfileCandidate, WorkstationProfile } from '#domain/profile';
 import type { SelectionField } from '#domain/selection-inputs';
 
-import type { Prompts, Resolved, SelectionContext } from './selection-sources';
-import type { SuppliedSelection } from './selection-supplied';
+import type { Prompts, Resolved, SelectionContext } from './selection/sources';
+import type { SuppliedSelection } from './selection/supplied';
 import type { RequiredInput } from './types';
 
 /** what an existing workstation's setup run reads before reaching the workstation */

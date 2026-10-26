@@ -17,7 +17,7 @@ import {
 } from '#kernel/operation';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
 
-import { configureNewWorkstation } from './configure';
+import { configureNewWorkstation } from './configuration';
 import { withCreateHold } from './hold';
 import { createResult, pairingRetry } from './outcome';
 

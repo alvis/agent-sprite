@@ -44,7 +44,7 @@ The source needs enforceable ownership boundaries so a new driver, guest operati
 
 - `src/adapters/guest/platform` holds the low-level guest operations drivers reuse: paths, assets, accounts, files, sessions, awake constants and native configuration readers.
 - The rest of `src/adapters/guest` holds mechanics: plan execution, bottle probing, environment persistence and inspection. These emit facts only.
-- `src/application/installation/install.ts` and `src/application/inspect.ts` own policy: selecting declarations, phase coordination, `beforeServices`, the provider service choice, readiness, and every progress message.
+- `src/application/installation` and `src/application/inspection` own policy: selecting declarations, phase coordination, `beforeServices`, the provider service choice, readiness, and every progress message.
 
 **Public projection.** `src/cli/output` projects every command result and nested value explicitly into the public shape before serialization. The v1 machine contract covers field names, JSON kinds, optionality, array order where order has meaning, and literal or enum values in the command-specific output interfaces. Internal fields not named by a projector are not public output.
 

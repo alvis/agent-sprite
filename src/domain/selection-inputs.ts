@@ -59,17 +59,6 @@ export function selectionInputs(
 }
 
 /**
- * names a selection step the way the caller supplies it
- * @param input the step's flag and environment variable
- * @param input.flag command-line flag
- * @param input.environment environment variable that mirrors the flag
- * @returns the flag followed by its environment variable
- */
-function labelOf({ flag, environment }: SelectionInput): string {
-  return `${flag} (${environment})`;
-}
-
-/**
  * names a selectable field the way the caller supplies it
  * @param field selectable profile field whose flag and variable the product fixes
  * @returns the flag followed by its environment variable
@@ -85,4 +74,15 @@ export function selectionLabel(field: FixedSelectionField): string {
  */
 export function proxySelectionLabel(declarations: ProductDeclarations): string {
   return labelOf(selectionInputs(declarations).isProxyEnabled);
+}
+
+/**
+ * names a selection step the way the caller supplies it
+ * @param input the step's flag and environment variable
+ * @param input.flag command-line flag
+ * @param input.environment environment variable that mirrors the flag
+ * @returns the flag followed by its environment variable
+ */
+function labelOf({ flag, environment }: SelectionInput): string {
+  return `${flag} (${environment})`;
 }

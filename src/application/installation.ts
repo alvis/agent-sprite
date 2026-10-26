@@ -2,7 +2,7 @@ import { CommandFault } from '#kernel/faults';
 import { traceStage } from '#kernel/operation';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
 
-import { reportProgress } from './progress';
+import { reportProgress } from './installation/progress';
 
 import type { ProviderDriver } from '#application/ports/drivers';
 import type { GuestMechanics } from '#application/ports/guest';
