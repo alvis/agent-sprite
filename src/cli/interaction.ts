@@ -15,7 +15,7 @@ import type { Interaction } from '#application/ports/interaction';
 import type { ActivityOptions } from './activity';
 import type { PresentPrompt } from './interaction/prompts';
 
-/** Ink streams used by the interaction boundary */
+/** terminal streams used by the interaction boundary */
 interface InteractionIO {
   stdin: NodeJS.ReadableStream;
   stderr: NodeJS.WritableStream;
@@ -31,6 +31,13 @@ export interface InteractionCancellationPort {
 /** terminal behavior attached to the command-owned cancellation port */
 interface InteractionSessionSettings
   extends InteractionCancellationPort, ActivityOptions {}
+
+/** terminal presentation and cancellation for one interaction session */
+export interface CreateInteractionParams {
+  noColor: boolean;
+  io?: InteractionIO;
+  cancellation?: InteractionSessionSettings;
+}
 
 /** interaction with an explicit terminal-lifetime boundary */
 export interface InteractionSession extends Interaction {
@@ -50,29 +57,28 @@ interface PromptQueueState {
 
 /**
  * creates one command-lifetime Ink root and an ordered prompt queue
- * @param noColor whether to suppress status colors
- * @param io terminal streams; defaults to the caller's process streams
- * @param cancellation optional command-owned cancellation port
- * @param cancellation.quiet suppresses routine presentation
- * @param cancellation.stagesOwnProgress ignores legacy phase-less progress
+ * @param params color, terminal streams and optional cancellation authority
+ * @param params.noColor whether to suppress status colors
+ * @param params.io terminal streams; defaults to the caller's process streams
+ * @param params.cancellation optional command-owned cancellation port; quiet suppresses routine presentation and stagesOwnProgress ignores legacy phase-less progress
  * @returns workflow interaction callbacks and explicit disposal
  */
-export function createInteraction(
-  noColor: boolean,
-  io: InteractionIO = { stdin, stderr },
-  cancellation?: InteractionSessionSettings,
-): InteractionSession {
+export function createInteraction({
+  noColor,
+  io = { stdin, stderr },
+  cancellation,
+}: CreateInteractionParams): InteractionSession {
   const port = cancellation ?? createLocalCancellationPort();
   const state: PromptQueueState = { queue: [], disposed: false };
 
   const instance = renderInteractionRoot(io, port);
   const show = (): void => {
     instance.rerender(
-      interactionRootElement(
-        state.active?.element,
-        port.interrupt,
-        activity.current(),
-      ),
+      interactionRootElement({
+        prompt: state.active?.element,
+        onInterrupt: port.interrupt,
+        activity: activity.current(),
+      }),
     );
   };
   const activity = createActivityController({
@@ -258,12 +264,18 @@ function renderInteractionRoot(
   io: InteractionIO,
   port: InteractionCancellationPort,
 ): ReturnType<typeof render> {
-  return render(interactionRootElement(undefined, port.interrupt), {
-    stdin: io.stdin,
-    stdout: io.stderr,
-    stderr: io.stderr,
-    interactive: true,
-    patchConsole: false,
-    exitOnCtrlC: false,
-  });
+  return render(
+    interactionRootElement({
+      prompt: undefined,
+      onInterrupt: port.interrupt,
+    }),
+    {
+      stdin: io.stdin,
+      stdout: io.stderr,
+      stderr: io.stderr,
+      interactive: true,
+      patchConsole: false,
+      exitOnCtrlC: false,
+    },
+  );
 }

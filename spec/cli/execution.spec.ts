@@ -287,7 +287,7 @@ async function captureExecution({
   stdout.on('data', appendOutput);
   stderr.on('data', appendError);
   try {
-    await execute(dependencies, selected, invocation);
+    await execute({ dependencies, request: selected, state: invocation });
 
     return {
       stdout: outputText,

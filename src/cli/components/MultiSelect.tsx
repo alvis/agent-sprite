@@ -9,6 +9,13 @@ import type { Dispatch, SetStateAction } from 'react';
 
 import type { InteractionChoice } from '#application/ports/interaction';
 
+/** input chunk and current multiple-choice selection state */
+interface MultiSelectInputParams<V extends string> {
+  input: string;
+  key: InputKey;
+  context: MultiSelectInputContext<V>;
+}
+
 /** props for a searchable compatibility-aware multiple choice */
 type MultiSelectProps<V extends string> = {
   label: string;
@@ -74,19 +81,23 @@ export function MultiSelect<V extends string>({
   );
   const { activeCursor, visible, above, below } = choiceWindow(matches, cursor);
   useInput((input, key) =>
-    handleMultiSelectInput(input, key, {
-      query,
-      matches,
-      activeCursor,
-      selected,
-      confirmEmpty,
-      setQuery,
-      setCursor,
-      setSelected,
-      setFeedback,
-      setConfirmEmpty,
-      onSubmit,
-      onCancel,
+    handleMultiSelectInput({
+      input,
+      key,
+      context: {
+        query,
+        matches,
+        activeCursor,
+        selected,
+        confirmEmpty,
+        setQuery,
+        setCursor,
+        setSelected,
+        setFeedback,
+        setConfirmEmpty,
+        onSubmit,
+        onCancel,
+      },
     }),
   );
 
@@ -132,20 +143,21 @@ export function MultiSelect<V extends string>({
 
 /**
  * applies one key without activating a second prompt input hook
- * @param input raw Ink input
- * @param key Ink key metadata
- * @param context current selection and state callbacks
+ * @param params raw Ink input and current selection state
+ * @param params.input current input chunk
+ * @param params.key keyboard event details
+ * @param params.context current selection and state callbacks
  */
-function handleMultiSelectInput<V extends string>(
-  input: string,
-  key: InputKey,
-  context: MultiSelectInputContext<V>,
-): void {
+function handleMultiSelectInput<V extends string>({
+  input,
+  key,
+  context,
+}: MultiSelectInputParams<V>): void {
   if (key.ctrl && input === 'c') {
     return;
   }
   if (context.confirmEmpty) {
-    handleEmptyConfirmation(input, key, context);
+    handleEmptyConfirmation({ input, key, context });
 
     return;
   }
@@ -177,20 +189,21 @@ function handleMultiSelectInput<V extends string>(
 
     return;
   }
-  handleSearchInput(input, key, context);
+  handleSearchInput({ input, key, context });
 }
 
 /**
  * keeps an empty selection pending until the user explicitly accepts it
- * @param input raw Ink input
- * @param key Ink key metadata
- * @param context current selection and state callbacks
+ * @param params raw Ink input and current selection state
+ * @param params.input current input chunk
+ * @param params.key keyboard event details
+ * @param params.context current selection and state callbacks
  */
-function handleEmptyConfirmation<V extends string>(
-  input: string,
-  key: InputKey,
-  context: MultiSelectInputContext<V>,
-): void {
+function handleEmptyConfirmation<V extends string>({
+  input,
+  key,
+  context,
+}: MultiSelectInputParams<V>): void {
   if (input.toLowerCase() === 'y') {
     context.onSubmit([]);
   } else if (key.escape || key.return || input.toLowerCase() === 'n') {
@@ -231,15 +244,16 @@ function toggleChoice<V extends string>(
 
 /**
  * edits a search query while preserving the user's selection
- * @param input raw Ink input
- * @param key Ink key metadata
- * @param context current selection and state callbacks
+ * @param params raw Ink input and current selection state
+ * @param params.input current input chunk
+ * @param params.key keyboard event details
+ * @param params.context current selection and state callbacks
  */
-function handleSearchInput<V extends string>(
-  input: string,
-  key: InputKey,
-  context: MultiSelectInputContext<V>,
-): void {
+function handleSearchInput<V extends string>({
+  input,
+  key,
+  context,
+}: MultiSelectInputParams<V>): void {
   if (key.backspace || input === '\u007f') {
     context.setQuery((value) => value.slice(0, -1));
   } else if (!key.ctrl && !key.meta && input && isPrintableInput(input)) {

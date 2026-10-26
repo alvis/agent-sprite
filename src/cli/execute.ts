@@ -29,17 +29,53 @@ import type { CommandCancellation } from './cancellation';
 import type { InteractionSession } from './interaction';
 import type { ExecutionState } from './parser';
 
+/** dependencies and parsed request for one command invocation */
+export interface ExecuteParams {
+  dependencies: ApplicationDependencies;
+  request: CommandRequest;
+  state: ExecutionState;
+}
+
+/** command inputs whose stage and status belong to one operation */
+interface CreateExecutionOperationParams {
+  request: CommandRequest;
+  cancellation: CommandCancellation;
+  session: () => InteractionSession | undefined;
+}
+
+/** known command identity and interruption strength */
+interface ForcedCancellationParams {
+  request: CommandRequest;
+  operation: OperationContext;
+  forced?: boolean;
+}
+
+/** selected command options and invocation for environment input */
+interface ReadModeEnvironmentParams {
+  dependencies: ApplicationDependencies;
+  options: CommandOptions;
+  operation: OperationContext;
+}
+
+/** caught boundary failure and its observed command identity */
+interface ExecutionFailureParams {
+  request: CommandRequest;
+  operation: OperationContext;
+  error: unknown;
+}
+
 /**
  * routes one parsed command into the shared application workflow
- * @param dependencies what the workflows run on
- * @param request typed command request
- * @param state invocation-local result ownership
+ * @param params dependencies, parsed request and invocation state
+ * @param params.dependencies what the workflows run on
+ * @param params.request typed command request
+ * @param params.state invocation-local result ownership
  */
-export async function execute(
-  dependencies: ApplicationDependencies,
-  request: CommandRequest,
-  state: ExecutionState,
-): Promise<void> {
+export async function execute({
+  dependencies,
+  request,
+  state,
+}: ExecuteParams): Promise<void> {
   state.command = request.command;
   let session: InteractionSession | undefined;
   const cancellation = createCommandCancellation({
@@ -48,18 +84,18 @@ export async function execute(
       void session?.dispose().catch(() => undefined);
       if (!state.emitted) {
         emitResult({
-          result: forcedCancellation(request, operation),
+          result: forcedCancellation({ request, operation }),
           options: request.options,
           state,
         });
       }
     },
   });
-  const operation = createExecutionOperation(
+  const operation = createExecutionOperation({
     request,
     cancellation,
-    () => session,
-  );
+    session: () => session,
+  });
   try {
     let result: CommandResult;
     try {
@@ -73,12 +109,12 @@ export async function execute(
         },
       });
     } catch (error) {
-      result = executionFailure(request, operation, error);
+      result = executionFailure({ request, operation, error });
     } finally {
       await session?.dispose();
     }
     if (cancellation.signal.aborted && result.ok) {
-      result = forcedCancellation(request, operation, false);
+      result = forcedCancellation({ request, operation, forced: false });
     }
     if (!state.emitted) {
       emitResult({ result, options: request.options, state });
@@ -120,28 +156,31 @@ async function runScopedCommand({
       async () =>
         runOperation(
           async () =>
-            readModeEnvironment(dependencies, request.options, operation),
+            readModeEnvironment({
+              dependencies,
+              options: request.options,
+              operation,
+            }),
           operation,
         ),
       { operation },
     );
-    const { options, promptBlocker } = resolveProcessExecutionOptions(
-      request.options,
-      modeEnv,
-    );
-    operation.setPromptBlocker(promptBlocker);
+    const mode = resolveProcessExecutionOptions(request.options, modeEnv);
+    operation.setPromptBlocker(mode.promptBlocker);
+    const { options } = mode;
     const session = options.nonInteractive
       ? undefined
-      : createInteraction(
-          options.color === false ||
+      : createInteraction({
+          noColor:
+            options.color === false ||
             (options.color !== true && Boolean(modeEnv.NO_COLOR)),
-          { stdin, stderr },
-          {
+          io: { stdin, stderr },
+          cancellation: {
             ...cancellation,
             quiet: options.quiet === true,
             stagesOwnProgress: true,
           },
-        );
+        });
     setSession(session);
     checkOperation(operation);
 
@@ -180,16 +219,17 @@ function validateEarlyRequest(
 
 /**
  * binds verbose diagnostics to the current cancellation scope
- * @param request parsed command and verbose mode
- * @param cancellation command-owned interruption authority
- * @param session current terminal session, when available
+ * @param params command, cancellation authority and current session
+ * @param params.request parsed command and verbose mode
+ * @param params.cancellation command-owned interruption authority
+ * @param params.session current terminal session, when available
  * @returns invocation context
  */
-function createExecutionOperation(
-  request: CommandRequest,
-  cancellation: CommandCancellation,
-  session: () => InteractionSession | undefined,
-): OperationContext {
+function createExecutionOperation({
+  request,
+  cancellation,
+  session,
+}: CreateExecutionOperationParams): OperationContext {
   return new OperationContext({
     signal: cancellation.signal,
     onStage: createStageReporter(request, session),
@@ -199,16 +239,17 @@ function createExecutionOperation(
 
 /**
  * reports forced interruption without asserting that pending mutations stopped
- * @param request original command request
- * @param operation last observed command and resource identity
- * @param forced whether a second physical interrupt forced termination
+ * @param params original request, observed identity and interruption strength
+ * @param params.request original command request
+ * @param params.operation last observed command and resource identity
+ * @param params.forced whether a second physical interrupt forced termination
  * @returns a versioned-output-compatible cancellation outcome
  */
-function forcedCancellation(
-  request: CommandRequest,
-  operation: OperationContext,
+function forcedCancellation({
+  request,
+  operation,
   forced = true,
-): CommandResult {
+}: ForcedCancellationParams): CommandResult {
   const name = operation.target?.name ?? request.machine;
 
   return {
@@ -234,16 +275,17 @@ function forcedCancellation(
 
 /**
  * reads the explicitly selected credential file before choosing interaction mode
- * @param dependencies what the workflows run on
- * @param options command options
- * @param operation captured invocation before the workflow scope
+ * @param params dependencies, selected options and invocation context
+ * @param params.dependencies what the workflows run on
+ * @param params.options command options
+ * @param params.operation captured invocation before the workflow scope
  * @returns merged mode facts, the selected credential file taking precedence
  */
-async function readModeEnvironment(
-  dependencies: ApplicationDependencies,
-  options: CommandOptions,
-  operation: OperationContext,
-): Promise<NodeJS.ProcessEnv> {
+async function readModeEnvironment({
+  dependencies,
+  options,
+  operation,
+}: ReadModeEnvironmentParams): Promise<NodeJS.ProcessEnv> {
   try {
     const selectedEnv = options.credentialFile
       ? parse(
@@ -268,16 +310,17 @@ async function readModeEnvironment(
 
 /**
  * preserves observed identity for failures before a workflow result exists
- * @param request parsed command request
- * @param operation captured invocation context
- * @param error caught boundary failure
+ * @param params parsed request, invocation context and caught failure
+ * @param params.request parsed command request
+ * @param params.operation captured invocation context
+ * @param params.error caught boundary failure
  * @returns typed failure with known identity
  */
-function executionFailure(
-  request: CommandRequest,
-  operation: OperationContext,
-  error: unknown,
-): CommandResult {
+function executionFailure({
+  request,
+  operation,
+  error,
+}: ExecutionFailureParams): CommandResult {
   return {
     command: operation.command ?? request.command,
     ok: false,

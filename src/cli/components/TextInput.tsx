@@ -3,6 +3,13 @@ import { useRef, useState } from 'react';
 
 import { isPrintableInput } from '#cli/keystroke';
 
+/** input chunk and the edit context it updates */
+interface InputEventParams<Context extends EditContext> {
+  input: string;
+  key: InputKey;
+  context: Context;
+}
+
 /** props for one inline text prompt */
 type TextInputProps = {
   label: string;
@@ -74,14 +81,18 @@ export function TextInput({
   };
 
   useInput((input, key) =>
-    handleTextInput(input, key, {
-      ...state.current,
-      required,
-      validate,
-      commit,
-      setError,
-      onSubmit,
-      onCancel,
+    handleTextInput({
+      input,
+      key,
+      context: {
+        ...state.current,
+        required,
+        validate,
+        commit,
+        setError,
+        onSubmit,
+        onCancel,
+      },
     }),
   );
 
@@ -123,24 +134,25 @@ export function SecretInput(
 
 /**
  * applies one Ink input chunk to the current edit state
- * @param input raw input chunk
- * @param key Ink key metadata
- * @param context current edit state and callbacks
+ * @param params raw input, Ink key and current edit state
+ * @param params.input current input chunk
+ * @param params.key keyboard event details
+ * @param params.context current edit state and callbacks
  */
-function handleTextInput(
-  input: string,
-  key: InputKey,
-  context: EditContext,
-): void {
-  if (handleCompletion(input, key, context)) {
+function handleTextInput({
+  input,
+  key,
+  context,
+}: InputEventParams<EditContext>): void {
+  if (handleCompletion({ input, key, context })) {
     return;
   }
   const characters = splitGraphemes(context.value);
   const edit = { ...context, characters };
-  if (handleMovement(input, key, edit)) {
+  if (handleMovement({ input, key, context: edit })) {
     return;
   }
-  if (handleDeletion(input, key, edit)) {
+  if (handleDeletion({ input, key, context: edit })) {
     return;
   }
   const text = input.replace(/[\r\n]/gu, '');
@@ -154,16 +166,17 @@ function handleTextInput(
 
 /**
  * handles cancellation and submission
- * @param input raw input chunk
- * @param key Ink key metadata
- * @param context current edit state and callbacks
+ * @param params raw input, Ink key and current edit state
+ * @param params.input current input chunk
+ * @param params.key keyboard event details
+ * @param params.context current edit state and callbacks
  * @returns whether the input was consumed
  */
-function handleCompletion(
-  input: string,
-  key: InputKey,
-  context: EditContext,
-): boolean {
+function handleCompletion({
+  input,
+  key,
+  context,
+}: InputEventParams<EditContext>): boolean {
   if (key.ctrl && input === 'c') {
     return true;
   }
@@ -193,16 +206,17 @@ function handleCompletion(
 
 /**
  * moves the edit cursor without changing the value
- * @param input raw input chunk
- * @param key Ink key metadata
- * @param context current edit state and callbacks
+ * @param params raw input, Ink key and current edit state
+ * @param params.input current input chunk
+ * @param params.key keyboard event details
+ * @param params.context current edit state and callbacks
  * @returns whether the input was consumed
  */
-function handleMovement(
-  input: string,
-  key: InputKey,
-  context: CharacterEditContext,
-): boolean {
+function handleMovement({
+  input,
+  key,
+  context,
+}: InputEventParams<CharacterEditContext>): boolean {
   if (key.leftArrow || (key.ctrl && input === 'b')) {
     context.commit(context.value, Math.max(0, context.cursor - 1));
   } else if (key.rightArrow || (key.ctrl && input === 'f')) {
@@ -223,16 +237,17 @@ function handleMovement(
 
 /**
  * deletes a grapheme at or before the cursor
- * @param input raw input chunk
- * @param key Ink key metadata
- * @param context current edit state and callbacks
+ * @param params raw input, Ink key and current edit state
+ * @param params.input current input chunk
+ * @param params.key keyboard event details
+ * @param params.context current edit state and callbacks
  * @returns whether the input was consumed
  */
-function handleDeletion(
-  input: string,
-  key: InputKey,
-  context: CharacterEditContext,
-): boolean {
+function handleDeletion({
+  input,
+  key,
+  context,
+}: InputEventParams<CharacterEditContext>): boolean {
   if (key.backspace || input === '\u007f') {
     if (context.cursor > 0) {
       context.characters.splice(context.cursor - 1, 1);

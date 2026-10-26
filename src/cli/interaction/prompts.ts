@@ -17,7 +17,8 @@ import type {
   ProgressUpdate,
 } from '#application/ports/interaction';
 
-interface PromptMethodsParams {
+/** terminal controls used by the interaction's prompt methods */
+export interface PromptMethodsParams {
   noColor: boolean;
   output: NodeJS.WritableStream;
   active: () => boolean;
@@ -25,6 +26,7 @@ interface PromptMethodsParams {
   publishProgress: (update: ProgressUpdate) => void;
 }
 
+/** queues one mounted prompt and resolves its submitted value */
 export type PresentPrompt = <T>(
   build: (
     submit: (value: T) => void,
@@ -61,18 +63,6 @@ export function createPromptMethods(
 }
 
 /**
- * prints a completed, non-secret status line to stderr
- * @param element completed status element
- * @param output destination for status output
- */
-function writeStatus(
-  element: ReactElement,
-  output: NodeJS.WritableStream,
-): void {
-  output.write(`${redactResolved(renderToString(element))}\n`);
-}
-
-/**
  * binds visible and secret text entry to the current prompt queue
  * @param present queue-backed prompt presentation
  * @param noColor whether status color is disabled
@@ -86,7 +76,9 @@ function textPromptMethods(
     input: async (prompt) =>
       present(
         (submit, cancel) =>
-          inputPromptElement(prompt, noColor, {
+          inputPromptElement({
+            prompt,
+            noColor,
             onSubmit: submit,
             onCancel: cancel,
           }),
@@ -95,7 +87,9 @@ function textPromptMethods(
     secret: async (prompt) =>
       present(
         (submit, cancel) =>
-          secretPromptElement(prompt, noColor, {
+          secretPromptElement({
+            prompt,
+            noColor,
             onSubmit: submit,
             onCancel: cancel,
           }),
@@ -116,7 +110,9 @@ function choicePromptMethods(
     select: async (prompt, choices) =>
       present(
         (submit, cancel) =>
-          selectPromptElement(prompt, choices, {
+          selectPromptElement({
+            prompt,
+            choices,
             onSubmit: submit,
             onCancel: cancel,
           }),
@@ -125,7 +121,9 @@ function choicePromptMethods(
     multiselect: async (prompt, choices) =>
       present(
         (submit, cancel) =>
-          multiselectPromptElement(prompt, choices, {
+          multiselectPromptElement({
+            prompt,
+            choices,
             onSubmit: submit,
             onCancel: cancel,
           }),
@@ -133,8 +131,25 @@ function choicePromptMethods(
       ),
     confirm: async (prompt) =>
       present(
-        (submit, cancel) => confirmPromptElement(prompt, submit, cancel),
+        (submit, cancel) =>
+          confirmPromptElement({
+            prompt,
+            onSubmit: submit,
+            onCancel: cancel,
+          }),
         prompt.backLabel,
       ),
   };
+}
+
+/**
+ * prints a completed, non-secret status line to stderr
+ * @param element completed status element
+ * @param output destination for status output
+ */
+function writeStatus(
+  element: ReactElement,
+  output: NodeJS.WritableStream,
+): void {
+  output.write(`${redactResolved(renderToString(element))}\n`);
 }

@@ -40,17 +40,25 @@ export interface InvocationContext extends CommandContext {
   dependencies: ApplicationDependencies;
 }
 
+/** parser application, input arguments and invocation context */
+export interface ParseApplicationParams {
+  application: Application<InvocationContext>;
+  argv: string[];
+  context: Pick<InvocationContext, 'state' | 'dependencies'>;
+}
+
 /**
  * executes parser hooks through supported streams without leaking default stacks
- * @param application typed command application
- * @param argv original command-line arguments
- * @param context the call's inputs: state, dependencies
+ * @param params typed application, original arguments and invocation context
+ * @param params.application configured parser application
+ * @param params.argv command arguments
+ * @param params.context the call's inputs: state, dependencies
  */
-export async function parseApplication(
-  application: Application<InvocationContext>,
-  argv: string[],
-  context: Pick<InvocationContext, 'state' | 'dependencies'>,
-): Promise<void> {
+export async function parseApplication({
+  application,
+  argv,
+  context,
+}: ParseApplicationParams): Promise<void> {
   const { state, dependencies } = context;
   const flagError = validateBooleanFlagSyntax(argv);
   if (flagError) {

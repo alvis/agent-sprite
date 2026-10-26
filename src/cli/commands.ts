@@ -109,14 +109,14 @@ const createCommand = buildCommand({
    * @returns completion after final output
    */
   async func(this: InvocationContext, flags: CreateFlags): Promise<void> {
-    return execute(
-      this.dependencies,
-      {
+    return execute({
+      dependencies: this.dependencies,
+      request: {
         command: 'create',
         options: { ...flags, harnessPlugins: harnessPluginOptions(flags) },
       },
-      this.state,
-    );
+      state: this.state,
+    });
   },
   parameters: {
     flags: {
@@ -154,15 +154,15 @@ const setupCommand = buildCommand({
     flags: SetupFlags,
     machine?: string,
   ): Promise<void> {
-    return execute(
-      this.dependencies,
-      {
+    return execute({
+      dependencies: this.dependencies,
+      request: {
         command: 'setup',
         machine,
         options: { ...flags, harnessPlugins: harnessPluginOptions(flags) },
       },
-      this.state,
-    );
+      state: this.state,
+    });
   },
   parameters: {
     flags: {
@@ -194,11 +194,11 @@ const listCommand = buildCommand({
     this: InvocationContext,
     flags: ProviderCommonFlags,
   ): Promise<void> {
-    return execute(
-      this.dependencies,
-      { command: 'list', options: flags },
-      this.state,
-    );
+    return execute({
+      dependencies: this.dependencies,
+      request: { command: 'list', options: flags },
+      state: this.state,
+    });
   },
   parameters: { flags: { ...providerFlags, ...commonFlags } },
   docs: listDocumentation,
@@ -215,11 +215,11 @@ const showCommand = buildCommand({
     flags: InspectFlags,
     machine?: string,
   ): Promise<void> {
-    return execute(
-      this.dependencies,
-      { command: 'show', machine, options: flags },
-      this.state,
-    );
+    return execute({
+      dependencies: this.dependencies,
+      request: { command: 'show', machine, options: flags },
+      state: this.state,
+    });
   },
   parameters: {
     flags: {
@@ -253,11 +253,11 @@ const terminateCommand = buildCommand({
     flags: TerminateFlags,
     machine?: string,
   ): Promise<void> {
-    return execute(
-      this.dependencies,
-      { command: 'terminate', machine, options: flags },
-      this.state,
-    );
+    return execute({
+      dependencies: this.dependencies,
+      request: { command: 'terminate', machine, options: flags },
+      state: this.state,
+    });
   },
   parameters: {
     flags: {
@@ -284,11 +284,11 @@ const doctorCommand = buildCommand({
     flags: ProviderCommonFlags,
     machine?: string,
   ): Promise<void> {
-    return execute(
-      this.dependencies,
-      { command: 'doctor', machine, options: flags },
-      this.state,
-    );
+    return execute({
+      dependencies: this.dependencies,
+      request: { command: 'doctor', machine, options: flags },
+      state: this.state,
+    });
   },
   parameters: {
     flags: { ...providerFlags, ...commonFlags },

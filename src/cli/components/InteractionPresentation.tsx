@@ -15,6 +15,46 @@ import type {
 } from '#application/ports/interaction';
 import type { StatusUpdate } from '#kernel/status';
 
+/** persistent prompt and progress presented in one terminal root */
+interface InteractionRootElementParams {
+  prompt: ReactElement | undefined;
+  onInterrupt: () => void;
+  activity?: ProgressUpdate & { startedAt: number };
+}
+
+/** text prompt and callbacks to render */
+interface InputPromptElementParams extends PromptCallbacks<string> {
+  prompt: TextInputPrompt;
+  noColor: boolean;
+}
+
+/** secret prompt and callbacks to render */
+interface SecretPromptElementParams extends PromptCallbacks<string> {
+  prompt: SecretInputPrompt;
+  noColor: boolean;
+}
+
+/** single-choice prompt and callbacks to render */
+interface SelectPromptElementParams<
+  V extends string,
+> extends PromptCallbacks<V> {
+  prompt: InteractionPrompt;
+  choices: ReadonlyArray<InteractionChoice<V>>;
+}
+
+/** multiple-choice prompt and callbacks to render */
+interface MultiSelectPromptElementParams<
+  V extends string,
+> extends PromptCallbacks<V[]> {
+  prompt: InteractionPrompt;
+  choices: ReadonlyArray<InteractionChoice<V>>;
+}
+
+/** confirmation prompt and callbacks to render */
+interface ConfirmPromptElementParams extends PromptCallbacks<boolean> {
+  prompt: InteractionPrompt;
+}
+
 type PromptCallbacks<T> = {
   onSubmit: (value: T) => void;
   onCancel: (back?: boolean) => void;
@@ -22,16 +62,17 @@ type PromptCallbacks<T> = {
 
 /**
  * creates the element for the persistent input owner
- * @param prompt currently active prompt, if any
- * @param onInterrupt command-owned interrupt callback
- * @param activity currently active workflow stage and its start time
+ * @param params active prompt, interrupt callback and progress
+ * @param params.prompt prompt to present
+ * @param params.onInterrupt interrupt handler
+ * @param params.activity current activity state
  * @returns the root element for Ink rendering
  */
-export function interactionRootElement(
-  prompt: ReactElement | undefined,
-  onInterrupt: () => void,
-  activity?: ProgressUpdate & { startedAt: number },
-): ReactElement {
+export function interactionRootElement({
+  prompt,
+  onInterrupt,
+  activity,
+}: InteractionRootElementParams): ReactElement {
   return (
     <InteractionRoot
       activity={activity && progressElement(activity, activity.startedAt)}
@@ -43,18 +84,19 @@ export function interactionRootElement(
 
 /**
  * creates an ordinary text prompt with inline validation
- * @param prompt ordinary text prompt settings
- * @param noColor whether color is disabled
- * @param handlers accepted-value and cancellation callbacks
- * @param handlers.onSubmit accepts the validated text
- * @param handlers.onCancel rejects or returns to a parent prompt
+ * @param params ordinary text prompt and callbacks
+ * @param params.prompt prompt to present
+ * @param params.noColor whether color is disabled
+ * @param params.onSubmit value submission handler
+ * @param params.onCancel rejects or returns to a parent prompt
  * @returns the text prompt element
  */
-export function inputPromptElement(
-  prompt: TextInputPrompt,
-  noColor: boolean,
-  { onSubmit, onCancel }: PromptCallbacks<string>,
-): ReactElement {
+export function inputPromptElement({
+  prompt,
+  noColor,
+  onSubmit,
+  onCancel,
+}: InputPromptElementParams): ReactElement {
   return (
     <TextInput
       backLabel={prompt.backLabel}
@@ -72,18 +114,19 @@ export function inputPromptElement(
 
 /**
  * creates a masked secret prompt
- * @param prompt secret prompt settings
- * @param noColor whether color is disabled
- * @param handlers accepted-value and cancellation callbacks
- * @param handlers.onSubmit accepts the secret without displaying it
- * @param handlers.onCancel rejects or returns to a parent prompt
+ * @param params secret prompt and callbacks
+ * @param params.prompt prompt to present
+ * @param params.noColor whether color is disabled
+ * @param params.onSubmit value submission handler
+ * @param params.onCancel rejects or returns to a parent prompt
  * @returns masked entry without prefilled plaintext
  */
-export function secretPromptElement(
-  prompt: SecretInputPrompt,
-  noColor: boolean,
-  { onSubmit, onCancel }: PromptCallbacks<string>,
-): ReactElement {
+export function secretPromptElement({
+  prompt,
+  noColor,
+  onSubmit,
+  onCancel,
+}: SecretPromptElementParams): ReactElement {
   return (
     <SecretInput
       backLabel={prompt.backLabel}
@@ -100,18 +143,19 @@ export function secretPromptElement(
 
 /**
  * creates a single-choice prompt
- * @param prompt choice prompt settings
- * @param choices available choices
- * @param handlers accepted-value and cancellation callbacks
- * @param handlers.onSubmit accepts the selected value
- * @param handlers.onCancel rejects or returns to a parent prompt
+ * @param params single-choice prompt, choices and callbacks
+ * @param params.prompt prompt to present
+ * @param params.choices choices offered by the prompt
+ * @param params.onSubmit value submission handler
+ * @param params.onCancel rejects or returns to a parent prompt
  * @returns the single-choice prompt element
  */
-export function selectPromptElement<V extends string>(
-  prompt: InteractionPrompt,
-  choices: ReadonlyArray<InteractionChoice<V>>,
-  { onSubmit, onCancel }: PromptCallbacks<V>,
-): ReactElement {
+export function selectPromptElement<V extends string>({
+  prompt,
+  choices,
+  onSubmit,
+  onCancel,
+}: SelectPromptElementParams<V>): ReactElement {
   return (
     <Select
       backLabel={prompt.backLabel}
@@ -126,18 +170,19 @@ export function selectPromptElement<V extends string>(
 
 /**
  * creates a multiple-choice prompt
- * @param prompt choice prompt settings
- * @param choices available choices
- * @param handlers accepted-values and cancellation callbacks
- * @param handlers.onSubmit accepts the selected values
- * @param handlers.onCancel rejects or returns to a parent prompt
+ * @param params multiple-choice prompt, choices and callbacks
+ * @param params.prompt prompt to present
+ * @param params.choices choices offered by the prompt
+ * @param params.onSubmit value submission handler
+ * @param params.onCancel rejects or returns to a parent prompt
  * @returns the multiple-choice prompt element
  */
-export function multiselectPromptElement<V extends string>(
-  prompt: InteractionPrompt,
-  choices: ReadonlyArray<InteractionChoice<V>>,
-  { onSubmit, onCancel }: PromptCallbacks<V[]>,
-): ReactElement {
+export function multiselectPromptElement<V extends string>({
+  prompt,
+  choices,
+  onSubmit,
+  onCancel,
+}: MultiSelectPromptElementParams<V>): ReactElement {
   return (
     <MultiSelect
       backLabel={prompt.backLabel}
@@ -152,16 +197,17 @@ export function multiselectPromptElement<V extends string>(
 
 /**
  * creates a yes/no prompt
- * @param prompt confirmation prompt settings
- * @param onSubmit accepted-answer callback
- * @param onCancel cancellation callback
+ * @param params confirmation prompt and callbacks
+ * @param params.prompt prompt to present
+ * @param params.onSubmit value submission handler
+ * @param params.onCancel rejects or returns to a parent prompt
  * @returns the confirmation prompt element
  */
-export function confirmPromptElement(
-  prompt: InteractionPrompt,
-  onSubmit: (value: boolean) => void,
-  onCancel: (back?: boolean) => void,
-): ReactElement {
+export function confirmPromptElement({
+  prompt,
+  onSubmit,
+  onCancel,
+}: ConfirmPromptElementParams): ReactElement {
   return (
     <ConfirmInput
       backLabel={prompt.backLabel}
@@ -178,7 +224,7 @@ export function confirmPromptElement(
  * creates a progress line
  * @param update current progress report
  * @param startedAt stage start time when live in the persistent root
- * @returns Ink node with stage and optional completion counts
+ * @returns terminal node with stage and optional completion counts
  */
 export function progressElement(
   update: ProgressUpdate,
@@ -191,7 +237,7 @@ export function progressElement(
  * creates a status line
  * @param update current status report
  * @param noColor whether color is disabled
- * @returns Ink node with status kind and optional color
+ * @returns terminal node with status kind and optional color
  */
 export function statusElement(
   update: StatusUpdate,
