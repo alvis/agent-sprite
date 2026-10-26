@@ -29,6 +29,8 @@ export interface EnvironmentTool {
   executables: readonly string[];
   /** the resolved source; the updater upgrades and the boot hook relinks by its `kind` */
   source: ToolSource;
+  /** the version the source's manager reports installed, which setup and the updater record; absent for a system tool or one whose version cannot be read */
+  version?: string;
 }
 
 /** an optional tool setup skipped since no source of it is usable */

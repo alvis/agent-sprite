@@ -7,7 +7,6 @@ import { CommandFault } from '#kernel/faults';
 import { promptUnavailableDetail } from '#kernel/operation';
 
 import {
-  isReleaseChanged,
   persistSetupProfile,
   profileUpdateSelected,
   targetedProfile,
@@ -19,6 +18,7 @@ import {
   readSetupEnvironment,
   unrecordedProfile,
 } from './recorded';
+import { isAgentReleaseChanged } from './release';
 import { resizeWhenRequested } from './resize';
 
 import type { CommandOptions, SetupSection } from '#application/contracts';
@@ -158,7 +158,7 @@ function setupContextOf(
   parts: SetupContextParts,
 ): SetupContext {
   const { resolved, resized, connection, verifiedExitNode } = parts;
-  const { recorded, profile, input } = resolved;
+  const { profile, input } = resolved;
 
   return {
     provider: params.provider,
@@ -169,7 +169,7 @@ function setupContextOf(
     input,
     profile,
     persistsProfile: resolved.persistsProfile,
-    isReleaseChanged: isReleaseChanged(profile, recorded),
+    isReleaseChanged: resolved.isReleaseChanged,
     networkEnrolled: resolved.networkEnrolled,
     verifiedExitNode,
     mutation: params.mutation,
@@ -219,6 +219,8 @@ interface ResolvedSetup {
   targeted: ReturnType<typeof targetedProfile>;
   /** whether the selected network is already enrolled */
   networkEnrolled: boolean;
+  /** whether this run moves the agent's installed release */
+  isReleaseChanged: boolean;
   /** the inputs the run needs, resolved */
   input: Awaited<ReturnType<typeof resolveInputs>>;
 }
@@ -272,10 +274,10 @@ async function resolveSetupInputs(
 
 /**
  * reads what the machine records, then resolves and validates the selection
- * and every input it needs
+ * and every input it needs, and tells whether the agent's release moves
  * @param dependencies the registered drivers, the profile defaults, the guest mechanics, what this computer provides
  * @param params target, selected section and input choices
- * @returns the recorded environment and profile, the validated profile and the resolved inputs
+ * @returns the recorded environment and profile, the validated profile, whether the release moves and the resolved inputs
  */
 async function resolveSetup(
   dependencies: ApplicationDependencies,
@@ -326,6 +328,13 @@ async function resolveSetup(
     persistsProfile,
     targeted,
     networkEnrolled,
+    isReleaseChanged: await isAgentReleaseChanged(dependencies, {
+      section,
+      connection: params.connection,
+      guest: params.guest,
+      interaction,
+      resolved: { environment, recorded, profile },
+    }),
     input,
   };
 }

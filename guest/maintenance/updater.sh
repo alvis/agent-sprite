@@ -1,12 +1,13 @@
 # open-agent's updater, root's alone: the update gate sources it after the
-# family's library and update fragment, the Homebrew, npm and rustup helpers
-# and the link helpers, and runs oa_update_run in a shell of its own. It
-# upgrades every tool environment.json records through the manager its source
-# names, never installing a missing one: the system packages together through
-# the family's fragment, then each Homebrew formula from its bottle after one
-# refresh, a formula whose new version has no bottle keeping its own, then
-# each npm tool to its dist-tag and each Rust toolchain, both as the agent. It
-# restores the tools' links afterwards and records the run in
+# family's library and update fragment, the Homebrew, npm and rustup helpers,
+# the link helpers and the version record, and runs oa_update_run in a shell
+# of its own. It upgrades every tool environment.json records through the
+# manager its source names, never installing a missing one: the system
+# packages together through the family's fragment, then each Homebrew formula
+# from its bottle after one refresh, a formula whose new version has no bottle
+# keeping its own, then each npm tool to its dist-tag and each Rust toolchain,
+# both as the agent. Afterwards it records each tool's installed version in
+# environment.json, restores the tools' links and records the run in
 # update-status.json: when it started and finished, each tool's outcome with
 # its versions before and after, and the last success, which moves only when
 # every required tool was installed or skipped and the links were restored.
@@ -293,6 +294,10 @@ EOF
     fi
   done
   oa_updater_hold
+  # the record follows what the upgrades installed; a failure to record it
+  # leaves the update's outcome as it is, since every tool is still in place
+  oa_tools_record_versions "$oa_updater_environment" ||
+    echo "the tool versions could not be recorded in $oa_updater_environment"
   if oa_links_restore "$oa_updater_environment"; then
     oa_updater_links=restored
   else

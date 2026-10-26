@@ -20,13 +20,64 @@ if (umask 077 && : >"$OA_T3_STDERR_CAPTURE") 2>/dev/null; then
   oa_stderr=$OA_T3_STDERR_CAPTURE
 fi
 
-# reports why the launcher stopped and exits non-zero, in the service log and
-# in the capture, which the finish hook forwards to the machine's log
-# arguments: the reason
-oa_fail() {
+# the seconds a leftover T3 server is given to stop before it is killed
+oa_leftover_seconds=10
+
+# reports what the launcher did in the service log and in the capture, which
+# the finish hook forwards to the machine's log
+# arguments: the note
+oa_note() {
   echo "t3 launcher: $1" >&2
   echo "t3 launcher: $1" >>"$oa_stderr" 2>/dev/null
+}
+
+# reports why the launcher stopped and exits non-zero
+# arguments: the reason
+oa_fail() {
+  oa_note "$1"
   exit 1
+}
+
+# prints the process ids of the agent's T3 servers of this base directory:
+# processes running a T3 runtime with `start` and this `--base-dir`; a
+# `t3 --version` run, which only fetches a runtime, is not one
+oa_t3_servers() {
+  for oa_server_exe in /proc/[0-9]*/exe; do
+    oa_server_target=$(readlink "$oa_server_exe" 2>/dev/null) || continue
+    case $oa_server_target in
+      "$OA_T3_HOME/runtime/versions/"*) ;;
+      *) continue ;;
+    esac
+    oa_server_pid=${oa_server_exe%/exe}
+    oa_server_pid=${oa_server_pid#/proc/}
+    oa_server_arguments=$(tr '\0' ' ' <"/proc/$oa_server_pid/cmdline" 2>/dev/null) || continue
+    case " $oa_server_arguments " in
+      *" start "*" --base-dir $OA_T3_HOME "*) echo "$oa_server_pid" ;;
+    esac
+  done
+}
+
+# stops a T3 server a stop of the service left running: the t3 package's
+# wrapper can run the server as a child it passes no signal to, or be killed
+# itself, and the server then keeps the port. runit runs one t3 for this base
+# directory, so any server of it found before t3 starts is such a leftover:
+# it is asked to stop, and killed when it outlives the wait
+oa_stop_leftover() {
+  oa_leftover=$(oa_t3_servers | tr '\n' ' ')
+  test -n "$oa_leftover" || return 0
+  oa_note "stopping the T3 server a stop left running: pid ${oa_leftover% }"
+  for oa_leftover_pid in $oa_leftover; do
+    kill -TERM "$oa_leftover_pid" 2>/dev/null
+  done
+  oa_leftover_waited=0
+  while test "$oa_leftover_waited" -lt "$oa_leftover_seconds" && test -n "$(oa_t3_servers)"; do
+    sleep 1
+    oa_leftover_waited=$((oa_leftover_waited + 1))
+  done
+  for oa_leftover_pid in $(oa_t3_servers); do
+    kill -KILL "$oa_leftover_pid" 2>/dev/null
+  done
+  return 0
 }
 
 # keeps the error headers of t3's output, at most eight and cut short, and
@@ -112,9 +163,11 @@ oa_free_mb=$(df -Pk "$OA_AGENT_HOME" 2>/dev/null |
 if test -n "$oa_free_mb" && test "$oa_free_mb" -lt "$OA_T3_MIN_FREE_MB"; then
   oa_fail "only $oa_free_mb MB free on $OA_AGENT_HOME; T3 needs at least $OA_T3_MIN_FREE_MB MB"
 fi
-# runit runs one t3 for this base directory, so a server record found now is
-# one a stop left behind; its process id may name another process after a
-# boot, and t3 would refuse to start beside it
+# runit runs one t3 for this base directory, so a server found now is one a
+# stop left running, and a server record found once it is gone is one a stop
+# left behind; its process id may name another process after a boot, and t3
+# would refuse to start beside it
+oa_stop_leftover
 rm -f "$OA_T3_SERVER_RECORD" || oa_fail "$OA_T3_SERVER_RECORD cannot be removed"
 set -- start --host 0.0.0.0 --port "$oa_port" \
   --base-dir "$OA_T3_HOME" --no-browser --log-level warn

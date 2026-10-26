@@ -56,7 +56,7 @@ export interface SystemToolSource {
 }
 
 /** an npm package the agent installs with Homebrew's `node` */
-interface NpmToolSource {
+export interface NpmToolSource {
   /** source discriminator */
   kind: 'npm';
   /** registry package name */

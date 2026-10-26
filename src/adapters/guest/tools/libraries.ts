@@ -16,6 +16,9 @@ export const RUSTUP_LIBRARY = guestAsset('tools/rustup/lib.sh', ROOT_ONLY_MODE);
 /** the link helpers: link Homebrew tools' executables into `/usr/local/bin` and restore them */
 export const LINKS_LIBRARY = guestAsset('tools/links.sh', ROOT_ONLY_MODE);
 
+/** the tool version record: record in environment.json the version each tool's manager reports installed */
+export const VERSIONS_LIBRARY = guestAsset('tools/versions.sh', ROOT_ONLY_MODE);
+
 /** the official Homebrew installer, pinned to a commit and its digest */
 export const HOMEBREW_INSTALLER = {
   url: 'https://raw.githubusercontent.com/Homebrew/install/7a3f48c7e498d7df3237fd41c30f4d492857edf4/install.sh',

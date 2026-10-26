@@ -70,9 +70,10 @@ export async function setupAgent(
 
 /**
  * installs the release the selected channel currently publishes, which is a
- * downgrade when the channel is older: the agent service is stopped first, so
- * the plan's service step starts it on that release, then the agent is waited
- * for to serve and exposed
+ * downgrade when the channel is older: the agent keeps serving while the plan
+ * installs it and is stopped only before the plan's service step, which starts
+ * it on that release, so a failed install leaves it running; then the agent is
+ * waited for to serve and exposed
  * @param dependencies the registered drivers, the guest mechanics
  * @param guest guest channel of the managed workstation
  * @param context selection already stored with the selected channel, prompts and mutation state
@@ -94,8 +95,9 @@ async function switchAgentRelease(
     message: `Installing the ${channel?.id ?? 'selected'} release of ${displayName}; this may take several minutes`,
   });
   mutation.started = true;
-  await stopService(guest, service.name);
-  await installSetupPlan(dependencies, context);
+  await installSetupPlan(dependencies, context, async () =>
+    stopService(guest, service.name),
+  );
   await markInstallationReady(dependencies.guest, guest);
   await exposeWhenServing(dependencies, guest, context);
 }

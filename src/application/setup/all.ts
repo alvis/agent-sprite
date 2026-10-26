@@ -44,13 +44,6 @@ export async function setupAll(
     stage: 'tools',
     message: 'Installing the guest environment and managed developer tools',
   });
-  if (context.isReleaseChanged) {
-    // the plan's service step starts the stopped agent on the selected release
-    await stopService(
-      guest,
-      dependencies.registry.agents[profile.agent].service.name,
-    );
-  }
   const sections: { configured?: Omit<AllSetupData, 'tools'> } = {};
   await installSetupPlan(dependencies, context, async () => {
     // a workstation whose create stopped short has no name recorded yet
@@ -59,6 +52,15 @@ export async function setupAll(
       'setup.native.configuration',
       async () => configureSections(dependencies, guest, context),
     );
+    if (context.isReleaseChanged) {
+      // stopped only once every section is configured, so a section that
+      // fails leaves the agent serving; the plan's service step starts it on
+      // the selected release
+      await stopService(
+        guest,
+        dependencies.registry.agents[profile.agent].service.name,
+      );
+    }
   });
   const { configured } = sections;
   if (!configured) {

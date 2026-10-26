@@ -18,6 +18,7 @@ import { runSetupFile } from './platform/setup-file';
 import { assertSupportedRelease, newerMetadataRelease } from './release-guard';
 import { installProviderServices } from './services/provider';
 import { SetupConnection } from './session/connection';
+import { inspectAgentRelease } from './tools/channel';
 import { UPDATE_GATE_ASSET } from './updates';
 
 import type { DriverRegistry } from '#application/ports/drivers';
@@ -63,6 +64,10 @@ export function createGuestMechanics(
       assertImageTools: (provider, profile) => {
         assertImageTools(registry, provider, profile);
       },
+    },
+    tools: {
+      inspectAgentRelease: async (session, profile) =>
+        inspectAgentRelease(registry, session, profile),
     },
     services: {
       installProvider: async ({ control, services, previous }) =>

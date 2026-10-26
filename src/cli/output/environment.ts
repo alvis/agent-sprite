@@ -30,6 +30,8 @@ export interface EnvironmentToolOutput {
   executables: readonly string[];
   /** how the tool is installed; a declaration, passed through as recorded */
   source: unknown;
+  /** the version its manager reported installed when it was last recorded */
+  version?: string;
 }
 
 /** an optional tool setup did not install */
@@ -196,6 +198,7 @@ export function projectTool(tool: EnvironmentTool): EnvironmentToolOutput {
     account: same,
     executables: same,
     source: same,
+    version: same,
   });
 }
 

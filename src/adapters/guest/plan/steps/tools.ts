@@ -5,6 +5,7 @@ import {
   LINKS_LIBRARY,
   NPM_LIBRARY,
   RUSTUP_LIBRARY,
+  VERSIONS_LIBRARY,
 } from '#adapters/guest/tools/libraries';
 
 import type { LibraryCall } from '#adapters/guest/platform/library';
@@ -13,6 +14,7 @@ import type { SetupStep, StepCommand } from '#application/ports/plan';
 import type { GuestAsset } from '#domain/guest';
 import type {
   BrewToolSource,
+  NpmToolSource,
   Resolution,
   SystemToolSource,
   ToolSource,
@@ -28,6 +30,11 @@ const SYSTEM_LIMIT_MS = 1_200_000;
 const NPM_LIMIT_MS = 900_000;
 /** longest one command of a Rust toolchain's step may take */
 const RUSTUP_LIMIT_MS = 1_200_000;
+/** longest the record of the tools' versions may take: npm, rustup and Homebrew each start once per tool */
+const VERSIONS_LIMIT_MS = 300_000;
+
+/** id of the step that records each tool's installed version in environment.json */
+const VERSIONS_STEP = 'tool-versions';
 
 /** what every tool step is built with */
 interface ToolStepContext {
@@ -77,6 +84,44 @@ export function toolSteps(
 
     return [toolStep(spec, resolution.source, context)];
   });
+}
+
+/**
+ * builds the step that records in environment.json the version each tool's
+ * manager reports installed; it has no check, so every setup records what
+ * the guest has now, and the plan lists it after every tool step, so it
+ * follows them, without needing them, since an optional tool that failed
+ * still has its peers' versions to record
+ * @param family the guest's OS family, whose shell and library it uses
+ * @param params the record's path and the steps it needs, such as the one writing the record
+ * @param params.path absolute guest path of environment.json
+ * @param params.needs ids of the steps the record needs
+ * @returns a critical root step
+ */
+export function versionsStep(
+  family: Pick<OsFamily, 'shell' | 'library'>,
+  params: { path: string; needs: readonly string[] },
+): SetupStep {
+  return {
+    id: VERSIONS_STEP,
+    component: 'environment',
+    account: 'root',
+    needs: [...params.needs],
+    apply: libraryCommand(
+      family.shell,
+      [
+        family.library,
+        HOMEBREW_LIBRARY,
+        NPM_LIBRARY,
+        RUSTUP_LIBRARY,
+        VERSIONS_LIBRARY,
+      ],
+      [['oa_tools_record_versions', params.path]],
+    ),
+    timeoutMs: VERSIONS_LIMIT_MS,
+    critical: true,
+    retry: 'transport',
+  };
 }
 
 /**
@@ -142,11 +187,7 @@ function sourceActions(spec: ToolSpec, source: ToolSource): SourceActions {
     case 'system':
       return systemActions(source);
     case 'npm':
-      return {
-        libraries: [NPM_LIBRARY],
-        apply: [['oa_npm_install', source.package, source.distTag ?? 'latest']],
-        timeoutMs: NPM_LIMIT_MS,
-      };
+      return npmActions(source);
     case 'rustup':
       return {
         libraries: [RUSTUP_LIBRARY],
@@ -185,6 +226,26 @@ function brewActions(spec: ToolSpec, source: BrewToolSource): SourceActions {
       link('apply'),
     ],
     timeoutMs: BREW_LIMIT_MS,
+  };
+}
+
+/**
+ * decides the calls of an npm package's step: install it at its dist-tag. A
+ * package pinned to a dist-tag, such as an agent's release channel, is in
+ * place only once its installed version is the one the tag names now, since
+ * any installed version passes the tool's version probe; one without a tag
+ * is in place once the probe passes
+ * @param source the package
+ * @returns the libraries, calls and limit of the step
+ */
+function npmActions(source: NpmToolSource): SourceActions {
+  return {
+    libraries: [NPM_LIBRARY],
+    ...(source.distTag
+      ? { check: [['oa_npm_current', source.package, source.distTag]] }
+      : {}),
+    apply: [['oa_npm_install', source.package, source.distTag ?? 'latest']],
+    timeoutMs: NPM_LIMIT_MS,
   };
 }
 
