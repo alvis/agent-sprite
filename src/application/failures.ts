@@ -61,7 +61,7 @@ export function commandError(exception: unknown): CommandError {
 }
 
 /**
- * Reads bounded public causes while respecting a private provider-body boundary.
+ * reads bounded public causes while respecting a private provider-body boundary
  * @param error primary failure
  * @param state retained recovery state, if present
  * @returns safe public cause details
@@ -89,7 +89,7 @@ function publicCauseDetails(error: Error, state?: RecoveryState): string[] {
 }
 
 /**
- * Formats one visible cause and queues only its permitted children.
+ * formats one visible cause and queues only its permitted children
  * @param cause candidate cause
  * @param pending remaining cause nodes
  * @returns public detail, if present

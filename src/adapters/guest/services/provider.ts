@@ -10,7 +10,6 @@ import type { ServiceDefinition } from '#domain/services';
  * @param control the provider's service control
  * @param services the services this setup records, cron's included
  * @param previous names of the services the previous setup recorded
- * @throws {Error} when a service needs one that is not recorded, or the needs form a cycle
  */
 export async function installProviderServices(
   control: GuestServiceControl,
@@ -35,7 +34,6 @@ export async function installProviderServices(
  * orders services so each follows every service it needs
  * @param services the services to order, in any order
  * @returns the services, each after its needs
- * @throws {Error} when a service needs one that is not listed, or the needs form a cycle
  */
 function dependencyOrder(
   services: readonly ServiceDefinition[],

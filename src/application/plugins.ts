@@ -101,7 +101,6 @@ export function resolvePluginActions(
  * rejects plugin choices that contradict each other or the selected harnesses
  * @param selected normalized choices
  * @param harnesses selected harnesses
- * @throws {CommandFault} for the first conflicting choice
  */
 function assertPluginChoices(
   selected: NormalizedPluginOptions,

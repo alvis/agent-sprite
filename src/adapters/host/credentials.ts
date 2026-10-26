@@ -151,7 +151,7 @@ export async function saveLocalCredential(
 }
 
 /**
- * Saves through security interactive mode and verifies the exact selected item.
+ * saves through security interactive mode and verifies the exact selected item
  * @param name management account
  * @param value registered secret
  * @param keychainPath optional explicit isolated store
@@ -186,7 +186,7 @@ async function writeAndVerifyKeychain(
 }
 
 /**
- * Quotes one bounded security interactive command; no secret enters process argv.
+ * quotes one bounded security interactive command; no secret enters process argv
  * @param name management account
  * @param value registered secret
  * @param keychainPath optional explicit isolated store

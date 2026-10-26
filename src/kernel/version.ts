@@ -28,7 +28,6 @@ export function isSemver(value: string): boolean {
  * @param left one version
  * @param right the other version
  * @returns a negative number when left is older, 0 when equal, positive when newer
- * @throws {Error} when either is not a semantic version
  */
 export function compareSemver(left: string, right: string): number {
   const [a, b] = [parseSemver(left), parseSemver(right)];
