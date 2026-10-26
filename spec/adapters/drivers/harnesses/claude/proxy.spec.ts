@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { claude } from '#adapters/drivers/harnesses/claude';
+import '#adapters/drivers/harnesses/claude';
 import {
   claudeReadiness,
   inspectClaude,
@@ -16,6 +16,7 @@ import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
 import { awakeHookCommand } from '#application/catalog/awake';
 
 import { configureHarnesses } from '#application/catalog/harnesses';
+import { registry } from '#composition/registry';
 
 import { routeOf } from '../../../../mocks/proxy-route';
 
@@ -25,7 +26,6 @@ import {
   guestOf,
 } from '../../../../mocks/sprites';
 
-import type { ProxyRoute } from '#application/ports/drivers';
 import type { GuestChannel } from '#application/ports/guest-channel';
 
 /**
@@ -36,17 +36,17 @@ import type { GuestChannel } from '#application/ports/guest-channel';
  */
 async function configureClaude(
   guest: GuestChannel,
-  params: { proxy?: ProxyRoute },
+  params: Pick<Parameters<typeof configureHarnesses>[1], 'proxy'>,
 ): Promise<void> {
   await configureHarnesses(guest, {
-    drivers: [claude],
+    drivers: [registry.harnesses.claude],
     proxy: params.proxy,
     hub: { record: recordHub },
     awakeHook: awakeHookCommand({ awakeCommand: AWAKE_COMMAND }),
   });
 }
 
-describe('driver:claude native configuration', () => {
+describe('Claude native configuration', () => {
   it('should install native hooks without proxy routing and preserve user authentication', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-claude-'),

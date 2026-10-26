@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createSpritesClient } from '#adapters/drivers/providers/sprite/client';
 import { OperationContext, withOperation } from '#kernel/operation';
@@ -30,10 +30,6 @@ function hangingNetwork(): AbortSignal[] {
 }
 
 describe('fn:createSpritesClient', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it('should abort a hung request as soon as the command is cancelled', async () => {
     const signals = hangingNetwork();
     const controller = new AbortController();

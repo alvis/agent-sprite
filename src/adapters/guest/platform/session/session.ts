@@ -87,7 +87,10 @@ export class ShellSession implements GuestSession {
     });
   }
 
-  /** @returns what the guest reported about its OS */
+  /**
+   * returns what the guest reported about its OS
+   * @returns the guest's OS release
+   */
   public get release(): OsRelease {
     if (!this.#release) {
       throw new Error('The session has not probed the guest yet');
@@ -96,7 +99,10 @@ export class ShellSession implements GuestSession {
     return this.#release;
   }
 
-  /** @returns the session shell's pid on the guest */
+  /**
+   * returns the session shell's pid on the guest
+   * @returns the shell's guest PID
+   */
   public get pid(): number {
     return this.#pid;
   }
@@ -228,12 +234,12 @@ export class ShellSession implements GuestSession {
         this.#shell.kill();
       }, limitMs);
       const abort = (): void => {
-        this.#shell.kill();
         try {
           checkOperation(operation);
         } catch (reason) {
-          this.#fail(reason);
+          this.#fail(reason as Error);
         }
+        this.#shell.kill();
       };
       const settle = (): void => {
         clearTimeout(timer);
@@ -289,7 +295,7 @@ export class ShellSession implements GuestSession {
         stderr: redactResolved(stderr.output),
       });
     } catch (error) {
-      this.#fail(error);
+      this.#fail(error as Error);
       this.#shell.kill();
     }
   }
@@ -298,17 +304,11 @@ export class ShellSession implements GuestSession {
    * marks the session lost and fails the pending script
    * @param error why the session can no longer be trusted
    */
-  #fail(error: unknown): void {
-    const failure =
-      error instanceof Error
-        ? error
-        : new SessionTransportFault('The guest session failed', {
-            cause: error,
-          });
-    this.#broken ??= failure;
+  #fail(error: Error): void {
+    this.#broken ??= error;
     const pending = this.#pending;
     this.#pending = undefined;
-    pending?.reject(failure);
+    pending?.reject(error);
   }
 
   /**

@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createGuestMechanics } from '#adapters/guest/mechanics';
 import { RUNTIME_ENV_PATH, accountHome } from '#adapters/guest/platform/layout';
-import { openWorkstationSession } from '#adapters/guest/platform/session/open';
 import { defaults } from '#composition/defaults';
 import { registry } from '#composition/registry';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
@@ -18,13 +17,38 @@ import {
   sessionGuestOf,
 } from '../../mocks/sprites';
 
-import type { GuestSession } from '#application/ports/session';
 import type { OsRelease } from '#domain/guest';
 import type { WorkstationRecord } from '#domain/workstation';
 
-vi.mock('#adapters/guest/platform/session/open', () => ({
-  openWorkstationSession: vi.fn(),
-}));
+vi.mock(
+  '#adapters/guest/platform/session/open',
+  () =>
+    ({
+      openWorkstationSession: vi.fn<
+        typeof import('#adapters/guest/platform/session/open').openWorkstationSession
+      >(async () => ({
+        release: {
+          family: 'debian',
+          id: 'debian',
+          versionId: '12',
+          codename: 'bookworm',
+          arch: 'x86_64',
+          libc: 'glibc',
+        },
+        pid: 42,
+        run: async ({ argv }) => ({
+          exitCode: 0,
+          stdout: argv.join(' ').includes('nightly')
+            ? 'installed=1.0.0\ntagged=2.0.0\n'
+            : 'installed=1.0.0\ntagged=1.5.0\n',
+          stderr: '',
+        }),
+        [Symbol.asyncDispose]: async () => undefined,
+      })),
+    }) satisfies Partial<
+      typeof import('#adapters/guest/platform/session/open')
+    >,
+);
 
 const RELEASE: OsRelease = {
   family: 'debian',
@@ -78,19 +102,6 @@ describe('fn:createGuestMechanics', () => {
   });
 
   it('should read installed and channel releases through the connected guest session', async () => {
-    const session = {
-      release: RELEASE,
-      pid: 42,
-      run: async ({ argv }) => ({
-        exitCode: 0,
-        stdout: argv.join(' ').includes('nightly')
-          ? 'installed=1.0.0\ntagged=2.0.0\n'
-          : 'installed=1.0.0\ntagged=1.5.0\n',
-        stderr: '',
-      }),
-      [Symbol.asyncDispose]: async () => undefined,
-    } satisfies GuestSession;
-    vi.mocked(openWorkstationSession).mockResolvedValueOnce(session);
     const mechanics = createGuestMechanics({ registry, defaults });
     await using connection = mechanics.session.connect({
       provider: registry.providers['fly-machine'],

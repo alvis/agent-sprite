@@ -40,10 +40,13 @@ function fakeCommand(): FakeCommand {
     stdout: new PassThrough(),
     stderr: new PassThrough(),
     close: () => undefined,
-  }) as unknown as SpriteCommand;
+  }) satisfies Pick<SpriteCommand, 'stdin' | 'stdout' | 'stderr' | 'close'>;
 
   return {
-    command,
+    command: command as Pick<
+      SpriteCommand,
+      'stdin' | 'stdout' | 'stderr' | 'close'
+    > as SpriteCommand,
     received: () => received,
     open: () => {
       isOpen = true;

@@ -1,5 +1,6 @@
 import { runGuest, runGuestResult } from '#adapters/guest/platform/run';
 import { sanitizeGuestDiagnostic } from '#kernel/diagnostics';
+import { ensureError } from '#kernel/faults';
 import { isRecord } from '#kernel/guards';
 import { InteractionExit } from '#kernel/navigation';
 import { checkOperation, runOperation } from '#kernel/operation';
@@ -38,8 +39,10 @@ export async function inspectTailscale(
       throw error;
     }
 
+    const failure = ensureError(error);
+
     return offlineTailnetStatus(
-      error instanceof Error ? error.message : 'Tailscale status unavailable',
+      failure === error ? failure.message : 'Tailscale status unavailable',
     );
   }
   if (result.exitCode !== 0) {
