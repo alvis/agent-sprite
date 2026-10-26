@@ -62,7 +62,7 @@ async function recordEnvironment(sprite: Sprite): Promise<void> {
     .writeFile(ENVIRONMENT_PATH, JSON.stringify(environmentOf(PROFILE)));
 }
 
-describe('workflow:scoped setup', () => {
+describe('scoped setup', () => {
   it('should view recorded tool versions and declines an update without guest mutation', async () => {
     const root = await mkdtemp(join(tmpdir(), 'open-agent-setup-'));
     try {
@@ -153,7 +153,9 @@ describe('workflow:scoped setup', () => {
         }),
       });
       const client = new SpritesClient('test-token');
-      vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
+      Object.assign(client, {
+        getSprite: vi.fn<SpritesClient['getSprite']>(async () => sprite),
+      });
       await recordEnvironment(sprite);
       const observed = await driveInk(
         async (interaction) =>
@@ -282,7 +284,9 @@ describe('workflow:scoped setup', () => {
         }),
       });
       const client = new SpritesClient('test-token');
-      vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
+      Object.assign(client, {
+        getSprite: vi.fn<SpritesClient['getSprite']>(async () => sprite),
+      });
       await recordEnvironment(sprite);
 
       const result = await setupWorkstation(dependencies, {

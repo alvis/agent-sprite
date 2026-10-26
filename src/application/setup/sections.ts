@@ -8,7 +8,6 @@ import { pairAgent } from '#application/catalog/services';
 import { resolveInputs } from '#application/input';
 import { readSetupFile } from '#application/input/sources';
 import { markInstallationReady } from '#application/installation/readiness';
-import { selectedChannel } from '#domain/release-channels';
 import { CommandFault } from '#kernel/faults';
 import { PairingSecret } from '#kernel/pairing-secret';
 import { Secret } from '#kernel/secret';
@@ -84,15 +83,10 @@ async function switchAgentRelease(
   context: SetupContext,
 ): Promise<void> {
   const { interaction, mutation, profile } = context;
-  const { displayName, releaseChannels, service } =
-    dependencies.registry.agents[profile.agent];
-  const channel = selectedChannel(
-    releaseChannels,
-    profile.options.agentRelease,
-  );
+  const { displayName, service } = dependencies.registry.agents[profile.agent];
   interaction?.progress({
     stage: 'agent',
-    message: `Installing the ${channel?.id ?? 'selected'} release of ${displayName}; this may take several minutes`,
+    message: `Installing the ${profile.options.agentRelease} release of ${displayName}; this may take several minutes`,
   });
   mutation.started = true;
   await installSetupPlan(dependencies, context, async () =>
@@ -212,9 +206,6 @@ export async function setupProxy(
   const { input, profile, mutation } = context;
   const { isProxyEnabled } = profile.options;
   await dependencies.guest.environment.assertProfile(guest, profile);
-  if (isProxyEnabled && (!input.proxyUrl || !input.proxyApiKey)) {
-    throw new Error('Validated CLIProxyAPI inputs were unavailable');
-  }
   mutation.started = true;
   const drivers = harnessDrivers(dependencies.registry, profile.harnesses);
   await configureHarnesses(guest, {

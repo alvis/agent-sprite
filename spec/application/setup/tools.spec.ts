@@ -52,9 +52,16 @@ vi.mock(
   async () => import('../../mocks/session'),
 );
 // Codex trusts its hooks through its app server, a guest process only the live specs run
-vi.mock('#adapters/drivers/harnesses/codex/hook-trust', () => ({
-  trustCodexHooks: vi.fn(async () => undefined),
-}));
+vi.mock(
+  '#adapters/drivers/harnesses/codex/hook-trust',
+  () =>
+    ({
+      trustCodexHooks: vi.fn(async () => undefined),
+    }) satisfies Pick<
+      typeof import('#adapters/drivers/harnesses/codex/hook-trust'),
+      'trustCodexHooks'
+    >,
+);
 
 /**
  * builds the disabled-network profile with a chosen due interval
@@ -132,7 +139,9 @@ async function toolsWorkstation(root: string): Promise<{
     }),
   });
   const client = new SpritesClient('test-token');
-  vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
+  Object.assign(client, {
+    getSprite: vi.fn<SpritesClient['getSprite']>(async () => sprite),
+  });
   const metadata = vi
     .spyOn(sprite, 'update')
     .mockImplementation(async (options) => Object.assign(sprite, options));
@@ -236,6 +245,30 @@ describe('fn:setupTools --update', () => {
       components: { installed: 1, skipped: 3, failed: 0 },
     });
   });
+
+  it('should reject a failed forced update gate after the setup plan runs', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-tools-gate-failure-'),
+    );
+    const execute = vi.fn<GuestExecute>(async (_file, args = []) => ({
+      stdout: '',
+      stderr: '',
+      exitCode: args.includes('--force') ? 7 : 0,
+    }));
+    const sprite = createFilesystemSprite({ root: directory.path, execute });
+    holdServices(sprite);
+    const context = {
+      ...toolsContext(sprite, { persists: false }),
+      options: { update: true },
+    } satisfies SetupContext;
+
+    await expect(
+      setupTools(dependencies, await context.connection.guest(), context),
+    ).rejects.toMatchObject({ code: 'PROVIDER' });
+    expect(
+      execute.mock.calls.filter(([, args = []]) => args.includes('--force')),
+    ).toHaveLength(1);
+  });
 });
 
 describe('fn:setupTools schedule', () => {
@@ -334,7 +367,7 @@ describe('fn:profileUpdateSelected', () => {
   );
 });
 
-describe('workflow:tools section with a due interval from the environment', () => {
+describe('tools section with a due interval from the environment', () => {
   it('should keep the usage error when the environment repeats the recorded interval', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-tools-env-same-'),

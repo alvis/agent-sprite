@@ -12,6 +12,7 @@ import {
 } from '#adapters/drivers/providers/sprite/labels';
 import { ENVIRONMENT_PATH } from '#adapters/guest/platform/layout';
 import { setupWorkstation } from '#application/setup';
+import { isAgentReleaseChanged } from '#application/setup/release';
 import { registry } from '#composition/registry';
 import { summarizeProfile } from '#domain/recorded';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
@@ -23,6 +24,7 @@ import {
   createFilesystemSprite,
   holdServices,
   providerOf,
+  workstationOf,
 } from '../../mocks/sprites';
 
 import type { Sprite } from '@fly/sprites';
@@ -45,9 +47,16 @@ vi.mock(
   async () => import('../../mocks/session'),
 );
 // Codex trusts its hooks through its app server, a guest process only the live specs run
-vi.mock('#adapters/drivers/harnesses/codex/hook-trust', () => ({
-  trustCodexHooks: vi.fn(async () => undefined),
-}));
+vi.mock(
+  '#adapters/drivers/harnesses/codex/hook-trust',
+  () =>
+    ({
+      trustCodexHooks: vi.fn(async () => undefined),
+    }) satisfies Pick<
+      typeof import('#adapters/drivers/harnesses/codex/hook-trust'),
+      'trustCodexHooks'
+    >,
+);
 
 /** the pairing token the guest's T3 Code mints */
 const PAIRING_TOKEN = 'release-drift-pairing';
@@ -154,7 +163,9 @@ async function readyWorkstation(root: string): Promise<{
     }),
   });
   const client = new SpritesClient('test-token');
-  vi.spyOn(client, 'getSprite').mockResolvedValue(sprite);
+  Object.assign(client, {
+    getSprite: vi.fn<SpritesClient['getSprite']>(async () => sprite),
+  });
   vi.spyOn(sprite, 'update').mockImplementation(async (options) =>
     Object.assign(sprite, options),
   );
@@ -443,5 +454,276 @@ describe('fn:setupWorkstation --section agent', () => {
       },
     });
     expect(vi.mocked(sprite.updateURLSettings)).not.toHaveBeenCalled();
+  });
+});
+
+describe('fn:isAgentReleaseChanged selection', () => {
+  it('should require release work when the validated channel differs from the recorded channel', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-release-channel-change-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    const { connection } = workstationOf(sprite);
+    const selected = {
+      ...STABLE_PROFILE,
+      options: { ...STABLE_PROFILE.options, agentRelease: 'nightly' },
+    };
+
+    await expect(
+      isAgentReleaseChanged(dependencies, {
+        section: 'agent',
+        connection,
+        guest: await connection.guest(),
+        resolved: {
+          environment: environmentOf(STABLE_PROFILE),
+          recorded: STABLE_PROFILE,
+          profile: selected,
+        },
+      }),
+    ).resolves.toBe(true);
+  });
+
+  it('should name the selected nightly channel when its release cannot be read', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-release-nightly-unknown-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    const { connection } = workstationOf(sprite);
+    const nightly = {
+      ...STABLE_PROFILE,
+      options: { ...STABLE_PROFILE.options, agentRelease: 'nightly' },
+    };
+    const wired = dependenciesWith({
+      guest: {
+        ...dependencies.guest,
+        tools: {
+          ...dependencies.guest.tools,
+          inspectAgentRelease: async () => ({
+            status: 'unknown',
+            reason: 'registry unavailable',
+          }),
+        },
+      },
+    });
+    const { interaction, statuses } = recordingInteraction();
+
+    await expect(
+      isAgentReleaseChanged(wired, {
+        section: 'agent',
+        connection,
+        guest: await connection.guest(),
+        interaction,
+        resolved: {
+          environment: environmentOf(nightly),
+          recorded: nightly,
+          profile: nightly,
+        },
+      }),
+    ).resolves.toBe(false);
+    expect(statuses).toEqual([
+      {
+        kind: 'warning',
+        message:
+          'Could not read the nightly release of T3 Code (registry unavailable); it keeps running',
+      },
+    ]);
+  });
+
+  it('should name the default channel when no release was selected', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-release-default-unknown-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    const { connection } = workstationOf(sprite);
+    const profile = {
+      ...STABLE_PROFILE,
+      options: { ...STABLE_PROFILE.options, agentRelease: undefined },
+    };
+    const wired = dependenciesWith({
+      guest: {
+        ...dependencies.guest,
+        tools: {
+          ...dependencies.guest.tools,
+          inspectAgentRelease: async () => ({
+            status: 'unknown',
+            reason: 'registry unavailable',
+          }),
+        },
+      },
+    });
+    const { interaction, statuses } = recordingInteraction();
+
+    await expect(
+      isAgentReleaseChanged(wired, {
+        section: 'agent',
+        connection,
+        guest: await connection.guest(),
+        interaction,
+        resolved: {
+          environment: environmentOf(profile),
+          recorded: profile,
+          profile,
+        },
+      }),
+    ).resolves.toBe(false);
+    expect(statuses).toEqual([
+      {
+        kind: 'warning',
+        message:
+          'Could not read the stable release of T3 Code (registry unavailable); it keeps running',
+      },
+    ]);
+  });
+
+  it.each(['agent', 'all'] as const)(
+    'should keep an untracked agent running in the %s section without reporting drift',
+    async (section) => {
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-release-untracked-'),
+      );
+      const sprite = createFilesystemSprite({ root: directory.path });
+      const { connection } = workstationOf(sprite);
+      const inspectAgentRelease = vi.fn<
+        GuestMechanics['tools']['inspectAgentRelease']
+      >(async () => ({ status: 'untracked' }));
+      const wired = dependenciesWith({
+        guest: {
+          ...dependencies.guest,
+          tools: { ...dependencies.guest.tools, inspectAgentRelease },
+        },
+      });
+      const { interaction, statuses } = recordingInteraction();
+
+      await expect(
+        isAgentReleaseChanged(wired, {
+          section,
+          connection,
+          guest: await connection.guest(),
+          interaction,
+          resolved: {
+            environment: environmentOf(STABLE_PROFILE),
+            recorded: STABLE_PROFILE,
+            profile: STABLE_PROFILE,
+          },
+        }),
+      ).resolves.toBe(false);
+      expect(inspectAgentRelease).toHaveBeenCalledOnce();
+      expect(statuses).toEqual([]);
+    },
+  );
+
+  it.each([
+    { section: 'tools', hasEnvironment: true },
+    { section: 'agent', hasEnvironment: false },
+  ] as const)(
+    'should skip release inspection for section=$section with recorded environment=$hasEnvironment',
+    async ({ section, hasEnvironment }) => {
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-release-untargeted-'),
+      );
+      const sprite = createFilesystemSprite({ root: directory.path });
+      const { connection } = workstationOf(sprite);
+      const inspectAgentRelease = vi.fn<
+        GuestMechanics['tools']['inspectAgentRelease']
+      >(async () => CURRENT);
+      const wired = dependenciesWith({
+        guest: {
+          ...dependencies.guest,
+          tools: { ...dependencies.guest.tools, inspectAgentRelease },
+        },
+      });
+
+      await expect(
+        isAgentReleaseChanged(wired, {
+          section,
+          connection,
+          guest: await connection.guest(),
+          resolved: {
+            environment: hasEnvironment
+              ? environmentOf(STABLE_PROFILE)
+              : undefined,
+            recorded: STABLE_PROFILE,
+            profile: STABLE_PROFILE,
+          },
+        }),
+      ).resolves.toBe(false);
+      expect(inspectAgentRelease).not.toHaveBeenCalled();
+    },
+  );
+
+  it('should leave a current installed release running when its serving version cannot be read', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-release-serving-unknown-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    const { connection } = workstationOf(sprite);
+    const wired = dependenciesWith({
+      guest: {
+        ...dependencies.guest,
+        tools: {
+          ...dependencies.guest.tools,
+          inspectAgentRelease: async () => CURRENT,
+        },
+        native: {
+          ...dependencies.guest.native,
+          inspectAgentEnvironment: async () => undefined,
+        },
+      },
+    });
+
+    await expect(
+      isAgentReleaseChanged(wired, {
+        section: 'agent',
+        connection,
+        guest: await connection.guest(),
+        resolved: {
+          environment: environmentOf(STABLE_PROFILE),
+          recorded: STABLE_PROFILE,
+          profile: STABLE_PROFILE,
+        },
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('should report drift when the channel has a release but no installed or serving version was observed', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-release-uninstalled-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    const { connection } = workstationOf(sprite);
+    const wired = dependenciesWith({
+      guest: {
+        ...dependencies.guest,
+        tools: {
+          ...dependencies.guest.tools,
+          inspectAgentRelease: async () => ({
+            status: 'known',
+            tagged: SERVED_VERSION,
+          }),
+        },
+        native: {
+          ...dependencies.guest.native,
+          inspectAgentEnvironment: async () => undefined,
+        },
+      },
+    });
+    const { interaction, statuses } = recordingInteraction();
+
+    await expect(
+      isAgentReleaseChanged(wired, {
+        section: 'agent',
+        connection,
+        guest: await connection.guest(),
+        interaction,
+        resolved: {
+          environment: environmentOf(STABLE_PROFILE),
+          recorded: STABLE_PROFILE,
+          profile: STABLE_PROFILE,
+        },
+      }),
+    ).resolves.toBe(true);
+    expect(statuses).toEqual([
+      { kind: 'info', message: expect.stringContaining(SERVED_VERSION) },
+    ]);
   });
 });

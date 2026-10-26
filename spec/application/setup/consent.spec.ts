@@ -31,9 +31,16 @@ vi.mock(
   async () => import('../../mocks/session'),
 );
 // Codex trusts its hooks through its app server, a guest process only the live specs run
-vi.mock('#adapters/drivers/harnesses/codex/hook-trust', () => ({
-  trustCodexHooks: vi.fn(async () => undefined),
-}));
+vi.mock(
+  '#adapters/drivers/harnesses/codex/hook-trust',
+  () =>
+    ({
+      trustCodexHooks: vi.fn(async () => undefined),
+    }) satisfies Pick<
+      typeof import('#adapters/drivers/harnesses/codex/hook-trust'),
+      'trustCodexHooks'
+    >,
+);
 
 function setupContext(
   sprite: Sprite,

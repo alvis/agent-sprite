@@ -7,6 +7,7 @@ import {
   VERSION_LABEL_PREFIX,
 } from '#adapters/drivers/providers/sprite/labels';
 import { resolveSecret } from '#application/input/sources';
+import { ReadinessFault } from '#application/readiness';
 import { setupFailure } from '#application/setup/failure';
 import { prepareResult } from '#cli/output';
 import { CommandFault } from '#kernel/faults';
@@ -26,54 +27,92 @@ async function bindWorkstation(sprite: Sprite): Promise<{
   provider: ReturnType<typeof providerOf>;
   workstation: WorkstationRecord;
 }> {
-  vi.spyOn(sprite.client, 'getSprite').mockResolvedValue(sprite);
+  Object.assign(sprite.client, {
+    getSprite: vi.fn<SpritesClient['getSprite']>(async () => sprite),
+  });
   const provider = providerOf(sprite.client);
 
   return { provider, workstation: await provider.get(sprite.name) };
 }
 
 describe('fn:setupFailure', () => {
-  it('should report stopped setup as incomplete after changes and preserve unrelated labels', async () => {
-    const sprite = Object.assign(
-      new Sprite('primary', new SpritesClient('test-token')),
-      {
-        id: 'sprite-primary',
-        organizationName: 'test-organization',
-        labels: [MANAGED_LABEL, 'unrelated'],
-      },
-    );
-    const update = vi.fn<Sprite['update']>(async (options) =>
-      Object.assign(sprite, options),
-    );
-    Object.assign(sprite, { update });
+  it.each(['back', 'cancel'] as const)(
+    'should report %s navigation as incomplete after changes and preserve unrelated labels',
+    async (action) => {
+      const sprite = Object.assign(
+        new Sprite('primary', new SpritesClient('test-token')),
+        {
+          id: 'sprite-primary',
+          organizationName: 'test-organization',
+          labels: [MANAGED_LABEL, 'unrelated'],
+        },
+      );
+      const update = vi.fn<Sprite['update']>(async (options) =>
+        Object.assign(sprite, options),
+      );
+      Object.assign(sprite, { update });
 
+      const result = await setupFailure({
+        ...(await bindWorkstation(sprite)),
+        error: new InteractionExit(action),
+        mutation: { started: true },
+      });
+
+      expect(result).toMatchObject({
+        ok: false,
+        data: { recovery: { incompleteLabel: 'confirmed' } },
+        error: {
+          code: 'CANCELLED',
+          machine: 'primary',
+          machineId: 'sprite-primary',
+          setupIncomplete: true,
+        },
+      });
+      // the stopped run also records the release that last touched the guest
+      expect(sprite.labels).toEqual([
+        MANAGED_LABEL,
+        'unrelated',
+        SETUP_INCOMPLETE_LABEL,
+        expect.stringMatching(new RegExp(`^${VERSION_LABEL_PREFIX}`, 'u')),
+      ]);
+      expect(update).toHaveBeenCalledOnce();
+      expect(prepareResult({ result, options: {} }).text).toContain(
+        'Incomplete label: confirmed',
+      );
+    },
+  );
+
+  it('should retain readiness observations without marking an untouched workstation incomplete', async () => {
+    const readiness = {
+      ready: false,
+      failures: ['agent service'],
+      skipped: [],
+      probeFailures: [],
+    };
     const result = await setupFailure({
-      ...(await bindWorkstation(sprite)),
-      error: new InteractionExit('back'),
-      mutation: { started: true },
+      provider: providerOf(new SpritesClient('test-token')),
+      workstation: {
+        id: 'sprite-readiness',
+        name: 'readiness-machine',
+        organization: 'test-organization',
+        state: 'running',
+        metadata: { setup: 'not recorded' },
+      },
+      error: new ReadinessFault(readiness),
+      mutation: { started: false },
     });
 
     expect(result).toMatchObject({
+      command: 'setup',
       ok: false,
-      data: { recovery: { incompleteLabel: 'confirmed' } },
+      data: { readiness },
       error: {
-        code: 'CANCELLED',
-        machine: 'primary',
-        machineId: 'sprite-primary',
-        setupIncomplete: true,
+        code: 'PREFLIGHT',
+        machine: 'readiness-machine',
+        machineId: 'sprite-readiness',
       },
     });
-    // the stopped run also records the release that last touched the guest
-    expect(sprite.labels).toEqual([
-      MANAGED_LABEL,
-      'unrelated',
-      SETUP_INCOMPLETE_LABEL,
-      expect.stringMatching(new RegExp(`^${VERSION_LABEL_PREFIX}`, 'u')),
-    ]);
-    expect(update).toHaveBeenCalledOnce();
-    expect(prepareResult({ result, options: {} }).text).toContain(
-      'Incomplete label: confirmed',
-    );
+    expect(result.error?.setupIncomplete).toBeUndefined();
   });
 
   it('should report an unconfirmed label and merges original and recovery details without changing the primary code', async () => {

@@ -22,9 +22,15 @@ import type {
 import type { CommandResult } from '#application/result';
 import type { CommandName } from '#kernel/commands';
 
+/** workstation command context with an active interaction */
+type InteractiveWorkstationCommandParams = WorkstationCommandParams & {
+  interaction: Interaction;
+};
+
 interface WorkstationActionContext {
   request: CommandRequest;
   machine: MachineSummary;
+  agentUrl: string | undefined;
   provider: ProviderDriver;
   interaction: Interaction;
 }
@@ -36,7 +42,7 @@ type WorkstationAction =
  * lists the actions for one workstation, named after its recorded drivers
  * @param dependencies the registered drivers, the profile defaults
  * @param machine selected workstation and its recorded driver selection
- * @returns menu choices; pairing only when the recorded agent supports it
+ * @returns menu choices for the registered agent
  */
 function workstationActions(
   dependencies: Pick<ApplicationDependencies, 'registry' | 'defaults'>,
@@ -49,15 +55,11 @@ function workstationActions(
 
   return [
     { label: 'Show details', value: 'details' },
-    ...(agent.supportsPairing
-      ? [
-          {
-            label: `Pair another ${agent.displayName} client`,
-            value: 'pair' as const,
-            description: `Add a new pairing code to the ${agent.displayName} URL, valid for 5 minutes`,
-          },
-        ]
-      : []),
+    {
+      label: `Pair another ${agent.displayName} client`,
+      value: 'pair',
+      description: `Add a new pairing code to the ${agent.displayName} URL, valid for 5 minutes`,
+    },
     {
       label: 'Inspect workstation',
       value: 'inspect',
@@ -83,7 +85,7 @@ function workstationActions(
  */
 export async function chooseWorkstationAction(
   dependencies: ApplicationDependencies,
-  params: WorkstationCommandParams & { interaction: Interaction },
+  params: InteractiveWorkstationCommandParams,
 ): Promise<CommandResult> {
   const { request, provider, interaction } = params;
   let requestedMachine = request.machine;
@@ -103,6 +105,7 @@ export async function chooseWorkstationAction(
     const result = await chooseMachineAction(dependencies, {
       request,
       machine,
+      agentUrl: workstation.url,
       provider,
       interaction,
     });
@@ -159,7 +162,7 @@ async function applyWorkstationAction(
   action: WorkstationAction,
   context: WorkstationActionContext,
 ): Promise<CommandResult> {
-  const { request, machine, provider, interaction } = context;
+  const { request, machine, agentUrl, provider, interaction } = context;
   const nested = withBackNavigation(interaction, 'back to actions');
   const actionRequest = menuActionRequest(request);
   currentOperation()?.select(actionCommand(action));
@@ -179,7 +182,7 @@ async function applyWorkstationAction(
       });
     }
     if (action === 'copy') {
-      return await copyWorkstationUrl(dependencies, machine);
+      return await copyWorkstationUrl(dependencies, machine, agentUrl);
     }
 
     return await showWorkstation(dependencies, {
@@ -214,24 +217,22 @@ async function applyWorkstationAction(
 /**
  * sends the provider agent URL to the desktop clipboard
  * @param dependencies what this computer provides
- * @param machine current machine summary containing a provider URL
+ * @param machine current machine summary
+ * @param agentUrl provider URL of the selected workstation, when present
  * @returns the completed local action and machine summary
  */
 async function copyWorkstationUrl(
   dependencies: Pick<ApplicationDependencies, 'host'>,
   machine: MachineSummary,
+  agentUrl: string | undefined,
 ): Promise<CommandResult> {
-  if (!machine.agentUrl) {
+  if (!agentUrl) {
     throw new CommandFault({
       code: 'PROVIDER',
       message: 'Workstation has no provider agent URL',
     });
   }
-  await dependencies.host.clipboard.copyUrl(
-    typeof machine.agentUrl === 'string'
-      ? machine.agentUrl
-      : machine.agentUrl.disclose(false)!,
-  );
+  await dependencies.host.clipboard.copyUrl(agentUrl);
 
   return { command: 'show', ok: true, data: { machine, action: 'copy' } };
 }

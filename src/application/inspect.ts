@@ -11,6 +11,7 @@ import { commandError } from './failures';
 import { summarizeMachine } from './machine';
 import { assessReadiness } from './readiness';
 
+import type { BoundProvider } from '#application/catalog/providers';
 import type { WorkstationCommandParams } from '#application/contracts';
 import type {
   DoctorData,
@@ -46,7 +47,6 @@ export interface SelectManagedMachineParams {
  * @param dependencies the guest mechanics
  * @param params the call's inputs: provider, requestedName, interaction, release
  * @returns the freshly fetched, ownership-checked and supported workstation
- * @throws {CommandFault} when a newer open-agent release set it up
  */
 export async function selectManagedMachine(
   dependencies: Pick<ApplicationDependencies, 'guest'>,
@@ -115,8 +115,7 @@ async function findManagedMachine(
 
 /** a provider bound for listing, or the reason it cannot be queried */
 export type ProviderAvailability =
-  | { id: ProviderId; driver: ProviderDriver }
-  | { id: ProviderId; code: CommandErrorCode; reason: string };
+  BoundProvider | { id: ProviderId; code: CommandErrorCode; reason: string };
 
 /**
  * lists current managed workstations across every available provider without
@@ -184,7 +183,7 @@ async function listProvider(
         return {
           ...summarizeMachine(dependencies, workstation),
           provider: entry.id,
-          ...(newerRelease ? { newerRelease } : {}),
+          newerRelease,
         };
       }),
     };
@@ -314,9 +313,9 @@ export async function doctorWorkstation(
         state: service.status,
       })),
       environment: inspection.environment,
-      ...(inspection.updates ? { updates: inspection.updates } : {}),
+      updates: inspection.updates,
       governor: inspection.governor,
-      ...(inspection.boot ? { boot: inspection.boot } : {}),
+      boot: inspection.boot,
     },
   };
 

@@ -29,12 +29,11 @@ export async function setupFailure(
   params: SetupFailureParams,
 ): Promise<CommandResult> {
   const { provider, workstation, mutation, section } = params;
-  const error =
+  const postMutationBack =
     params.error instanceof InteractionExit &&
     params.error.action === 'back' &&
-    mutation.started
-      ? new InteractionExit('cancel')
-      : params.error;
+    mutation.started;
+  const error = params.error;
   const primary = ensureError(error);
   const incompleteLabel = mutation.started
     ? await recoverIncompleteLabel(provider, workstation, primary)
@@ -47,17 +46,17 @@ export async function setupFailure(
     data:
       error instanceof ReadinessFault || incompleteLabel
         ? {
-            ...(error instanceof ReadinessFault
-              ? { readiness: error.readiness }
-              : {}),
-            ...(incompleteLabel ? { recovery: { incompleteLabel } } : {}),
+            readiness:
+              error instanceof ReadinessFault ? error.readiness : undefined,
+            recovery: incompleteLabel ? { incompleteLabel } : undefined,
           }
         : undefined,
     error: {
       ...failure,
+      code: postMutationBack ? 'CANCELLED' : failure.code,
       message:
-        error instanceof InteractionExit &&
-        error.action === 'cancel' &&
+        (postMutationBack ||
+          (error instanceof InteractionExit && error.action === 'cancel')) &&
         mutation.started
           ? 'Setup stopped after changes began; workstation requires inspection and recovery.'
           : failure.message,

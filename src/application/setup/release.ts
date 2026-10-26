@@ -1,4 +1,3 @@
-import { selectedChannel } from '#domain/release-channels';
 import { publishStatus, traceStage } from '#kernel/operation';
 
 import { isReleaseChanged } from './integrations';
@@ -8,6 +7,7 @@ import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { GuestChannel } from '#application/ports/guest-channel';
 import type { Interaction } from '#application/ports/interaction';
 import type { SetupSession } from '#application/ports/session';
+import type { ReleaseChannels } from '#domain/declarations';
 import type { GuestEnvironment } from '#domain/observations/environment';
 import type { WorkstationProfile } from '#domain/profile';
 import type { StatusUpdate } from '#kernel/status';
@@ -33,6 +33,14 @@ export interface ReleaseChangeParams {
   };
 }
 
+/** what the guest tells of the agent against its channel */
+interface ReleaseDrift {
+  /** whether the agent is stopped and reinstalled at its channel's release */
+  isDrifted: boolean;
+  /** what the run reports about it: the versions of a drift, or why none could be told */
+  note?: StatusUpdate;
+}
+
 /**
  * tells whether this run moves the agent's installed release: the selection
  * names another channel, or, for the agent and all sections on a guest that
@@ -53,29 +61,19 @@ export async function isAgentReleaseChanged(
     return true;
   }
   const isAgentTargeted = section === 'agent' || section === 'all';
-  if (
-    !isAgentTargeted ||
-    !environment ||
-    !dependencies.registry.agents[profile.agent].releaseChannels
-  ) {
+  const releaseChannels =
+    dependencies.registry.agents[profile.agent].releaseChannels;
+  if (!isAgentTargeted || !environment || !releaseChannels) {
     return false;
   }
   const drift = await traceStage('setup.release', async () =>
-    agentReleaseDrift(dependencies, params),
+    agentReleaseDrift(dependencies, { ...params, releaseChannels }),
   );
   if (drift.note) {
     publishStatus(drift.note, interaction);
   }
 
   return drift.isDrifted;
-}
-
-/** what the guest tells of the agent against its channel */
-interface ReleaseDrift {
-  /** whether the agent is stopped and reinstalled at its channel's release */
-  isDrifted: boolean;
-  /** what the run reports about it: the versions of a drift, or why none could be told */
-  note?: StatusUpdate;
 }
 
 /**
@@ -85,19 +83,18 @@ interface ReleaseDrift {
  * asked about is no drift, so the agent keeps running and the plan's own
  * check decides whether to install it
  * @param dependencies the registered drivers, the guest mechanics
- * @param params the session, its channel and the profile
+ * @param params the session, its channel, the profile and declared release channels
  * @returns whether the agent drifted, and what to report about it
  */
 async function agentReleaseDrift(
   dependencies: Pick<ApplicationDependencies, 'registry' | 'guest'>,
-  params: ReleaseChangeParams,
+  params: ReleaseChangeParams & { releaseChannels: ReleaseChannels },
 ): Promise<ReleaseDrift> {
+  const { releaseChannels } = params;
   const { profile } = params.resolved;
-  const { displayName, releaseChannels } =
-    dependencies.registry.agents[profile.agent];
+  const { displayName } = dependencies.registry.agents[profile.agent];
   const channel =
-    selectedChannel(releaseChannels, profile.options.agentRelease)?.id ??
-    'selected';
+    profile.options.agentRelease ?? releaseChannels.defaultChannel;
   const release = await dependencies.guest.tools.inspectAgentRelease(
     params.connection,
     profile,
