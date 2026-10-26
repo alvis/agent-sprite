@@ -3,11 +3,15 @@ import { defaultProfile, registeredSummary } from '#domain/profile';
 import { CommandFault } from '#kernel/faults';
 
 import type { SetupSection } from '#application/contracts';
+import type { SuppliedSelection } from '#application/input/selection-supplied';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { GuestChannel } from '#application/ports/guest-channel';
 import type { GuestEnvironment } from '#domain/observations/environment';
 import type { WorkstationProfile } from '#domain/profile';
 import type { WorkstationRecord } from '#domain/workstation';
+
+/** optional provider and agent restrictions supplied to setup */
+type SuppliedWorkstationKind = Pick<SuppliedSelection, 'provider' | 'agent'>;
 
 /**
  * reconstructs the selection of a workstation whose installation never wrote environment.json
@@ -40,7 +44,7 @@ export function unrecordedProfile(
  */
 export function assertSameWorkstationKind(
   recorded: WorkstationProfile,
-  supplied: { provider?: string; agent?: string },
+  supplied: SuppliedWorkstationKind,
 ): void {
   if (
     (supplied.provider !== undefined &&

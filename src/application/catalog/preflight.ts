@@ -33,6 +33,12 @@ interface PreflightHost {
   };
 }
 
+/** registered providers and local host facilities for preflight */
+interface ProviderPreflightDependencies {
+  registry: Pick<DriverRegistry, 'providers'>;
+  host: PreflightHost;
+}
+
 /**
  * runs a provider's preflight before its first provider call
  * @param dependencies what the preflight reads
@@ -43,10 +49,7 @@ interface PreflightHost {
  * @returns every missing or misconfigured prerequisite with its fix
  */
 export async function providerPreflight(
-  dependencies: {
-    registry: Pick<DriverRegistry, 'providers'>;
-    host: PreflightHost;
-  },
+  dependencies: ProviderPreflightDependencies,
   provider: ProviderId,
   credential: PreflightCredential,
 ): Promise<PrerequisiteProblem[]> {
