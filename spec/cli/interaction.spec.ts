@@ -31,16 +31,16 @@ describe('fn:createInteraction', () => {
     output.on('data', (chunk: Buffer) => {
       captured += chunk.toString();
     });
-    const session = createInteraction(
-      true,
-      { stdin: input, stderr: output },
-      {
+    const session = createInteraction({
+      noColor: true,
+      io: { stdin: input, stderr: output },
+      cancellation: {
         signal: controller.signal,
         cancel: () => controller.abort(),
         interrupt: () => controller.abort(),
         quiet: true,
       },
-    );
+    });
     try {
       session.status({ kind: 'info', message: 'routine-info' });
       session.status({ kind: 'success', message: 'routine-success' });
@@ -72,7 +72,10 @@ describe('fn:createInteraction', () => {
       columns: 80,
       rows: 24,
     });
-    const session = createInteraction(true, { stdin: input, stderr: output });
+    const session = createInteraction({
+      noColor: true,
+      io: { stdin: input, stderr: output },
+    });
     try {
       const pending = Promise.allSettled([
         session.input({ message: 'Active prompt' }),
@@ -107,15 +110,15 @@ describe('fn:createInteraction', () => {
       columns: 80,
       rows: 24,
     });
-    const session = createInteraction(
-      true,
-      { stdin: input, stderr: output },
-      {
+    const session = createInteraction({
+      noColor: true,
+      io: { stdin: input, stderr: output },
+      cancellation: {
         signal: controller.signal,
         cancel: () => controller.abort(),
         interrupt: () => controller.abort(),
       },
-    );
+    });
     try {
       const pending = session.secret({ message: 'Never display this prompt' });
 
@@ -196,7 +199,10 @@ describe('fn:createInteraction', () => {
     output.on('data', (chunk: Buffer) => {
       captured += chunk.toString();
     });
-    const session = createInteraction(true, { stdin: input, stderr: output });
+    const session = createInteraction({
+      noColor: true,
+      io: { stdin: input, stderr: output },
+    });
     let pending: Promise<string> | undefined;
 
     try {
@@ -428,15 +434,15 @@ describe('fn:createInteraction', () => {
     });
     const inputListeners = input.listenerCount('readable');
     const controller = new AbortController();
-    const session = createInteraction(
-      true,
-      { stdin: input, stderr: output },
-      {
+    const session = createInteraction({
+      noColor: true,
+      io: { stdin: input, stderr: output },
+      cancellation: {
         signal: controller.signal,
         cancel: vi.fn(),
         interrupt: vi.fn(),
       },
-    );
+    });
     try {
       session.status({ kind: 'info', message: 'Before cancellation' });
       controller.abort();
@@ -466,11 +472,11 @@ describe('fn:createInteraction', () => {
 
   it('should print verbose stage lines on stderr while an Ink prompt stays open', async () => {
     const lines: string[] = [];
-    vi.spyOn(process.stderr, 'write').mockImplementation(((chunk: string) => {
-      lines.push(chunk);
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      lines.push(String(chunk));
 
       return true;
-    }) as never);
+    });
     const reportStage = createStageReporter(
       { command: 'show', options: { verbose: true, quiet: true } },
       () => undefined,
