@@ -48,7 +48,6 @@ export interface InstallParams {
  * @param mechanics the guest's plan and provider services
  * @param params the provider, session, profile, previous record, progress and what runs before the services
  * @returns the environment the plan recorded
- * @throws {CommandFault} when a required tool has no usable source, or a critical step failed
  */
 export async function installWorkstation(
   mechanics: Pick<GuestMechanics, 'plan' | 'services'>,
@@ -62,9 +61,7 @@ export async function installWorkstation(
     release: connection.release,
     version: OPEN_AGENT_VERSION,
     setupAt: new Date().toISOString(),
-    ...(previous?.networkIdentity && {
-      networkIdentity: previous.networkIdentity,
-    }),
+    networkIdentity: previous?.networkIdentity,
   };
   const assembly = await bottledAssembly(mechanics, params, base);
   await runSteps(mechanics, params, [

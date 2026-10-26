@@ -62,7 +62,7 @@ async function recordEnvironment(sprite: Sprite): Promise<void> {
     .writeFile(ENVIRONMENT_PATH, JSON.stringify(environmentOf(PROFILE)));
 }
 
-describe('workflow:scoped setup', () => {
+describe('scoped setup', () => {
   it('should view recorded tool versions and declines an update without guest mutation', async () => {
     const root = await mkdtemp(join(tmpdir(), 'open-agent-setup-'));
     try {

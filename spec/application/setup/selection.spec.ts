@@ -6,7 +6,7 @@ import { selectSetupSection } from '#application/setup/selection';
 import { driveInk } from '../../fixtures/ink';
 import { dependencies } from '../../mocks/dependencies';
 
-describe('workflow:interactive navigation', () => {
+describe('interactive navigation', () => {
   it('should return from network choices and declines a shared credential before reading a key', async () => {
     const observed = await driveInk(
       async (interaction) => {

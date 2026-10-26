@@ -11,9 +11,7 @@ import { driveInk } from '../../fixtures/ink';
 
 import { dependencies } from '../../mocks/dependencies';
 
-import type { Sprite } from '@fly/sprites';
-
-import type { CommandRequest } from '#application/contracts';
+import type { CommandOptions, CommandRequest } from '#application/contracts';
 
 const request = {
   command: 'create',
@@ -82,9 +80,10 @@ describe('fn:prepareCreate consent', () => {
 
   it('should require real Ink consent before provisioning a selected workstation', async () => {
     vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
-    const list = vi
-      .spyOn(SpritesClient.prototype, 'listAllSprites')
-      .mockResolvedValue([] as Sprite[]);
+    const list = vi.fn<SpritesClient['listAllSprites']>(async () => []);
+    vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockImplementation(
+      list,
+    );
     const observed = await driveInk(
       async (interaction) => prepareCreate(dependencies, request, interaction),
       [
@@ -105,9 +104,10 @@ describe('fn:prepareCreate consent', () => {
 
   it('should bypass only the selected provision consent under --yes', async () => {
     vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
-    const list = vi
-      .spyOn(SpritesClient.prototype, 'listAllSprites')
-      .mockResolvedValue([] as Sprite[]);
+    const list = vi.fn<SpritesClient['listAllSprites']>(async () => []);
+    vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockImplementation(
+      list,
+    );
     const observed = await driveInk(
       async (interaction) =>
         prepareCreate(
@@ -128,16 +128,19 @@ describe('fn:prepareCreate consent', () => {
 
   it('should still collects a missing workstation name under --yes', async () => {
     vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
-    const list = vi
-      .spyOn(SpritesClient.prototype, 'listAllSprites')
-      .mockResolvedValue([] as Sprite[]);
+    const list = vi.fn<SpritesClient['listAllSprites']>(async () => []);
+    vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockImplementation(
+      list,
+    );
+    const optionsWithoutName: CommandOptions = { ...request.options };
+    delete optionsWithoutName.name;
     const observed = await driveInk(
       async (interaction) =>
         prepareCreate(
           dependencies,
           {
             ...request,
-            options: { ...request.options, name: undefined, yes: true },
+            options: { ...optionsWithoutName, yes: true },
           },
           interaction,
         ),

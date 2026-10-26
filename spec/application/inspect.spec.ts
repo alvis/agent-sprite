@@ -70,17 +70,29 @@ const PROFILE = profileWith({
 /**
  * creates a managed SDK boundary with one installed disposable workstation
  * @param root isolated guest filesystem root
+ * @param ready whether the guest serves ready service and endpoint evidence
  * @returns provider client, managed Sprite and the guest's answer to every
  * command other than a file program
  */
-async function installedSprite(root: string): Promise<{
+async function installedSprite(
+  root: string,
+  ready = false,
+): Promise<{
   client: SpritesClient;
   sprite: Sprite;
   execute: Mock<GuestExecute>;
 }> {
   const client = new SpritesClient('test-org/1/0abc/0def');
-  const execute = vi.fn<GuestExecute>(async () => ({
-    stdout: '[]',
+  const agentEnvironment = {
+    ok: true,
+    serverVersion: '0.0.46-nightly.20261014.3118',
+    orchestrationProtocolVersion: 2,
+  };
+  const execute = vi.fn<GuestExecute>(async (_file, args) => ({
+    stdout:
+      ready && args?.includes('/usr/bin/curl')
+        ? `${JSON.stringify(agentEnvironment)}\n200`
+        : '[]',
     stderr: '',
     exitCode: 0,
   }));
@@ -95,7 +107,26 @@ async function installedSprite(root: string): Promise<{
     }),
     url: 'https://temporary.sprites.app',
     status: 'running',
-    listServices: vi.fn<Sprite['listServices']>(async () => []),
+    listServices: vi.fn<Sprite['listServices']>(async () =>
+      ready
+        ? [
+            {
+              name: 't3-code',
+              cmd: '/opt/open-agent/drivers/agents/t3/launcher.sh',
+              args: [],
+              needs: [],
+              state: { name: 't3-code', status: 'running' },
+            },
+            {
+              name: 'open-agent-cron',
+              cmd: '/opt/open-agent/update-schedule',
+              args: [],
+              needs: [],
+              state: { name: 'open-agent-cron', status: 'running' },
+            },
+          ]
+        : [],
+    ),
   });
   serveServiceRegistry(sprite);
   vi.spyOn(client, 'listAllSprites').mockResolvedValue([sprite]);
@@ -245,7 +276,7 @@ describe('cmd:show', () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-doctor-ready-'),
     );
-    const { client, sprite, execute } = await installedSprite(directory.path);
+    const { client, sprite } = await installedSprite(directory.path, true);
     const hooks = (owned: WorkHooks): Record<string, unknown> =>
       mergeWorkHooks(
         {},
@@ -265,35 +296,6 @@ describe('cmd:show', () => {
         CODEX_HOOKS,
         JSON.stringify({ hooks: hooks(CODEX_WORK_HOOKS) }),
       );
-    vi.mocked(sprite.listServices).mockResolvedValue([
-      {
-        name: 't3-code',
-        cmd: '/opt/open-agent/drivers/agents/t3/launcher.sh',
-        args: [],
-        needs: [],
-        state: { name: 't3-code', status: 'running' },
-      },
-      {
-        name: 'open-agent-cron',
-        cmd: '/opt/open-agent/update-schedule',
-        args: [],
-        needs: [],
-        state: { name: 'open-agent-cron', status: 'running' },
-      },
-    ]);
-    const environment = {
-      ok: true,
-      serverVersion: '0.0.46-nightly.20261014.3118',
-      orchestrationProtocolVersion: 2,
-    };
-    // the endpoint probe prints the body, then the status on its own line
-    execute.mockImplementation(async (_file, args) => ({
-      stdout: args?.includes('/usr/bin/curl')
-        ? `${JSON.stringify(environment)}\n200`
-        : '[]',
-      stderr: '',
-      exitCode: 0,
-    }));
 
     const result = await doctorWorkstation(dependencies, {
       provider: providerOf(client),
@@ -407,12 +409,12 @@ describe('cmd:show', () => {
       const stdout = new PassThrough();
       const stderr = new PassThrough();
       let out = '';
-      let err = '';
+      let errorOutput = '';
       stdout.on('data', (chunk: Buffer) => {
         out += chunk.toString();
       });
       stderr.on('data', (chunk: Buffer) => {
-        err += chunk.toString();
+        errorOutput += chunk.toString();
       });
       writePreparedResult(
         prepareResult({
@@ -424,10 +426,10 @@ describe('cmd:show', () => {
       );
       stdout.destroy();
       stderr.destroy();
-      expect(out + err).toContain('services');
-      expect(out + err).not.toContain(secret);
+      expect(out + errorOutput).toContain('services');
+      expect(out + errorOutput).not.toContain(secret);
       if (json) {
-        expect(err).toBe('');
+        expect(errorOutput).toBe('');
         expect(out.trim().split('\n')).toHaveLength(1);
         expect(JSON.parse(out)).toMatchObject({
           schemaVersion: 1,
@@ -438,7 +440,7 @@ describe('cmd:show', () => {
         });
       } else {
         expect(out).toBe('');
-        expect(err.replaceAll(/\s+/g, ' ')).toContain(
+        expect(errorOutput.replaceAll(/\s+/g, ' ')).toContain(
           'Probe: services · Reason: Service registry response could not be read.',
         );
       }
@@ -657,6 +659,67 @@ describe('cmd:show', () => {
     expect(client.deleteSprite).not.toHaveBeenCalled();
   }, 15_000);
 
+  it('should copy the selected workstation URL without opening its guest', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-show-copy-'),
+    );
+    const { client, sprite, execute } = await installedSprite(directory.path);
+    const copyUrl = vi.spyOn(dependencies.host.clipboard, 'copyUrl');
+    copyUrl.mockResolvedValue(undefined);
+
+    const observed = await driveInk(
+      async (interaction) =>
+        chooseWorkstationAction(dependencies, {
+          request: { command: 'show', machine: 'temporary', options: {} },
+          provider: providerOf(client),
+          interaction,
+        }),
+      [
+        { waitFor: 'Workstation action', input: 'Copy T3 Code URL' },
+        { waitFor: 'Search: Copy T3 Code URL', input: '\r' },
+      ],
+    );
+
+    expect(observed.matchedSteps, observed.output).toBe(2);
+    expect(observed.result).toMatchObject({
+      command: 'show',
+      ok: true,
+      data: { action: 'copy' },
+    });
+    expect(copyUrl).toHaveBeenCalledExactlyOnceWith(sprite.url);
+    expect(execute).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it('should report a missing provider URL without writing to the clipboard', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-show-copy-no-url-'),
+    );
+    const { client, sprite } = await installedSprite(directory.path);
+    Object.assign(sprite, { url: undefined });
+    const copyUrl = vi.spyOn(dependencies.host.clipboard, 'copyUrl');
+
+    const observed = await driveInk(
+      async (interaction) =>
+        chooseWorkstationAction(dependencies, {
+          request: { command: 'show', machine: 'temporary', options: {} },
+          provider: providerOf(client),
+          interaction,
+        }),
+      [
+        { waitFor: 'Workstation action', input: 'Copy T3 Code URL' },
+        { waitFor: 'Search: Copy T3 Code URL', input: '\r' },
+      ],
+    );
+
+    expect(observed.matchedSteps, observed.output).toBe(2);
+    expect(observed.result).toMatchObject({
+      command: 'show',
+      ok: false,
+      error: { code: 'PROVIDER', machine: 'temporary' },
+    });
+    expect(copyUrl).not.toHaveBeenCalled();
+  }, 15_000);
+
   it('should return from the action menu to workstation selection before a new action', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-show-back-'),
@@ -682,6 +745,33 @@ describe('cmd:show', () => {
     expect(client.getSprite).toHaveBeenCalledTimes(3);
     expect(client.deleteSprite).not.toHaveBeenCalled();
   }, 15_000);
+
+  it('should return from setup section selection to the same workstation action menu', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-show-setup-back-'),
+    );
+    const { client, sprite } = await installedSprite(directory.path);
+    const observed = await driveInk(
+      async (interaction) =>
+        chooseWorkstationAction(dependencies, {
+          request: { command: 'show', machine: 'temporary', options: {} },
+          provider: providerOf(client),
+          interaction,
+        }),
+      [
+        { waitFor: 'Workstation action', input: 'Configure a section' },
+        { waitFor: 'Search: Configure a section', input: '\r' },
+        { waitFor: 'Choose setup section', input: '\x1b' },
+        { waitFor: 'Workstation action', input: '\r' },
+      ],
+    );
+
+    expect(observed.matchedSteps, observed.output).toBe(4);
+    expect(observed.result).toMatchObject({ command: 'show', ok: true });
+    expect(writtenPaths(sprite)).toEqual([]);
+    expect(client.deleteSprite).not.toHaveBeenCalled();
+  }, 15_000);
+
   it('should disclose one pairing URL, code and expiry after a real menu choice without leaking the SDK token', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-show-pairing-'),

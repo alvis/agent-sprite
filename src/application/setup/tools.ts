@@ -60,7 +60,7 @@ export async function setupTools(
         status: 'recorded versions',
         tools: environment.tools,
         skipped: environment.setup.skipped,
-        ...(lastUpdate ? { lastUpdate } : {}),
+        lastUpdate,
       },
     };
   }

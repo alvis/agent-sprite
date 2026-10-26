@@ -7,6 +7,12 @@ import type { GuestChannel } from '#application/ports/guest-channel';
 import type { ProductDeclarations } from '#domain/declarations';
 import type { GuestServiceState } from '#domain/services';
 
+/** declarations and environment access needed to disable a network */
+interface DisableNetworkContext {
+  declarations: ProductDeclarations;
+  environment: GuestEnvironmentAccess;
+}
+
 /**
  * stops the managed network daemon while retaining enrolment and cleanup
  * identity, detaching the agent service that depended on it, and records the
@@ -19,10 +25,7 @@ import type { GuestServiceState } from '#domain/services';
  * @param network network driver whose daemon is being removed
  */
 export async function disableNetwork(
-  context: {
-    declarations: ProductDeclarations;
-    environment: GuestEnvironmentAccess;
-  },
+  context: DisableNetworkContext,
   guest: GuestChannel,
   network: NetworkWithDaemon,
 ): Promise<void> {

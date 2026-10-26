@@ -1,5 +1,5 @@
 import { SpritesClient } from '@fly/sprites';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { prepareCreate } from '#application/create/preflight';
 import { registry } from '#composition/registry';
@@ -21,12 +21,12 @@ vi.mock('#composition/registry', async (importOriginal) => {
       agents: {
         t3: {
           ...original.registry.agents.t3,
-          supportedHarnesses: ['claude'],
+          supportedHarnesses: ['claude'] as const,
           supportsPairing: false,
         },
       },
     },
-  };
+  } satisfies typeof original;
 });
 
 const request = {
@@ -48,47 +48,45 @@ const request = {
 /** an organization-scoped token in the shape the Sprites API issues */
 const ORGANIZATION_TOKEN = 'selection-org/1234/0123abcd/4567ef89';
 
+const providerCalls = vi.fn();
+
+/** fails every provider boundary if selection reaches it */
+function guardProviderBoundary(): void {
+  vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
+  vi.spyOn(registry.providers.sprite, 'authenticate').mockImplementation(
+    (binding) => {
+      providerCalls('authenticate', binding.restorableServices);
+
+      throw new Error('provider bound');
+    },
+  );
+  for (const method of [
+    'listAllSprites',
+    'createSprite',
+    'getSprite',
+  ] as const) {
+    vi.spyOn(SpritesClient.prototype, method).mockImplementation(() => {
+      providerCalls(method);
+
+      throw new Error(`provider ${method}`);
+    });
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn<typeof fetch>(async (input) => {
+      providerCalls(
+        'fetch',
+        input instanceof Request ? input.url : input.toString(),
+      );
+
+      throw new Error('network request');
+    }),
+  );
+}
+
 describe('fn:prepareCreate selection rules', () => {
-  const providerCalls = vi.fn();
-
-  beforeEach(() => {
-    vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
-    vi.spyOn(registry.providers.sprite, 'authenticate').mockImplementation(
-      (binding) => {
-        providerCalls('authenticate', binding.restorableServices);
-
-        throw new Error('provider bound');
-      },
-    );
-    for (const method of [
-      'listAllSprites',
-      'createSprite',
-      'getSprite',
-    ] as const) {
-      vi.spyOn(SpritesClient.prototype, method).mockImplementation(() => {
-        providerCalls(method);
-
-        throw new Error(`provider ${method}`);
-      });
-    }
-    vi.stubGlobal(
-      'fetch',
-      vi.fn<typeof fetch>(async (input) => {
-        providerCalls(
-          'fetch',
-          input instanceof Request ? input.url : input.toString(),
-        );
-
-        throw new Error('network request');
-      }),
-    );
-  });
-
-  afterEach(() => {
-    providerCalls.mockReset();
-  });
-
   it('should reject a harness the selected agent does not support before any provider call', async () => {
+    guardProviderBoundary();
     await expect(
       prepareCreate(dependencies, {
         ...request,
@@ -103,6 +101,7 @@ describe('fn:prepareCreate selection rules', () => {
   });
 
   it('should reject pairing from an agent that does not declare it before any provider call', async () => {
+    guardProviderBoundary();
     await expect(
       prepareCreate(dependencies, {
         ...request,
@@ -117,6 +116,7 @@ describe('fn:prepareCreate selection rules', () => {
   });
 
   it('should aggregate both unreachable rules into one error before any provider call', async () => {
+    guardProviderBoundary();
     await expect(
       prepareCreate(dependencies, {
         ...request,
@@ -137,6 +137,7 @@ describe('fn:prepareCreate selection rules', () => {
   });
 
   it('should reach the provider once the selection satisfies the stand-in agent', async () => {
+    guardProviderBoundary();
     await expect(prepareCreate(dependencies, request)).rejects.toThrow(
       'provider bound',
     );

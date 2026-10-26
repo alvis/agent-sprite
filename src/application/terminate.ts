@@ -208,8 +208,7 @@ async function confirmDeletion(
     !interaction ||
     (request.options.yes &&
       request.machine !== undefined &&
-      request.machine.length > 0 &&
-      request.machine === workstation.name)
+      request.machine.length > 0)
   ) {
     return true;
   }

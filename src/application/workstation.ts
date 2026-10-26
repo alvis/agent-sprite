@@ -42,7 +42,10 @@ import type { Interaction } from '#application/ports/interaction';
 import type { CommandResult } from '#application/result';
 import type { ProviderId } from '#domain/ids';
 import type { PrerequisiteProblem } from '#domain/prerequisites';
+import type { CommandName } from '#kernel/commands';
 import type { OperationContext } from '#kernel/operation';
+
+type AuthenticatedCommand = Exclude<CommandName, 'create' | 'list'>;
 
 /** the interaction and caller-owned cancellation scope one command runs with */
 export interface CommandSession {
@@ -103,7 +106,7 @@ export async function runCommand(
       return prerequisiteFailure(request, problems);
     }
     const result = await dispatchAuthenticated(dependencies, {
-      request,
+      request: { ...request, command: request.command },
       provider: bindProvider(dependencies.registry, provider, credential.token),
       interaction,
     });
@@ -124,7 +127,7 @@ export async function runCommand(
 }
 
 /**
- * Builds a failure without dropping bounded recovery details or exact identity.
+ * builds a failure without dropping bounded recovery details or exact identity
  * @param error primary rejection
  * @param context current invocation, if any
  * @param request selected command
@@ -265,35 +268,35 @@ async function listAvailableProviders(
  */
 async function dispatchAuthenticated(
   dependencies: ApplicationDependencies,
-  params: WorkstationCommandParams,
+  params: WorkstationCommandParams & {
+    request: CommandRequest & { command: AuthenticatedCommand };
+  },
 ): Promise<CommandResult> {
   const { request, provider, interaction } = params;
-  switch (request.command) {
-    case 'show':
-      return interaction &&
-        !request.options.withPairCode &&
-        !request.options.inspect
+  const actions = {
+    show: async () =>
+      interaction && !request.options.withPairCode && !request.options.inspect
         ? chooseWorkstationAction(dependencies, {
             request,
             provider,
             interaction,
           })
-        : showWorkstation(dependencies, { request, provider, interaction });
-    case 'doctor':
-      return doctorWorkstation(dependencies, {
+        : showWorkstation(dependencies, { request, provider, interaction }),
+    doctor: async () =>
+      doctorWorkstation(dependencies, {
         provider,
         requestedName: request.machine,
         interaction,
-      });
-    case 'setup':
-      return setupWorkstation(dependencies, { request, provider, interaction });
-    case 'terminate':
-      return terminateWorkstation(dependencies, {
+      }),
+    setup: async () =>
+      setupWorkstation(dependencies, { request, provider, interaction }),
+    terminate: async () =>
+      terminateWorkstation(dependencies, {
         request,
         provider,
         interaction,
-      });
-    default:
-      throw new Error(`Unsupported command: ${request.command}`);
-  }
+      }),
+  } satisfies Record<AuthenticatedCommand, () => Promise<CommandResult>>;
+
+  return actions[request.command]();
 }
