@@ -425,6 +425,54 @@ describe('fn:resolveSetupSelection update intervals', () => {
 });
 
 describe('fn:suppliedSelectionViolations', () => {
+  it('should validate an agent release with the sole registered agent when none is named', () => {
+    const violations = suppliedSelectionViolations(
+      dependencies,
+      { options: { agentRelease: 'unregistered-release' } },
+      { isPairingRequested: false },
+    );
+
+    expect(violations).toMatchObject([
+      { code: 'invalid-option', fields: ['agent', 'agentRelease'] },
+    ]);
+  });
+
+  it('should defer a machine-size capability check until one of several providers is named', () => {
+    const supplied = { options: { minCpus: 17, minMemoryGb: 129 } };
+    const deferred = suppliedSelectionViolations(dependencies, supplied, {
+      isPairingRequested: false,
+    });
+    const determined = suppliedSelectionViolations(
+      dependencies,
+      { ...supplied, provider: 'sprite' },
+      { isPairingRequested: false },
+    );
+
+    expect(deferred).toEqual([]);
+    expect(determined).toMatchObject([
+      {
+        code: 'undeclared-capability',
+        fields: ['provider', 'minCpus', 'minMemoryGb'],
+      },
+    ]);
+  });
+
+  it('should accept a complete compatible selection before workstation lookup', () => {
+    const violations = suppliedSelectionViolations(
+      dependencies,
+      {
+        provider: 'sprite',
+        agent: 't3',
+        harnesses: ['claude'],
+        network: 'none',
+        options: {},
+      },
+      { isPairingRequested: false },
+    );
+
+    expect(violations).toEqual([]);
+  });
+
   it('should report supplied option bounds and capabilities whose drivers are all known', () => {
     const violations = suppliedSelectionViolations(
       dependencies,

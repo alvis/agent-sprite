@@ -107,7 +107,11 @@ export async function enterCommandCredential(
     description: `It needs ${credential.scope}. ${credential.obtain}`,
     required: true,
     validate: (value) =>
-      enteredCredentialProblem(dependencies.registry, provider, value),
+      enteredCredentialProblem({
+        declarations: dependencies.registry,
+        provider,
+        token: value,
+      }),
   });
   rememberSecret(token);
 

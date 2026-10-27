@@ -21,6 +21,13 @@ interface OptionBound {
   unit: 'minutes' | 'days' | 'CPUs' | 'GB';
 }
 
+/** option values and selected drivers to validate */
+export interface OptionViolationsParams {
+  declarations: ProductDeclarations;
+  options: ProfileOptions;
+  selected: { network: string; harnesses: readonly HarnessId[] };
+}
+
 /** longest update due interval: one year */
 export const MAX_UPDATE_DUE_DAYS = 365;
 
@@ -61,23 +68,22 @@ export const OPTION_BOUNDS: readonly OptionBound[] = [
 
 /**
  * checks option bounds and that every enabled option has a declaring driver
- * @param declarations the data every registered driver declares
- * @param options requested options
- * @param selected the requested network and known requested harnesses
- * @param selected.network requested network id, possibly unknown
- * @param selected.harnesses known requested harness ids
+ * @param params options, requested network and known harness ids
+ * @param params.declarations the data every registered driver declares
+ * @param params.options requested options
+ * @param params.selected network is the requested id, possibly unknown; harnesses are known requested ids
  * @returns violations for out-of-bound or capability-less options
  */
-export function optionViolations(
-  declarations: ProductDeclarations,
-  options: ProfileOptions,
-  selected: { network: string; harnesses: readonly HarnessId[] },
-): ProfileViolation[] {
+export function optionViolations({
+  declarations,
+  options,
+  selected,
+}: OptionViolationsParams): ProfileViolation[] {
   const { network, harnesses } = selected;
 
   return [
     ...(options.isExitNodeEnabled &&
-    isDriverId(declarations, 'networks', network) &&
+    isDriverId(network, { declarations, kind: 'networks' }) &&
     !declarations.networks[network].supportsExitNode
       ? [
           {

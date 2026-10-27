@@ -4,11 +4,118 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { resolveCreateInputs, resolveInputs } from '#application/input';
+import { commandError } from '#application/failures';
+import {
+  requireValidProfile,
+  requireValidSuppliedSelection,
+  resolveCreateInputs,
+  resolveInputs,
+} from '#application/input';
 import { resolveProviderCredential } from '#application/input/provider-credential';
 
-import { profileWith } from '../fixtures/profile';
+import { DISABLED_NETWORK_PROFILE, profileWith } from '../fixtures/profile';
 import { dependencies } from '../mocks/dependencies';
+
+import type { Interaction } from '#application/ports/interaction';
+
+describe('fn:requireValidProfile', () => {
+  it('should return a valid resolved profile', () => {
+    expect(
+      requireValidProfile(
+        dependencies,
+        {
+          candidate: DISABLED_NETWORK_PROFILE,
+          problems: [],
+          isIdleTimeoutRequested: false,
+        },
+        {},
+      ),
+    ).toEqual(DISABLED_NETWORK_PROFILE);
+  });
+
+  it('should report unreadable selection input and capability violations together', () => {
+    let failure: unknown;
+    try {
+      requireValidProfile(
+        dependencies,
+        {
+          candidate: { ...DISABLED_NETWORK_PROFILE, harnesses: [] },
+          problems: ['OPEN_AGENT_IDLE_MINUTES must be a whole number'],
+          isIdleTimeoutRequested: true,
+        },
+        {},
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(commandError(failure)).toMatchObject({
+      code: 'INPUT',
+      details: [
+        'OPEN_AGENT_IDLE_MINUTES must be a whole number',
+        expect.stringContaining('harness'),
+      ],
+    });
+  });
+
+  it('should report an unreadable input even when the resolved profile is valid', () => {
+    let failure: unknown;
+    try {
+      requireValidProfile(
+        dependencies,
+        {
+          candidate: DISABLED_NETWORK_PROFILE,
+          problems: ['OPEN_AGENT_IDLE_MINUTES must be a whole number'],
+          isIdleTimeoutRequested: false,
+        },
+        {},
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(commandError(failure)).toMatchObject({
+      code: 'INPUT',
+      details: ['OPEN_AGENT_IDLE_MINUTES must be a whole number'],
+    });
+  });
+});
+
+describe('fn:requireValidSuppliedSelection', () => {
+  it('should accept a compatible supplied selection', () => {
+    expect(() =>
+      requireValidSuppliedSelection(
+        dependencies,
+        { value: { provider: 'sprite', options: {} }, problems: [] },
+        {},
+      ),
+    ).not.toThrow();
+  });
+
+  it('should aggregate unreadable values and an unknown driver before workstation lookup', () => {
+    let failure: unknown;
+    try {
+      requireValidSuppliedSelection(
+        dependencies,
+        {
+          value: { agent: 'unregistered-agent', options: {} },
+          problems: ['OPEN_AGENT_IDLE_MINUTES must be a whole number'],
+        },
+        {},
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(commandError(failure)).toMatchObject({
+      code: 'INPUT',
+      details: [
+        'OPEN_AGENT_IDLE_MINUTES must be a whole number',
+        expect.stringContaining('unregistered-agent'),
+      ],
+    });
+  });
+});
 
 describe('fn:resolveInputs', () => {
   it('should aggregate all missing selection inputs, each naming every source, before account discovery', async () => {
@@ -137,6 +244,41 @@ describe('fn:resolveInputs', () => {
     });
   });
 
+  it('should keep a known Git identity during a noninteractive run with an interaction attached', async () => {
+    const unexpected = (): never => {
+      throw new Error('A noninteractive run prompted for input');
+    };
+    const interaction: Interaction = {
+      input: async () => unexpected(),
+      secret: async () => unexpected(),
+      select: async () => unexpected(),
+      multiselect: async () => unexpected(),
+      confirm: async () => unexpected(),
+      progress: () => undefined,
+      status: () => undefined,
+    };
+    const input = await resolveInputs(dependencies, {
+      options: {
+        nonInteractive: true,
+        localCredentials: false,
+        github: false,
+        gitName: 'Known Author',
+        gitEmail: 'known@example.test',
+      },
+      interaction,
+      requirementSelection: {
+        sources: { processEnv: {}, fileEnv: {}, profile: {} },
+        required: ['gitIdentity'],
+      },
+    });
+
+    expect(input.gitIdentity).toMatchObject({
+      authorName: 'Known Author',
+      authorEmail: 'known@example.test',
+    });
+    expect(input.missing).toEqual([]);
+  });
+
   it('should include missing Git identity both before and after mandatory input resolution', async () => {
     vi.stubEnv('SPRITES_TOKEN', undefined);
     vi.stubEnv('GIT_AUTHOR_NAME', undefined);
@@ -174,6 +316,13 @@ describe('fn:resolveInputs', () => {
           required: ['providerToken', 'gitIdentity'],
         },
       });
+      const missingNameAndIdentity = await resolveInputs(dependencies, {
+        options,
+        requirementSelection: {
+          sources: { processEnv: {}, fileEnv: {}, profile: {} },
+          required: ['name', 'gitIdentity'],
+        },
+      });
 
       // the provider token is a declared provider prerequisite, reported by
       // the aggregated provider preflight rather than as a missing input
@@ -181,6 +330,10 @@ describe('fn:resolveInputs', () => {
         [expect.stringContaining('Git author')],
         [expect.stringContaining('Git author')],
         [],
+      ]);
+      expect(missingNameAndIdentity.missing).toEqual([
+        expect.stringContaining('--name'),
+        expect.stringContaining('Git author'),
       ]);
     } finally {
       await rm(directory, { recursive: true, force: true });

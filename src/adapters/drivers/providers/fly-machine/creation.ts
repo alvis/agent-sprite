@@ -20,7 +20,6 @@ import type { CreationOutcome } from '#domain/creation';
 import type { WorkstationProfile } from '#domain/profile';
 
 import type { FlyApi } from './api';
-import type { FlyMachineOffer } from './machines';
 import type { FlyMachine } from './wire';
 
 /** one create request and where it is placed */
@@ -59,12 +58,23 @@ const START_WAIT_SECONDS = 60;
  * again, so a failed create leaves nothing behind or reports what remains
  * @param params client, name, placement, profile and port
  * @returns the started machine
+ * @throws {ProviderFault} when Fly offers no machine meeting the profile minimums
  */
 export async function createManagedApp(
   params: CreateAppParams,
 ): Promise<FlyMachine> {
   const { api, name, organization, region, profile, port } = params;
-  const machine = requireOffer(profile);
+  const { minCpus, minMemoryGb } = profile.options;
+  const machine = pickMachine(FLY_MACHINES, {
+    cpus: minCpus,
+    memoryGb: minMemoryGb,
+  });
+  if (!machine) {
+    throw new ProviderFault({
+      code: 'failed',
+      message: `Fly offers no machine with ${String(minCpus)} CPUs and ${String(minMemoryGb)} GB`,
+    });
+  }
   const operation = currentOperation();
   checkOperation(operation);
   operation?.identify({ name });
@@ -102,28 +112,6 @@ export async function createManagedApp(
     const cause = operation?.signal.aborted ? cancellationReason() : error;
     throw await reconcileCreation({ api, name, appCreated: true }, cause);
   }
-}
-
-/**
- * picks the smallest Fly preset that meets the profile's minimums
- * @param profile validated profile
- * @returns the preset the machine runs on
- * @throws {ProviderFault} when no preset meets the minimums
- */
-function requireOffer(profile: WorkstationProfile): FlyMachineOffer {
-  const { minCpus, minMemoryGb } = profile.options;
-  const offer = pickMachine(FLY_MACHINES, {
-    cpus: minCpus,
-    memoryGb: minMemoryGb,
-  });
-  if (!offer) {
-    throw new ProviderFault({
-      code: 'failed',
-      message: `Fly offers no machine with ${String(minCpus)} CPUs and ${String(minMemoryGb)} GB`,
-    });
-  }
-
-  return offer;
 }
 
 /**

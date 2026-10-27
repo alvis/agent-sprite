@@ -91,6 +91,13 @@ export interface ProviderPreflightParams {
   ): Promise<string | undefined>;
 }
 
+/** provider and value of a credential the caller is entering */
+export interface EnteredCredentialProblemParams {
+  declarations: ProductDeclarations;
+  provider: ProviderId;
+  token: string;
+}
+
 /** separates a version's dotted digits from the text around it */
 const NON_VERSION = /[^\d.]+/u;
 
@@ -236,9 +243,11 @@ async function toolProblem(
 function compareVersions(left: string, right: string): number {
   const parts = (version: string): number[] => version.split('.').map(Number);
   const [a, b] = [parts(left), parts(right)];
-  const index = a.findIndex((part, position) => part !== (b[position] ?? 0));
+  const firstDifference = a
+    .map((part, position) => part - (b[position] ?? 0))
+    .find((difference) => difference !== 0);
 
-  return index === -1 ? 0 : (a[index] ?? 0) - (b[index] ?? 0);
+  return firstDifference ?? 0;
 }
 
 /**
@@ -257,16 +266,17 @@ function findVersion(printed: string): string | undefined {
 
 /**
  * checks, offline and synchronously, a credential the caller is entering
- * @param declarations the data every registered driver declares
- * @param provider provider whose declared credential is entered
- * @param token entered value
+ * @param params declared provider and entered credential value
+ * @param params.declarations the data every registered driver declares
+ * @param params.provider provider whose declared credential is entered
+ * @param params.token entered value
  * @returns why the value cannot be the provider credential, or undefined when it may be
  */
-export function enteredCredentialProblem(
-  declarations: ProductDeclarations,
-  provider: ProviderId,
-  token: string,
-): string | undefined {
+export function enteredCredentialProblem({
+  declarations,
+  provider,
+  token,
+}: EnteredCredentialProblemParams): string | undefined {
   const problem = refusedCredential(
     declarations.providers[provider].prerequisites.credential,
     { token },

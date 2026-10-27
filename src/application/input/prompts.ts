@@ -1,7 +1,6 @@
 import { networkDriver } from '#application/catalog/networks';
-import { validateMachineName } from '#application/machine';
+import { machineNameProblem } from '#application/machine';
 import { enteredCredentialProblem } from '#domain/prerequisites';
-import { CommandFault } from '#kernel/faults';
 import { rememberSecret } from '#kernel/redaction';
 
 import type { CommandOptions } from '#application/contracts';
@@ -25,6 +24,12 @@ interface PromptContext {
 
 interface ActivePromptContext extends PromptContext {
   interaction: Interaction;
+}
+
+/** consent context for an entered provider credential */
+interface RetainEnteredProviderTokenContext {
+  interaction?: Interaction;
+  options: CommandOptions;
 }
 
 /** the named inputs of retain management credential */
@@ -126,18 +131,7 @@ async function promptPublicInputs(
     input.name ??= await interaction.input({
       message: 'Workstation name',
       required: true,
-      validate: (name) => {
-        try {
-          validateMachineName(name);
-        } catch (error) {
-          if (error instanceof CommandFault) {
-            return error.message;
-          }
-          throw error;
-        }
-
-        return undefined;
-      },
+      validate: machineNameProblem,
     });
   }
   const network = networkDriver(
@@ -185,7 +179,11 @@ async function promptSecrets(
       description: `It needs ${credential.scope}. ${credential.obtain}`,
       required: true,
       validate: (value) =>
-        enteredCredentialProblem(dependencies.registry, provider, value),
+        enteredCredentialProblem({
+          declarations: dependencies.registry,
+          provider,
+          token: value,
+        }),
     });
     rememberSecret(input.providerToken);
     // saved only after the provider accepts it; see retainEnteredProviderToken
@@ -232,7 +230,7 @@ interface RetainPromptedCredentialParams {
 }
 
 /**
- * Records a prompted secret and its consented local storage outcome.
+ * records a prompted secret and its consented local storage outcome
  * @param dependencies what this computer provides
  * @param params the call's inputs: input, credential, context
  */
@@ -271,7 +269,7 @@ async function retainPromptedCredential(
 export async function retainEnteredProviderToken(
   dependencies: Pick<ApplicationDependencies, 'registry' | 'host'>,
   input: ResolvedInputs,
-  context: { interaction?: Interaction; options: CommandOptions },
+  context: RetainEnteredProviderTokenContext,
 ): Promise<void> {
   const { interaction, options } = context;
   if (!input.isProviderTokenEntered || !interaction || options.nonInteractive) {

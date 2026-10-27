@@ -13,7 +13,7 @@ import { defaultProfile } from '#domain/profile';
 import { driveInk } from '../../fixtures/ink';
 import { dependencies } from '../../mocks/dependencies';
 
-describe('workflow:input source resolution', () => {
+describe('input source resolution', () => {
   it('should preserve the recorded and default selections under --yes without inventing features', async () => {
     const recorded = defaultProfile(defaults, 'tailscale');
     const sources = { processEnv: {}, fileEnv: {}, profile: {} };

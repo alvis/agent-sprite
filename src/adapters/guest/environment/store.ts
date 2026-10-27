@@ -86,7 +86,10 @@ async function writeGuestEnvironment(
   guest: GuestChannel,
   environment: GuestEnvironment,
 ): Promise<void> {
-  const validation = validateProfile(declarations, environment.profile);
+  const validation = validateProfile({
+    declarations,
+    candidate: environment.profile,
+  });
   if (!validation.isValid) {
     throw new CommandFault({
       code: 'INPUT',

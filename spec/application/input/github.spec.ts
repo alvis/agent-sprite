@@ -20,7 +20,7 @@ const resolverChild = fileURLToPath(
 );
 const emptySources = { processEnv: {}, fileEnv: {}, profile: {} };
 
-/** Builds a disposable trusted HTTPS GitHub Enterprise endpoint. */
+/** builds a disposable trusted HTTPS GitHub Enterprise endpoint. */
 async function githubServer() {
   const directory = await mkdtempDisposable(
     join(tmpdir(), 'open-agent-github-https-'),
@@ -118,7 +118,7 @@ async function githubServer() {
 }
 
 /**
- * Captures the actual source resolver's stdout and stderr in a bounded child.
+ * captures the actual source resolver's stdout and stderr in a bounded child.
  * @param endpoint disposable HTTPS server and certificate
  * @param cases source resolver calls to execute
  * @param environment isolated child process environment

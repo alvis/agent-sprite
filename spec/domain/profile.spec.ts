@@ -20,8 +20,10 @@ import type {
 import type { ProfileCandidate } from '#domain/profile';
 
 // fixture catalog adding an acp-adapter agent and a harness with an adapter
-vi.mock('#composition/registry', () => {
-  const sprite: ProviderDeclaration = {
+vi.mock('#composition/registry', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('#composition/registry')>();
+  const sprite: ProviderDeclaration<'sprite'> = {
     id: 'sprite',
     kind: 'providers',
     displayName: 'Sprite',
@@ -65,7 +67,7 @@ vi.mock('#composition/registry', () => {
     images: [{ id: 'fixture', family: 'debian', arch: ['x86_64'] }],
     serviceBackend: 'provider',
   };
-  const claude: HarnessDeclaration = {
+  const claude: HarnessDeclaration<'claude'> = {
     id: 'claude',
     kind: 'harnesses',
     displayName: 'Claude Code',
@@ -87,7 +89,7 @@ vi.mock('#composition/registry', () => {
       launch: { program: 'claude-acp', arguments: [] },
     },
   };
-  const codex: HarnessDeclaration = {
+  const codex: HarnessDeclaration<'codex'> = {
     id: 'codex',
     kind: 'harnesses',
     displayName: 'Codex',
@@ -95,7 +97,7 @@ vi.mock('#composition/registry', () => {
     spawnEnvironment: {},
     reservedEnvironment: [],
   };
-  const t3: AgentDeclaration = {
+  const t3: AgentDeclaration<'t3', 'claude' | 'codex'> = {
     id: 't3',
     kind: 'agents',
     displayName: 'T3 Code',
@@ -110,7 +112,7 @@ vi.mock('#composition/registry', () => {
       needs: [],
     },
   };
-  const relay: AgentDeclaration = {
+  const relay: AgentDeclaration<'relay', 'claude' | 'codex'> = {
     id: 'relay',
     kind: 'agents',
     displayName: 'Relay',
@@ -125,20 +127,20 @@ vi.mock('#composition/registry', () => {
       needs: [],
     },
   };
-  const none: NetworkDeclaration = {
+  const none: NetworkDeclaration<'none'> = {
     id: 'none',
     kind: 'networks',
     displayName: 'None',
     supportsExitNode: false,
   };
-  const tailscale: NetworkDeclaration = {
+  const tailscale: NetworkDeclaration<'tailscale'> = {
     id: 'tailscale',
     kind: 'networks',
     displayName: 'Tailscale',
     supportsExitNode: true,
   };
 
-  const cliproxyapi: GatewayDeclaration = {
+  const cliproxyapi: GatewayDeclaration<'cliproxyapi'> = {
     id: 'cliproxyapi',
     kind: 'gateways',
     displayName: 'CLIProxyAPI',
@@ -157,15 +159,39 @@ vi.mock('#composition/registry', () => {
     },
   };
 
-  return {
-    registry: {
-      gateways: { cliproxyapi },
-      providers: { sprite },
-      harnesses: { claude, codex },
-      agents: { t3, relay },
-      networks: { none, tailscale },
+  const mockedRegistry = {
+    ...original.registry,
+    gateways: {
+      ...original.registry.gateways,
+      cliproxyapi: {
+        ...original.registry.gateways.cliproxyapi,
+        ...cliproxyapi,
+      },
+    },
+    providers: {
+      ...original.registry.providers,
+      sprite: { ...original.registry.providers.sprite, ...sprite },
+    },
+    harnesses: {
+      ...original.registry.harnesses,
+      claude: { ...original.registry.harnesses.claude, ...claude },
+      codex: { ...original.registry.harnesses.codex, ...codex },
+    },
+    agents: {
+      ...original.registry.agents,
+      t3: { ...original.registry.agents.t3, ...t3 },
+      relay,
+    },
+    networks: {
+      ...original.registry.networks,
+      none: { ...original.registry.networks.none, ...none },
+      tailscale: { ...original.registry.networks.tailscale, ...tailscale },
     },
   };
+
+  return { registry: mockedRegistry } satisfies Partial<
+    typeof import('#composition/registry')
+  >;
 });
 
 const valid: ProfileCandidate = {
@@ -186,11 +212,11 @@ function violationCodes(
   candidate: Partial<ProfileCandidate>,
   isPairingRequested = false,
 ): string[] {
-  const result = validateProfile(
-    registry,
-    { ...valid, ...candidate },
-    { isPairingRequested },
-  );
+  const result = validateProfile({
+    declarations: registry,
+    candidate: { ...valid, ...candidate },
+    options: { isPairingRequested },
+  });
 
   return result.isValid ? [] : result.violations.map(({ code }) => code);
 }
@@ -217,6 +243,22 @@ describe('fn:defaultProfile', () => {
 });
 
 describe('fn:registeredSummary', () => {
+  it('should retain registered ids and discard unrecognized harnesses from a provider record', () => {
+    const summary = registeredSummary(registry, {
+      provider: 'sprite',
+      agent: 't3',
+      harnesses: ['unknown-harness', 'claude'],
+      network: 'none',
+    });
+
+    expect(summary).toEqual({
+      provider: 'sprite',
+      agent: 't3',
+      harnesses: ['claude'],
+      network: 'none',
+    });
+  });
+
   it.each([
     {
       reason: 'the provider record is absent',
@@ -264,6 +306,28 @@ describe('fn:registeredSummary', () => {
 });
 
 describe('fn:validateProfile', () => {
+  it('should identify the proxy flag and environment when no selected harness supports proxy routing', () => {
+    expect(
+      validateProfile({
+        declarations: registry,
+        candidate: {
+          ...valid,
+          harnesses: ['codex'],
+          options: { ...valid.options, isProxyEnabled: true },
+        },
+      }),
+    ).toEqual({
+      isValid: false,
+      violations: [
+        {
+          code: 'undeclared-capability',
+          fields: ['harnesses', 'isProxyEnabled'],
+          message: expect.stringMatching(/--proxy.*CLIPROXYAPI_ENABLED/),
+        },
+      ],
+    });
+  });
+
   it('should accept the default profile and an idle timeout of 0', () => {
     expect(violationCodes({})).toEqual([]);
     expect(
@@ -280,9 +344,9 @@ describe('fn:validateProfile', () => {
 
     expect(violationCodes({ options })).toEqual([]);
     expect(
-      validateProfile(registry, {
-        ...valid,
-        options: { ...options, minCpus: 9 },
+      validateProfile({
+        declarations: registry,
+        candidate: { ...valid, options: { ...options, minCpus: 9 } },
       }),
     ).toMatchObject({
       isValid: false,
@@ -297,10 +361,56 @@ describe('fn:validateProfile', () => {
     });
   });
 
+  it('should accept Fly’s largest offered size and reject higher CPU and memory minimums', () => {
+    const largest = validateProfile({
+      declarations: registry,
+      candidate: {
+        ...valid,
+        provider: 'fly-machine',
+        options: { ...valid.options, minCpus: 16, minMemoryGb: 128 },
+      },
+    });
+    const tooLarge = validateProfile({
+      declarations: registry,
+      candidate: {
+        ...valid,
+        provider: 'fly-machine',
+        options: { ...valid.options, minCpus: 17, minMemoryGb: 129 },
+      },
+    });
+
+    expect(largest).toMatchObject({ isValid: true });
+    expect(tooLarge).toMatchObject({
+      isValid: false,
+      violations: [
+        {
+          code: 'undeclared-capability',
+          fields: ['provider', 'minCpus', 'minMemoryGb'],
+        },
+      ],
+    });
+  });
+
+  it('should reject a fractional CPU minimum without reporting an unavailable machine', () => {
+    const result = validateProfile({
+      declarations: registry,
+      candidate: {
+        ...valid,
+        options: { ...valid.options, minCpus: 2.5 },
+      },
+    });
+
+    expect(result).toMatchObject({
+      isValid: false,
+      violations: [{ code: 'invalid-option', fields: ['minCpus'] }],
+    });
+  });
+
   it.each([
     ['zero harnesses', { harnesses: [] }, ['no-harness']],
     ['an unknown harness', { harnesses: ['aider'] }, ['unknown-driver']],
     ['an unknown provider', { provider: 'ec2' }, ['unknown-driver']],
+    ['an unknown agent', { agent: 'unregistered-agent' }, ['unknown-driver']],
     [
       'a repeated harness',
       { harnesses: ['claude', 'claude'] },
@@ -350,14 +460,6 @@ describe('fn:validateProfile', () => {
       ['invalid-option'],
     ],
     [
-      'proxy routing without a proxy-capable harness',
-      {
-        harnesses: ['codex'],
-        options: { ...valid.options, isProxyEnabled: true },
-      },
-      ['undeclared-capability'],
-    ],
-    [
       'an acp-adapter agent with a harness lacking an adapter',
       { agent: 'relay' },
       ['missing-acp-adapter'],
@@ -384,7 +486,10 @@ describe('fn:validateProfile', () => {
 
       expect(violationCodes({ options: options(cap) })).toEqual([]);
       expect(
-        validateProfile(registry, { ...valid, options: options(above) }),
+        validateProfile({
+          declarations: registry,
+          candidate: { ...valid, options: options(above) },
+        }),
       ).toMatchObject({
         isValid: false,
         violations: [
@@ -435,10 +540,56 @@ describe('fn:validateProfile', () => {
 });
 
 describe('fn:parseProfile', () => {
+  it('should accept a complete decoded profile with an optional release channel', () => {
+    const value = {
+      ...valid,
+      options: { ...valid.options, agentRelease: 'stable' },
+    };
+
+    expect(parseProfile({ declarations: registry, value })).toEqual({
+      isValid: true,
+      profile: value,
+    });
+  });
+
   it('should reject a stored value without the profile structure', () => {
-    expect(parseProfile(registry, { provider: 'sprite' })).toEqual({
+    expect(
+      parseProfile({ declarations: registry, value: { provider: 'sprite' } }),
+    ).toEqual({
       isValid: false,
       violations: [expect.objectContaining({ code: 'malformed' })],
+    });
+  });
+
+  it.each([
+    { field: 'provider', value: { ...valid, provider: 7 } },
+    { field: 'agent', value: { ...valid, agent: 7 } },
+    { field: 'harness list', value: { ...valid, harnesses: 'claude' } },
+    { field: 'harness entry', value: { ...valid, harnesses: ['claude', 7] } },
+    { field: 'network', value: { ...valid, network: false } },
+    {
+      field: 'exit-node option',
+      value: {
+        ...valid,
+        options: { ...valid.options, isExitNodeEnabled: 'yes' },
+      },
+    },
+    {
+      field: 'proxy option',
+      value: { ...valid, options: { ...valid.options, isProxyEnabled: 'yes' } },
+    },
+    {
+      field: 'numeric option',
+      value: { ...valid, options: { ...valid.options, minCpus: 'many' } },
+    },
+    {
+      field: 'optional release channel',
+      value: { ...valid, options: { ...valid.options, agentRelease: 7 } },
+    },
+  ])('should reject a stored profile with malformed $field', ({ value }) => {
+    expect(parseProfile({ declarations: registry, value })).toMatchObject({
+      isValid: false,
+      violations: [{ code: 'malformed' }],
     });
   });
 });

@@ -108,7 +108,10 @@ function supportedHarnesses(
   dependencies: Pick<ApplicationDependencies, 'registry'>,
   agent: string,
 ): HarnessId[] {
-  return isDriverId(dependencies.registry, 'agents', agent)
+  return isDriverId(agent, {
+    declarations: dependencies.registry,
+    kind: 'agents',
+  })
     ? harnessIds().filter((id) =>
         dependencies.registry.agents[agent].supportedHarnesses.includes(id),
       )
