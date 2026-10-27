@@ -85,7 +85,7 @@ async function attemptStep(
         throw error;
       }
       await slot.lose();
-      const reason = error instanceof Error ? error.message : String(error);
+      const reason = error.message;
       if (step.retry === 'never' || attempt >= attempts) {
         return { step, status: 'failed', attempts: attempt, reason };
       }
@@ -124,15 +124,11 @@ class SessionSlot {
     await this.close();
   }
 
-  /** closes the open session, ignoring a failure to close one already lost */
+  /** closes the open session */
   public async close(): Promise<void> {
     const session = this.#session;
     this.#session = undefined;
-    try {
-      await session?.[Symbol.asyncDispose]();
-    } catch {
-      // a session already lost has nothing left to close
-    }
+    await session?.[Symbol.asyncDispose]();
   }
 }
 

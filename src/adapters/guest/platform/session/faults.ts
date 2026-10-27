@@ -22,6 +22,6 @@ export class SessionTransportFault extends ProviderFault {
  * @param error the failure
  * @returns true when the session or the connection to the guest broke
  */
-export function isTransportFault(error: unknown): boolean {
+export function isTransportFault(error: unknown): error is ProviderFault {
   return error instanceof ProviderFault && error.code === 'transient';
 }
