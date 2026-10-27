@@ -9,7 +9,7 @@ import { codex } from '#adapters/drivers/harnesses/codex';
 import {
   codexReadiness,
   inspectCodex,
-} from '#adapters/drivers/harnesses/codex/inspect';
+} from '#adapters/drivers/harnesses/codex/inspection';
 import {
   CODEX_CONFIG,
   CODEX_HOOKS,

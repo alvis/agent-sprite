@@ -4,7 +4,7 @@ import {
   BOOT_STUB_MODE,
   BOOT_STUB_PATH,
   VOLUME_PATH,
-} from './boot-layout';
+} from './boot';
 import { guestOf } from './machines';
 
 import type { OsImage } from '#domain/guest';

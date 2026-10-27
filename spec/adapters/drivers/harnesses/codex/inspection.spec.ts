@@ -7,7 +7,7 @@ import { PassThrough } from 'node:stream';
 import { stringify } from 'smol-toml';
 import { describe, expect, it, vi } from 'vitest';
 
-import { inspectCodex } from '#adapters/drivers/harnesses/codex/inspect';
+import { inspectCodex } from '#adapters/drivers/harnesses/codex/inspection';
 import {
   CODEX_CONFIG,
   CODEX_HOME,

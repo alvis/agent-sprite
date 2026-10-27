@@ -1,7 +1,7 @@
 import { guestAsset } from '#adapters/guest/platform/assets';
 import { ROOT_ONLY_MODE } from '#domain/guest';
 
-import { FLY_VARIABLES } from './boot-layout';
+import { FLY_VARIABLES } from './boot';
 import { PRIVATE_V6_NETWORK, PROXY_V4_NETWORK } from './private-networks';
 
 import type { ProviderCapabilities } from '#domain/declarations';
