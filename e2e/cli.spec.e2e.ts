@@ -134,7 +134,7 @@ async function waitForOutput(
   });
 }
 
-describe('workflow:installed CLI', () => {
+describe('installed CLI', () => {
   it.each(
     [
       'color',
@@ -1757,15 +1757,13 @@ describe('workflow:installed CLI', () => {
     const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
-      const state = { emitted: false, command: 'show', errors: [] };
       const result = { command: 'show', ok: false, error: {
         code: 'PROVIDER', get message() { throw new Error('unreadable'); },
         machine: 'retained',
         machineId: 'sprite-retained', setupIncomplete: true,
         outcome: 'unknown', details: ['Inspect retained machine']
       } };
-      emitResult(result, { json: true }, state);
-      emitResult(result, { json: true }, state);
+      emitResult(result, { json: true });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(execPath, ['--input-type=module', '-e', source], {
@@ -1805,7 +1803,7 @@ describe('workflow:installed CLI', () => {
       emitResult({ command: 'create', ok: true, data: {
         machine: { name: 'retained-created', id: 'sprite-created' },
         preflight: { checks: cyclic, reminders: [] },
-      } }, { json: true }, { emitted: false, command: 'create', errors: [] });
+      } }, { json: true });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(execPath, ['--input-type=module', '-e', source], {
@@ -1843,7 +1841,7 @@ describe('workflow:installed CLI', () => {
         machine: { name: 'deleted-machine', id: 'sprite-deleted' },
         workstation: { status: 'deleted', id: 'sprite-deleted', name: 'deleted-machine' },
         network: { status: 'cleanup required', deviceId: cyclic },
-      } }, { json: true }, { emitted: false, command: 'terminate', errors: [] });
+      } }, { json: true });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(execPath, ['--input-type=module', '-e', source], {
@@ -1881,10 +1879,8 @@ describe('workflow:installed CLI', () => {
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
       const localCredential = { status: 'replaced', scope: 'this computer; all workstations', fallbackReason: cyclic };
-      emitResult({ command: 'setup', ok: true, data: { localCredential } },
-        { json: true }, { emitted: false, command: 'setup', errors: [] });
-      emitResult({ command: 'list', ok: true, data: { machines: [{ name: 'listed', newerRelease: cyclic }] } },
-        { json: true }, { emitted: false, command: 'list', errors: [] });
+      emitResult({ command: 'setup', ok: true, data: { localCredential } }, { json: true });
+      emitResult({ command: 'list', ok: true, data: { machines: [{ name: 'listed', newerRelease: cyclic }] } }, { json: true });
     `;
     const result = await withIsolatedCli(async (cwd, env) =>
       execa(execPath, ['--input-type=module', '-e', source], {
@@ -1922,12 +1918,11 @@ describe('workflow:installed CLI', () => {
       let writeErrors = 0;
       process.stdout.on('error', () => { writeErrors += 1; });
       process.stdin.once('data', () => {
-        const state = { emitted: false, command: 'show', errors: [] };
         emitResult({ command: 'show', ok: false, error: {
           code: 'PROVIDER', message: 'provider failed', machine: 'known-machine'
-        } }, { json: true }, state);
+        } }, { json: true });
         setTimeout(() => process.stderr.write(JSON.stringify({
-          emitted: state.emitted, exitCode: process.exitCode, writeErrors
+          exitCode: process.exitCode, writeErrors
         }) + '\\n'), 30);
       });
     `;
@@ -1951,7 +1946,6 @@ describe('workflow:installed CLI', () => {
 
     expect(result.exitCode).toBe(1);
     expect(JSON.parse(result.diagnostic)).toEqual({
-      emitted: true,
       exitCode: 1,
       writeErrors: 1,
     });

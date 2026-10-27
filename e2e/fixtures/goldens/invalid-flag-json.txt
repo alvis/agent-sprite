@@ -1,8 +1,0 @@
-args: list --no-such-flag --json
-exit-code: 2
-stdout-length: 122
-stderr-length: 0
-=== stdout ===
-{"schemaVersion":1,"command":"list","ok":false,"error":{"code":"USAGE","message":"No flag registered for --no-such-flag"}}
-=== stderr ===
-

@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 246
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"show","ok":false,"error":{"code":"CONFLICT","message":"The CONFLICT failure message","machine":"primary","machineId":"sprite-primary","setupIncomplete":false,"details":["CONFLICT detail one","CONFLICT detail two"]}}
-
-=== notes ===
-

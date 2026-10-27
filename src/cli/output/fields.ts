@@ -13,8 +13,8 @@ export function projectFields<T extends object, V>(
   value: T,
   map: FieldProjectors<T>,
 ): V {
-  const projectors = new Map<string, (field: never) => unknown>(
-    Object.entries<(field: never) => unknown>(map),
+  const projectors = new Map<string, (field: unknown) => unknown>(
+    Object.entries(map),
   );
   const entries: Array<[string, unknown]> = [];
   for (const [key, field] of Object.entries(value)) {
@@ -22,7 +22,7 @@ export function projectFields<T extends object, V>(
     if (project === undefined || field === undefined) {
       continue;
     }
-    const projected = project(field as never);
+    const projected = project(field);
     if (projected !== undefined) {
       entries.push([key, projected]);
     }
@@ -48,13 +48,18 @@ export function same<T>(value: T): T {
  */
 export function each<T, V>(
   project: (item: T) => V,
-): (items: readonly T[]) => V[] {
+): (items: ReadonlyArray<T | null | undefined>) => Array<V | null | undefined> {
   return (items) =>
-    items.map((item) =>
-      item === undefined || item === null
-        ? (item as unknown as V)
-        : project(item),
-    );
+    items.map((item): V | null | undefined => {
+      if (item === null) {
+        return null;
+      }
+      if (item === undefined) {
+        return undefined;
+      }
+
+      return project(item);
+    });
 }
 
 /**

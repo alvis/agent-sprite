@@ -117,6 +117,7 @@ export async function cli(argv: string[]): Promise<void> {
     );
     if (!state.emitted && state.errors.length > 0) {
       const first = state.errors[0]!;
+      state.emitted = true;
       emitResult(
         {
           command: state.command,
@@ -127,9 +128,9 @@ export async function cli(argv: string[]): Promise<void> {
           },
         },
         { json: jsonRequested },
-        state,
       );
     } else if (!state.emitted && !helpRequested && argv.length > 0) {
+      state.emitted = true;
       emitResult(
         {
           command: state.command,
@@ -137,7 +138,6 @@ export async function cli(argv: string[]): Promise<void> {
           error: { code: 'USAGE', message: 'A command is required.' },
         },
         { json: jsonRequested },
-        state,
       );
     }
   } catch {
@@ -152,6 +152,7 @@ export async function cli(argv: string[]): Promise<void> {
  * @param state invocation-local result ownership
  */
 function emitJsonWithHelpFailure(state: ExecutionState): void {
+  state.emitted = true;
   emitResult(
     {
       command: state.command,
@@ -162,7 +163,6 @@ function emitJsonWithHelpFailure(state: ExecutionState): void {
       },
     },
     { json: true },
-    state,
   );
 }
 
@@ -175,6 +175,7 @@ function emitApplicationFailure(
   state: ExecutionState,
   jsonRequested: boolean,
 ): void {
+  state.emitted = true;
   emitResult(
     {
       command: state.command,
@@ -185,6 +186,5 @@ function emitApplicationFailure(
       },
     },
     { json: jsonRequested },
-    state,
   );
 }

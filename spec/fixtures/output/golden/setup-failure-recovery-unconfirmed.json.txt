@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 175
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"setup","ok":false,"error":{"code":"PROVIDER","message":"Could not label the workstation"},"data":{"recovery":{"incompleteLabel":"unconfirmed"}}}
-
-=== notes ===
-

@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 125
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"doctor","ok":false,"error":{"code":"INPUT","message":"Workstation \"missing\" was not found"}}
-
-=== notes ===
-

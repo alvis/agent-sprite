@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 444
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"list","ok":true,"data":{"machines":[{"id":"sprite-alpha","name":"alpha","organization":"example","state":"running","setup":"ready","readiness":"not inspected","provider":"sprite"}],"unavailable":[{"provider":"fly-machine","code":"INPUT","reason":"workstation status unknown, no Fly organization token was found; supply one in FLY_API_TOKEN"},{"provider":"sprite","code":"AUTH","reason":"the token was revoked"}]}}
-
-=== notes ===
-

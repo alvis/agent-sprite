@@ -1,8 +1,0 @@
-channel: stdout
-text-length: 843
-notes-length: none
-=== text ===
-{"schemaVersion":1,"command":"list","ok":true,"data":{"unavailable":[],"machines":[{"id":"sprite-alpha","name":"alpha","organization":"org-one","state":"running","setup":"ready","readiness":"not inspected","provider":"sprite","createdAt":"2026-10-09T12:00:00.000Z","agentUrl":"https://alpha.sprites.app/"},{"id":"sprite-beta","name":"beta","organization":"org-two","state":"cold","setup":"not recorded","readiness":"not inspected","provider":"sprite"},{"id":"3d8d7e1f5a2e18","name":"atlas","organization":"personal","createdAt":"2026-10-12T08:30:00.000Z","state":"started","machine":{"label":"shared-cpu-2x","cpus":2,"memoryGb":4},"agentUrl":"https://atlas.fly.dev/","setup":"ready","profile":{"provider":"fly-machine","agent":"t3","harnesses":["claude","codex"],"network":"tailscale"},"readiness":"not inspected","provider":"fly-machine"}]}}
-
-=== notes ===
-

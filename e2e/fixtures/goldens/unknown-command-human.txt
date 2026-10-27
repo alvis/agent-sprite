@@ -1,8 +1,0 @@
-args: no-such-command
-exit-code: 2
-stdout-length: 0
-stderr-length: 43
-=== stdout ===
-
-=== stderr ===
-No command registered for `no-such-command`

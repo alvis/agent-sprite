@@ -17,7 +17,7 @@ import {
   resolvePluginActions,
 } from '#application/plugins';
 import { resultExitCode } from '#cli/exit';
-import { writeResult } from '#cli/output';
+import { prepareResult, writePreparedResult } from '#cli/output';
 
 import { CommandFault } from '#kernel/faults';
 import { OperationContext, withOperation } from '#kernel/operation';
@@ -175,7 +175,14 @@ function captureResult(
     err += chunk.toString();
   });
   try {
-    writeResult(result, options, { stdout, stderr });
+    writePreparedResult(
+      prepareResult({
+        result,
+        options,
+        streams: { stdout, stderr },
+      }),
+      { stdout, stderr },
+    );
   } finally {
     stdout.destroy();
     stderr.destroy();
