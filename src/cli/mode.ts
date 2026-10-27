@@ -18,30 +18,6 @@ interface InteractionMode {
 }
 
 /**
- * identifies explicit automation values while excluding unset or false values
- * @param value environment setting
- * @returns whether the setting requests automation
- */
-function isTruthyEnvironmentValue(value: string | undefined): boolean {
-  return /^(1|true|yes|on)$/i.test(value?.trim() ?? '');
-}
-
-/**
- * resolves the prompt mode once, independently of color settings
- * @param options parsed mode flags
- * @param options.nonInteractive explicit automation flag
- * @param options.json structured-output flag
- * @param facts terminal and environment facts
- * @returns whether prompts are disabled
- */
-export function isNonInteractive(
-  options: { nonInteractive?: boolean; json?: boolean },
-  facts: TerminalFacts,
-): boolean {
-  return resolveInteractionMode(options, facts).nonInteractive;
-}
-
-/**
  * preserves automation precedence and identifies an implicit prompt blocker
  * @param options parsed mode flags
  * @param options.nonInteractive explicit automation flag
@@ -69,25 +45,6 @@ export function resolveInteractionMode(
 }
 
 /**
- * selects the first real terminal limitation without blaming automation flags
- * @param facts current stream and terminal capabilities
- * @returns non-secret reason a prompt cannot open
- */
-function terminalBlocker(facts: TerminalFacts): string | undefined {
-  if (facts.env.TERM === 'dumb') {
-    return 'TERM is dumb';
-  }
-  const requirements: Array<[boolean, string]> = [
-    [facts.stdinIsTTY, 'stdin is not a terminal'],
-    [facts.stdoutIsTTY, 'stdout is not a terminal'],
-    [facts.stderrIsTTY, 'stderr is not a terminal'],
-    [facts.rawInputAvailable, 'raw terminal input is unavailable'],
-  ];
-
-  return requirements.find(([present]) => !present)?.[1];
-}
-
-/**
  * resolves the CLI process streams and selected environment once per command
  * @param options parsed command controls
  * @param modeEnv effective environment after selected credential-file resolution
@@ -110,4 +67,32 @@ export function resolveProcessExecutionOptions(
     options: { ...options, nonInteractive: mode.nonInteractive },
     promptBlocker: mode.promptBlocker,
   };
+}
+
+/**
+ * identifies explicit automation values while excluding unset or false values
+ * @param value environment setting
+ * @returns whether the setting requests automation
+ */
+function isTruthyEnvironmentValue(value: string | undefined): boolean {
+  return /^(1|true|yes|on)$/i.test(value?.trim() ?? '');
+}
+
+/**
+ * selects the first real terminal limitation without blaming automation flags
+ * @param facts current stream and terminal capabilities
+ * @returns non-secret reason a prompt cannot open
+ */
+function terminalBlocker(facts: TerminalFacts): string | undefined {
+  if (facts.env.TERM === 'dumb') {
+    return 'TERM is dumb';
+  }
+  const requirements: Array<[boolean, string]> = [
+    [facts.stdinIsTTY, 'stdin is not a terminal'],
+    [facts.stdoutIsTTY, 'stdout is not a terminal'],
+    [facts.stderrIsTTY, 'stderr is not a terminal'],
+    [facts.rawInputAvailable, 'raw terminal input is unavailable'],
+  ];
+
+  return requirements.find(([present]) => !present)?.[1];
 }

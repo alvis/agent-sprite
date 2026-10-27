@@ -54,7 +54,10 @@ describe('fn:createInteraction renderer races', () => {
       columns: 80,
       rows: 24,
     });
-    const session = createInteraction(true, { stdin: input, stderr: output });
+    const session = createInteraction({
+      noColor: true,
+      io: { stdin: input, stderr: output },
+    });
     try {
       const first = session.input({ message: 'Retiring prompt' });
       const second = session.input({ message: 'Current prompt' });

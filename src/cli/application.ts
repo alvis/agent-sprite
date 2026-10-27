@@ -110,11 +110,11 @@ export async function cli(argv: string[]): Promise<void> {
     return;
   }
   try {
-    await parseApplication(
-      createApplication(state, dependencies.registry),
+    await parseApplication({
+      application: createApplication(state, dependencies.registry),
       argv,
-      { state, dependencies },
-    );
+      context: { state, dependencies },
+    });
     if (!state.emitted && state.errors.length > 0) {
       const first = state.errors[0]!;
       state.emitted = true;

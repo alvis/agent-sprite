@@ -172,7 +172,7 @@ describe('fn:cli', () => {
   });
 
   it('should leave an already emitted result untouched after a parser throw', async () => {
-    parse.mockImplementationOnce(async (_application, _argv, context) => {
+    parse.mockImplementationOnce(async ({ context }) => {
       context.state.emitted = true;
       throw new Error('late parser failure');
     });

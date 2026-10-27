@@ -11,7 +11,7 @@ export interface InkStep {
 }
 
 /**
- * Drives the production Ink adapter through isolated streams and real key input.
+ * drives the production Ink adapter through isolated streams and real key input
  * @param operation workflow called with the production interaction adapter
  * @param steps prompt and input sequence to drive
  */
@@ -62,7 +62,10 @@ export async function driveInk<T>(
       writeChunk(0);
     }
   });
-  const interaction = createInteraction(true, { stdin: input, stderr: output });
+  const interaction = createInteraction({
+    noColor: true,
+    io: { stdin: input, stderr: output },
+  });
   try {
     const result = await operation(interaction);
 
