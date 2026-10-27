@@ -11,7 +11,7 @@ import {
   SESSION_HELPERS,
 } from './framing';
 import { OS_PROBE_BODY, parseOsProbe } from './os-probe';
-import { ShellSession } from './session';
+import { ShellSession } from './shell';
 
 import type { ProviderDriver } from '#application/ports/drivers';
 import type {

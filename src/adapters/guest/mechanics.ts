@@ -1,6 +1,6 @@
 import { createEnvironmentAccess } from './environment/store';
 import { recordHub } from './hub';
-import { createInspection } from './inspection/inspect';
+import { createInspection } from './inspection';
 import { writeWorkstationLabel } from './label';
 import {
   assertRuntimeEnv,
