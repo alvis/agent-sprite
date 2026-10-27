@@ -1,6 +1,5 @@
 import { sessionAwakeHold } from '#adapters/guest/governor';
 import { OS_FAMILIES } from '#adapters/guest/os/families';
-
 import { sessionGuest } from '#adapters/guest/platform/session/channel';
 import { openWorkstationSession } from '#adapters/guest/platform/session/open';
 import { SERVICE_BACKENDS } from '#adapters/guest/services/backends';
@@ -41,7 +40,6 @@ export class SetupConnection implements SetupSession {
   /**
    * what the guest reported about its OS when the session opened
    * @returns the OS release the guest probe reported
-   * @throws {Error} before the session opened
    */
   public get release(): OsRelease {
     return this.#current().release;
@@ -50,7 +48,6 @@ export class SetupConnection implements SetupSession {
   /**
    * process id of the session's shell on the guest
    * @returns process id of the root shell on the guest
-   * @throws {Error} before the session opened
    */
   public get pid(): number {
     return this.#current().pid;
@@ -67,7 +64,7 @@ export class SetupConnection implements SetupSession {
       workstation: this.#workstation,
       family: OS_FAMILIES[this.#provider.images[0].family],
       awakeHold: sessionAwakeHold,
-      ...(supersedes === undefined ? {} : { supersedes }),
+      supersedes,
     });
 
     return this.#session;
@@ -93,15 +90,11 @@ export class SetupConnection implements SetupSession {
     return (await this.open()).run(command);
   }
 
-  /** closes the open session, ignoring one already lost */
+  /** closes the open session */
   public async close(): Promise<void> {
     const session = this.#session;
     this.#session = undefined;
-    try {
-      await session?.[Symbol.asyncDispose]();
-    } catch {
-      // a session already lost has nothing left to close
-    }
+    await session?.[Symbol.asyncDispose]();
   }
 
   /** closes the open session */
