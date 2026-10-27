@@ -30,13 +30,18 @@ import {
   guestOf,
 } from '../../../../mocks/sprites';
 
-import type { ProxyRoute } from '#application/ports/drivers';
 import type { GuestChannel } from '#application/ports/guest-channel';
 
 // Codex trusts its hooks through its app server, a guest process only the live specs run
-vi.mock('#adapters/drivers/harnesses/codex/hook-trust', () => ({
-  trustCodexHooks: vi.fn(async () => undefined),
-}));
+vi.mock(
+  '#adapters/drivers/harnesses/codex/hook-trust',
+  () =>
+    ({
+      trustCodexHooks: vi.fn(async () => undefined),
+    }) satisfies Partial<
+      typeof import('#adapters/drivers/harnesses/codex/hook-trust')
+    >,
+);
 
 /**
  * applies native configuration and work hooks the way the workstation does
@@ -46,7 +51,7 @@ vi.mock('#adapters/drivers/harnesses/codex/hook-trust', () => ({
  */
 async function configureCodex(
   guest: GuestChannel,
-  params: { proxy?: ProxyRoute },
+  params: Pick<Parameters<typeof configureHarnesses>[1], 'proxy'>,
 ): Promise<void> {
   await configureHarnesses(guest, {
     drivers: [codex],
@@ -56,7 +61,7 @@ async function configureCodex(
   });
 }
 
-describe('driver:codex native configuration', () => {
+describe('Codex native configuration', () => {
   it('should preserve unrelated TOML tables and native hooks while configuring the supported Responses provider', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-codex-'),

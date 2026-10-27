@@ -87,13 +87,12 @@ function claudeConfiguration(evidence: {
   const isProxyConfigured =
     typeof env.ANTHROPIC_BASE_URL === 'string' &&
     typeof env.ANTHROPIC_AUTH_TOKEN === 'string';
-  let authentication: NativeHarnessInspection['authentication'] =
-    'not-configured';
-  if (isProxyConfigured) {
-    authentication = 'managed-proxy';
-  } else if (authenticated) {
-    authentication = 'native';
-  }
+  const authentication: NativeHarnessInspection['authentication'] =
+    isProxyConfigured
+      ? 'managed-proxy'
+      : authenticated
+        ? 'native'
+        : 'not-configured';
 
   return {
     gatewayConfigured: isProxyConfigured,

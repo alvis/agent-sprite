@@ -43,7 +43,7 @@ interface GuestSessionParams {
   /** the provider's declared images */
   images: readonly OsImage[];
   /** holds the workstation awake while the session lives; a seam for the idle governor */
-  awakeHold?: SessionAwakeHold;
+  awakeHold: SessionAwakeHold;
   /** pid of a lost session of this host whose shell and command this one ends */
   supersedes?: number;
 }
@@ -121,9 +121,7 @@ async function openGuestSession(
       OPEN_LIMIT_MS + LOCK_WAIT_SECONDS * MILLISECONDS_PER_SECOND,
     );
     session.start(release, openedPid(opened));
-    if (awakeHold) {
-      await session.holdAwake(awakeHold);
-    }
+    await session.holdAwake(awakeHold);
 
     return session;
   } catch (error) {

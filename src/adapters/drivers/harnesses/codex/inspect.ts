@@ -101,13 +101,12 @@ function codexConfiguration(evidence: {
     settings.model_provider === 'cliproxyapi' &&
     proxy.wire_api === 'responses' &&
     typeof proxy.base_url === 'string';
-  let authentication: NativeHarnessInspection['authentication'] =
-    'not-configured';
-  if (isProxyConfigured) {
-    authentication = 'managed-proxy';
-  } else if (authenticated) {
-    authentication = 'native';
-  }
+  const authentication: NativeHarnessInspection['authentication'] =
+    isProxyConfigured
+      ? 'managed-proxy'
+      : authenticated
+        ? 'native'
+        : 'not-configured';
 
   return {
     gatewayConfigured: isProxyConfigured,

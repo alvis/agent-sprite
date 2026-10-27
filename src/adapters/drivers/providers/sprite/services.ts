@@ -245,8 +245,8 @@ function sameServiceDefinition(
 ): boolean {
   return (
     existing.cmd === requested.cmd &&
-    JSON.stringify(existing.args) === JSON.stringify(requested.args ?? []) &&
-    JSON.stringify(existing.needs) === JSON.stringify(requested.needs ?? []) &&
+    JSON.stringify(existing.args) === JSON.stringify(requested.args) &&
+    JSON.stringify(existing.needs) === JSON.stringify(requested.needs) &&
     existing.httpPort === requested.httpPort
   );
 }

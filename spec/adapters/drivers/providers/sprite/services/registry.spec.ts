@@ -41,7 +41,7 @@ type RegistryReply =
   { status: number; body: string } | { kind: 'abort' | 'hold' };
 
 /**
- * Serves real registry bytes to the host reader over a local SDK endpoint.
+ * serves real registry bytes to the host reader over a local SDK endpoint
  * @param reply HTTP response or transport failure to expose
  * @returns disposable server, generated token, and observed requests
  */
@@ -162,28 +162,25 @@ describe('mt:SpriteServiceControl.list private cause boundary', () => {
       const stdout = new PassThrough();
       const stderr = new PassThrough();
       let out = '';
-      let err = '';
+      let errorOutput = '';
       stdout.on('data', (chunk: Buffer) => {
         out += chunk.toString();
       });
       stderr.on('data', (chunk: Buffer) => {
-        err += chunk.toString();
+        errorOutput += chunk.toString();
       });
       try {
+        const streams = { stdout, stderr };
         writePreparedResult(
-          prepareResult({
-            result,
-            options: { json },
-            streams: { stdout, stderr },
-          }),
-          { stdout, stderr },
+          prepareResult({ result, options: { json }, streams }),
+          streams,
         );
-        const output = json ? out : err;
+        const output = json ? out : errorOutput;
         expect(output).toContain('Service registry response could not be read');
         expect(output).not.toContain('PRIVATE_PR');
         expect(output).not.toContain(registry.token);
         if (json) {
-          expect(err).toBe('');
+          expect(errorOutput).toBe('');
           expect(JSON.parse(output)).toMatchObject({
             error: { code: 'PROVIDER' },
           });
