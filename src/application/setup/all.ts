@@ -44,13 +44,14 @@ export async function setupAll(
     stage: 'tools',
     message: 'Installing the guest environment and managed developer tools',
   });
-  const sections: { configured?: Omit<AllSetupData, 'tools'> } = {};
+  const configured = Promise.withResolvers<Omit<AllSetupData, 'tools'>>();
   await installSetupPlan(dependencies, context, async () => {
     // a workstation whose create stopped short has no name recorded yet
     await dependencies.guest.label.write(guest, context.workstation.name);
-    sections.configured = await traceStage(
-      'setup.native.configuration',
-      async () => configureSections(dependencies, guest, context),
+    configured.resolve(
+      await traceStage('setup.native.configuration', async () =>
+        configureSections(dependencies, guest, context),
+      ),
     );
     if (context.isReleaseChanged) {
       // stopped only once every section is configured, so a section that
@@ -62,10 +63,6 @@ export async function setupAll(
       );
     }
   });
-  const { configured } = sections;
-  if (!configured) {
-    throw new Error('Setup ran no section before the services started');
-  }
   await exposeWhenServing(dependencies, guest, context);
   await markInstallationReady(dependencies.guest, guest);
   // the release was switched by the plan, not by pairing
@@ -76,7 +73,7 @@ export async function setupAll(
       })
     : undefined;
 
-  return { tools: 'updated', ...configured, ...agent };
+  return { tools: 'updated', ...(await configured.promise), ...agent };
 }
 
 /**

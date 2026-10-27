@@ -7,18 +7,11 @@ import { DISABLED_NETWORK_PROFILE } from '../../fixtures/profile';
 
 import { dependencies } from '../../mocks/dependencies';
 
+import type { RegisteredNetwork } from '#application/catalog/networks';
+import type { DriverRegistry } from '#application/ports/drivers';
 import type { GuestChannel } from '#application/ports/guest-channel';
 import type { GuestEnvironment } from '#domain/observations/environment';
 import type { NetworkStatus } from '#domain/observations/network';
-
-const status = vi.hoisted(() => ({
-  current: vi.fn<() => Promise<NetworkStatus>>(),
-}));
-
-vi.mock('#application/catalog/networks', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('#application/catalog/networks')>()),
-  networkDriver: () => ({ status: status.current }),
-}));
 
 const guest =
   {} satisfies Partial<GuestChannel> as Partial<GuestChannel> as GuestChannel;
@@ -29,51 +22,81 @@ const target = { isTargeted: true, profile: DISABLED_NETWORK_PROFILE };
 
 describe('fn:isNetworkEnrolled', () => {
   it('should not treat a recorded device as enrolment when the live daemon reports none', async () => {
-    status.current.mockResolvedValueOnce({ online: false, skipped: false });
+    const registry = registryWithStatus({ online: false, skipped: false });
 
     expect(
-      await isNetworkEnrolled(dependencies, {
-        guest,
-        environment: recorded,
-        target,
-      }),
+      await isNetworkEnrolled(
+        { registry },
+        {
+          guest,
+          environment: recorded,
+          target,
+        },
+      ),
     ).toBe(false);
   });
 
   it('should report enrolment from the live daemon identity even when none is recorded', async () => {
-    status.current.mockResolvedValueOnce({
+    const registry = registryWithStatus({
       online: true,
       skipped: false,
       deviceId: 'nLIVE',
     });
 
     expect(
-      await isNetworkEnrolled(dependencies, {
-        guest,
-        environment: { ...recorded, networkIdentity: undefined },
-        target,
-      }),
+      await isNetworkEnrolled(
+        { registry },
+        {
+          guest,
+          environment: environmentOf(DISABLED_NETWORK_PROFILE),
+          target,
+        },
+      ),
     ).toBe(true);
   });
 
   it('should not ask the guest before initial installation or for an untargeted network', async () => {
-    status.current.mockClear();
+    const registry = registryWithStatus({ online: false, skipped: false });
 
     expect([
-      await isNetworkEnrolled(dependencies, {
-        guest,
-        environment: undefined,
-        target,
-      }),
-      await isNetworkEnrolled(dependencies, {
-        guest,
-        environment: recorded,
-        target: {
-          ...target,
-          isTargeted: false,
+      await isNetworkEnrolled(
+        { registry },
+        {
+          guest,
+          environment: undefined,
+          target,
         },
-      }),
+      ),
+      await isNetworkEnrolled(
+        { registry },
+        {
+          guest,
+          environment: recorded,
+          target: {
+            ...target,
+            isTargeted: false,
+          },
+        },
+      ),
     ]).toEqual([false, false]);
-    expect(status.current).not.toHaveBeenCalled();
+    expect(registry.networks.none.status).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * creates an isolated registry with the requested live network status
+ * @param networkStatus the immutable status returned by the network driver
+ * @returns a registry whose network status mock belongs to one test
+ */
+function registryWithStatus(networkStatus: NetworkStatus): DriverRegistry {
+  return {
+    ...dependencies.registry,
+    networks: {
+      ...dependencies.registry.networks,
+      none: {
+        ...dependencies.registry.networks.none,
+        status: vi.fn<RegisteredNetwork['status']>(async () => networkStatus),
+      } satisfies RegisteredNetwork,
+    },
+  } satisfies DriverRegistry;
+}

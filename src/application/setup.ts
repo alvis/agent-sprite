@@ -39,7 +39,6 @@ import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { ProviderDriver } from '#application/ports/drivers';
 import type { GuestChannel } from '#application/ports/guest-channel';
 import type { Interaction } from '#application/ports/interaction';
-import type { SetupSession } from '#application/ports/session';
 import type { CommandResult } from '#application/result';
 import type { WorkstationRecord } from '#domain/workstation';
 
@@ -156,8 +155,7 @@ async function setupGuestSection(
   dependencies: ApplicationDependencies,
   params: GuestSectionParams,
 ): Promise<CommandResult> {
-  const { section, provider, workstation } = params;
-  const { interaction: nested } = params;
+  const { section, provider, workstation, interaction: nested } = params;
   const connection = dependencies.guest.session.connect({
     provider,
     workstation,
@@ -166,8 +164,14 @@ async function setupGuestSection(
   let current = connection;
   try {
     const { context, guest } = await prepareGuestSection(dependencies, {
-      ...params,
+      provider,
+      supplied: params.supplied,
+      sources: params.sources,
+      workstation,
       connection,
+      section,
+      options: params.request.options,
+      interaction: params.interaction,
       mutation,
     });
     current = context.connection;
@@ -209,39 +213,26 @@ async function setupGuestSection(
     await connection.close();
   }
 }
-
-/** a guest section with the run's root session and mutation record */
-interface PrepareGuestSectionParams extends GuestSectionParams {
-  /** the run's root setup session */
-  connection: SetupSession;
-  /** whether the run has changed the workstation yet */
-  mutation: SetupContext['mutation'];
-}
+/** setup inputs before a guest channel exists */
+type GuestPreparationParams = Omit<
+  Parameters<typeof prepareSetupContext>[1],
+  'guest'
+>;
 
 /**
- * prepares the setup context of a guest section over the run's root session
- * @param dependencies the registered drivers, the profile defaults, the guest mechanics, what this computer provides
- * @param params request, section, provider, prompts, workstation, validated inputs, the root session and the mutation record
- * @returns the context and the guest channel the section runs over
+ * opens the root guest channel and prepares the requested setup section
+ * @param dependencies application facilities
+ * @param params section inputs before a guest channel exists
+ * @returns prepared setup context and guest channel
  */
-async function prepareGuestSection(
+export async function prepareGuestSection(
   dependencies: ApplicationDependencies,
-  params: PrepareGuestSectionParams,
+  params: GuestPreparationParams,
 ): ReturnType<typeof prepareSetupContext> {
-  const { connection, mutation } = params;
-
   return traceStage('setup.preparation', async () =>
     prepareSetupContext(dependencies, {
-      provider: params.provider,
-      supplied: params.supplied,
-      sources: params.sources,
-      workstation: params.workstation,
-      connection,
-      guest: await connection.guest(),
-      section: params.section,
-      options: params.request.options,
-      interaction: params.interaction,
-      mutation,
+      ...params,
+      guest: await params.connection.guest(),
     }),
   );
 }
@@ -329,46 +320,48 @@ async function applySection(
   params: ApplySectionParams,
 ): Promise<AppliedSetupSection> {
   const { guest, section, context } = params;
+  const actions = {
+    agent: async (): Promise<AppliedSetupSection> => ({
+      section: 'agent',
+      ...(await setupAgent(dependencies, guest, context)),
+    }),
+    network: async (): Promise<AppliedSetupSection> => ({
+      section: 'network',
+      ...(await setupNetwork(dependencies, guest, context)),
+    }),
+    github: async (): Promise<AppliedSetupSection> => ({
+      section: 'github',
+      ...(await setupGithub(dependencies, guest, context)),
+    }),
+    git: async (): Promise<AppliedSetupSection> => ({
+      section: 'git',
+      ...(await setupGit(dependencies, guest, context)),
+    }),
+    proxy: async (): Promise<AppliedSetupSection> => ({
+      section: 'proxy',
+      ...(await setupProxy(dependencies, guest, context)),
+    }),
+    env: async (): Promise<AppliedSetupSection> => ({
+      section: 'env',
+      ...(await setupEnvironment(dependencies, guest, context)),
+    }),
+    system: async (): Promise<AppliedSetupSection> => ({
+      section: 'system',
+      ...(await setupSystem(dependencies, guest, context)),
+    }),
+    plugins: async (): Promise<AppliedSetupSection> => ({
+      section: 'plugins',
+      ...(await setupPlugins(dependencies, guest, context)),
+    }),
+    tools: async (): Promise<AppliedSetupSection> => ({
+      section: 'tools',
+      ...(await setupTools(dependencies, guest, context)),
+    }),
+    all: async (): Promise<AppliedSetupSection> => ({
+      section: 'all',
+      ...(await setupAll(dependencies, guest, context)),
+    }),
+  } satisfies Record<SetupSection, () => Promise<AppliedSetupSection>>;
 
-  return traceStage(`setup.${section}`, async () => {
-    switch (section) {
-      case 'agent':
-        return { section, ...(await setupAgent(dependencies, guest, context)) };
-      case 'network':
-        return {
-          section,
-          ...(await setupNetwork(dependencies, guest, context)),
-        };
-      case 'github':
-        return {
-          section,
-          ...(await setupGithub(dependencies, guest, context)),
-        };
-      case 'git':
-        return { section, ...(await setupGit(dependencies, guest, context)) };
-      case 'proxy':
-        return { section, ...(await setupProxy(dependencies, guest, context)) };
-      case 'env':
-        return {
-          section,
-          ...(await setupEnvironment(dependencies, guest, context)),
-        };
-      case 'system':
-        return {
-          section,
-          ...(await setupSystem(dependencies, guest, context)),
-        };
-      case 'plugins':
-        return {
-          section,
-          ...(await setupPlugins(dependencies, guest, context)),
-        };
-      case 'tools':
-        return { section, ...(await setupTools(dependencies, guest, context)) };
-      case 'all':
-        return { section, ...(await setupAll(dependencies, guest, context)) };
-      default:
-        throw new Error(`Unsupported setup section: ${section}`);
-    }
-  });
+  return traceStage(`setup.${section}`, actions[section]);
 }

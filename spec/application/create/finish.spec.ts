@@ -1,6 +1,7 @@
 import { PassThrough } from 'node:stream';
 
 import { Sprite, SpritesClient } from '@fly/sprites';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -9,30 +10,159 @@ import {
   SETUP_INCOMPLETE_LABEL,
   SETUP_READY_LABEL,
 } from '#adapters/drivers/providers/sprite/labels';
+
 import { toRecord } from '#adapters/drivers/providers/sprite/records';
+
+import { configureNewWorkstation } from '#application/create/configure';
+
 import { markCreateIncomplete } from '#application/create/failure';
-import { finalizeCreate } from '#application/create/finish';
+
+import { finalizeCreate, finishCreate } from '#application/create/finish';
+
 import {
   normalizePluginOptions,
   resolvePluginActions,
 } from '#application/plugins';
+
+import { inspectUntilServing } from '#application/serving';
+
 import { resultExitCode } from '#cli/exit';
+
 import { prepareResult, writePreparedResult } from '#cli/output';
 
+import { registry } from '#composition/registry';
+
 import { CommandFault } from '#kernel/faults';
+
 import { OperationContext, withOperation } from '#kernel/operation';
+
 import { rememberSecret } from '#kernel/redaction';
 
 import { environmentOf } from '../../fixtures/environment';
-import { DISABLED_NETWORK_PROFILE } from '../../fixtures/profile';
 
-import { dependencies } from '../../mocks/dependencies';
+import {
+  DISABLED_NETWORK_PROFILE,
+  TAILSCALE_PROFILE,
+} from '../../fixtures/profile';
+
+import { dependencies, dependenciesWith } from '../../mocks/dependencies';
+
 import { guestOf, providerOf } from '../../mocks/sprites';
 
 import type { CommandOptions } from '#application/contracts';
+
 import type { CreateContext } from '#application/create/context';
+
+import type { GuestChannel } from '#application/ports/guest-channel';
+
+import type { Interaction } from '#application/ports/interaction';
+
+import type { SetupSession } from '#application/ports/session';
+
 import type { CommandResult } from '#application/result';
+
 import type { GuestInspection } from '#domain/observations/inspection';
+
+import type { WorkstationRecord } from '#domain/workstation';
+
+vi.mock(
+  '#application/create/configure',
+  async (importOriginal) =>
+    ({
+      ...(await importOriginal<
+        typeof import('#application/create/configure')
+      >()),
+      configureNewWorkstation:
+        vi.fn<
+          typeof import('#application/create/configure').configureNewWorkstation
+        >(),
+    }) satisfies Partial<typeof import('#application/create/configure')>,
+);
+
+vi.mock(
+  '#application/serving',
+  async (importOriginal) =>
+    ({
+      ...(await importOriginal<typeof import('#application/serving')>()),
+      inspectUntilServing:
+        vi.fn<typeof import('#application/serving').inspectUntilServing>(),
+    }) satisfies Partial<typeof import('#application/serving')>,
+);
+
+const WORKSTATION = {
+  id: 'workstation-1',
+  name: 'primary',
+  organization: 'test',
+  state: 'running',
+  url: 'https://primary.example.test/',
+  metadata: { setup: 'incomplete' },
+} satisfies WorkstationRecord;
+
+const CONTEXT = {
+  options: {},
+  input: {
+    name: WORKSTATION.name,
+    providerToken: 'test-token',
+    profile: DISABLED_NETWORK_PROFILE,
+    runtimeEnv: {},
+    sources: {},
+    missing: [],
+  },
+  name: WORKSTATION.name,
+  token: 'test-token',
+  plugins: resolvePluginActions(normalizePluginOptions({})),
+  preflight: { checks: [], reminders: [] },
+  provider: registry.providers.sprite,
+} satisfies CreateContext;
+
+const CHANNEL = {
+  exec: vi.fn(async () => ({ exitCode: 0, stdout: '', stderr: '' })),
+} satisfies Partial<GuestChannel> as Partial<GuestChannel> as GuestChannel;
+
+const OBSERVED = {
+  services: [
+    { name: 't3-code', needs: [], status: 'running' },
+    { name: 'open-agent-cron', needs: [], status: 'running' },
+  ],
+  network: {
+    online: false,
+    dnsReady: false,
+    skipped: true,
+    reason: 'No private network is selected',
+  },
+  native: {
+    claude: {
+      gatewayConfigured: false,
+      modelDiscoveryEnabled: false,
+      pluginListAvailable: false,
+      awakeHooksInstalled: true,
+      authentication: 'not-configured',
+    },
+    codex: {
+      gatewayConfigured: false,
+      modelDiscoveryEnabled: false,
+      pluginListAvailable: false,
+      awakeHooksInstalled: true,
+      authentication: 'not-configured',
+    },
+    agentEnvironment: {
+      ok: true,
+      serverVersion: '0.0.46-nightly.20261014.3118',
+      orchestrationProtocolVersion: 2,
+    },
+    harnesses: {
+      claude: {
+        selectedPlugins: [],
+        evidence: { sdkPluginLoading: 'not-verified' },
+      },
+      codex: { selectedPlugins: [], evidence: undefined },
+    },
+  },
+  hub: { skipped: true, reachable: false },
+  environment: environmentOf(DISABLED_NETWORK_PROFILE),
+  probeFailures: [],
+  governor: { recorded: false, reason: 'no awake event has been recorded yet' },
+} satisfies GuestInspection;
 
 const services = ['t3-code', 'open-agent-cron'].map((name) => ({
   name,
@@ -86,7 +216,7 @@ const observed = {
 } satisfies GuestInspection;
 
 /**
- * Provides one identified SDK Sprite with real finalization and controlled SDK writes.
+ * provides one identified SDK Sprite with real finalization and controlled SDK writes
  * @returns Sprite and ordered provider mutation observations
  */
 function createSprite() {
@@ -127,7 +257,7 @@ function createSprite() {
 }
 
 /**
- * Supplies verified create inputs without invoking preflight or an installer.
+ * supplies verified create inputs without invoking preflight or an installer
  * @param sprite SDK Sprite selected for finalization
  * @param options optional pairing and disclosure controls
  * @returns complete create context consumed by the real helper
@@ -155,7 +285,7 @@ function createContext(
 }
 
 /**
- * Captures both real output destinations for a completed domain result.
+ * captures both real output destinations for a completed domain result
  * @param result create result from a real finalization or recovery helper
  * @param options human or JSON disclosure controls
  * @returns exact stdout and stderr writes
@@ -167,12 +297,12 @@ function captureResult(
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   let out = '';
-  let err = '';
+  let errorOutput = '';
   stdout.on('data', (chunk: Buffer) => {
     out += chunk.toString();
   });
   stderr.on('data', (chunk: Buffer) => {
-    err += chunk.toString();
+    errorOutput += chunk.toString();
   });
   try {
     writePreparedResult(
@@ -188,7 +318,7 @@ function captureResult(
     stderr.destroy();
   }
 
-  return { stdout: out, stderr: err };
+  return { stdout: out, stderr: errorOutput };
 }
 
 describe('fn:finalizeCreate READY boundary', () => {
@@ -376,6 +506,197 @@ describe('fn:finalizeCreate READY boundary', () => {
     });
     expect(pair).not.toHaveBeenCalled();
     expect(mutations).toEqual(['visibility:public', 'labels:ready']);
+  });
+
+  it('should explain empty pairing diagnostics without demoting READY', async () => {
+    const { sprite, mutations } = createSprite();
+    vi.spyOn(sprite, 'execFile').mockRejectedValue(new Error(''));
+
+    const result = await finalizeCreate(dependencies, {
+      workstation: toRecord(sprite),
+      guest: guestOf(sprite),
+      observed,
+      context: createContext(sprite, { withPairCode: true }),
+    });
+
+    expect({ result, mutations }).toMatchObject({
+      result: {
+        command: 'create',
+        ok: true,
+        data: {
+          machine: { id: sprite.id, setup: 'ready' },
+          pairing: {
+            status: 'failed',
+            reason: expect.stringContaining('pairing'),
+          },
+        },
+      },
+      mutations: ['visibility:public', 'labels:ready'],
+    });
+  });
+
+  it('should retain READY when completion progress is cancelled', async () => {
+    const { sprite, mutations } = createSprite();
+    const controller = new AbortController();
+    const operation = new OperationContext({ signal: controller.signal });
+    const unexpected = async (): Promise<never> => {
+      throw new Error('Completion unexpectedly requested a prompt');
+    };
+    const interaction = {
+      input: unexpected,
+      secret: unexpected,
+      select: unexpected,
+      multiselect: unexpected,
+      confirm: unexpected,
+      progress: ({ stage }) => {
+        if (stage === 'complete') {
+          controller.abort();
+        }
+      },
+      status: () => undefined,
+    } satisfies Interaction;
+
+    const result = await withOperation(operation, async () =>
+      finalizeCreate(dependencies, {
+        workstation: toRecord(sprite),
+        guest: guestOf(sprite),
+        observed,
+        context: createContext(sprite),
+        interaction,
+      }),
+    );
+
+    expect({ result, status: resultExitCode(result), mutations }).toMatchObject(
+      {
+        result: {
+          command: 'create',
+          ok: false,
+          error: {
+            code: 'CANCELLED',
+            outcome: 'retained',
+            machine: sprite.name,
+            machineId: sprite.id,
+          },
+          data: { setup: 'ready', readiness: { ready: true } },
+        },
+        status: 130,
+        mutations: ['visibility:public', 'labels:ready'],
+      },
+    );
+  });
+
+  it('should withhold exposure when the selected exit node changed', async () => {
+    const { sprite, mutations } = createSprite();
+    const profile = {
+      ...TAILSCALE_PROFILE,
+      options: {
+        ...TAILSCALE_PROFILE.options,
+        isExitNodeEnabled: true,
+      },
+    };
+    const base = createContext(sprite);
+    const context = {
+      ...base,
+      effectiveExitNode: 'selected-node',
+      input: { ...base.input, profile },
+    } satisfies CreateContext;
+    const tailscale = registry.networks.tailscale;
+    if (!tailscale.daemon || !tailscale.launcher) {
+      throw new Error('The selected network lacks its daemon');
+    }
+    const inspection = {
+      ...observed,
+      services: [
+        ...observed.services,
+        { name: tailscale.daemon.name, needs: [], status: 'running' },
+      ],
+      environment: environmentOf(profile, {
+        services: [registry.agents[profile.agent].service, tailscale.daemon],
+        network: {
+          id: 'tailscale',
+          daemon: tailscale.daemon.name,
+          launcher: {
+            stateDirectory: tailscale.launcher.stateDirectory,
+            socket: tailscale.launcher.socket,
+            tun: tailscale.launcher.tun,
+          },
+        },
+      }),
+      network: {
+        online: true,
+        skipped: false,
+        dnsReady: true,
+        routeDevice: 'tailscale0',
+        egressIp: '198.51.100.20',
+        exitNodeIp: '198.51.100.21',
+        exitNodeName: 'different-node',
+      },
+    } satisfies GuestInspection;
+
+    const failure: unknown = await finalizeCreate(dependencies, {
+      workstation: toRecord(sprite),
+      guest: guestOf(sprite),
+      observed: inspection,
+      context,
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect({ failure, mutations }).toEqual({
+      failure: expect.objectContaining({
+        code: 'PREFLIGHT',
+        readiness: expect.objectContaining({
+          failures: expect.arrayContaining(['selected exit node']),
+        }),
+      }),
+      mutations: [],
+    });
+  });
+
+  it('should withhold exposure for a served version mismatch', async () => {
+    const { sprite, mutations } = createSprite();
+    const [agentTool] = registry.agents[DISABLED_NETWORK_PROFILE.agent].tools;
+    if (!agentTool) {
+      throw new Error('The selected agent has no installable tool');
+    }
+    const inspection = {
+      ...observed,
+      environment: environmentOf(DISABLED_NETWORK_PROFILE, {
+        tools: [
+          {
+            name: agentTool.name,
+            required: agentTool.required,
+            account: 'agent',
+            executables: agentTool.executables,
+            source: agentTool.sources[0],
+            version: 'older-installed-version',
+          },
+        ],
+      }),
+    } satisfies GuestInspection;
+
+    const failure: unknown = await finalizeCreate(dependencies, {
+      workstation: toRecord(sprite),
+      guest: guestOf(sprite),
+      observed: inspection,
+      context: createContext(sprite),
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect({ failure, mutations }).toEqual({
+      failure: expect.objectContaining({
+        code: 'PREFLIGHT',
+        readiness: expect.objectContaining({
+          failures: expect.arrayContaining([
+            expect.stringContaining('older-installed-version'),
+          ]),
+        }),
+      }),
+      mutations: [],
+    });
   });
 
   it.each([
@@ -637,5 +958,70 @@ describe('fn:markCreateIncomplete pre-READY recovery', () => {
     });
     expect(`${human.stderr}${json.stdout}`).toContain('[REDACTED]');
     expect(`${human.stderr}${json.stdout}`).not.toContain(secret);
+  });
+});
+
+describe('fn:finishCreate', () => {
+  it('should retain a create failure after closing its session', async () => {
+    const primary = new Error('configuration failed');
+    vi.spyOn(CONTEXT.provider, 'openGuest').mockImplementationOnce(
+      async () => CHANNEL,
+    );
+    vi.mocked(configureNewWorkstation).mockImplementationOnce(async () => {
+      throw primary;
+    });
+    const close = vi.fn(async () => undefined);
+    const connection = {
+      close,
+    } satisfies Partial<SetupSession> as Partial<SetupSession> as SetupSession;
+    const wired = dependenciesWith({
+      guest: {
+        ...dependencies.guest,
+        session: { connect: () => connection },
+      },
+    });
+
+    await expect(
+      finishCreate(wired, { workstation: WORKSTATION, context: CONTEXT }),
+    ).rejects.toBe(primary);
+    expect(close.mock.calls).toEqual([[]]);
+  });
+
+  it('should retain a successful create result when session closes', async () => {
+    vi.spyOn(CONTEXT.provider, 'openGuest').mockImplementationOnce(
+      async () => CHANNEL,
+    );
+    vi.spyOn(CONTEXT.provider, 'expose').mockImplementationOnce(
+      async () => undefined,
+    );
+    vi.spyOn(CONTEXT.provider, 'setMetadata').mockImplementationOnce(
+      async () => ({ ...WORKSTATION, metadata: { setup: 'ready' } }),
+    );
+    vi.mocked(configureNewWorkstation).mockImplementationOnce(
+      async () => CHANNEL,
+    );
+    vi.mocked(inspectUntilServing).mockImplementationOnce(async () => OBSERVED);
+    const close = vi.fn(async () => undefined);
+    const connection = {
+      close,
+    } satisfies Partial<SetupSession> as Partial<SetupSession> as SetupSession;
+    const wired = dependenciesWith({
+      guest: {
+        ...dependencies.guest,
+        session: { connect: () => connection },
+      },
+    });
+
+    const result = await finishCreate(wired, {
+      workstation: WORKSTATION,
+      context: CONTEXT,
+    });
+
+    expect(result).toMatchObject({
+      command: 'create',
+      ok: true,
+      data: { machine: { id: WORKSTATION.id, setup: 'ready' } },
+    });
+    expect(close.mock.calls).toEqual([[]]);
   });
 });

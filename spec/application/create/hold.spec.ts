@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
 import { withCreateHold } from '#application/create/hold';
@@ -39,54 +39,63 @@ function recordingGuest(exitCodes: readonly number[] = []): {
   return { guest, actions, sessions };
 }
 
-afterEach(() => {
-  vi.useRealTimers();
-});
+/**
+ * runs one hold assertion with its own timer boundary
+ * @param action assertion using fake timers
+ */
+async function withFakeTimers(action: () => Promise<void>): Promise<void> {
+  vi.useFakeTimers();
+  try {
+    await action();
+  } finally {
+    vi.useRealTimers();
+  }
+}
 
 describe('fn:withCreateHold', () => {
-  it('should hold the workstation awake for the whole work and release it after', async () => {
-    vi.useFakeTimers();
-    const { guest, actions, sessions } = recordingGuest();
-    const seen: string[][] = [];
+  it('should hold the workstation awake for the whole work and release it after', async () =>
+    withFakeTimers(async () => {
+      const { guest, actions, sessions } = recordingGuest();
+      const seen: string[][] = [];
 
-    const pending = withCreateHold(AWAKE_COMMAND, guest, async () => {
-      await vi.advanceTimersByTimeAsync(12 * MINUTE);
-      seen.push([...actions]);
+      const pending = withCreateHold(AWAKE_COMMAND, guest, async () => {
+        await vi.advanceTimersByTimeAsync(12 * MINUTE);
+        seen.push([...actions]);
 
-      return 'done';
-    });
-    const result = await pending;
+        return 'done';
+      });
+      const result = await pending;
 
-    expect({
-      result,
-      duringWork: seen[0],
-      afterwards: actions.slice(-1),
-      oneSession: sessions.size,
-    }).toEqual({
-      result: 'done',
-      // opened first, then refreshed every five minutes while the work ran
-      duringWork: ['hold-open', 'hold-open', 'hold-open'],
-      afterwards: ['hold-close'],
-      oneSession: 1,
-    });
-  });
+      expect({
+        result,
+        duringWork: seen[0],
+        afterwards: actions.slice(-1),
+        oneSession: sessions.size,
+      }).toEqual({
+        result: 'done',
+        // opened first, then refreshed every five minutes while the work ran
+        duringWork: ['hold-open', 'hold-open', 'hold-open'],
+        afterwards: ['hold-close'],
+        oneSession: 1,
+      });
+    }));
 
-  it('should repeat the open at a short interval until the governor takes it', async () => {
-    vi.useFakeTimers();
-    // the awake command does not exist yet on the first two attempts
-    const { guest, actions } = recordingGuest([127, 127]);
+  it('should repeat the open at a short interval until the governor takes it', async () =>
+    withFakeTimers(async () => {
+      // the awake command does not exist yet on the first two attempts
+      const { guest, actions } = recordingGuest([127, 127]);
 
-    await withCreateHold(AWAKE_COMMAND, guest, async () => {
-      await vi.advanceTimersByTimeAsync(40 * SECOND);
-    });
+      await withCreateHold(AWAKE_COMMAND, guest, async () => {
+        await vi.advanceTimersByTimeAsync(40 * SECOND);
+      });
 
-    expect(actions).toEqual([
-      'hold-open',
-      'hold-open',
-      'hold-open',
-      'hold-close',
-    ]);
-  });
+      expect(actions).toEqual([
+        'hold-open',
+        'hold-open',
+        'hold-open',
+        'hold-close',
+      ]);
+    }));
 
   it('should release the hold and pass the failure on when the work fails', async () => {
     const { guest, actions } = recordingGuest();

@@ -19,6 +19,26 @@ import type {
   CreatePreparation,
 } from './context';
 
+/** inputs of one create-recovery action */
+interface RecoverCreateStepParams {
+  /** original create failure */
+  primary: Error;
+  /** recovery step for diagnostics */
+  step: string;
+  /** provider mutation attempted during recovery */
+  action: () => Promise<unknown>;
+}
+
+/** the named inputs of mark create incomplete */
+export interface MarkCreateIncompleteParams {
+  /** created workstation that must remain available for setup */
+  workstation: WorkstationRecord;
+  /** inputs that may occur in diagnostic text */
+  context: CreateContext;
+  /** setup or readiness failure */
+  error: unknown;
+}
+
 const PROVIDER_CAUSE_LIMIT = 512;
 
 /**
@@ -68,16 +88,6 @@ export function creationOutcome(
       ],
     },
   };
-}
-
-/** the named inputs of mark create incomplete */
-export interface MarkCreateIncompleteParams {
-  /** created workstation that must remain available for setup */
-  workstation: WorkstationRecord;
-  /** inputs that may occur in diagnostic text */
-  context: CreateContext;
-  /** setup or readiness failure */
-  error: unknown;
 }
 
 /**
@@ -141,6 +151,27 @@ export async function markCreateIncomplete(
 }
 
 /**
+ * observes one recovery action without replacing the original failure
+ * @param params original failure, diagnostic step and provider recovery action
+ * @returns confirmation and the original failure with any recovery cause
+ */
+async function recoverCreateStep(
+  params: RecoverCreateStepParams,
+): Promise<{ status: 'confirmed' | 'unconfirmed'; primary: Error }> {
+  const { primary, step, action } = params;
+  try {
+    await recoverOperation(action);
+
+    return { status: 'confirmed', primary };
+  } catch (failure) {
+    return {
+      status: 'unconfirmed',
+      primary: retainRecoveryFailure(primary, step, failure),
+    };
+  }
+}
+
+/**
  * reports typed consent or enrollment failures before workstation creation
  * @param error consent or enrollment rejection
  * @returns safe preparation failure, preserving local back navigation
@@ -186,32 +217,4 @@ function unconfirmedRecovery(
       ? ['The incomplete label could not be confirmed; inspect provider state.']
       : []),
   ];
-}
-
-/** inputs of one create-recovery action */
-interface RecoverCreateStepParams {
-  /** original create failure */
-  primary: Error;
-  /** recovery step for diagnostics */
-  step: string;
-  /** provider mutation attempted during recovery */
-  action: () => Promise<unknown>;
-}
-/**
- * observes one original recovery promise without changing its failure identity
- * @param params original failure, diagnostic step and provider recovery action
- * @returns confirmation and the original failure with any recovery cause
- */
-async function recoverCreateStep(
-  params: RecoverCreateStepParams,
-): Promise<{ status: 'confirmed' | 'unconfirmed'; primary: Error }> {
-  const { primary, step, action } = params;
-
-  return recoverOperation(action).then(
-    () => ({ status: 'confirmed' as const, primary }),
-    (failure) => ({
-      status: 'unconfirmed' as const,
-      primary: retainRecoveryFailure(primary, step, failure),
-    }),
-  );
 }

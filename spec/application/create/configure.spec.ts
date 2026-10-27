@@ -10,10 +10,16 @@ import {
   resolvePluginActions,
 } from '#application/plugins';
 import { registry } from '#composition/registry';
+import { Secret } from '#kernel/secret';
 
-import { DISABLED_NETWORK_PROFILE } from '../../fixtures/profile';
+import { environmentOf } from '../../fixtures/environment';
+import {
+  DISABLED_NETWORK_PROFILE,
+  TAILSCALE_PROFILE,
+} from '../../fixtures/profile';
 
 import { dependencies } from '../../mocks/dependencies';
+import { standInSession } from '../../mocks/session';
 import {
   createFilesystemSprite,
   guestOf,
@@ -24,23 +30,37 @@ import type { Sprite } from '@fly/sprites';
 
 import type { ConfigureNewWorkstationParams } from '#application/create/configure';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
-import type { GuestChannel } from '#application/ports/guest-channel';
+import type { Interaction } from '#application/ports/interaction';
 import type { SetupSession } from '#application/ports/session';
+import type { WorkstationProfile } from '#domain/profile';
 
 // the install plan is a guest run; only the configuration it hands over is under test
-vi.mock('#application/installation/install', () => ({
-  installWorkstation: vi.fn(
-    async (
-      _mechanics: unknown,
-      params: { connection: SetupSession; beforeServices?: GuestChannelStep },
-    ) => params.beforeServices?.(await params.connection.guest()),
-  ),
-}));
-vi.mock('#application/installation/readiness', () => ({
-  markInstallationReady: vi.fn(async () => undefined),
-}));
+vi.mock(
+  '#application/installation/install',
+  () =>
+    ({
+      installWorkstation: vi.fn<
+        typeof import('#application/installation/install').installWorkstation
+      >(async (_mechanics, params) => {
+        await params.beforeServices?.(await params.connection.guest());
 
-type GuestChannelStep = (guest: GuestChannel) => Promise<void>;
+        return environmentOf(params.profile);
+      }),
+    }) satisfies Pick<
+      typeof import('#application/installation/install'),
+      'installWorkstation'
+    >,
+);
+vi.mock(
+  '#application/installation/readiness',
+  () =>
+    ({
+      markInstallationReady: vi.fn(async () => undefined),
+    }) satisfies Pick<
+      typeof import('#application/installation/readiness'),
+      'markInstallationReady'
+    >,
+);
 
 type Configuration = ConfigureNewWorkstationParams['configuration'];
 
@@ -53,9 +73,42 @@ const profile = { ...DISABLED_NETWORK_PROFILE, harnesses: [] };
  * @returns a session that hands out the mock's guest channel
  */
 function connectionOf(sprite: Sprite): SetupSession {
+  const channel = guestOf(sprite);
+  const root = standInSession(channel);
+
   return {
-    guest: async () => guestOf(sprite),
-  } satisfies Partial<SetupSession> as Partial<SetupSession> as SetupSession;
+    ...root,
+    open: async () => root,
+    reopen: async () => root,
+    lend: async () => root,
+    close: async () => undefined,
+    guest: async () => channel,
+  } satisfies SetupSession;
+}
+
+/**
+ * records progress from the configuration workflow
+ * @param messages selected progress updates
+ * @returns a prompt boundary that rejects unexpected prompts
+ */
+function progressOf(messages: string[]): Interaction {
+  const unexpected = async (): Promise<never> => {
+    throw new Error('Configuration unexpectedly requested a prompt');
+  };
+
+  return {
+    input: unexpected,
+    secret: unexpected,
+    select: unexpected,
+    multiselect: unexpected,
+    confirm: unexpected,
+    progress: ({ stage, message }) => {
+      if (stage === 'network') {
+        messages.push(message);
+      }
+    },
+    status: () => undefined,
+  } satisfies Interaction;
 }
 
 /**
@@ -124,5 +177,177 @@ describe('fn:configureNewWorkstation', () => {
     });
 
     expect(calls).toEqual(['configureNative']);
+  });
+
+  it.each([
+    { exitNode: false, notice: 'connectivity' },
+    { exitNode: true, notice: 'exit-node' },
+  ])(
+    'should enroll Tailscale with $notice progress',
+    async ({ exitNode, notice }) => {
+      const selectedExitNode = exitNode ? { exitNode: 'selected-node' } : {};
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-configure-network-'),
+      );
+      const sprite = createFilesystemSprite({ root: directory.path });
+      const calls: string[] = [];
+      const messages: string[] = [];
+      const profile = {
+        ...TAILSCALE_PROFILE,
+        harnesses: [],
+        options: {
+          ...TAILSCALE_PROFILE.options,
+          isExitNodeEnabled: exitNode,
+        },
+      } satisfies WorkstationProfile;
+      const connection = connectionOf(sprite);
+      using enroll = vi
+        .spyOn(registry.networks.tailscale, 'enroll')
+        .mockImplementation(async () => {
+          calls.push('network enrolled');
+        });
+
+      const guest = await configureNewWorkstation(
+        recordingDependencies(calls),
+        {
+          provider: providerOf(sprite.client),
+          connection,
+          interaction: progressOf(messages),
+          configuration: {
+            hostname: 'box',
+            profile,
+            authKey: Secret.fromHost('provider-api', 'selected-auth-key'),
+            ...selectedExitNode,
+            runtimeEnv: {},
+            plugins,
+          },
+        },
+      );
+
+      expect({
+        guest,
+        messages,
+        calls,
+        enrollment: enroll.mock.calls,
+      }).toEqual({
+        guest: await connection.guest(),
+        messages: [expect.stringContaining(notice)],
+        calls: ['network enrolled', 'configureNative'],
+        enrollment: [
+          [
+            expect.anything(),
+            expect.objectContaining({
+              hostname: 'box',
+              exitNode: exitNode ? 'selected-node' : undefined,
+            }),
+          ],
+        ],
+      });
+    },
+  );
+
+  it('should apply selected GitHub, Git, and native plugin configuration', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-configure-options-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    const calls: string[] = [];
+    const wired = recordingDependencies(calls);
+    const profile = {
+      ...DISABLED_NETWORK_PROFILE,
+      harnesses: ['claude'],
+    } satisfies WorkstationProfile;
+    const selectedPlugins = resolvePluginActions(
+      normalizePluginOptions({
+        harnessPlugins: { claude: { disablePlugins: ['old-plugin'] } },
+      }),
+      profile.harnesses,
+    );
+    const connection = connectionOf(sprite);
+    using github = vi
+      .spyOn(wired.guest.native, 'configureGithub')
+      .mockImplementation(async () => {
+        calls.push('github configured');
+      });
+    using git = vi
+      .spyOn(wired.guest.native, 'configureGit')
+      .mockImplementation(async () => {
+        calls.push('git configured');
+      });
+    vi.spyOn(wired.guest.hub, 'record').mockImplementation(async () => {
+      calls.push('hub recorded');
+    });
+    vi.spyOn(registry.harnesses.claude, 'configure').mockImplementation(
+      async () => {
+        calls.push('harness configured');
+      },
+    );
+    vi.spyOn(registry.harnesses.claude.hooks, 'install').mockImplementation(
+      async () => {
+        calls.push('hook installed');
+      },
+    );
+    using plugin = vi
+      .spyOn(registry.harnesses.claude.plugins, 'apply')
+      .mockImplementation(async () => {
+        calls.push('plugin applied');
+      });
+
+    const guest = await configureNewWorkstation(wired, {
+      provider: providerOf(sprite.client),
+      connection,
+      configuration: {
+        hostname: 'box',
+        profile,
+        githubToken: 'selected-github-token',
+        githubHost: 'github.com',
+        gitIdentity: {
+          authorName: 'A User',
+          authorEmail: 'author@example.test',
+          committerName: 'A User',
+          committerEmail: 'author@example.test',
+        },
+        runtimeEnv: {},
+        plugins: selectedPlugins,
+      },
+    });
+
+    expect({
+      guest,
+      calls,
+      github: github.mock.calls,
+      git: git.mock.calls,
+      plugin: plugin.mock.calls,
+    }).toEqual({
+      guest: await connection.guest(),
+      calls: [
+        'configureNative',
+        'github configured',
+        'git configured',
+        'hub recorded',
+        'harness configured',
+        'hook installed',
+        'plugin applied',
+      ],
+      github: [
+        [
+          expect.anything(),
+          expect.any(Secret),
+          expect.objectContaining({ hostname: 'github.com' }),
+        ],
+      ],
+      git: [
+        [
+          expect.anything(),
+          expect.objectContaining({ authorEmail: 'author@example.test' }),
+        ],
+      ],
+      plugin: [
+        [
+          expect.anything(),
+          expect.objectContaining({ disablePlugins: ['old-plugin'] }),
+        ],
+      ],
+    });
   });
 });

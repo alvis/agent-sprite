@@ -7,12 +7,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { tailscaleLauncher } from '#adapters/drivers/networks/tailscale/service';
 import { ENVIRONMENT_PATH } from '#adapters/guest/platform/layout';
-import { persistSetupProfile } from '#application/setup/integrations';
+import {
+  persistSetupProfile,
+  profileUpdateSelected,
+  targetedProfile,
+} from '#application/setup/integrations';
 
 import { environmentOf } from '../../fixtures/environment';
 import {
   DISABLED_NETWORK_PROFILE,
   TAILSCALE_PROFILE,
+  profileWith,
 } from '../../fixtures/profile';
 import { dependencies } from '../../mocks/dependencies';
 import {
@@ -179,4 +184,64 @@ describe('fn:persistSetupProfile network section', () => {
     expect(sprite.deleteService).not.toHaveBeenCalled();
     expect(launcherRuns(sprite)).toBe(0);
   });
+});
+
+describe('fn:profileUpdateSelected machine requirements', () => {
+  it.each([
+    {
+      requirement: 'CPU',
+      options: {
+        minCpus: DISABLED_NETWORK_PROFILE.options.minCpus + 1,
+      },
+    },
+    {
+      requirement: 'memory',
+      options: {
+        minMemoryGb: DISABLED_NETWORK_PROFILE.options.minMemoryGb + 1,
+      },
+    },
+  ])(
+    'should persist a changed $requirement minimum even for a tools section with no interval change',
+    ({ options }) => {
+      const profile = {
+        ...DISABLED_NETWORK_PROFILE,
+        options: { ...DISABLED_NETWORK_PROFILE.options, ...options },
+      };
+
+      expect(
+        profileUpdateSelected('tools', profile, DISABLED_NETWORK_PROFILE),
+      ).toBe(true);
+    },
+  );
+});
+
+describe('fn:targetedProfile', () => {
+  it.each([
+    { section: 'agent', network: 'none', exitNode: false, proxy: false },
+    {
+      section: 'network',
+      network: 'tailscale',
+      exitNode: true,
+      proxy: false,
+    },
+    { section: 'proxy', network: 'none', exitNode: false, proxy: true },
+    { section: 'all', network: 'tailscale', exitNode: true, proxy: true },
+  ] as const)(
+    'should limit preflight integration choices to the $section section',
+    ({ section, network, exitNode, proxy }) => {
+      const selected = profileWith({
+        network: true,
+        exitNode: true,
+        cliproxyapi: true,
+      });
+
+      expect(targetedProfile(section, selected)).toMatchObject({
+        network,
+        options: {
+          isExitNodeEnabled: exitNode,
+          isProxyEnabled: proxy,
+        },
+      });
+    },
+  );
 });
