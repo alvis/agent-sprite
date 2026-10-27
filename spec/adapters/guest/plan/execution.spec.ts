@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { runPlan } from '#adapters/guest/plan/plan';
+import { runPlan } from '#adapters/guest/plan/execution';
 import { SessionTransportFault } from '#adapters/guest/platform/session/faults';
 
 import type { PlanProgress, SetupStep } from '#application/ports/plan';
