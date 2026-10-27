@@ -36,7 +36,9 @@ src
     ids.ts                    # The closed provider, harness, agent and network id tuples and unions
     declarations.ts           # Provider, harness, agent and network declarations and capability data
     profile.ts                # WorkstationProfile, its options and defaults
-    profile-rules.ts          # Validation of a profile against the declarations passed in
+    profile/options.ts        # Option bounds and driver capability validation
+    profile/provider.ts       # Provider capability and machine-size validation
+    profile/selection.ts      # Driver ids, harnesses and release-channel validation
     selection-inputs.ts       # The inputs each selection declares
     release-channels.ts       # The agent's release channels
     machine-sizes.ts          # pickMachine, the smallest offer meeting the minimums
