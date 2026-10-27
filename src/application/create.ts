@@ -23,11 +23,11 @@ export async function createWorkstation(
   request: CommandRequest,
   interaction?: Interaction,
 ): Promise<CommandResult> {
-  const preparation = await traceStage(
-    'create.preflight',
-    async () => prepareCreate(dependencies, request, interaction),
-    { succeeded: (result) => result.kind === 'ready' },
-  );
+  const preparation = await traceStage({
+    stage: 'create.preflight',
+    action: async () => prepareCreate(dependencies, request, interaction),
+    context: { succeeded: (result) => result.kind === 'ready' },
+  });
   if (preparation.kind === 'result') {
     return preparation.result;
   }
@@ -38,23 +38,25 @@ export async function createWorkstation(
   });
   let workstation: WorkstationRecord;
   try {
-    workstation = await traceStage('create.provider', async () =>
-      context.provider.create(
-        context.name,
-        context.input.profile,
-        agentPort(dependencies.registry, context.input.profile.agent),
-      ),
-    );
+    workstation = await traceStage({
+      stage: 'create.provider',
+      action: async () =>
+        context.provider.create(
+          context.name,
+          context.input.profile,
+          agentPort(dependencies.registry, context.input.profile.agent),
+        ),
+    });
   } catch (error) {
     return creationOutcome(error, context.preflight);
   }
   try {
-    return await traceStage(
-      'create.finish',
-      async () =>
+    return await traceStage({
+      stage: 'create.finish',
+      action: async () =>
         finishCreate(dependencies, { workstation, context, interaction }),
-      { succeeded: (result) => result.ok },
-    );
+      context: { succeeded: (result) => result.ok },
+    });
   } catch (error) {
     return markCreateIncomplete(dependencies, { workstation, context, error });
   }

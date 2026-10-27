@@ -134,7 +134,10 @@ async function inspectStage<T>(
   const elapsed = (): number => performance.now() - startedAt;
   onProbe?.({ probe, phase: 'started' });
   try {
-    const result = await traceStage(`inspect.${probe}`, check);
+    const result = await traceStage({
+      stage: `inspect.${probe}`,
+      action: check,
+    });
     onProbe?.({ probe, phase: 'completed', durationMs: elapsed() });
 
     return result;

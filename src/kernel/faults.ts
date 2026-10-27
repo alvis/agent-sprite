@@ -43,6 +43,13 @@ export interface RecoveryState {
   details: string[];
 }
 
+/** original failure and one recovery failure to retain beside it */
+export interface RetainRecoveryFailureParams {
+  primary: unknown;
+  step: string;
+  failure: unknown;
+}
+
 const UNAUTHENTICATED_STATUS = 401;
 const ACCESS_DENIED_STATUS = 403;
 const CONFLICT_STATUS = 409;
@@ -52,7 +59,7 @@ export const diagnosticCount = 6;
 const recoveryState = new WeakMap<Error, RecoveryState>();
 
 /**
- * Reads the cleanup failures retained on an operation error.
+ * reads the cleanup failures retained on an operation error
  * @param error operation failure
  * @returns retained recovery state, if any
  */
@@ -61,17 +68,18 @@ export function recoveryOf(error: Error): RecoveryState | undefined {
 }
 
 /**
- * Retains a cleanup failure on the original operation error.
- * @param primary original failure
- * @param step recovery operation
- * @param failure secondary failure
+ * retains a cleanup failure on the original operation error
+ * @param params original failure, recovery step and secondary failure
+ * @param params.primary original failure
+ * @param params.step cleanup action whose failure is retained
+ * @param params.failure secondary failure
  * @returns original Error identity with bounded details
  */
-export function retainRecoveryFailure(
-  primary: unknown,
-  step: string,
-  failure: unknown,
-): Error {
+export function retainRecoveryFailure({
+  primary,
+  step,
+  failure,
+}: RetainRecoveryFailureParams): Error {
   const error = ensureError(primary);
   const state = recoveryState.get(error) ?? {
     originalCause: error.cause,
@@ -103,7 +111,7 @@ export function retainRecoveryFailure(
 }
 
 /**
- * Redacts and bounds one public diagnostic.
+ * redacts and bounds one public diagnostic
  * @param value untrusted diagnostic text
  * @returns safe one-line detail
  */

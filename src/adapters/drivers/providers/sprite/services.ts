@@ -200,11 +200,11 @@ export class SpriteServiceControl implements GuestServiceControl {
         );
       } catch (error) {
         failure = failure
-          ? retainRecoveryFailure(
-              failure,
-              `${dependent.name} service restoration`,
-              error,
-            )
+          ? retainRecoveryFailure({
+              primary: failure,
+              step: `${dependent.name} service restoration`,
+              failure: error,
+            })
           : ensureError(error);
       }
     }

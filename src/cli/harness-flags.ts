@@ -54,44 +54,48 @@ export type HarnessPluginFlagValues = HarnessPluginSelectionValues &
 
 /** per-harness plugin selection flags for every registered harness */
 export const harnessPluginFlags: HarnessPluginFlags = {
-  ...recordFrom(
-    harnessIds(),
-    (id) => `${id}Plugins` as const,
-    (id) => toggleFlag(`enable or disable ${displayName(id)} plugins`),
-  ),
-  ...recordFrom(
-    harnessIds(),
-    (id) => `${id}Marketplace` as const,
-    (id) =>
+  ...recordFrom({
+    items: harnessIds(),
+    keyOf: (id) => `${id}Plugins` as const,
+    valueOf: (id) => toggleFlag(`enable or disable ${displayName(id)} plugins`),
+  }),
+  ...recordFrom({
+    items: harnessIds(),
+    keyOf: (id) => `${id}Marketplace` as const,
+    valueOf: (id) =>
       repeatableFlag(
         'SOURCE',
         `${displayName(id)} marketplace source (repeatable)`,
       ),
-  ),
-  ...recordFrom(
-    harnessIds(),
-    (id) => `${id}Plugin` as const,
-    (id) => repeatableFlag('PLUGIN', `${displayName(id)} plugin (repeatable)`),
-  ),
+  }),
+  ...recordFrom({
+    items: harnessIds(),
+    keyOf: (id) => `${id}Plugin` as const,
+    valueOf: (id) =>
+      repeatableFlag('PLUGIN', `${displayName(id)} plugin (repeatable)`),
+  }),
 };
 
 /** setup-only per-harness plugin change flags for every registered harness */
 export const harnessPluginChangeFlags: HarnessPluginChangeFlags = {
-  ...recordFrom(
-    harnessIds(),
-    (id) => `remove${embed(id)}Marketplace` as const,
-    (id) => repeatableFlag('SOURCE', `remove ${displayName(id)} marketplace`),
-  ),
-  ...recordFrom(
-    harnessIds(),
-    (id) => `disable${embed(id)}Plugin` as const,
-    (id) => repeatableFlag('PLUGIN', `disable ${displayName(id)} plugin`),
-  ),
-  ...recordFrom(
-    harnessIds(),
-    (id) => `uninstall${embed(id)}Plugin` as const,
-    (id) => repeatableFlag('PLUGIN', `uninstall ${displayName(id)} plugin`),
-  ),
+  ...recordFrom({
+    items: harnessIds(),
+    keyOf: (id) => `remove${embed(id)}Marketplace` as const,
+    valueOf: (id) =>
+      repeatableFlag('SOURCE', `remove ${displayName(id)} marketplace`),
+  }),
+  ...recordFrom({
+    items: harnessIds(),
+    keyOf: (id) => `disable${embed(id)}Plugin` as const,
+    valueOf: (id) =>
+      repeatableFlag('PLUGIN', `disable ${displayName(id)} plugin`),
+  }),
+  ...recordFrom({
+    items: harnessIds(),
+    keyOf: (id) => `uninstall${embed(id)}Plugin` as const,
+    valueOf: (id) =>
+      repeatableFlag('PLUGIN', `uninstall ${displayName(id)} plugin`),
+  }),
 };
 
 /**

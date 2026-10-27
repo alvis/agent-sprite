@@ -26,16 +26,18 @@ export async function exposeWhenServing(
   guest: GuestChannel,
   context: Pick<SetupContext, 'provider' | 'workstation' | 'profile'>,
 ): Promise<void> {
-  const inspection = await traceStage('setup.readiness', async () =>
-    inspectUntilServing(
-      async () =>
-        dependencies.guest.native.inspectAgentEnvironment(
-          guest,
-          context.profile.agent,
-        ),
-      async () => dependencies.guest.inspection.inspect(guest),
-    ),
-  );
+  const inspection = await traceStage({
+    stage: 'setup.readiness',
+    action: async () =>
+      inspectUntilServing(
+        async () =>
+          dependencies.guest.native.inspectAgentEnvironment(
+            guest,
+            context.profile.agent,
+          ),
+        async () => dependencies.guest.inspection.inspect(guest),
+      ),
+  });
   const readiness = assessReadiness(dependencies, inspection);
   const mismatch = servedVersionMismatch(dependencies, inspection);
   if (!readiness.ready || mismatch) {

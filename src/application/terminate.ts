@@ -93,15 +93,17 @@ export async function terminateWorkstation(
     stage: 'terminate',
     message: `Deleting workstation ${workstation.name}`,
   });
-  await traceStage('terminate.provider', async () =>
-    provider.delete(workstation),
-  );
+  await traceStage({
+    stage: 'terminate.provider',
+    action: async () => provider.delete(workstation),
+  });
 
-  return traceStage(
-    'terminate.network',
-    async () => cleanupNetwork({ workstation, machine, input, capture }),
-    { succeeded: (result) => result.ok },
-  );
+  return traceStage({
+    stage: 'terminate.network',
+    action: async () =>
+      cleanupNetwork({ workstation, machine, input, capture }),
+    context: { succeeded: (result) => result.ok },
+  });
 }
 
 /**

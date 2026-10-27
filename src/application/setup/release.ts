@@ -66,9 +66,11 @@ export async function isAgentReleaseChanged(
   if (!isAgentTargeted || !environment || !releaseChannels) {
     return false;
   }
-  const drift = await traceStage('setup.release', async () =>
-    agentReleaseDrift(dependencies, { ...params, releaseChannels }),
-  );
+  const drift = await traceStage({
+    stage: 'setup.release',
+    action: async () =>
+      agentReleaseDrift(dependencies, { ...params, releaseChannels }),
+  });
   if (drift.note) {
     publishStatus(drift.note, interaction);
   }

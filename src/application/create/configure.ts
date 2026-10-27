@@ -70,16 +70,22 @@ export async function configureNewWorkstation(
     stage: 'tools',
     message: 'Installing the guest environment and managed developer tools',
   });
-  await traceStage('create.tools', async () =>
-    installWorkstation(dependencies.guest, {
-      provider,
-      connection,
-      profile,
-      interaction,
-      beforeServices: async (guest) =>
-        enrolAndConfigure(dependencies, { guest, configuration, interaction }),
-    }),
-  );
+  await traceStage({
+    stage: 'create.tools',
+    action: async () =>
+      installWorkstation(dependencies.guest, {
+        provider,
+        connection,
+        profile,
+        interaction,
+        beforeServices: async (guest) =>
+          enrolAndConfigure(dependencies, {
+            guest,
+            configuration,
+            interaction,
+          }),
+      }),
+  });
   const guest = await connection.guest();
   await dependencies.guest.label.write(guest, configuration.hostname);
   await markInstallationReady(dependencies.guest, guest);
@@ -118,33 +124,38 @@ async function enrolAndConfigure(
         : `Configuring ${network.displayName} connectivity`,
     });
   }
-  await traceStage('create.network', async () =>
-    network.enroll(guest, {
-      hostname: configuration.hostname,
-      credential: configuration.authKey,
-      exitNode: configuration.exitNode,
-      recordIdentity: dependencies.guest.environment.identityRecorder(
-        guest,
-        network.id,
-      ),
-    }),
-  );
+  await traceStage({
+    stage: 'create.network',
+    action: async () =>
+      network.enroll(guest, {
+        hostname: configuration.hostname,
+        credential: configuration.authKey,
+        exitNode: configuration.exitNode,
+        recordIdentity: dependencies.guest.environment.identityRecorder(
+          guest,
+          network.id,
+        ),
+      }),
+  });
   interaction?.progress({
     stage: 'configuration',
     message: 'Writing native harness and account configuration',
   });
-  await traceStage('create.configuration', async () =>
-    configureNative(dependencies, guest, configuration),
-  );
+  await traceStage({
+    stage: 'create.configuration',
+    action: async () => configureNative(dependencies, guest, configuration),
+  });
   const { setupFile } = configuration;
   if (setupFile) {
     interaction?.progress({
       stage: 'configuration',
       message: 'Running the setup file',
     });
-    await traceStage('create.setup-file', async () =>
-      dependencies.guest.native.runSetupFile(guest, setupFile),
-    );
+    await traceStage({
+      stage: 'create.setup-file',
+      action: async () =>
+        dependencies.guest.native.runSetupFile(guest, setupFile),
+    });
   }
 }
 

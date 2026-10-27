@@ -14,6 +14,12 @@ type HostCredentialSource =
   | 'github'
   | 'embedded';
 
+/** source and registered value held by one secret */
+interface SecretParams {
+  source: HostCredentialSource;
+  value: string;
+}
+
 const REDACTED = '[REDACTED]';
 
 /** the value of each secret, kept off the object so no enumeration reaches it */
@@ -30,10 +36,11 @@ export class Secret {
 
   /**
    * holds a credential already registered for redaction
-   * @param source where the host obtained it
-   * @param value the credential
+   * @param params source and value of the credential
+   * @param params.source where the host obtained the credential
+   * @param params.value credential stored outside enumerable properties
    */
-  private constructor(source: HostCredentialSource, value: string) {
+  private constructor({ source, value }: SecretParams) {
     this.source = source;
     values.set(this, value);
   }
@@ -51,7 +58,7 @@ export class Secret {
     }
     rememberSecret(value);
 
-    return new Secret(source, value);
+    return new Secret({ source, value });
   }
 
   /**
@@ -62,7 +69,7 @@ export class Secret {
    * @returns the contents, delivered only as a secret
    */
   public static embedding(contents: string): Secret {
-    return new Secret('embedded', contents);
+    return new Secret({ source: 'embedded', value: contents });
   }
 
   /**

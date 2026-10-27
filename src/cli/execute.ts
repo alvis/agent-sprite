@@ -149,9 +149,9 @@ async function runScopedCommand({
 }): Promise<CommandResult> {
   return withOperation(operation, async () => {
     validateEarlyRequest(request, operation);
-    const modeEnv = await traceStage(
-      'environment',
-      async () =>
+    const modeEnv = await traceStage({
+      stage: 'environment',
+      action: async () =>
         runOperation(
           async () =>
             readModeEnvironment({
@@ -161,8 +161,8 @@ async function runScopedCommand({
             }),
           operation,
         ),
-      { operation },
-    );
+      context: { operation },
+    });
     const mode = resolveProcessExecutionOptions(request.options, modeEnv);
     operation.setPromptBlocker(mode.promptBlocker);
     const { options } = mode;
@@ -182,16 +182,16 @@ async function runScopedCommand({
     setSession(session);
     checkOperation(operation);
 
-    return traceStage(
-      'command',
-      async () =>
+    return traceStage({
+      stage: 'command',
+      action: async () =>
         runCommand(
           dependencies,
           { ...request, options },
           { interaction: session },
         ),
-      { operation, succeeded: (result) => result.ok },
-    );
+      context: { operation, succeeded: (result) => result.ok },
+    });
   });
 }
 

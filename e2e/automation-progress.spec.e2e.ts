@@ -9,7 +9,7 @@ import { describe, expect, inject, it } from 'vitest';
 
 const packedBin = inject('packedBin');
 
-describe('workflow:installed CLI automation reporting', () => {
+describe('installed CLI automation reporting', () => {
   it('should retain redacted warnings and errors while quiet suppresses routine status', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
     const reportingUrl = pathToFileURL(

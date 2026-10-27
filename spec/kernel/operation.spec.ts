@@ -13,6 +13,8 @@ import {
   OperationContext,
   checkOperation,
   currentOperation,
+  operationSignal,
+  publishStatus,
   promptUnavailableDetail,
   recoverOperation,
   runBoundedIO,
@@ -30,7 +32,7 @@ import { providerOf } from '../mocks/sprites';
 
 import type { StageEvent } from '#kernel/operation';
 
-/** One caller-controlled SDK settlement without a workflow replacement. */
+/** one caller-controlled SDK settlement without a workflow replacement */
 function deferred<T>(): {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -47,6 +49,58 @@ function deferred<T>(): {
 }
 
 describe('invocation-scoped operations', () => {
+  it('should deliver status only to the originating invocation reporter', async () => {
+    const reported = vi.fn();
+    const fallback = { status: vi.fn() };
+    const context = new OperationContext({
+      signal: new AbortController().signal,
+      onStatus: reported,
+    });
+    const update = { kind: 'info' as const, message: 'Preparing resource' };
+
+    await withOperation(context, async () => {
+      publishStatus(update, fallback);
+    });
+
+    expect(reported).toHaveBeenCalledExactlyOnceWith(update);
+    expect(fallback.status).not.toHaveBeenCalled();
+    expect(context.reportStatus(update)).toBe(false);
+  });
+
+  it('should use direct interaction status only when the active invocation has no reporter', async () => {
+    const fallback = { status: vi.fn() };
+    const update = { kind: 'warning' as const, message: 'Waiting for guest' };
+    const context = new OperationContext({
+      signal: new AbortController().signal,
+    });
+
+    publishStatus(update, fallback);
+    await withOperation(context, async () => {
+      publishStatus(update, fallback);
+    });
+
+    expect(fallback.status).toHaveBeenCalledTimes(2);
+    expect(context.reportStatus(update)).toBe(false);
+  });
+
+  it('should suppress late status from a closed invocation', async () => {
+    const fallback = { status: vi.fn() };
+    const context = new OperationContext({
+      signal: new AbortController().signal,
+    });
+    const update = { kind: 'info' as const, message: 'Too late' };
+    const gate = deferred<void>();
+    let pending!: Promise<void>;
+
+    await withOperation(context, async () => {
+      pending = gate.promise.then(() => publishStatus(update, fallback));
+    });
+    gate.resolve();
+    await pending;
+
+    expect(fallback.status).not.toHaveBeenCalled();
+  });
+
   it('should report ordered real stage timings only to the originating invocation', async () => {
     const firstEvents: StageEvent[] = [];
     const secondEvents: StageEvent[] = [];
@@ -66,25 +120,29 @@ describe('invocation-scoped operations', () => {
 
       return [];
     });
-    vi.spyOn(secondClient, 'listAllSprites').mockResolvedValue([]);
+    secondClient.listAllSprites = vi.fn(async () => []);
 
     await Promise.all([
       withOperation(first, async () => {
         first.select('list');
         first.identify({ name: 'first' });
 
-        return traceStage('command', async () =>
-          providerOf(firstClient).list(),
-        );
+        return traceStage({
+          stage: 'command',
+          action: async () => providerOf(firstClient).list(),
+        });
       }),
       withOperation(second, async () => {
         second.select('doctor');
 
-        return traceStage('command', async () =>
-          providerOf(secondClient).list(),
-        );
+        return traceStage({
+          stage: 'command',
+          action: async () => providerOf(secondClient).list(),
+        });
       }),
     ]);
+
+    expect(first.command).toBe('list');
 
     expect(firstEvents.map(({ event }) => event)).toEqual([
       'start',
@@ -125,27 +183,75 @@ describe('invocation-scoped operations', () => {
     let pending!: Promise<unknown>;
 
     await withOperation(context, async () => {
-      pending = traceStage('command', async () => {
-        await gate.promise;
+      pending = traceStage({
+        stage: 'command',
+        action: async () => {
+          await gate.promise;
 
-        return providerOf(client).list();
+          return providerOf(client).list();
+        },
       }).catch((error: unknown) => error);
       expect(events.map(({ event }) => event)).toEqual(['start']);
     });
     gate.resolve();
     await expect(pending).resolves.toMatchObject({ action: 'cancel' });
     expect(context.closed).toBe(true);
+    expect(() => context.identify({ name: 'late' })).toThrowError();
     expect(sdkCall).not.toHaveBeenCalled();
     expect(events.map(({ event }) => event)).toEqual(['start']);
 
-    const afterClose = await traceStage(
-      'command',
-      async () => providerOf(client).list(),
+    const afterClose = await traceStage({
+      stage: 'command',
+      action: async () => providerOf(client).list(),
       context,
-    ).catch((error: unknown) => error);
+    }).catch((error: unknown) => error);
     expect(afterClose).toMatchObject({ action: 'cancel' });
     expect(sdkCall).not.toHaveBeenCalled();
     expect(events.map(({ event }) => event)).toEqual(['start']);
+  });
+
+  it('should report an unsuccessful stage result while returning it to the caller', async () => {
+    const events: StageEvent[] = [];
+    const context = new OperationContext({
+      signal: new AbortController().signal,
+      onStage: (event) => events.push(event),
+    });
+    const result = { accepted: false };
+
+    await expect(
+      traceStage({
+        stage: 'validate',
+        action: async () => result,
+        context: { operation: context, succeeded: (value) => value.accepted },
+      }),
+    ).resolves.toBe(result);
+    expect(events).toMatchObject([
+      { stage: 'validate', event: 'start' },
+      { stage: 'validate', event: 'complete', outcome: 'failed' },
+    ]);
+  });
+
+  it('should report a failed stage and preserve the original rejection', async () => {
+    const events: StageEvent[] = [];
+    const context = new OperationContext({
+      signal: new AbortController().signal,
+      onStage: (event) => events.push(event),
+    });
+    const failure = new Error('provider failed');
+
+    await expect(
+      traceStage({
+        stage: 'request',
+        action: async () => {
+          throw failure;
+        },
+        context,
+      }),
+    ).rejects.toBe(failure);
+    expect(events).toMatchObject([
+      { stage: 'request', event: 'start' },
+      { stage: 'request', event: 'complete', outcome: 'failed' },
+    ]);
   });
 
   it('should isolate overlapping SDK calls when only one invocation is cancelled', async () => {
@@ -278,7 +384,7 @@ describe('invocation-scoped operations', () => {
     const sprite = Object.assign(new Sprite('disposable', client), {
       labels: [MANAGED_LABEL],
     });
-    vi.spyOn(client, 'listAllSprites').mockResolvedValue([sprite]);
+    client.listAllSprites = vi.fn(async () => [sprite]);
     const unscoped = await providerOf(client).list();
     const context = new OperationContext({
       signal: new AbortController().signal,
@@ -324,12 +430,66 @@ describe('invocation-scoped operations', () => {
       expect(error).toMatchObject({ name: 'TimeoutError' });
       expect(commandError(error).code).not.toBe('CANCELLED');
       expect(effect).toHaveBeenCalledOnce();
-      expect(effect.mock.calls[0]?.[0]?.aborted).toBe(true);
+      expect(effect.mock.calls).toEqual([
+        [expect.objectContaining({ aborted: true })],
+      ]);
       pending.resolve('late remote completion');
       expect(context.closed).toBe(true);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('should compose transport signals with the active invocation', async () => {
+    const directSignal = operationSignal(60_000);
+    const controller = new AbortController();
+    const context = new OperationContext({ signal: controller.signal });
+    let scopedSignal!: AbortSignal;
+
+    await withOperation(context, async () => {
+      scopedSignal = operationSignal(60_000);
+      expect(scopedSignal.aborted).toBe(false);
+      controller.abort();
+      expect(scopedSignal.aborted).toBe(true);
+    });
+
+    expect(directSignal.aborted).toBe(false);
+  });
+
+  it('should run unscoped IO directly and prevent pre-cancelled scoped IO', async () => {
+    const direct = vi.fn(async () => 'completed');
+    await expect(runBoundedIO(direct)).resolves.toBe('completed');
+    expect(direct).toHaveBeenCalledExactlyOnceWith();
+
+    const controller = new AbortController();
+    const context = new OperationContext({ signal: controller.signal });
+    const blocked = vi.fn(async () => 'too late');
+    controller.abort();
+
+    await expect(runBoundedIO(blocked, context)).rejects.toMatchObject({
+      action: 'cancel',
+    });
+    expect(blocked).not.toHaveBeenCalled();
+  });
+
+  it('should stop IO when cancellation happens before its abort listener is installed', async () => {
+    const controller = new AbortController();
+    const context = new OperationContext({ signal: controller.signal });
+    const observedSignals: Array<AbortSignal | undefined> = [];
+    const action = vi.fn(async (signal?: AbortSignal) => {
+      observedSignals.push(signal);
+      controller.abort('cancelled');
+
+      return 'late completion';
+    });
+
+    await expect(runBoundedIO(action, context)).rejects.toMatchObject({
+      action: 'cancel',
+    });
+    expect(action).toHaveBeenCalledOnce();
+    expect(observedSignals).toEqual([
+      expect.objectContaining({ aborted: true }),
+    ]);
   });
 
   it('should not start an SDK call when its invocation is already cancelled', async () => {
