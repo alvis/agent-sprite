@@ -1754,7 +1754,9 @@ describe('installed CLI', () => {
 
   it('should prepare one JSON fallback with recovery identity for cyclic diagnostic data', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emission.js'),
+    ).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const result = { command: 'show', ok: false, error: {
@@ -1796,7 +1798,9 @@ describe('installed CLI', () => {
 
   it('should keep a created machine recoverable when success data cannot be rendered', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emission.js'),
+    ).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
@@ -1833,7 +1837,9 @@ describe('installed CLI', () => {
 
   it('should preserve deletion guidance without claiming a retained Sprite after render failure', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emission.js'),
+    ).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
@@ -1874,7 +1880,9 @@ describe('installed CLI', () => {
 
   it('should keep local-credential setup and list recovery machine-free', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emission.js'),
+    ).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       const cyclic = {}; cyclic.self = cyclic;
@@ -1912,7 +1920,9 @@ describe('installed CLI', () => {
 
   it('should own a result after one write attempt to a closed OS stdout pipe', async () => {
     const packageRoot = dirname(dirname(await realpath(packedBin)));
-    const emitUrl = pathToFileURL(join(packageRoot, 'lib/cli/emit.js')).href;
+    const emitUrl = pathToFileURL(
+      join(packageRoot, 'lib/cli/emission.js'),
+    ).href;
     const source = `
       import { emitResult } from ${JSON.stringify(emitUrl)};
       let writeErrors = 0;

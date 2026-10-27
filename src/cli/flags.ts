@@ -271,7 +271,7 @@ export const integrationCredentialFlags = {
   },
 } as const;
 
-/** optional native plugin and marketplace selections; per-harness flags come from harness-flags */
+/** optional native plugin and marketplace selections; per-harness flags come from flags/harness */
 export const pluginFlags = {
   plugins: {
     kind: 'boolean',

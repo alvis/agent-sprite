@@ -3,13 +3,6 @@ import { useRef, useState } from 'react';
 
 import { isPrintableInput } from '#cli/keystroke';
 
-/** input chunk and the edit context it updates */
-interface InputEventParams<Context extends EditContext> {
-  input: string;
-  key: InputKey;
-  context: Context;
-}
-
 /** props for one inline text prompt */
 type TextInputProps = {
   label: string;
@@ -39,6 +32,13 @@ interface EditContext {
 
 interface CharacterEditContext extends EditContext {
   characters: string[];
+}
+
+/** input chunk and the edit context it updates */
+interface InputEventParams<Context extends EditContext> {
+  input: string;
+  key: InputKey;
+  context: Context;
 }
 
 /**

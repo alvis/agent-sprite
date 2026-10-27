@@ -2,7 +2,7 @@ import process from 'node:process';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { emitResult } from '#cli/emit';
+import { emitResult } from '#cli/emission';
 
 import type { MachineSummary } from '#application/machine';
 import type { CommandResult } from '#application/result';

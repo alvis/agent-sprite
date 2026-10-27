@@ -15,6 +15,12 @@ import type {
 } from '#application/ports/interaction';
 import type { StatusUpdate } from '#kernel/status';
 
+/** submission and cancellation callbacks for one mounted prompt */
+interface PromptCallbacks<T> {
+  onSubmit: (value: T) => void;
+  onCancel: (back?: boolean) => void;
+}
+
 /** persistent prompt and progress presented in one terminal root */
 interface InteractionRootElementParams {
   prompt: ReactElement | undefined;
@@ -54,11 +60,6 @@ interface MultiSelectPromptElementParams<
 interface ConfirmPromptElementParams extends PromptCallbacks<boolean> {
   prompt: InteractionPrompt;
 }
-
-type PromptCallbacks<T> = {
-  onSubmit: (value: T) => void;
-  onCancel: (back?: boolean) => void;
-};
 
 /**
  * creates the element for the persistent input owner

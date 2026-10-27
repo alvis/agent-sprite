@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { runCommand } from '#application/workstation';
 import { createCommandCancellation } from '#cli/cancellation';
-import { execute } from '#cli/execute';
+import { execute } from '#cli/execution';
 
 import {
   dependenciesWith,
