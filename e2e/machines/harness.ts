@@ -60,15 +60,26 @@ export interface MachineHarness {
   withWorkstation(name: string, body: () => Promise<void>): Promise<void>;
 }
 
-const PREFLIGHT_TIMEOUT_MS = 2 * 60_000;
+/** dependencies already connected for one machine harness */
+interface ConnectedHarness {
+  bin: string;
+  home: string;
+  runId: string;
+  cli: MachineCli;
+  provider: MachineProvider;
+  tailnet: Tailnet;
+  cleanup: MachineCleanup;
+  redact: Redactor;
+  read: (name: string) => string;
+}
+
+const PREFLIGHT_TIMEOUT_MS = 120_000;
 
 /**
  * builds the harness of one machine type from the values e2e/setup.ts
  * provides and the `TEST_*` credentials, without exposing their values
  * @param type machine type the spec file drives
  * @returns CLI, provider, tailnet and cleanup bound to the run
- * @throws {Error} with the CLI's own preflight failure when the type's
- * credential is missing, so the spec file fails rather than skips
  */
 export async function createMachineHarness(
   type: MachineType,
@@ -114,6 +125,28 @@ export async function createMachineHarness(
     redact,
   });
 
+  return harnessForRun({
+    bin,
+    home,
+    runId,
+    cli,
+    provider,
+    tailnet,
+    cleanup,
+    redact,
+    read,
+  });
+}
+
+/**
+ * binds isolated CLI homes and guaranteed cleanup to connected run services
+ * @param connected run identity, drivers, and credential reader
+ * @returns the machine harness used by scenarios
+ */
+function harnessForRun(connected: ConnectedHarness): MachineHarness {
+  const { bin, home, runId, cli, provider, tailnet, cleanup, redact, read } =
+    connected;
+
   return {
     runId,
     runHome: home,
@@ -123,6 +156,11 @@ export async function createMachineHarness(
     cleanup,
     redact,
     hasValue: (name) => read(name) !== '',
+    /**
+     * creates a CLI with a separate home inside this run
+     * @param tag isolated home name
+     * @returns CLI bound to the isolated home
+     */
     async isolatedCli(tag) {
       const isolated = join(home, tag);
       await mkdir(isolated, { recursive: true });
@@ -130,6 +168,12 @@ export async function createMachineHarness(
       return createMachineCli({ bin, home: isolated, redact });
     },
     workstationName: (suffix) => `${runId}-${suffix}`,
+    /**
+     * runs a workstation scenario and removes its machine afterward
+     * @param name exact workstation name
+     * @param body scenario to run
+     * @returns when the scenario and cleanup settle
+     */
     async withWorkstation(name, body) {
       const failure = await body().then(
         () => undefined,

@@ -109,6 +109,13 @@ export function createMachineCli(options: MachineCliOptions): MachineCli {
   const env = cliEnvironment(home);
 
   return {
+    /**
+     * runs a non-interactive CLI command and redacts its result
+     * @param args command arguments
+     * @param timeoutMs execution limit in milliseconds
+     * @param signal cancellation signal
+     * @returns parsed and redacted CLI outcome
+     */
     async json(args, timeoutMs, signal) {
       const result = await execa(
         bin,
