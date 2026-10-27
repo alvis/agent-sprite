@@ -72,6 +72,24 @@ describe('fn:inBandCommand', () => {
       status: 42,
     });
   });
+
+  it.each([
+    { scenario: 'empty', script: 'exit 7', stderr: '' },
+    {
+      scenario: 'without a final newline',
+      script: 'printf warning >&2; exit 7',
+      stderr: 'warning',
+    },
+    {
+      scenario: 'with a final newline',
+      script: "printf 'warning\\n' >&2; exit 7",
+      stderr: 'warning\n',
+    },
+  ])('should preserve $scenario guest stderr', async ({ script, stderr }) => {
+    const result = await runLine(['/bin/sh', '-c', script]);
+
+    expect(result).toEqual({ exitCode: 7, stdout: '', stderr, status: 7 });
+  });
 });
 
 describe('cl:InBandStatusFilter', () => {
@@ -121,51 +139,113 @@ describe('cl:InBandStatusFilter', () => {
       ]);
 
       expect({ passed: passed.toString(), status: filter.status }).toEqual({
-        passed: 'own',
+        passed: 'own\n',
         status: 42,
       });
+    });
+
+    it.each([
+      { scenario: 'empty guest stderr', guest: '' },
+      { scenario: 'guest stderr without a final newline', guest: 'warning' },
+      { scenario: 'guest stderr with a final newline', guest: 'warning\n' },
+    ])('should preserve $scenario at every frame split', ({ guest }) => {
+      const bytes = Buffer.from(`${guest}${MARKER}7\n`);
+
+      for (let boundary = 0; boundary <= bytes.length; boundary++) {
+        const filter = new InBandStatusFilter(MARKER);
+        const passed = Buffer.concat([
+          filter.push(bytes.subarray(0, boundary)),
+          filter.push(bytes.subarray(boundary)),
+          filter.end(),
+        ]);
+
+        expect({ stderr: passed.toString(), status: filter.status }).toEqual({
+          stderr: guest,
+          status: 7,
+        });
+      }
+    });
+
+    it('should release a guest newline before the marker arrives', () => {
+      const filter = new InBandStatusFilter(MARKER);
+
+      const first = filter.push(Buffer.from('warning\n'));
+      const frame = Buffer.concat([
+        filter.push(Buffer.from(`${MARKER}7\n`)),
+        filter.end(),
+      ]);
+
+      expect({
+        first: first.toString(),
+        frame: frame.toString(),
+        status: filter.status,
+      }).toEqual({ first: 'warning\n', frame: '', status: 7 });
+    });
+
+    it('should release guest stderr beyond the transport trailer bound', () => {
+      const guest = 'x'.repeat(65_537);
+      const filter = new InBandStatusFilter(MARKER);
+
+      const first = filter.push(Buffer.from(`${MARKER}0\n`));
+      const overflow = filter.push(Buffer.from(guest));
+      const final = Buffer.concat([
+        filter.push(Buffer.from(`${MARKER}3\n`)),
+        filter.end(),
+      ]);
+
+      expect({
+        first: first.toString(),
+        overflow: overflow.toString(),
+        final: final.toString(),
+        status: filter.status,
+      }).toEqual({ first: '', overflow: guest, final: '', status: 3 });
     });
   });
 });
 
 describe('fn:splitInBandStatus', () => {
   it.each([
-    [
-      'a spoofed marker line the real one follows',
-      `${MARKER}0\nown\n${MARKER}3\nError: ssh exited 1\n`,
-      { stderr: 'own', status: 3 },
-    ],
-    [
-      'two marker lines, keeping the text between them',
-      `first\n${MARKER}9\nbetween\n${MARKER}0\n`,
-      { stderr: 'firstbetween', status: 0 },
-    ],
-    [
-      'text that follows the last marker line on the same stream',
-      `own\n${MARKER}5\ntransport report\n`,
-      { stderr: 'own', status: 5 },
-    ],
-    [
-      'a status above 255',
-      `own\n${MARKER}256\n`,
-      { stderr: 'own', status: undefined },
-    ],
-    [
-      'a status of four digits',
-      `own\n${MARKER}1000\n`,
-      { stderr: 'own', status: undefined },
-    ],
-    [
-      'a marker line without digits',
-      `own\n${MARKER}\n`,
-      { stderr: 'own', status: undefined },
-    ],
-    [
-      'a final marker line without its newline',
-      `own\n${MARKER}255`,
-      { stderr: 'own', status: 255 },
-    ],
-  ])('should split %s', (_, stderr, expected) => {
+    {
+      scenario: 'a spoofed marker line the real one follows',
+      stderr: `${MARKER}0\nown\n${MARKER}3\nError: ssh exited 1\n`,
+      expected: { stderr: 'own\n', status: 3 },
+    },
+    {
+      scenario: 'two marker lines, keeping the text between them',
+      stderr: `first\n${MARKER}9\nbetween\n${MARKER}0\n`,
+      expected: { stderr: 'first\nbetween\n', status: 0 },
+    },
+    {
+      scenario: 'text that follows the last marker line on the same stream',
+      stderr: `own\n${MARKER}5\ntransport report\n`,
+      expected: { stderr: 'own\n', status: 5 },
+    },
+    {
+      scenario: 'a status above 255',
+      stderr: `own\n${MARKER}256\n`,
+      expected: { stderr: 'own\n', status: undefined },
+    },
+    {
+      scenario: 'a status of four digits',
+      stderr: `own\n${MARKER}1000\n`,
+      expected: { stderr: 'own\n', status: undefined },
+    },
+    {
+      scenario: 'a marker line without digits',
+      stderr: `own\n${MARKER}\n`,
+      expected: { stderr: 'own\n', status: undefined },
+    },
+    {
+      scenario: 'a marker line with a non-digit status',
+      stderr: `own\n${MARKER}x\n`,
+      expected: { stderr: 'own\n', status: undefined },
+    },
+    {
+      scenario: 'a final marker line without its newline',
+      stderr: `own\n${MARKER}255`,
+      expected: { stderr: 'own\n', status: 255 },
+    },
+  ])('should split $scenario', ({ stderr, expected }) => {
     const split = splitInBandStatus(Buffer.from(stderr), MARKER);
 
     expect({ stderr: split.stderr.toString(), status: split.status }).toEqual(
@@ -224,4 +304,12 @@ describe('fn:verifiedStatus', () => {
       ).toEqual(new ProviderFault({ code: 'transient', message }));
     },
   );
+  it('should report a missing status without inventing a transport diagnostic', () => {
+    const failure = thrownBy(() => verifiedStatus(undefined, undefined, ''));
+
+    expect(failure).toMatchObject({
+      code: 'transient',
+      message: expect.not.stringContaining(':'),
+    });
+  });
 });

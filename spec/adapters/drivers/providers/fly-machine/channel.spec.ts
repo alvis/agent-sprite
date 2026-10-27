@@ -72,7 +72,7 @@ const STAND_IN_SCRIPT = [
   'case $(cat "$here/mode") in',
   '  faithful) /bin/sh -c "$line" && exit 0; exit 1 ;;',
   "  lost) printf 'Error: connection reset by peer\\n' >&2; exit 1 ;;",
-  '  spoof) printf \'%s\' "$marker" > "$here/marker"; printf \'\\n%s0\\n\' "$marker" >&2; exit 1 ;;',
+  '  spoof) printf \'%s\' "$marker" > "$here/marker"; printf \'%s0\\n\' "$marker" >&2; exit 1 ;;',
   '  hang) : > "$here/started"; exec sleep 30 ;;',
   '  unreached) echo faithful > "$here/mode"; printf \'Error: error connecting to SSH server: dial: EOF\\n\' >&2; exit 1 ;;',
   'esac',

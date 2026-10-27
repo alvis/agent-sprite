@@ -26,7 +26,7 @@ interface MarkerLine {
  */
 const STATUS_SCRIPT =
   'marker=$1; shift; "$@"; status=$?; ' +
-  'printf \'\\n%s%d\\n\' "$marker" "$status" >&2; exit "$status"';
+  'printf \'%s%d\\n\' "$marker" "$status" >&2; exit "$status"';
 /** $0 of the wrapper, shown by the guest in its own diagnostics */
 const WRAPPER_NAME = 'open-agent-guest';
 const MARKER_PREFIX = '@@open-agent-status:';
@@ -137,9 +137,7 @@ export class InBandStatusFilter {
         return Buffer.concat(released);
       }
       const before = this.#pending.subarray(0, index);
-      // the newline the wrapper writes before its marker is part of the line
-      const own = before.at(-1) === NEWLINE ? before.subarray(0, -1) : before;
-      released.push(this.#trailer, own);
+      released.push(this.#trailer, before);
       this.#trailer = Buffer.alloc(0);
       this.#seen = true;
       this.#status = line.status;
@@ -196,10 +194,7 @@ export class InBandStatusFilter {
   }
 
   /**
-   * measures the longest end of the pending bytes that could begin a marker;
-   * a trailing newline is never held, since a streaming command's own line
-   * can end a chunk with nothing after it until its next command, so the
-   * wrapper's newline is dropped only when the marker arrives with it
+   * measures the longest end of the pending bytes that could begin a marker
    * @returns how many trailing bytes to hold back
    */
   #partialMarkerLength(): number {
