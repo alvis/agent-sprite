@@ -7,7 +7,7 @@ import {
   doctorWorkstation,
   listWorkstations,
   showWorkstation,
-} from '#application/inspect';
+} from '#application/inspection';
 import { setupWorkstation } from '#application/setup';
 import { terminateWorkstation } from '#application/terminate';
 import { validateCommandRequest } from '#application/validation';

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ENVIRONMENT_PATH } from '#adapters/guest/platform/layout';
-import { prepareGuestSection } from '#application/setup';
+import { prepareGuestSection } from '#application/setup/preparation';
 import { registry } from '#composition/registry';
 import { summarizeProfile } from '#domain/recorded';
 import { OperationContext, withOperation } from '#kernel/operation';

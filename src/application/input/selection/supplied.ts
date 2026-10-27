@@ -2,7 +2,7 @@ import { AGENT_IDS } from '#domain/ids';
 import { validateProfile } from '#domain/profile';
 import { selectionInputs } from '#domain/selection-inputs';
 
-import { environmentReader } from './selection-sources';
+import { environmentReader } from './sources';
 
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type {
@@ -13,7 +13,7 @@ import type {
 } from '#domain/profile';
 import type { SelectionField } from '#domain/selection-inputs';
 
-import type { Resolved, SelectionContext } from './selection-sources';
+import type { Resolved, SelectionContext } from './sources';
 
 /** options a caller can select */
 type SelectableOption = Extract<SelectionField, keyof ProfileOptions>;

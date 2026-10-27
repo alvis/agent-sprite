@@ -6,13 +6,16 @@ import {
   SCHEMA_LABEL,
   VERSION_LABEL_PREFIX,
 } from '#adapters/drivers/providers/sprite/labels';
-import { listWorkstations, selectManagedMachine } from '#application/inspect';
+import {
+  listWorkstations,
+  selectManagedMachine,
+} from '#application/inspection';
 
 import { driveInk } from '../fixtures/ink';
 import { dependencies } from '../mocks/dependencies';
 import { providerOf } from '../mocks/sprites';
 
-import type { ProviderAvailability } from '#application/inspect';
+import type { ProviderAvailability } from '#application/inspection';
 
 /**
  * a real provider adapter backed by controlled Sprite SDK list and get calls

@@ -6,14 +6,14 @@ import {
   resolveSetupSelection,
   selectionRequirements,
 } from '#application/input/selection';
-import { suppliedSelectionViolations } from '#application/input/selection-supplied';
+import { suppliedSelectionViolations } from '#application/input/selection/supplied';
 import { defaults } from '#composition/defaults';
 import { defaultProfile, MAX_UPDATE_DUE_DAYS } from '#domain/profile';
 
 import { dependencies } from '../../mocks/dependencies';
 
 import type { SetupSection } from '#application/contracts';
-import type { SelectionContext } from '#application/input/selection-sources';
+import type { SelectionContext } from '#application/input/selection/sources';
 import type { InputSources } from '#application/input/sources';
 import type {
   Interaction,

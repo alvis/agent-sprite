@@ -15,7 +15,7 @@ import {
   resolveCreateSelection,
   selectionRequirements,
 } from './input/selection';
-import { suppliedSelectionViolations } from './input/selection-supplied';
+import { suppliedSelectionViolations } from './input/selection/supplied';
 import { readInputSources } from './input/sources';
 
 import type { CommandOptions } from '#application/contracts';
@@ -27,8 +27,8 @@ import type { WorkstationProfile } from '#domain/profile';
 
 import type { GithubTokenCandidate } from './input/github';
 import type { SelectionResolution } from './input/selection';
-import type { Resolved } from './input/selection-sources';
-import type { SuppliedSelection } from './input/selection-supplied';
+import type { Resolved } from './input/selection/sources';
+import type { SuppliedSelection } from './input/selection/supplied';
 import type { InputSources } from './input/sources';
 import type { ResolvedInputs, RequiredInput } from './input/types';
 

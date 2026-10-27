@@ -3,7 +3,7 @@ import { defaultProfile, registeredSummary } from '#domain/profile';
 import { CommandFault } from '#kernel/faults';
 
 import type { SetupSection } from '#application/contracts';
-import type { SuppliedSelection } from '#application/input/selection-supplied';
+import type { SuppliedSelection } from '#application/input/selection/supplied';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { GuestChannel } from '#application/ports/guest-channel';
 import type { GuestEnvironment } from '#domain/observations/environment';

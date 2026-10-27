@@ -1,7 +1,7 @@
 import { markInstallationReady } from '#application/installation/readiness';
 import { traceStage } from '#kernel/operation';
 
-import { installSetupPlan } from './install';
+import { installSetupPlan } from './installation';
 import { setupNetwork } from './network';
 import { setupPlugins } from './plugins';
 import {

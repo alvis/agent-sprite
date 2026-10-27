@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { configureNewWorkstation } from '#application/create/configure';
+import { configureNewWorkstation } from '#application/create/configuration';
 import {
   normalizePluginOptions,
   resolvePluginActions,
@@ -28,7 +28,7 @@ import {
 
 import type { Sprite } from '@fly/sprites';
 
-import type { ConfigureNewWorkstationParams } from '#application/create/configure';
+import type { ConfigureNewWorkstationParams } from '#application/create/configuration';
 import type { ApplicationDependencies } from '#application/ports/dependencies';
 import type { Interaction } from '#application/ports/interaction';
 import type { SetupSession } from '#application/ports/session';
@@ -36,18 +36,18 @@ import type { WorkstationProfile } from '#domain/profile';
 
 // the install plan is a guest run; only the configuration it hands over is under test
 vi.mock(
-  '#application/installation/install',
+  '#application/installation',
   () =>
     ({
       installWorkstation: vi.fn<
-        typeof import('#application/installation/install').installWorkstation
+        typeof import('#application/installation').installWorkstation
       >(async (_mechanics, params) => {
         await params.beforeServices?.(await params.connection.guest());
 
         return environmentOf(params.profile);
       }),
     }) satisfies Pick<
-      typeof import('#application/installation/install'),
+      typeof import('#application/installation'),
       'installWorkstation'
     >,
 );

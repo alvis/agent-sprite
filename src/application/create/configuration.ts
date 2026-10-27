@@ -5,7 +5,7 @@ import {
   proxyRoute,
 } from '#application/catalog/harnesses';
 import { networkDriver } from '#application/catalog/networks';
-import { installWorkstation } from '#application/installation/install';
+import { installWorkstation } from '#application/installation';
 import { markInstallationReady } from '#application/installation/readiness';
 import { hasActions } from '#application/plugins';
 import { traceStage } from '#kernel/operation';

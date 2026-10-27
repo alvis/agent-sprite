@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { debianFamily } from '#adapters/guest/os/debian/family';
-import { installWorkstation } from '#application/installation/install';
+import { installWorkstation } from '#application/installation';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
 
 import { environmentOf } from '../fixtures/environment';
