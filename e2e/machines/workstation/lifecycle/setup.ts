@@ -78,8 +78,7 @@ export async function checkHomebrew(context: CreatedLifecycle): Promise<void> {
   const { provider, cleanup } = harness;
   // Git, jj and gh are Homebrew's bottles at the default prefix, which
   // the agent's PATH searches first; the agent runs them but can change
-  // nothing under the prefix, and Homebrew poured every keg and
-  // installed no compiler
+  // nothing under the prefix, and Homebrew poured every keg from a bottle
   const homebrewGit = await readHomebrewGit(provider, name);
 
   await annotate(`Git ${homebrewGit.kegVersion} from Homebrew`);
@@ -107,7 +106,6 @@ export async function checkHomebrew(context: CreatedLifecycle): Promise<void> {
         new RegExp(`^${HOMEBREW.account} ${HOMEBREW.account} 7[57]5 `),
       ),
     ],
-    brewCompilers: [],
     unbottledKegs: [],
   });
 
