@@ -1,5 +1,6 @@
 import { t3Service } from '#adapters/drivers/agents/t3/service';
 import { tailscaleDaemon } from '#adapters/drivers/networks/tailscale/service';
+import { registry } from '#composition/registry';
 
 import { successData } from '../../cli';
 import {
@@ -173,6 +174,14 @@ export async function checkAwakeInstallation(
 ): Promise<void> {
   const { name, expect, harness } = context;
   const { provider } = harness;
+  const { keepAwakeMode, wakeMode, supportsCliWakeSleep } =
+    registry.providers[provider.name].capabilities;
+  // the governor may initiate sleep only for a governed provider with a wake
+  // path; the lifecycle keeps the default idle timeout, which is above 0
+  const isSleepPermitted =
+    keepAwakeMode === 'governed' &&
+    (wakeMode === 'url-traffic' ||
+      (wakeMode === 'cli-restore' && supportsCliWakeSleep));
   const awakeInstall = await readAwakeInstall(provider, name);
   const awakeSteps = await sendAwakeEvents(provider, name, name);
 
@@ -188,7 +197,7 @@ export async function checkAwakeInstallation(
         lastHeartbeat: expect.any(String),
         openHolds: 0,
         holds: [],
-        sleepPermitted: false,
+        sleepPermitted: isSleepPermitted,
       }),
     },
     {
@@ -196,7 +205,7 @@ export async function checkAwakeInstallation(
       state: expect.objectContaining({
         openHolds: 1,
         holds: [expect.objectContaining({ source: 'e2e' })],
-        sleepPermitted: false,
+        sleepPermitted: isSleepPermitted,
       }),
     },
     {
