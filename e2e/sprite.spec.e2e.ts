@@ -380,14 +380,6 @@ describe('Sprite awake task', () => {
         // no keep-awake task outlives the turn, and the Sprite then sleeps
         const outcome = await waitForTurnEnd(provider, name, turn);
         const after = await readGovernor(provider, name);
-        // the turn-end hook records the last heartbeat and the harness exits
-        // after it; a pause's last tick lands up to a second before it begins
-        const turnPauses = (
-          await readPauses(provider, name, outcome.startedAt)
-        ).filter(
-          ({ from }) =>
-            Date.parse(from) + PAUSE_ROUNDING_MS < instant(after.lastHeartbeat),
-        );
         const taskAfter = await provider.readAwakeTask(name);
         // whether the Sprite held the awake task at every second of the turn,
         // and what it and the governor recorded around any pause in it
@@ -395,8 +387,22 @@ describe('Sprite awake task', () => {
           from: outcome.startedAt,
           to: new Date().toISOString(),
         });
+        // the turn-end hook closes the turn's hold, recording the heartbeat
+        // the first sample without the hold shows, and the harness exits
+        // after it, its session-end hook closing the hold once more
+        const turnEnd =
+          samples.find(
+            ({ at, openHolds }) =>
+              Date.parse(at) > instant(during.lastHeartbeat) && openHolds === 0,
+          )?.lastHeartbeat ?? after.lastHeartbeat;
+        // a pause's last tick lands up to a second before it begins
+        const turnPauses = (
+          await readPauses(provider, name, outcome.startedAt)
+        ).filter(
+          ({ from }) => Date.parse(from) + PAUSE_ROUNDING_MS < instant(turnEnd),
+        );
         const turnSamples = samples.filter(
-          ({ at }) => Date.parse(at) <= instant(after.lastHeartbeat),
+          ({ at }) => Date.parse(at) <= instant(turnEnd),
         );
         const taskless = turnSamples.filter(
           ({ taskExpiresAt }) => taskExpiresAt === undefined,
@@ -431,7 +437,7 @@ describe('Sprite awake task', () => {
         );
 
         await annotate(
-          `idle 0: the turn-end hook ran at ${String(after.lastHeartbeat)}; after the last guest read the guest stopped after its tick at ${String(idleSleep?.from)} (${instant(idleSleep?.from) - lastReadAt} ms later) and the provider recorded sleep at ${String(settled?.lastWarmingAt)}`,
+          `idle 0: the turn-end hook ran at ${String(turnEnd)}; after the last guest read the guest stopped after its tick at ${String(idleSleep?.from)} (${instant(idleSleep?.from) - lastReadAt} ms later) and the provider recorded sleep at ${String(settled?.lastWarmingAt)}`,
         );
         expect(outcome).toMatchObject({ exitCode: 0 });
         expect(turnPauses).toEqual([]);
