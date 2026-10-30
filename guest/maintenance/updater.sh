@@ -4,10 +4,10 @@
 # of its own. It upgrades every tool environment.json records through the
 # manager its source names, never installing a missing one: the system
 # packages together through the family's fragment, then each Homebrew formula
-# from its bottle after one refresh, a formula whose new version has no bottle
-# keeping its own, then each npm tool to its dist-tag and each Rust toolchain,
-# both as the agent. Afterwards it records each tool's installed version in
-# environment.json, restores the tools' links and records the run in
+# one refresh finds outdated from its bottle, a formula whose new version has
+# no bottle keeping its own, then each npm tool to its dist-tag and each Rust
+# toolchain, both as the agent. Afterwards it records each tool's installed
+# version in environment.json, restores the tools' links and records the run in
 # update-status.json: when it started and finished, each tool's outcome with
 # its versions before and after, and the last success, which moves only when
 # every required tool was installed or skipped and the links were restored.
@@ -119,23 +119,35 @@ $oa_updater_system_tools
 EOF
 }
 
-# refreshes Homebrew's formula data once, never its own code, then upgrades
-# each formula from its bottle; one whose new version has no bottle keeps its
-# own and counts as skipped
+# refreshes Homebrew's formula data once, never its own code, which names the
+# formulae a newer version exists for, then upgrades each of those from its
+# bottle; one whose new version has no bottle keeps its own and counts as
+# skipped, as does every current formula, whose version the one listing taken
+# before the upgrades gives, so brew runs no further for it
 oa_updater_brew() {
   oa_updater_brew_tools=$(oa_updater_tools brew) || return 1
   test -n "$oa_updater_brew_tools" || return 0
   oa_updater_hold
   oa_updater_brew_refreshed=0
-  if oa_brew_refresh; then
+  if oa_brew_refresh >"$oa_updater_work/outdated"; then
     oa_updater_brew_refreshed=1
   fi
+  oa_brew list --formula --versions >"$oa_updater_work/listed" 2>/dev/null ||
+    : >"$oa_updater_work/listed"
   while IFS="$(printf '\t')" read -r oa_updater_name oa_updater_required oa_updater_formula _ <&3; do
     oa_updater_hold
-    oa_updater_from=$(oa_brew_version "$oa_updater_formula" 2>/dev/null) || oa_updater_from=
+    oa_updater_from=$(awk -v name="${oa_updater_formula##*/}" '$1 == name { print $2; exit }' \
+      "$oa_updater_work/listed")
+    test -n "$oa_updater_from" ||
+      oa_updater_from=$(oa_brew_version "$oa_updater_formula" 2>/dev/null) || oa_updater_from=
     if test "$oa_updater_brew_refreshed" = 0; then
       oa_updater_outcome "$oa_updater_name" brew "$oa_updater_required" 1 \
         "$oa_updater_from" "$oa_updater_from" 'Homebrew could not refresh its formulae'
+      continue
+    fi
+    if ! grep -qxF -e "$oa_updater_formula" -e "${oa_updater_formula##*/}" "$oa_updater_work/outdated"; then
+      oa_updater_outcome "$oa_updater_name" brew "$oa_updater_required" 0 \
+        "$oa_updater_from" "$oa_updater_from"
       continue
     fi
     oa_brew_upgrade "$oa_updater_formula" 2>"$oa_updater_work/brew"
