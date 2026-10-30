@@ -66,7 +66,7 @@ async function createWithoutNetwork(context: VariantContext): Promise<void> {
       '--provider',
       type,
     ],
-    CREATE_TIMEOUT_MS,
+    CREATE_TIMEOUT_MS[type],
     signal,
   );
 

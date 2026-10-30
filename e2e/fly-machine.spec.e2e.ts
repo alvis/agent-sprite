@@ -106,7 +106,8 @@ const FLY_TOKEN =
 /** a dotted release version anywhere in a version probe's output */
 const DOTTED_VERSION = /\b\d{1,4}\.\d{1,4}/u;
 const MINUTE_MS = 60_000;
-const CREATE_TIMEOUT_MS = 40 * MINUTE_MS;
+// a create installs the whole tool set
+const CREATE_TIMEOUT_MS = 60 * MINUTE_MS;
 const COMMAND_TIMEOUT_MS = 8 * MINUTE_MS;
 const LIFECYCLE_TIMEOUT_MS = 100 * MINUTE_MS;
 const PREFLIGHT_TIMEOUT_MS = 2 * MINUTE_MS;
