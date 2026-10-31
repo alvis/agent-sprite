@@ -310,6 +310,29 @@ describe('fn:oa_update_run', () => {
     });
   });
 
+  it('should retain a failed upgrade when its resulting version cannot be verified', async () => {
+    const result = await update({
+      outdated: ['gh'],
+      postinstallFails: ['gh'],
+      unreadableAfterUpgrade: ['gh'],
+    });
+
+    expect(result).toMatchObject({
+      upgrades: ['upgrade --formula gh'],
+      succeeded: false,
+      lastSuccess: PREVIOUS_SUCCESS,
+      tools: expect.arrayContaining([
+        outcome('gh', {
+          outcome: 'failed',
+          to: null,
+          reason:
+            'Homebrew failed and its version could not be verified; post-install success is unconfirmed',
+        }),
+      ]),
+      versions: { ...INSTALLED, gh: '2.61.0' },
+    });
+  });
+
   it('should fail every formula without upgrading when brew cannot refresh', async () => {
     const result = await update({ outdated: ['gh'], shouldFailRefresh: true });
 

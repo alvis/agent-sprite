@@ -25,6 +25,8 @@ export interface BrewScenario {
   crowded?: readonly string[];
   /** formulae moved to their new version before their post-install step fails */
   postinstallFails?: readonly string[];
+  /** formulae whose first version read after a failed upgrade fails */
+  unreadableAfterUpgrade?: readonly string[];
   /** formulae whose new version has no bottle for the guest */
   unbottled?: readonly string[];
   /** true when the listing of every installed formula fails */
@@ -73,8 +75,16 @@ case $command in
     shift 2
     if test "$#" -eq 0; then
       test ! -e "$state/listing-fails" || exit 1
+      if test -e "$state/failed-upgrade" && test -s "$state/unreadable-after-upgrade"; then
+        exit 1
+      fi
       cat "$state/installed"
       exit 0
+    fi
+    if test -e "$state/failed-upgrade" && grep -qxF "$1" "$state/unreadable-after-upgrade"; then
+      awk -v name="$1" '$0 != name' "$state/unreadable-after-upgrade" >"$state/unreadable.new" &&
+        mv "$state/unreadable.new" "$state/unreadable-after-upgrade"
+      exit 1
     fi
     name=$(awk -v name="$1" '$1 == name { print $2; exit }' "$state/aliases")
     name=\${name:-$1}
@@ -97,10 +107,11 @@ case $command in
         $1 == name && newer != "" { $2 = newer } { print }' \\
         "$state/newer" "$state/installed" >"$state/installed.new" &&
         mv "$state/installed.new" "$state/installed"
-      if grep -qxF "$formula" "$state/postinstall-fails"; then
+      if test ! -e "$state/failed-upgrade" && grep -qxF "$formula" "$state/postinstall-fails"; then
         status=1
       fi
     done
+    test "$status" -eq 0 || touch "$state/failed-upgrade"
     exit "$status"
     ;;
   cleanup) ;;
@@ -148,6 +159,10 @@ export async function runWithBrew(params: BrewRunParams): Promise<BrewRun> {
     writeFile(
       join(state, 'bin/postinstall-fails'),
       list(scenario.postinstallFails),
+    ),
+    writeFile(
+      join(state, 'bin/unreadable-after-upgrade'),
+      list(scenario.unreadableAfterUpgrade),
     ),
     writeFile(join(state, 'bin/unbottled'), list(scenario.unbottled)),
     writeFile(join(state, 'bin/calls'), ''),

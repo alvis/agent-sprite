@@ -127,10 +127,11 @@ EOF
 # has no bottle keeps its own and counts as skipped, as does every current
 # formula, whose version the one listing taken before the upgrades gives, so
 # brew runs no further for it. Each upgraded tool's version is read from one
-# listing taken after the run, and when the run failed, each formula it left
-# at its version gets an upgrade of its own, as it would alone, so a failure
+# listing taken after the run, and when the run failed, each formula whose
+# known version stayed the same gets an upgrade of its own, so a failure
 # is the formula's own. A version change in a failed run cannot prove that
-# post-install succeeded, so that tool keeps the batch failure. The outcomes
+# post-install succeeded, nor can an unreadable version, so those tools keep
+# the batch failure. The outcomes
 # are recorded in environment.json's order
 oa_updater_brew() {
   oa_updater_brew_tools=$(oa_updater_tools brew) || return 1
@@ -194,7 +195,9 @@ EOF
     if oa_updater_kept "$oa_updater_formula" "$oa_updater_work/brew"; then
       oa_updater_formula_status=0
       oa_updater_reason="its new version has no bottle for $(uname -m)"
-    elif test "$oa_updater_formula_status" != 0 && test -n "$oa_updater_to" && test "$oa_updater_to" != "$oa_updater_from"; then
+    elif test "$oa_updater_formula_status" != 0 && { test -z "$oa_updater_from" || test -z "$oa_updater_to"; }; then
+      oa_updater_reason='Homebrew failed and its version could not be verified; post-install success is unconfirmed'
+    elif test "$oa_updater_formula_status" != 0 && test "$oa_updater_to" != "$oa_updater_from"; then
       oa_updater_reason='Homebrew failed after its version changed; post-install success is unconfirmed'
     elif test "$oa_updater_formula_status" != 0; then
       oa_updater_hold
