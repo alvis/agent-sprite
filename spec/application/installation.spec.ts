@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { debianFamily } from '#adapters/guest/os/debian/family';
 import { installWorkstation } from '#application/installation';
+import { Secret } from '#kernel/secret';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
 
 import { environmentOf } from '../fixtures/environment';
@@ -215,6 +216,157 @@ describe('fn:installWorkstation', () => {
     ]);
     expect(boundary.assemble).toHaveBeenCalledOnce();
     expect(boundary.installProvider).not.toHaveBeenCalled();
+  });
+
+  it('should leave out of the whole plan the foundation steps the first run settled when the plan stays the same', async () => {
+    await using boundary = await installationBoundary();
+    boundary.needsBottleProbe.mockReturnValue(true);
+    boundary.run.mockResolvedValueOnce({
+      isComplete: true,
+      steps: [{ step: foundation, status: 'satisfied', attempts: 1 }],
+    });
+
+    await installWorkstation(boundary.mechanics, {
+      provider: dependencies.registry.providers['fly-machine'],
+      connection: boundary.connection,
+      profile: DISABLED_NETWORK_PROFILE,
+    });
+
+    expect(
+      boundary.run.mock.calls.map(([{ steps, settled }]) => ({
+        steps,
+        settled,
+      })),
+    ).toEqual([
+      { steps: [foundation], settled: [] },
+      { steps: [tool], settled: ['foundation'] },
+      { steps: [service], settled: [] },
+    ]);
+  });
+
+  it('should run again each foundation step reassembly changed, that needs a changed step or that did not succeed first', async () => {
+    await using boundary = await installationBoundary();
+    const assets = step('assets');
+    const homebrew = { ...step('homebrew'), needs: ['assets'] };
+    const sysctl = { ...step('sysctl'), needs: ['homebrew'] };
+    const optional = { ...step('optional'), critical: false };
+    const tap = { ...step('tap'), needs: ['homebrew'] };
+    const first = {
+      ...assembly,
+      foundation: [assets, homebrew, sysctl, optional],
+    };
+    const changed = { ...homebrew, critical: false };
+    const refused = {
+      tool: 'example',
+      source: { kind: 'brew', formula: 'example' },
+      reason: 'no bottle',
+    } as const;
+    boundary.needsBottleProbe.mockReturnValue(true);
+    boundary.probeBottles.mockResolvedValue([refused]);
+    boundary.assemble.mockResolvedValueOnce(first).mockResolvedValueOnce({
+      ...first,
+      foundation: [step('assets'), changed, { ...sysctl }, { ...optional }],
+      steps: [tap],
+    });
+    boundary.run.mockResolvedValueOnce({
+      isComplete: true,
+      steps: [
+        { step: assets, status: 'satisfied', attempts: 1 },
+        { step: homebrew, status: 'applied', attempts: 1 },
+        { step: sysctl, status: 'applied', attempts: 1 },
+        { step: optional, status: 'failed', attempts: 1, reason: 'busy' },
+      ],
+    });
+
+    await installWorkstation(boundary.mechanics, {
+      provider: dependencies.registry.providers['fly-machine'],
+      connection: boundary.connection,
+      profile: DISABLED_NETWORK_PROFILE,
+    });
+
+    expect(
+      boundary.run.mock.calls.map(([{ steps, settled }]) => ({
+        steps: steps.map(({ id }) => id),
+        settled,
+      })),
+    ).toEqual([
+      { steps: ['assets', 'homebrew', 'sysctl', 'optional'], settled: [] },
+      { steps: ['homebrew', 'sysctl', 'optional', 'tap'], settled: ['assets'] },
+      { steps: ['service'], settled: [] },
+    ]);
+  });
+
+  it('should run again a reassembled foundation step that sends a credential', async () => {
+    await using boundary = await installationBoundary();
+    const credential = (value: string): SetupStep => ({
+      ...step('credential'),
+      apply: {
+        argv: ['true'],
+        input: {
+          kind: 'secret',
+          value: Secret.fromHost('github', value),
+          as: 'stdin',
+        },
+      },
+    });
+    const first = { ...assembly, foundation: [credential('first-token')] };
+    boundary.needsBottleProbe.mockReturnValue(true);
+    boundary.probeBottles.mockResolvedValue([
+      {
+        tool: 'example',
+        source: { kind: 'brew', formula: 'example' },
+        reason: 'no bottle',
+      },
+    ]);
+    boundary.assemble.mockResolvedValueOnce(first).mockResolvedValueOnce({
+      ...first,
+      foundation: [credential('second-token')],
+    });
+    boundary.run.mockResolvedValueOnce({
+      isComplete: true,
+      steps: [{ step: first.foundation[0]!, status: 'applied', attempts: 1 }],
+    });
+
+    await installWorkstation(boundary.mechanics, {
+      provider: dependencies.registry.providers['fly-machine'],
+      connection: boundary.connection,
+      profile: DISABLED_NETWORK_PROFILE,
+    });
+
+    expect(
+      boundary.run.mock.calls.map(([{ steps, settled }]) => ({
+        steps: steps.map(({ id }) => id),
+        settled,
+      })),
+    ).toEqual([
+      { steps: ['credential'], settled: [] },
+      { steps: ['credential', 'tool'], settled: [] },
+      { steps: ['service'], settled: [] },
+    ]);
+  });
+
+  it('should stop before probing bottles when the first foundation run fails', async () => {
+    await using boundary = await installationBoundary();
+    boundary.needsBottleProbe.mockReturnValue(true);
+    boundary.run.mockResolvedValueOnce({
+      isComplete: false,
+      steps: [
+        { step: foundation, status: 'failed', attempts: 1, reason: 'offline' },
+      ],
+    });
+
+    await expect(
+      installWorkstation(boundary.mechanics, {
+        provider: dependencies.registry.providers['fly-machine'],
+        connection: boundary.connection,
+        profile: DISABLED_NETWORK_PROFILE,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVIDER',
+      details: ['foundation: offline'],
+    });
+    expect(boundary.probeBottles).not.toHaveBeenCalled();
+    expect(boundary.run).toHaveBeenCalledOnce();
   });
 
   it('should reassemble with refused bottles before installing tools', async () => {

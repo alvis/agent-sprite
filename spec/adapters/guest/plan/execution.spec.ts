@@ -98,19 +98,51 @@ describe('fn:runPlan', () => {
       ],
       issue: 'a dependency cycle',
     },
+    {
+      invalid: [{ ...STEP }],
+      settled: [STEP.id],
+      issue: 'a step an earlier plan settled',
+    },
   ])(
     'should reject $issue before opening a guest session',
-    async ({ invalid }) => {
+    async ({ invalid, settled }) => {
       const openSession = vi.fn(async (): Promise<GuestSession> => {
         throw new Error('session should not open');
       });
 
-      await expect(runPlan({ steps: invalid, openSession })).rejects.toThrow(
-        Error,
-      );
+      await expect(
+        runPlan({ steps: invalid, settled, openSession }),
+      ).rejects.toThrow(Error);
       expect(openSession).not.toHaveBeenCalled();
     },
   );
+
+  it('should meet a need on a step an earlier plan settled without running it again', async () => {
+    const tool = { ...STEP, id: 'tool', needs: ['foundation'] };
+    const commands: string[] = [];
+    const session = {
+      release: RELEASE,
+      pid: 1,
+      run: async ({ argv }) => {
+        commands.push(argv[0]);
+
+        return { exitCode: 0, stdout: '', stderr: '' };
+      },
+      [Symbol.asyncDispose]: async () => undefined,
+    } satisfies GuestSession;
+
+    const report = await runPlan({
+      steps: [tool],
+      settled: ['foundation'],
+      openSession: async () => session,
+    });
+
+    expect(report).toEqual({
+      isComplete: true,
+      steps: [{ step: tool, status: 'applied', attempts: 1 }],
+    });
+    expect(commands).toEqual(['true']);
+  });
 
   it('should satisfy a step from its check and honor command-level defaults', async () => {
     const step = {

@@ -114,6 +114,11 @@ export interface PlanRunParams {
   onProgress?: (event: PlanProgress) => void;
   /** attempts a step retried on transport faults gets; 3 when absent */
   attempts?: number;
+  /**
+   * steps an earlier plan in the same session ran to success, left out of
+   * this one as they stand unchanged; a need naming one is met
+   */
+  settled?: readonly string[];
 }
 
 /** the provider facts a plan is assembled from */

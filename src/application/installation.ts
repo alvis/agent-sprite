@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import { CommandFault } from '#kernel/faults';
 import { traceStage } from '#kernel/operation';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
@@ -10,6 +12,8 @@ import type { GuestChannel } from '#application/ports/guest-channel';
 import type { Interaction } from '#application/ports/interaction';
 import type {
   AssemblyParams,
+  PlanReport,
+  PlanRunParams,
   SetupAssembly,
   SetupStep,
 } from '#application/ports/plan';
@@ -37,11 +41,20 @@ export interface InstallParams {
   beforeServices?: (guest: GuestChannel) => Promise<void>;
 }
 
+/** a plan assembled for the run, with the foundation steps already run to success in its session */
+interface BottledAssembly {
+  /** the plan to run */
+  assembly: SetupAssembly;
+  /** the foundation steps the first run settled that the plan declares unchanged */
+  settled: readonly string[];
+}
+
 /**
  * installs a workstation through its setup plan: the foundation runs first
  * where Homebrew is needed, so the installed Homebrew can tell which formulae
  * have no bottle and those tools fall through to their next source, then the
- * whole plan runs, then what the caller runs before the services, then the
+ * whole plan runs, without the foundation steps that first run settled and
+ * the plan left unchanged, then what the caller runs before the services, then the
  * backend's services and jobs; services a provider runs itself are
  * registered last. The environment.json the plan writes stays `incomplete`
  * until the caller marks the installation ready
@@ -63,13 +76,16 @@ export async function installWorkstation(
     setupAt: new Date().toISOString(),
     networkIdentity: previous?.networkIdentity,
   };
-  const assembly = await bottledAssembly(mechanics, params, base);
-  await runSteps(mechanics, params, [
-    ...assembly.foundation,
-    ...assembly.steps,
-  ]);
+  const { assembly, settled } = await bottledAssembly(mechanics, params, base);
+  await runSteps(mechanics, params, {
+    steps: [
+      ...assembly.foundation.filter(({ id }) => !settled.includes(id)),
+      ...assembly.steps,
+    ],
+    settled,
+  });
   await params.beforeServices?.(await connection.guest());
-  await runSteps(mechanics, params, assembly.services);
+  await runSteps(mechanics, params, { steps: assembly.services });
   if (provider.serviceBackend === 'provider') {
     await traceStage({
       stage: 'setup.services',
@@ -91,44 +107,103 @@ export async function installWorkstation(
  * @param mechanics the guest's plan
  * @param params the session and progress
  * @param base what the plan is assembled from
- * @returns the plan to run
+ * @returns the plan to run and the foundation steps already settled
  */
 async function bottledAssembly(
   mechanics: Pick<GuestMechanics, 'plan'>,
   params: InstallParams,
   base: AssemblyParams,
-): Promise<SetupAssembly> {
+): Promise<BottledAssembly> {
   const { plan } = mechanics;
   const assembly = await plan.assemble(base);
   if (!plan.needsBottleProbe(assembly)) {
-    return assembly;
+    return { assembly, settled: [] };
   }
-  await runSteps(mechanics, params, assembly.foundation);
+  const first = await runSteps(mechanics, params, {
+    steps: assembly.foundation,
+  });
   const refused = await plan.probeBottles(params.connection, assembly);
+  const bottled =
+    refused.length > 0
+      ? await plan.assemble({
+          ...base,
+          refused: [...(base.refused ?? []), ...refused],
+        })
+      : assembly;
 
-  return refused.length > 0
-    ? plan.assemble({ ...base, refused: [...(base.refused ?? []), ...refused] })
-    : assembly;
+  return {
+    assembly: bottled,
+    settled: settledSteps(bottled.foundation, first),
+  };
+}
+
+/**
+ * names the foundation steps a first run left in place that need not run
+ * again: each ended satisfied or applied, the plan declares it unchanged, and
+ * every step it needs is settled too, so a step whose definition or need
+ * changed runs again. A step that sends a credential is unchanged only as the
+ * very same step, since a credential's value is never compared
+ * @param foundation the foundation of the plan to run
+ * @param first the first run's report, in the order its steps ran
+ * @returns the settled steps' identifiers
+ */
+function settledSteps(
+  foundation: readonly SetupStep[],
+  first: PlanReport,
+): string[] {
+  const current = new Map(foundation.map((step) => [step.id, step]));
+  const settled: string[] = [];
+  for (const { step, status } of first.steps) {
+    const declared = current.get(step.id);
+    const isUnchanged =
+      declared === step ||
+      (declared !== undefined &&
+        !sendsSecret(step) &&
+        isDeepStrictEqual(declared, step));
+    if (
+      isUnchanged &&
+      (status === 'satisfied' || status === 'applied') &&
+      step.needs.every((need) => settled.includes(need))
+    ) {
+      settled.push(step.id);
+    }
+  }
+
+  return settled;
+}
+
+/**
+ * tells whether a step sends a credential through one of its commands
+ * @param step a foundation step of the plan
+ * @returns true when its check, apply or verify takes a secret input
+ */
+function sendsSecret(step: SetupStep): boolean {
+  return [step.check, step.apply, step.verify].some(
+    (command) => command?.input?.kind === 'secret',
+  );
 }
 
 /**
  * runs steps in the connection's session, reporting each step's progress
  * @param mechanics the guest's plan
  * @param params the session and progress
- * @param steps setup steps, run in dependency order
+ * @param plan setup steps, run in dependency order, and the steps an earlier run in the session settled, which they may need
+ * @returns every step's outcome
  * @throws {CommandFault} when a critical step failed
  */
 async function runSteps(
   mechanics: Pick<GuestMechanics, 'plan'>,
   params: Pick<InstallParams, 'connection' | 'interaction'>,
-  steps: readonly SetupStep[],
-): Promise<void> {
+  plan: Pick<PlanRunParams, 'steps' | 'settled'>,
+): Promise<PlanReport> {
   const { connection, interaction } = params;
+  const { steps, settled = [] } = plan;
   const report = await traceStage({
     stage: 'setup.plan',
     action: async () =>
       mechanics.plan.run({
         steps,
+        settled,
         openSession: async (supersedes) => connection.lend(supersedes),
         onProgress: (event) => {
           reportProgress(event, interaction);
@@ -147,4 +222,6 @@ async function runSteps(
       ),
     });
   }
+
+  return report;
 }
