@@ -6,7 +6,27 @@ import { redactResolved } from '#kernel/redaction';
 
 import { guestOf } from '../../../../mocks/sprites';
 
+import type {
+  GuestChannel,
+  GuestExecResult,
+} from '#application/ports/guest-channel';
+
 describe('fn:pairT3', () => {
+  it('should reject native output without a parseable token', async () => {
+    const guest = {
+      exec: async (): Promise<GuestExecResult> => ({
+        stdout: 'Token:  \nExpires: soon\n',
+        stderr: '',
+        exitCode: 0,
+      }),
+    } satisfies Partial<GuestChannel>;
+
+    await expect(
+      pairT3(guest as Partial<GuestChannel> as GuestChannel),
+    ).rejects.toThrow(
+      expect.objectContaining({ message: expect.stringContaining('token') }),
+    );
+  });
   it('should register the generated pairing token before returning the guest result', async () => {
     const token = 'saf08-generated-native-pairing';
     const sprite = new Sprite(
