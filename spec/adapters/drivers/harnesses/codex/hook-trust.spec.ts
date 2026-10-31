@@ -70,7 +70,7 @@ describe('fn:trustCodexHooks', () => {
   it.each(['ok', 'okOverridden'])(
     'should trust only the owned command when the write status is %s',
     async (status) => {
-    const writes: Array<Record<string, unknown>> = [];
+      const writes: Array<Record<string, unknown>> = [];
       const guest = codexGuest((method, params) => {
         if (method === 'config/batchWrite') {
           writes.push(params);
