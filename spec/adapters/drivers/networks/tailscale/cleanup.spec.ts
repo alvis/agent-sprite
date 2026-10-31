@@ -4,7 +4,10 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { removeStaleTailnetDevice } from '#adapters/drivers/networks/tailscale/cleanup';
+import {
+  assertSafeTailnetTarget,
+  removeStaleTailnetDevice,
+} from '#adapters/drivers/networks/tailscale/cleanup';
 import { CommandFault } from '#kernel/faults';
 
 import { createFilesystemSprite, guestOf } from '../../../../mocks/sprites';
@@ -14,7 +17,7 @@ import type { GuestChannel } from '#application/ports/guest-channel';
 import type { TailnetStatus } from '#domain/observations/network';
 
 const statuses = vi.hoisted(() => new WeakMap<GuestChannel, TailnetStatus>());
-const mocks = vi.hoisted(
+const boundary = vi.hoisted(
   () =>
     ({
       ensureTailnetDaemon: vi.fn<
@@ -23,6 +26,13 @@ const mocks = vi.hoisted(
       inspectTailscale: vi.fn<
         typeof import('#adapters/drivers/networks/tailscale/status').inspectTailscale
       >(async (guest) => statuses.get(guest) ?? LOGGED_OUT),
+      resolveExitNode: vi.fn<
+        typeof import('#adapters/drivers/networks/tailscale/api').resolveExitNode
+      >(async () => ({
+        id: 'home',
+        name: 'home.example.ts.net',
+        ip: '100.64.0.1',
+      })),
       findTailnetDevice: vi.fn<
         typeof import('#adapters/drivers/networks/tailscale/api').findTailnetDevice
       >(async (_key, _tailnet, id) =>
@@ -42,7 +52,7 @@ vi.mock(
   '#adapters/drivers/networks/tailscale/daemon',
   () =>
     ({
-      ensureTailnetDaemon: mocks.ensureTailnetDaemon,
+      ensureTailnetDaemon: boundary.ensureTailnetDaemon,
     }) satisfies Partial<
       typeof import('#adapters/drivers/networks/tailscale/daemon')
     >,
@@ -52,7 +62,7 @@ vi.mock(
   '#adapters/drivers/networks/tailscale/status',
   () =>
     ({
-      inspectTailscale: mocks.inspectTailscale,
+      inspectTailscale: boundary.inspectTailscale,
     }) satisfies Partial<
       typeof import('#adapters/drivers/networks/tailscale/status')
     >,
@@ -65,8 +75,9 @@ vi.mock(
       ...(await importOriginal<
         typeof import('#adapters/drivers/networks/tailscale/api')
       >()),
-      findTailnetDevice: mocks.findTailnetDevice,
-      deleteTailnetDevice: mocks.deleteTailnetDevice,
+      findTailnetDevice: boundary.findTailnetDevice,
+      resolveExitNode: boundary.resolveExitNode,
+      deleteTailnetDevice: boundary.deleteTailnetDevice,
     }) satisfies Partial<
       typeof import('#adapters/drivers/networks/tailscale/api')
     >,
@@ -102,8 +113,8 @@ describe('fn:removeStaleTailnetDevice', () => {
   it('should delete the recorded device of a logged-out guest that the tailnet still holds', async () => {
     await removeStale({ recorded, management });
 
-    expect(mocks.ensureTailnetDaemon).toHaveBeenCalledTimes(1);
-    expect(mocks.deleteTailnetDevice.mock.calls).toEqual([
+    expect(boundary.ensureTailnetDaemon).toHaveBeenCalledTimes(1);
+    expect(boundary.deleteTailnetDevice.mock.calls).toEqual([
       ['tskey-api-test', 'nSTALE1CNTRL'],
     ]);
   });
@@ -118,7 +129,7 @@ describe('fn:removeStaleTailnetDevice', () => {
       },
     );
 
-    expect(mocks.deleteTailnetDevice).not.toHaveBeenCalled();
+    expect(boundary.deleteTailnetDevice).not.toHaveBeenCalled();
   });
 
   it('should delete nothing when the tailnet no longer holds the recorded device', async () => {
@@ -127,7 +138,7 @@ describe('fn:removeStaleTailnetDevice', () => {
       management,
     });
 
-    expect(mocks.deleteTailnetDevice).not.toHaveBeenCalled();
+    expect(boundary.deleteTailnetDevice).not.toHaveBeenCalled();
   });
 
   it('should do nothing without a recorded device or a management account', async () => {
@@ -135,22 +146,62 @@ describe('fn:removeStaleTailnetDevice', () => {
     await removeStale({ recorded, management: { credential: 'tskey-api' } });
     await removeStale({ recorded });
 
-    expect(mocks.ensureTailnetDaemon).not.toHaveBeenCalled();
+    expect(boundary.ensureTailnetDaemon).not.toHaveBeenCalled();
   });
 
-  it('should fail naming the stale device when the management key cannot delete it', async () => {
-    mocks.deleteTailnetDevice.mockRejectedValueOnce(
-      new CommandFault({ code: 'AUTH', message: 'returned 403' }),
-    );
-
-    const failure = await removeStale({ recorded, management }).catch(
-      (error: unknown) => error,
-    );
-
-    expect(failure).toBeInstanceOf(CommandFault);
-    expect(failure).toMatchObject({
+  it.each([
+    {
+      error: new CommandFault({ code: 'AUTH', message: 'returned 403' }),
       code: 'AUTH',
-      message: expect.stringContaining('box.example.ts.net (nSTALE1CNTRL)'),
-    });
+    },
+    { error: new Error('connection reset'), code: 'PROVIDER' },
+  ])(
+    'should fail naming the stale device when deletion fails with $code',
+    async ({ error, code }) => {
+      boundary.deleteTailnetDevice.mockRejectedValueOnce(error);
+
+      const failure = await removeStale({ recorded, management }).catch(
+        (error: unknown) => error,
+      );
+
+      expect(failure).toMatchObject({
+        constructor: CommandFault,
+        code,
+        message: expect.stringContaining('box.example.ts.net (nSTALE1CNTRL)'),
+      });
+    },
+  );
+});
+
+describe('fn:assertSafeTailnetTarget', () => {
+  it.each([
+    { identity: { ...LOGGED_OUT, deviceId: 'self', exitNode: 'self' } },
+    { identity: { ...LOGGED_OUT, deviceId: 'home' }, management, exitNode: 'home' },
+    {
+      identity: { ...LOGGED_OUT, deviceId: 'workstation', ip: '100.64.0.1' },
+      management,
+      exitNode: 'home',
+    },
+  ])(
+    'should reject deletion when the selected target is the exit node $identity',
+    async (params) => {
+      await expect(assertSafeTailnetTarget(params)).rejects.toMatchObject({
+        code: 'CONFLICT',
+      });
+    },
+  );
+
+  it.each([{ identity: { ...LOGGED_OUT, ...recorded }, management, exitNode: 'home' }])(
+    'should allow a target with no conflicting exit identity $identity',
+    async (params) => {
+      await expect(assertSafeTailnetTarget(params)).resolves.toBeUndefined();
+    },
+  );
+  it('should avoid management requests when no exit node was selected', async () => {
+    await expect(
+      assertSafeTailnetTarget({ identity: { ...LOGGED_OUT, ...recorded }, management }),
+    ).resolves.toBeUndefined();
+
+    expect(boundary.resolveExitNode).not.toHaveBeenCalled();
   });
 });
