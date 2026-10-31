@@ -1012,7 +1012,11 @@ describe('cl:FlyMachineProvider', () => {
         stranger: heldApp({ metadata: {}, services: [] }),
       });
       const provider = bound(api);
-      const metadata = { setup: 'ready' as const, profile: SUMMARY };
+      const metadata = {
+        setup: 'ready' as const,
+        profile: SUMMARY,
+        version: '1.2.3',
+      };
 
       const recorded = await provider.setMetadata(
         await provider.get('alpha'),
@@ -1030,7 +1034,7 @@ describe('cl:FlyMachineProvider', () => {
       }).toEqual({
         recorded: metadata,
         listed: [{ name: 'alpha', read: metadata }],
-        cleared: { setup: 'not recorded', profile: SUMMARY },
+        cleared: { setup: 'not recorded', profile: SUMMARY, version: '1.2.3' },
       });
     });
   });
@@ -1077,15 +1081,15 @@ describe('cl:FlyMachineProvider', () => {
       const workstation = await provider.get('alpha');
 
       const resized = await provider.resize(workstation, {
-        label: 'shared-cpu-4x',
+        label: 'performance-4x',
         cpus: 4,
-        memoryGb: 4,
+        memoryGb: 32,
       });
 
       expect(resized).toMatchObject({
         id: workstation.id,
         name: 'alpha',
-        machine: { label: 'shared-cpu-4x', cpus: 4, memoryGb: 4 },
+        machine: { label: 'performance-4x', cpus: 4, memoryGb: 32 },
         metadata: workstation.metadata,
       });
       expect(app.machines[0]).toMatchObject({
@@ -1093,7 +1097,7 @@ describe('cl:FlyMachineProvider', () => {
         config: {
           metadata: MANAGED_METADATA,
           services: [AGENT_SERVICE],
-          guest: { cpu_kind: 'shared', cpus: 4, memory_mb: 4096 },
+          guest: { cpu_kind: 'performance', cpus: 4, memory_mb: 32768 },
         },
       });
     });
