@@ -3,9 +3,9 @@
 # the link helpers and the version record, and runs oa_update_run in a shell
 # of its own. It upgrades every tool environment.json records through the
 # manager its source names, never installing a missing one: the system
-# packages together through the family's fragment, then each Homebrew formula
-# one refresh finds outdated from its bottle, a formula whose new version has
-# no bottle keeping its own, then each npm tool to its dist-tag and each Rust
+# packages together through the family's fragment, then the Homebrew formulae
+# one refresh finds outdated together from their bottles, a formula whose new
+# version has no bottle keeping its own, then each npm tool to its dist-tag and each Rust
 # toolchain, both as the agent. Afterwards it records each tool's installed
 # version in environment.json, restores the tools' links and records the run in
 # update-status.json: when it started and finished, each tool's outcome with
@@ -120,10 +120,15 @@ EOF
 }
 
 # refreshes Homebrew's formula data once, never its own code, which names the
-# formulae a newer version exists for, then upgrades each of those from its
-# bottle; one whose new version has no bottle keeps its own and counts as
-# skipped, as does every current formula, whose version the one listing taken
-# before the upgrades gives, so brew runs no further for it
+# formulae a newer version exists for, then upgrades those of the recorded
+# tools together, in one brew run from their bottles; one whose new version
+# has no bottle keeps its own and counts as skipped, as does every current
+# formula, whose version the one listing taken before the upgrades gives, so
+# brew runs no further for it. Each upgraded tool's version is read from one
+# listing taken after the run, and when the run failed, each formula it left
+# at its version gets an upgrade of its own, as it would alone, so a failure
+# is the formula's own, never its neighbour's; one the run moved counts as
+# installed. The outcomes are recorded in environment.json's order
 oa_updater_brew() {
   oa_updater_brew_tools=$(oa_updater_tools brew) || return 1
   test -n "$oa_updater_brew_tools" || return 0
@@ -132,37 +137,82 @@ oa_updater_brew() {
   if oa_brew_refresh >"$oa_updater_work/outdated"; then
     oa_updater_brew_refreshed=1
   fi
-  oa_brew list --formula --versions >"$oa_updater_work/listed" 2>/dev/null ||
+  oa_brew_listing >"$oa_updater_work/listed" 2>/dev/null ||
     : >"$oa_updater_work/listed"
+  # each tool: whether its formulae went unrefreshed, it is current or its
+  # upgrade is pending, then its name, whether it is required, its formula
+  # and its version before, last since it may be empty
+  : >"$oa_updater_work/brew-tools"
+  set --
   while IFS="$(printf '\t')" read -r oa_updater_name oa_updater_required oa_updater_formula _ <&3; do
-    oa_updater_hold
-    oa_updater_from=$(awk -v name="${oa_updater_formula##*/}" '$1 == name { print $2; exit }' \
-      "$oa_updater_work/listed")
-    test -n "$oa_updater_from" ||
-      oa_updater_from=$(oa_brew_version "$oa_updater_formula" 2>/dev/null) || oa_updater_from=
+    oa_updater_from=$(oa_brew_listed_version "$oa_updater_work/listed" "$oa_updater_formula" 2>/dev/null) ||
+      oa_updater_from=
     if test "$oa_updater_brew_refreshed" = 0; then
-      oa_updater_outcome "$oa_updater_name" brew "$oa_updater_required" 1 \
-        "$oa_updater_from" "$oa_updater_from" 'Homebrew could not refresh its formulae'
-      continue
+      oa_updater_state=unrefreshed
+    elif grep -qxF -e "$oa_updater_formula" -e "${oa_updater_formula##*/}" "$oa_updater_work/outdated"; then
+      oa_updater_state=pending
+      set -- "$@" "$oa_updater_formula"
+    else
+      oa_updater_state=current
     fi
-    if ! grep -qxF -e "$oa_updater_formula" -e "${oa_updater_formula##*/}" "$oa_updater_work/outdated"; then
-      oa_updater_outcome "$oa_updater_name" brew "$oa_updater_required" 0 \
-        "$oa_updater_from" "$oa_updater_from"
-      continue
-    fi
-    oa_brew_upgrade "$oa_updater_formula" 2>"$oa_updater_work/brew"
-    oa_updater_brew_status=$?
-    cat "$oa_updater_work/brew" >&2
-    oa_updater_reason=
-    if grep -q "^Keeping $oa_updater_formula:" "$oa_updater_work/brew"; then
-      oa_updater_reason="its new version has no bottle for $(uname -m)"
-    fi
-    oa_updater_to=$(oa_brew_version "$oa_updater_formula" 2>/dev/null) || oa_updater_to=
-    oa_updater_outcome "$oa_updater_name" brew "$oa_updater_required" "$oa_updater_brew_status" \
-      "$oa_updater_from" "$oa_updater_to" "$oa_updater_reason"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$oa_updater_state" "$oa_updater_name" "$oa_updater_required" \
+      "$oa_updater_formula" "$oa_updater_from" >>"$oa_updater_work/brew-tools"
   done 3<<EOF
 $oa_updater_brew_tools
 EOF
+  : >"$oa_updater_work/brew"
+  oa_updater_brew_status=0
+  if test "$#" -gt 0; then
+    oa_updater_hold
+    oa_brew_upgrade "$@" 2>"$oa_updater_work/brew"
+    oa_updater_brew_status=$?
+    cat "$oa_updater_work/brew" >&2
+    oa_brew_listing >"$oa_updater_work/listed" 2>/dev/null ||
+      : >"$oa_updater_work/listed"
+  fi
+  while IFS="$(printf '\t')" read -r oa_updater_state oa_updater_name oa_updater_required \
+    oa_updater_formula oa_updater_from <&3; do
+    case $oa_updater_state in
+      unrefreshed)
+        oa_updater_outcome "$oa_updater_name" brew "$oa_updater_required" 1 \
+          "$oa_updater_from" "$oa_updater_from" 'Homebrew could not refresh its formulae'
+        continue
+        ;;
+      current)
+        oa_updater_outcome "$oa_updater_name" brew "$oa_updater_required" 0 \
+          "$oa_updater_from" "$oa_updater_from"
+        continue
+        ;;
+    esac
+    oa_updater_to=$(oa_brew_listed_version "$oa_updater_work/listed" "$oa_updater_formula" 2>/dev/null) ||
+      oa_updater_to=
+    oa_updater_formula_status=$oa_updater_brew_status
+    oa_updater_reason=
+    if oa_updater_kept "$oa_updater_formula" "$oa_updater_work/brew"; then
+      oa_updater_formula_status=0
+      oa_updater_reason="its new version has no bottle for $(uname -m)"
+    elif test "$oa_updater_formula_status" != 0 && test -n "$oa_updater_to" && test "$oa_updater_to" != "$oa_updater_from"; then
+      oa_updater_formula_status=0
+    elif test "$oa_updater_formula_status" != 0; then
+      oa_updater_hold
+      oa_brew_upgrade "$oa_updater_formula" 2>"$oa_updater_work/brew-alone"
+      oa_updater_formula_status=$?
+      cat "$oa_updater_work/brew-alone" >&2
+      if oa_updater_kept "$oa_updater_formula" "$oa_updater_work/brew-alone"; then
+        oa_updater_reason="its new version has no bottle for $(uname -m)"
+      fi
+      oa_updater_to=$(oa_brew_version "$oa_updater_formula" 2>/dev/null) || oa_updater_to=
+    fi
+    oa_updater_outcome "$oa_updater_name" brew "$oa_updater_required" "$oa_updater_formula_status" \
+      "$oa_updater_from" "$oa_updater_to" "$oa_updater_reason"
+  done 3<"$oa_updater_work/brew-tools"
+}
+
+# tells whether an upgrade kept a formula at its version because its new
+# version has no bottle for the guest
+# arguments: formula name, the file holding the upgrade's standard error
+oa_updater_kept() {
+  awk -v kept="Keeping $1:" 'index($0, kept) == 1 { found = 1 } END { exit !found }' "$2"
 }
 
 # moves each npm tool to the version its dist-tag names now, as the agent
