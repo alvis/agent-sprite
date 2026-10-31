@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   hasActions,
@@ -14,6 +14,7 @@ import { dependencies } from '../mocks/dependencies';
 
 import type { CommandOptions } from '#application/contracts';
 import type { HarnessPluginActions } from '#application/plugins';
+import type { HostPorts } from '#application/ports/host';
 import type { HarnessId } from '#domain/ids';
 
 const emptyActions = {
@@ -175,6 +176,42 @@ describe('fn:hasActions', () => {
 });
 
 describe('fn:validateMarketplaceSources', () => {
+  const marketplaces = {
+    classify: vi.fn<HostPorts['marketplaces']['classify']>(
+      async ({ source, harness }) => ({
+        source,
+        harness,
+        compatibility: 'supported',
+        marketplaceName: 'market',
+        ...(source === 'owner/populated' ? { pluginNames: ['selected'] } : {}),
+        reason: 'Compatible manifest',
+      }),
+    ),
+  } satisfies HostPorts['marketplaces'];
+  const verifiedDependencies = {
+    ...dependencies,
+    host: { ...dependencies.host, marketplaces },
+  };
+
+  it.each(['https://example.test/empty', 'owner/populated'])(
+    'should accept compatible sources and verify their selected plugins: %s',
+    async (source) => {
+      await expect(
+        validateMarketplaceSources(verifiedDependencies, {
+          actions: {
+            claude: {
+              ...emptyActions,
+              marketplaces: [source],
+              plugins: source === 'owner/populated' ? ['selected@market'] : [],
+            },
+            codex: emptyActions,
+          },
+          requireSelectedPluginCoverage: true,
+        }),
+      ).resolves.toBeUndefined();
+    },
+  );
+
   it('should reject credential-bearing and unsupported sources before network access', async () => {
     await expect(
       validateMarketplaceSources(dependencies, {

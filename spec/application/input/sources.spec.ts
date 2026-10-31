@@ -241,3 +241,82 @@ describe('fn:readSetupFile', () => {
     }
   });
 });
+
+describe('input source failures', () => {
+  it('should select and redact a keychain secret through the host boundary', async () => {
+    const run = vi.fn<typeof dependencies.host.run>(
+      async () => 'keychain-secret',
+    );
+    const host = {
+      ...dependencies.host,
+      run,
+    } satisfies typeof dependencies.host;
+
+    await expect(
+      resolveSecret({ host }, 'keychain:service/account', 'fallback'),
+    ).resolves.toBe('keychain-secret');
+    expect(run.mock.calls).toEqual([
+      [
+        {
+          program: 'security',
+          arguments: [
+            'find-generic-password',
+            '-s',
+            'service',
+            '-a',
+            'account',
+            '-w',
+          ],
+        },
+      ],
+    ]);
+    expect(redactResolved('keychain-secret')).toBe('[REDACTED]');
+  });
+
+  it('should classify an unreadable keychain secret as an input fault', async () => {
+    const host = {
+      ...dependencies.host,
+      run: vi.fn<typeof dependencies.host.run>(async () => {
+        throw new Error('keychain unavailable');
+      }),
+    } satisfies typeof dependencies.host;
+
+    await expect(
+      resolveSecret({ host }, 'keychain:service/account', 'fallback'),
+    ).rejects.toMatchObject({
+      code: 'INPUT',
+      message: expect.stringContaining('keychain'),
+    });
+  });
+
+  it('should classify an unreadable setup file as a private input fault', async () => {
+    const host = {
+      ...dependencies.host,
+      readInputBytes: vi.fn<typeof dependencies.host.readInputBytes>(
+        async () => {
+          throw new Error('private file contents');
+        },
+      ),
+    } satisfies typeof dependencies.host;
+
+    await expect(
+      readSetupFile({ host }, '/selected-setup'),
+    ).rejects.toMatchObject({ code: 'INPUT', causeVisibility: 'private' });
+  });
+
+  it('should reject malformed profile JSON', async () => {
+    const host = {
+      ...dependencies.host,
+      readInputFile: vi.fn<typeof dependencies.host.readInputFile>(
+        async () => '{',
+      ),
+    } satisfies typeof dependencies.host;
+
+    await expect(
+      readInputSources({ ...dependencies, host }, {}),
+    ).rejects.toMatchObject({
+      code: 'INPUT',
+      message: expect.stringContaining('JSON'),
+    });
+  });
+});

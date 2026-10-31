@@ -5,9 +5,27 @@ import {
   validateSetupIntegrationOptions,
 } from '#application/validation';
 
-import type { CommandOptions } from '#application/contracts';
+import type { CommandOptions, CommandRequest } from '#application/contracts';
 
 describe('fn:validateCommandRequest', () => {
+  it.each([
+    { command: 'terminate', options: { nonInteractive: true } },
+    {
+      command: 'setup',
+      options: {
+        withPairCode: true,
+        harnessPlugins: { claude: { plugins: ['one@market'] } },
+      },
+    },
+  ] satisfies CommandRequest[])(
+    'should reject a request whose required consent conflicts with its options: %j',
+    (request) => {
+      expect(() => validateCommandRequest(request)).toThrow(
+        expect.objectContaining({ code: 'USAGE' }),
+      );
+    },
+  );
+
   it('should infer the plugins section from actions while skip flags select no section', () => {
     expect(() =>
       validateCommandRequest({
@@ -181,6 +199,19 @@ describe('fn:validateSetupIntegrationOptions', () => {
       validateSetupIntegrationOptions({ idleMinutes: 30 }, 'network'),
     ).toThrow(expect.objectContaining({ code: 'USAGE' }));
   });
+
+  it.each([
+    { release: 'latest' },
+    { envFile: 'input.env' },
+    { setupFile: 'setup.sh' },
+  ] satisfies CommandOptions[])(
+    'should refuse integration input outside the section that applies it: %j',
+    (options) => {
+      expect(() => validateSetupIntegrationOptions(options, 'git')).toThrow(
+        expect.objectContaining({ code: 'USAGE' }),
+      );
+    },
+  );
 
   it('should allow the update interval switch only in the tools section or the full setup', () => {
     const options = { updateDueDays: 3 };

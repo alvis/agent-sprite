@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
 import { withCreateHold } from '#application/create/hold';
 
+import { OperationContext, withOperation } from '#kernel/operation';
+
 import type { GuestChannel } from '#application/ports/guest-channel';
 
 const SECOND = 1_000;
@@ -110,6 +112,26 @@ describe('fn:withCreateHold', () => {
     expect({ outcome, actions }).toEqual({
       outcome: 'setup failed',
       actions: ['hold-open', 'hold-close'],
+    });
+  });
+
+  it('should preserve completed work when its operation closes before hold cleanup', async () => {
+    const { guest, actions } = recordingGuest();
+    const operation = new OperationContext({
+      signal: new AbortController().signal,
+    });
+
+    const result = await withOperation(operation, async () =>
+      withCreateHold(AWAKE_COMMAND, guest, async () => {
+        operation.close();
+
+        return 'done';
+      }),
+    );
+
+    expect({ result, actions }).toEqual({
+      result: 'done',
+      actions: ['hold-open'],
     });
   });
 

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { SpritesClient } from '@fly/sprites';
+import { Sprite, SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
 import { prepareCreate } from '#application/create/preflight';
@@ -36,6 +36,198 @@ const request = {
 const ORGANIZATION_TOKEN = 'saf07-org/1234/0123abcd/4567ef89';
 
 describe('fn:prepareCreate consent', () => {
+  it('should report rejected provider authentication without creating a workstation', async () => {
+    vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
+    vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockRejectedValueOnce(
+      new Error('Provider unavailable'),
+    );
+
+    const result = await prepareCreate(dependencies, {
+      ...request,
+      options: { ...request.options, yes: true, githubHost: 'github.com' },
+    });
+
+    expect(result).toMatchObject({
+      kind: 'result',
+      result: {
+        ok: false,
+        error: { details: [expect.stringContaining('Provider unavailable')] },
+      },
+    });
+  });
+
+  it('should report a rejected network probe as a provisioning blocker', async () => {
+    vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
+    vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockResolvedValue([]);
+    const preflight = vi.fn(async () => {
+      throw new Error('network probe rejected');
+    });
+    const registry = {
+      ...dependencies.registry,
+      networks: {
+        ...dependencies.registry.networks,
+        none: { ...dependencies.registry.networks.none, preflight },
+      },
+    } satisfies typeof dependencies.registry;
+
+    const result = await prepareCreate(
+      { ...dependencies, registry },
+      {
+        ...request,
+        options: { ...request.options, yes: true },
+      },
+    );
+
+    expect(result).toMatchObject({
+      kind: 'result',
+      result: {
+        ok: false,
+        error: { details: [expect.stringContaining('network probe rejected')] },
+      },
+    });
+  });
+
+  it('should preserve a name collision as a conflict', async () => {
+    vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
+    const sprite = Object.assign(
+      new Sprite('saf07-generated', new SpritesClient(ORGANIZATION_TOKEN)),
+      { id: 'existing-id' },
+    );
+    vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockImplementation(
+      async () => [sprite],
+    );
+
+    const result = await prepareCreate(dependencies, {
+      ...request,
+      options: { ...request.options, yes: true },
+    });
+
+    expect(result).toMatchObject({
+      kind: 'result',
+      result: {
+        ok: false,
+        error: { code: 'CONFLICT', machine: 'saf07-generated' },
+      },
+    });
+  });
+
+  it('should return cancellation when consent is interrupted before provisioning', async () => {
+    vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
+    vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockImplementation(
+      async () => [],
+    );
+    const observed = await driveInk(
+      async (interaction) =>
+        prepareCreate(
+          dependencies,
+          {
+            ...request,
+            options: {
+              ...request.options,
+              githubHost: 'enterprise.example.test',
+            },
+          },
+          interaction,
+        ),
+      [{ waitFor: 'Create saf07-generated on Fly Sprite', input: '\u0003' }],
+    );
+
+    expect(observed.result).toMatchObject({
+      kind: 'result',
+      result: { ok: false, error: { code: 'CANCELLED' } },
+    });
+  });
+
+  it.each([
+    { usesExitNode: false, management: true, effectiveExitNode: undefined },
+    { usesExitNode: true, management: true, effectiveExitNode: '100.64.0.1' },
+    { usesExitNode: true, management: false, effectiveExitNode: 'exit' },
+  ])(
+    'should carry network enrollment and the available exit route into provisioning: %j',
+    async ({ usesExitNode, management, effectiveExitNode }) => {
+      vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
+      vi.stubEnv('TAILSCALE_AUTH_KEY', 'supplied-enrollment-key');
+      vi.stubEnv(
+        'TAILSCALE_API_KEY',
+        management ? 'network-management-key' : undefined,
+      );
+      vi.stubEnv('TAILSCALE_TAILNET', 'example.ts.net');
+      vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockImplementation(
+        async () => [],
+      );
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>(async () =>
+          Response.json({
+            devices: [
+              {
+                id: 'exit-id',
+                name: 'exit.example.ts.net',
+                hostname: 'exit',
+                addresses: ['100.64.0.1'],
+                enabledRoutes: ['0.0.0.0/0'],
+              },
+            ],
+          }),
+        ),
+      );
+
+      const result = await prepareCreate(dependencies, {
+        ...request,
+        options: {
+          ...request.options,
+          network: 'tailscale',
+          useExitNode: usesExitNode,
+          ...(usesExitNode ? { exitNode: 'exit' } : {}),
+          yes: true,
+        },
+      });
+
+      expect(result).toMatchObject({
+        kind: 'ready',
+        context: {
+          effectiveExitNode,
+          authKey: expect.anything(),
+        },
+      });
+    },
+  );
+
+  it('should report network preflight problems before provisioning', async () => {
+    vi.stubEnv('SPRITES_TOKEN', ORGANIZATION_TOKEN);
+    vi.stubEnv('TAILSCALE_AUTH_KEY', 'supplied-enrollment-key');
+    vi.stubEnv('TAILSCALE_API_KEY', 'network-management-key');
+    vi.stubEnv('TAILSCALE_TAILNET', 'example.ts.net');
+    vi.spyOn(SpritesClient.prototype, 'listAllSprites').mockImplementation(
+      async () => [],
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async () => new Response('', { status: 403 })),
+    );
+
+    const result = await prepareCreate(dependencies, {
+      ...request,
+      options: {
+        ...request.options,
+        network: 'tailscale',
+        useExitNode: false,
+        yes: true,
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: 'result',
+      result: {
+        ok: false,
+        error: {
+          code: 'AUTH',
+          details: [expect.stringContaining('returned 403')],
+        },
+      },
+    });
+  });
+
   it('should aggregate a missing name and token with every local token recovery route before provider access', async () => {
     const home = await mkdtemp(join(tmpdir(), 'open-agent-cor07-create-'));
     vi.stubEnv('HOME', home);

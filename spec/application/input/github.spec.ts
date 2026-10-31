@@ -12,7 +12,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+import { selectGithubToken } from '#application/input/github';
+import { InteractionExit } from '#kernel/navigation';
+
+import type { Interaction } from '#application/ports/interaction';
 
 const execute = promisify(execFile);
 const resolverChild = fileURLToPath(
@@ -324,5 +329,121 @@ describe('fn:GitHub credential provenance', () => {
         authorization: `Bearer ${endpoint.acceptedToken}`,
       },
     ]);
+  });
+});
+
+describe('fn:selectGithubToken', () => {
+  it.each([
+    { action: 'use', expected: 'original-token' },
+    { action: 'skip', expected: undefined },
+    { action: 'replace', expected: 'replacement-token' },
+  ] as const)(
+    'should honor %s for a verified GitHub credential',
+    async ({ action, expected }) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>(async () => Response.json({ login: 'verified' })),
+      );
+      const interaction = {
+        select: async (_prompt, choices) =>
+          choices.find(({ value }) => value === action)!.value,
+        secret: async () => 'replacement-token',
+      } satisfies Partial<Interaction>;
+
+      const selected = await selectGithubToken(
+        'original-token',
+        {},
+        interaction as Partial<Interaction> as Interaction,
+      );
+
+      expect(selected).toBe(expected);
+    },
+  );
+
+  it.each([
+    { failure: 'back', expectedStatus: [] },
+    {
+      failure: 'rejected',
+      expectedStatus: [
+        [
+          {
+            kind: 'warning',
+            message: expect.stringContaining('replacement GitHub credential'),
+          },
+        ],
+      ],
+    },
+  ] as const)(
+    'should return to credential choices after a %s replacement',
+    async ({ failure, expectedStatus }) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>(async () => new Response('', { status: 401 })),
+      );
+      const actions = ['replace', 'skip'];
+      const status = vi.fn<Interaction['status']>();
+      const interaction = {
+        select: async (_prompt, choices) => {
+          const action = actions.shift();
+
+          return choices.find(({ value }) => value === action)!.value;
+        },
+        secret: async () => {
+          if (failure === 'back') {
+            throw new InteractionExit('back');
+          }
+
+          return 'rejected-token';
+        },
+        status,
+      } satisfies Partial<Interaction>;
+
+      await expect(
+        selectGithubToken(
+          undefined,
+          {},
+          interaction as Partial<Interaction> as Interaction,
+        ),
+      ).resolves.toBeUndefined();
+      expect(status.mock.calls).toEqual(expectedStatus);
+    },
+  );
+
+  it.each(['rejected', 'unavailable'] as const)(
+    'should discard a discovered credential when GitHub is %s',
+    async (failure) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>(async () => {
+          if (failure === 'unavailable') {
+            throw new Error('offline');
+          }
+
+          return new Response('', { status: 401 });
+        }),
+      );
+      const status = vi.fn<Interaction['status']>();
+      const interaction = { status } satisfies Partial<Interaction>;
+
+      await expect(
+        selectGithubToken(
+          { token: 'discovered-token', provenance: 'gh-discovery' },
+          { nonInteractive: true },
+          interaction as Partial<Interaction> as Interaction,
+        ),
+      ).resolves.toBeUndefined();
+      expect(status.mock.calls).toEqual([
+        [{ kind: 'warning', message: expect.stringContaining('discarded') }],
+      ]);
+    },
+  );
+
+  it('should retain invalid explicit hostname errors for discovered credentials', async () => {
+    await expect(
+      selectGithubToken(
+        { token: 'discovered-token', provenance: 'gh-discovery' },
+        { githubHost: 'github.com/path' },
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT' });
   });
 });
