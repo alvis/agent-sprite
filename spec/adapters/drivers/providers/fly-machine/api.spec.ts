@@ -60,6 +60,168 @@ function useReplies(responses: readonly Response[]): SeenRequest[] {
 }
 
 describe('cl:FlyApi', () => {
+  it('should ignore unreadable token entries and reject a response without organization evidence', async () => {
+    useReplies([reply(null), reply({ tokens: [null, { org_slug: 'team' }] })]);
+    const api = new FlyApi('token');
+
+    await expect(api.organization()).rejects.toMatchObject({
+      code: 'authentication',
+    });
+    expect(await api.organization()).toBe('team');
+  });
+
+  it('should keep only usable service routes and normalize disabled or absent auto-stop', async () => {
+    useReplies([
+      reply([
+        {
+          id: 'machine-1',
+          state: 'started',
+          config: {
+            services: [
+              null,
+              { internal_port: 3939, autostart: true, autostop: false },
+              { internal_port: 1234 },
+            ],
+          },
+        },
+      ]),
+    ]);
+
+    expect(await new FlyApi('token').listMachines('team-app')).toEqual([
+      {
+        id: 'machine-1',
+        state: 'started',
+        metadata: {},
+        routes: [
+          { internalPort: 3939, autostart: true, autostop: 'off' },
+          { internalPort: 1234, autostart: false, autostop: '' },
+        ],
+      },
+    ]);
+  });
+
+  it.each([
+    {
+      resource: 'app without organization evidence',
+      body: { id: 'app-1', name: 'team-app', internal_numeric_id: 42 },
+      run: async (api: FlyApi) => api.getApp('team-app'),
+      expected: {
+        id: 'app-1',
+        name: 'team-app',
+        numericId: 42,
+        organization: undefined,
+      },
+    },
+    {
+      resource: 'machine without optional configuration',
+      body: [{ id: 'machine-1', state: 'stopped' }],
+      run: async (api: FlyApi) => api.listMachines('team-app'),
+      expected: [
+        { id: 'machine-1', state: 'stopped', metadata: {}, routes: [] },
+      ],
+    },
+    {
+      resource: 'empty organization listing',
+      body: {},
+      run: async (api: FlyApi) => api.listOrganizationMachines('team'),
+      expected: [],
+    },
+    {
+      resource: 'empty address listing',
+      body: {},
+      run: async (api: FlyApi) => api.listIps('team-app'),
+      expected: [],
+    },
+    {
+      resource: 'command without captured output or status',
+      body: {},
+      run: async (api: FlyApi) =>
+        api.exec({ app: 'team-app', machine: 'machine-1' }, ['/bin/true'], 1),
+      expected: { stdout: '', stderr: '' },
+    },
+  ])(
+    'should return a supported sparse response for $resource',
+    async ({ body, run, expected }) => {
+      useReplies([reply(body)]);
+
+      expect(await run(new FlyApi('token'))).toEqual(expected);
+    },
+  );
+
+  it.each([
+    {
+      resource: 'app',
+      body: null,
+      run: async (api: FlyApi) => api.getApp('team-app'),
+    },
+    {
+      resource: 'machine',
+      body: [null],
+      run: async (api: FlyApi) => api.listMachines('team-app'),
+    },
+    {
+      resource: 'machine configuration',
+      body: null,
+      run: async (api: FlyApi) =>
+        api.updateMachine(
+          { app: 'team-app', machine: 'machine-1' },
+          { cpuKind: 'shared', cpus: 2, memoryMb: 2048 },
+        ),
+    },
+    {
+      resource: 'machine list',
+      body: {},
+      run: async (api: FlyApi) => api.listMachines('team-app'),
+    },
+    {
+      resource: 'machine listing',
+      body: { machines: false },
+      run: async (api: FlyApi) => api.listOrganizationMachines('team'),
+    },
+    {
+      resource: 'machine listing',
+      body: { machines: [null] },
+      run: async (api: FlyApi) => api.listOrganizationMachines('team'),
+    },
+    {
+      resource: 'volume',
+      body: null,
+      run: async (api: FlyApi) =>
+        api.createVolume('team-app', {
+          name: 'data',
+          region: 'lhr',
+          sizeGb: 10,
+        }),
+    },
+    {
+      resource: 'address listing',
+      body: null,
+      run: async (api: FlyApi) => api.listIps('team-app'),
+    },
+    {
+      resource: 'address listing',
+      body: { ips: [null] },
+      run: async (api: FlyApi) => api.listIps('team-app'),
+    },
+    {
+      resource: 'exec result',
+      body: null,
+      run: async (api: FlyApi) =>
+        api.exec({ app: 'team-app', machine: 'machine-1' }, ['/bin/true'], 1),
+    },
+  ])(
+    'should reject a malformed $resource response: $body',
+    async ({ resource, body, run }) => {
+      const seen = useReplies([reply(body)]);
+
+      await expect(run(new FlyApi('token'))).rejects.toMatchObject({
+        code: 'failed',
+        message: expect.stringContaining(resource),
+      });
+      expect(seen).toHaveLength(1);
+    },
+  );
+
   it('should accept a trimmed token with or without its scheme and resolve one organization', async () => {
     const seen = useReplies([
       reply({ tokens: [{ org_slug: 'team' }, { org_slug: 'team' }] }),
@@ -475,6 +637,9 @@ describe('cl:FlyApi', () => {
         ips: [
           { ip: '203.0.113.10', shared: true },
           { ip: '2001:db8::1', shared: false },
+          { ip: '198.51.100.10' },
+          { ip: '198.51.100.20', egress: true },
+          { ip: '2001:db8::20', egress: true },
         ],
       }),
       reply(undefined, 204),
@@ -490,6 +655,9 @@ describe('cl:FlyApi', () => {
       addresses: [
         { ip: '203.0.113.10', shared: true, type: 'shared_v4' },
         { ip: '2001:db8::1', shared: false, type: 'v6' },
+        { ip: '198.51.100.10', shared: false, type: 'v4' },
+        { ip: '198.51.100.20', shared: false, type: 'egress_v4' },
+        { ip: '2001:db8::20', shared: false, type: 'egress_v6' },
       ],
       seen: [
         {
