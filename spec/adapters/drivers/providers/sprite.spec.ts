@@ -367,6 +367,40 @@ describe('mt:SpriteProvider.delete', () => {
 });
 
 describe('mt:SpriteProvider.setMetadata', () => {
+  it.each([
+    { version: '2.3.4-rc.1', recorded: '2.3.4-rc.1' },
+    { version: '2.3.4+build', recorded: undefined },
+  ])(
+    'should clear setup state and replace a release label ($version)',
+    async ({ version, recorded }) => {
+      const sprite = createProviderSprite({
+        labels: [
+          ...primaryInfo.labels,
+          SETUP_READY_LABEL,
+          'open-agent-version-1-0-0',
+        ],
+      });
+      const subject = providerWithSprite(sprite);
+      const workstation = await subject.get('primary');
+
+      const updated = await subject.setMetadata(workstation, {
+        setup: 'not recorded',
+        version,
+      });
+
+      expect(updated.metadata).toEqual({
+        setup: 'not recorded',
+        profile: undefined,
+        ...(recorded ? { version: recorded } : {}),
+      });
+      expect(sprite.labels).toEqual(
+        recorded
+          ? [...primaryInfo.labels, 'open-agent-version-2-3-4--rc-1']
+          : primaryInfo.labels,
+      );
+    },
+  );
+
   it('should replace setup state without losing unrelated labels or adding duplicates', async () => {
     const sprite = createProviderSprite({
       labels: [
