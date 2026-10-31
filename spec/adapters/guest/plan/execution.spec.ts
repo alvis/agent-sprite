@@ -76,7 +76,7 @@ describe('fn:runPlan', () => {
     expect(progress).toEqual(
       report.steps.flatMap((outcome) => [
         { kind: 'step-started', step: outcome.step, attempt: 1 },
-        { kind: 'step-finished', outcome },
+        { kind: 'step-finished', outcome, durationMs: expect.any(Number) },
       ]),
     );
     expect(dispose).toHaveBeenCalledOnce();
@@ -142,6 +142,32 @@ describe('fn:runPlan', () => {
       steps: [{ step: tool, status: 'applied', attempts: 1 }],
     });
     expect(commands).toEqual(['true']);
+  });
+
+  it('should report how long a finished step took', async () => {
+    const progress: PlanProgress[] = [];
+    const session = {
+      release: RELEASE,
+      pid: 1,
+      run: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+
+        return { exitCode: 0, stdout: '', stderr: '' };
+      },
+      [Symbol.asyncDispose]: async () => undefined,
+    } satisfies GuestSession;
+
+    await runPlan({
+      steps: [STEP],
+      openSession: async () => session,
+      onProgress: (event) => progress.push(event),
+    });
+
+    expect(progress.at(-1)).toEqual({
+      kind: 'step-finished',
+      outcome: { step: STEP, status: 'applied', attempts: 1 },
+      durationMs: expect.toSatisfy((ms: number) => ms >= 25),
+    });
   });
 
   it('should satisfy a step from its check and honor command-level defaults', async () => {
@@ -472,7 +498,11 @@ describe('fn:runPlan', () => {
         reason: fault.message,
       },
       { kind: 'step-started', step: STEP, attempt: 2 },
-      { kind: 'step-finished', outcome: report.steps[0] },
+      {
+        kind: 'step-finished',
+        outcome: report.steps[0],
+        durationMs: expect.any(Number),
+      },
     ]);
   });
 });

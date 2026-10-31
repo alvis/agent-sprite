@@ -39,6 +39,7 @@ export async function runPlan(params: PlanRunParams): Promise<PlanReport> {
     for (const step of orderSteps(params.steps, settled)) {
       checkOperation();
       const missing = step.needs.find((need) => !succeeded.has(need));
+      const started = performance.now();
       const outcome: StepOutcome =
         isComplete && missing === undefined
           ? await attemptStep(step, slot, params)
@@ -55,7 +56,11 @@ export async function runPlan(params: PlanRunParams): Promise<PlanReport> {
         succeeded.add(step.id);
       }
       isComplete &&= outcome.status !== 'failed' || !step.critical;
-      onProgress?.({ kind: 'step-finished', outcome });
+      onProgress?.({
+        kind: 'step-finished',
+        outcome,
+        durationMs: Math.round(performance.now() - started),
+      });
     }
   } finally {
     await slot.close();

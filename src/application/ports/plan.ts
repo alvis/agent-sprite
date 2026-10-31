@@ -89,6 +89,8 @@ export type PlanProgress =
       kind: 'step-finished';
       /** its outcome */
       outcome: StepOutcome;
+      /** how long the step took, its attempts and retries included */
+      durationMs: number;
     };
 
 /** the outcome of a whole plan */

@@ -23,7 +23,9 @@
 # recorded under `cleanup` in update-status.json with its outcome (`cleaned`,
 # `skipped` or `failed`) and the bytes it freed, and logged as one line,
 # `open-agent-update <time> cleanup=<manager> outcome=<ok|skipped|failed>
-# freed_mb=<n> duration_ms=<n>`, and is safe to rerun
+# freed_mb=<n> duration_ms=<n>`, and is safe to rerun. Each manager's upgrades
+# are timed the same way, as `open-agent-update <time> upgrade=<manager>
+# duration_ms=<n>`
 
 # the format version of update-status.json
 OA_UPDATER_SCHEMA=1
@@ -350,10 +352,14 @@ EOF
   echo "update started at $oa_updater_started"
   oa_updater_record '' "$oa_updater_previous" || return 1
   for oa_updater_manager in system brew npm rustup; do
+    oa_updater_began=$(oa_updater_ms)
     if ! "oa_updater_$oa_updater_manager"; then
       echo "the $oa_updater_manager tools cannot be read from $oa_updater_environment"
       oa_updater_failed=1
     fi
+    oa_updater_ended=$(oa_updater_ms)
+    printf 'open-agent-update %s upgrade=%s duration_ms=%s\n' "$(oa_updater_now)" \
+      "$oa_updater_manager" "$((oa_updater_ended - oa_updater_began))"
   done
   oa_updater_hold
   # the record follows what the upgrades installed; a failure to record it
