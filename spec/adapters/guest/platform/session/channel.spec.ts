@@ -47,7 +47,9 @@ describe('fn:sessionGuest', () => {
     vi.mocked(sprite.getNetworkPolicy).mockResolvedValueOnce({
       rules: [{ domain: '*', action: 'deny' }],
     });
-    await expect(channel.assertUnrestrictedNetwork()).rejects.toThrow(/network policy/iu);
+    await expect(channel.assertUnrestrictedNetwork()).rejects.toThrow(
+      /network policy/iu,
+    );
     expect(spawned.stdout).toBe(process.stdout);
     expect(sprite.spawn).toHaveBeenCalledWith(
       '/usr/bin/sudo',

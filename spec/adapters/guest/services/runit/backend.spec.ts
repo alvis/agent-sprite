@@ -83,9 +83,20 @@ describe('cl:RunitServiceControl', () => {
     await control.ensure(service);
     await control.remove(service.name);
 
-    expect(run.mock.calls[0]?.[0][2]).toContain('oa_sv_ensure');
-    expect(run.mock.calls[0]?.[0][2]).toContain(JSON.stringify(service));
-    expect(run.mock.calls[1]?.[0][2]).toContain("'oa_sv_remove' 'agent'");
+    expect(run).toHaveBeenNthCalledWith(
+      1,
+      [
+        '/bin/dash',
+        '-c',
+        expect.stringContaining(`'oa_sv_ensure' '${JSON.stringify(service)}'`),
+      ],
+      90_000,
+    );
+    expect(run).toHaveBeenNthCalledWith(
+      2,
+      ['/bin/dash', '-c', expect.stringContaining("'oa_sv_remove' 'agent'")],
+      90_000,
+    );
   });
 
   it.each([

@@ -33,9 +33,9 @@ describe('fn:createSpritesClient', () => {
   it('should preserve a non-Error transport rejection', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>(async () => new Response()).mockRejectedValueOnce(
-        'transport closed',
-      ),
+      vi
+        .fn<typeof fetch>(async () => new Response())
+        .mockRejectedValueOnce('transport closed'),
     );
     const client = createSpritesClient('sdk-only-offline');
 

@@ -8,6 +8,8 @@ import {
 } from '#adapters/drivers/providers/sprite/services/stream';
 import { OperationContext, withOperation } from '#kernel/operation';
 
+import type { ServiceLogEvent } from '@fly/sprites';
+
 const stopped = Object.assign(
   new Sprite('stopped', new SpritesClient('offline-test')),
   {
@@ -47,8 +49,7 @@ describe('fn:consumeServiceStream', () => {
     const controller = new AbortController();
     const stream = new ServiceLogStream(new Response(new ReadableStream()));
     const close = vi.spyOn(stream, 'close');
-    const events =
-      vi.fn<(event: import('@fly/sprites').ServiceLogEvent) => void>();
+    const events = vi.fn<(event: ServiceLogEvent) => void>();
     const consuming = withOperation(
       new OperationContext({ signal: controller.signal }),
       async () => consumeServiceStream(stream, events),
