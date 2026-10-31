@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { FLY_MACHINE_AWAKE } from '#adapters/drivers/providers/fly-machine/capabilities';
-import { readAsset } from '#adapters/guest/platform/assets';
+import { guestAsset, readAsset } from '#adapters/guest/platform/assets';
 
 describe('fn:readAsset', () => {
+  it('should reject a guest asset that escapes the package tree', () => {
+    expect(() => guestAsset('../outside.sh', 0o755)).toThrow(/relative/iu);
+  });
+
   it('should assign the variables an asset adds after the layout in its header', async () => {
     const awake = await readAsset(FLY_MACHINE_AWAKE);
     const plain = await readAsset({
