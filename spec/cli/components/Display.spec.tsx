@@ -74,6 +74,18 @@ describe('rc:Display', () => {
         />,
       ),
     ).not.toContain('2/');
+    expect(
+      renderToString(
+        <TaskProgress
+          update={{
+            stage: 'routing',
+            message: 'failed',
+            phase: 'complete',
+            outcome: 'failed',
+          }}
+        />,
+      ),
+    ).toContain('✗ routing: failed');
     for (const kind of ['error', 'warning', 'success', 'info'] as const) {
       expect(
         renderToString(
@@ -199,4 +211,25 @@ describe('rc:Display', () => {
       vi.useRealTimers();
     }
   });
+});
+
+describe('rc:ResultDetails', () => {
+  it.each([
+    { value: 12n, expected: '12', label: 'a bigint' },
+    {
+      value: Symbol('unreported'),
+      expected: 'Not reported',
+      label: 'an unsupported scalar',
+    },
+  ])(
+    'should render $label without object serialization',
+    ({ value, expected }) => {
+      const text = renderToString(
+        <ResultDetails title="Result" value={value} />,
+      );
+
+      expect(text).toContain(expected);
+      expect(text).not.toContain('unreported');
+    },
+  );
 });
