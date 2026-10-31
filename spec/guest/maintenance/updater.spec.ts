@@ -20,6 +20,7 @@ const ENVIRONMENT = {
 
 const INSTALLED = { jq: '1.7.1', gh: '2.60.0', node: '22.1.0' } as const;
 const NEWER = { gh: '2.61.0', node: '22.2.0' } as const;
+const PREVIOUS_SUCCESS = '2026-01-01T00:00:00Z';
 
 const UPDATE = `OA_VERSIONS_JQ=$(command -v jq)
 oa_update_system() { :; }
@@ -49,7 +50,10 @@ async function update(scenario: Omit<BrewScenario, 'installed'>) {
     scenario: { installed: INSTALLED, newer: NEWER, ...scenario },
     libraries: ['tools/versions.sh', 'maintenance/updater.sh'],
     script: UPDATE,
-    files: { 'environment.json': JSON.stringify(ENVIRONMENT) },
+    files: {
+      'environment.json': JSON.stringify(ENVIRONMENT),
+      'update-status.json': JSON.stringify({ lastSuccess: PREVIOUS_SUCCESS }),
+    },
   });
   const status = JSON.parse(run.status) as {
     lastSuccess: string | null;
@@ -61,7 +65,8 @@ async function update(scenario: Omit<BrewScenario, 'installed'>) {
 
   return {
     upgrades: run.calls.filter((call) => call.startsWith('upgrade')),
-    succeeded: status.lastSuccess !== null,
+    succeeded: status.lastSuccess !== PREVIOUS_SUCCESS,
+    lastSuccess: status.lastSuccess,
     tools: status.tools,
     versions: Object.fromEntries(
       recorded.tools.map(({ name, version }) => [name, version]),
@@ -87,6 +92,7 @@ describe('fn:oa_update_run', () => {
     expect(result).toEqual({
       upgrades: [],
       succeeded: true,
+      lastSuccess: expect.any(String),
       tools: [
         outcome('jq', {
           outcome: 'skipped',
@@ -114,6 +120,7 @@ describe('fn:oa_update_run', () => {
     expect(result).toEqual({
       upgrades: ['upgrade --formula gh node'],
       succeeded: true,
+      lastSuccess: expect.any(String),
       tools: [
         outcome('jq', {
           outcome: 'skipped',
@@ -127,19 +134,25 @@ describe('fn:oa_update_run', () => {
     });
   });
 
-  it('should keep an upgrade the run made and retry alone only the formula it left behind', async () => {
+  it('should fail the formula moved by a failed batch and retry only the unchanged formula', async () => {
     const result = await update({ outdated: ['gh', 'node'], broken: ['node'] });
 
     expect(result).toEqual({
       upgrades: ['upgrade --formula gh node', 'upgrade --formula node'],
-      succeeded: true,
+      succeeded: false,
+      lastSuccess: PREVIOUS_SUCCESS,
       tools: [
         outcome('jq', {
           outcome: 'skipped',
           to: '1.7.1',
           reason: 'it is current',
         }),
-        outcome('gh', { outcome: 'installed', to: '2.61.0' }),
+        outcome('gh', {
+          outcome: 'failed',
+          to: '2.61.0',
+          reason:
+            'Homebrew failed after its version changed; post-install success is unconfirmed',
+        }),
         outcome('node', {
           outcome: 'failed',
           to: '22.1.0',
@@ -156,6 +169,7 @@ describe('fn:oa_update_run', () => {
     expect(result).toEqual({
       upgrades: ['upgrade --formula gh node', 'upgrade --formula gh'],
       succeeded: false,
+      lastSuccess: PREVIOUS_SUCCESS,
       tools: [
         outcome('jq', {
           outcome: 'skipped',
@@ -167,7 +181,12 @@ describe('fn:oa_update_run', () => {
           to: '2.60.0',
           reason: 'its brew upgrade failed',
         }),
-        outcome('node', { outcome: 'installed', to: '22.2.0' }),
+        outcome('node', {
+          outcome: 'failed',
+          to: '22.2.0',
+          reason:
+            'Homebrew failed after its version changed; post-install success is unconfirmed',
+        }),
       ],
       versions: { ...INSTALLED, node: '22.2.0' },
     });
@@ -182,6 +201,7 @@ describe('fn:oa_update_run', () => {
     expect(result).toEqual({
       upgrades: ['upgrade --formula gh'],
       succeeded: true,
+      lastSuccess: expect.any(String),
       tools: [
         outcome('jq', {
           outcome: 'skipped',
@@ -199,12 +219,104 @@ describe('fn:oa_update_run', () => {
     });
   });
 
+  it('should not treat a keg moved before a post-install failure as installed', async () => {
+    const result = await update({ outdated: ['gh'], postinstallFails: ['gh'] });
+
+    expect(result).toEqual({
+      upgrades: ['upgrade --formula gh'],
+      succeeded: false,
+      lastSuccess: PREVIOUS_SUCCESS,
+      tools: [
+        outcome('jq', {
+          outcome: 'skipped',
+          to: '1.7.1',
+          reason: 'it is current',
+        }),
+        outcome('gh', {
+          outcome: 'failed',
+          to: '2.61.0',
+          reason:
+            'Homebrew failed after its version changed; post-install success is unconfirmed',
+        }),
+        outcome('node', {
+          outcome: 'skipped',
+          to: '22.1.0',
+          reason: 'it is current',
+        }),
+      ],
+      versions: { ...INSTALLED, gh: '2.61.0' },
+    });
+  });
+
+  it('should fail every formula a failed run moved, since none can prove its post-install ran', async () => {
+    const result = await update({
+      outdated: ['gh', 'node'],
+      postinstallFails: ['gh'],
+    });
+
+    expect(result).toEqual({
+      upgrades: ['upgrade --formula gh node'],
+      succeeded: false,
+      lastSuccess: PREVIOUS_SUCCESS,
+      tools: [
+        outcome('jq', {
+          outcome: 'skipped',
+          to: '1.7.1',
+          reason: 'it is current',
+        }),
+        outcome('gh', {
+          outcome: 'failed',
+          to: '2.61.0',
+          reason:
+            'Homebrew failed after its version changed; post-install success is unconfirmed',
+        }),
+        outcome('node', {
+          outcome: 'failed',
+          to: '22.2.0',
+          reason:
+            'Homebrew failed after its version changed; post-install success is unconfirmed',
+        }),
+      ],
+      versions: { ...INSTALLED, ...NEWER },
+    });
+  });
+
+  it('should withhold the last success for a required formula a failed run moved even when the retry of the rest succeeds', async () => {
+    const result = await update({
+      outdated: ['gh', 'node'],
+      postinstallFails: ['gh'],
+      crowded: ['node'],
+    });
+
+    expect(result).toEqual({
+      upgrades: ['upgrade --formula gh node', 'upgrade --formula node'],
+      succeeded: false,
+      lastSuccess: PREVIOUS_SUCCESS,
+      tools: [
+        outcome('jq', {
+          outcome: 'skipped',
+          to: '1.7.1',
+          reason: 'it is current',
+        }),
+        outcome('gh', {
+          outcome: 'failed',
+          to: '2.61.0',
+          reason:
+            'Homebrew failed after its version changed; post-install success is unconfirmed',
+        }),
+        outcome('node', { outcome: 'installed', to: '22.2.0' }),
+      ],
+      versions: { ...INSTALLED, ...NEWER },
+    });
+  });
+
   it('should fail every formula without upgrading when brew cannot refresh', async () => {
     const result = await update({ outdated: ['gh'], shouldFailRefresh: true });
 
     expect(result).toEqual({
       upgrades: [],
       succeeded: false,
+      lastSuccess: PREVIOUS_SUCCESS,
       tools: [
         outcome('jq', {
           outcome: 'failed',
