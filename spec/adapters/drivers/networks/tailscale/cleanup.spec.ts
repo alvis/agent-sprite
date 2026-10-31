@@ -176,7 +176,11 @@ describe('fn:removeStaleTailnetDevice', () => {
 describe('fn:assertSafeTailnetTarget', () => {
   it.each([
     { identity: { ...LOGGED_OUT, deviceId: 'self', exitNode: 'self' } },
-    { identity: { ...LOGGED_OUT, deviceId: 'home' }, management, exitNode: 'home' },
+    {
+      identity: { ...LOGGED_OUT, deviceId: 'home' },
+      management,
+      exitNode: 'home',
+    },
     {
       identity: { ...LOGGED_OUT, deviceId: 'workstation', ip: '100.64.0.1' },
       management,
@@ -191,7 +195,9 @@ describe('fn:assertSafeTailnetTarget', () => {
     },
   );
 
-  it.each([{ identity: { ...LOGGED_OUT, ...recorded }, management, exitNode: 'home' }])(
+  it.each([
+    { identity: { ...LOGGED_OUT, ...recorded }, management, exitNode: 'home' },
+  ])(
     'should allow a target with no conflicting exit identity $identity',
     async (params) => {
       await expect(assertSafeTailnetTarget(params)).resolves.toBeUndefined();
@@ -199,7 +205,10 @@ describe('fn:assertSafeTailnetTarget', () => {
   );
   it('should avoid management requests when no exit node was selected', async () => {
     await expect(
-      assertSafeTailnetTarget({ identity: { ...LOGGED_OUT, ...recorded }, management }),
+      assertSafeTailnetTarget({
+        identity: { ...LOGGED_OUT, ...recorded },
+        management,
+      }),
     ).resolves.toBeUndefined();
 
     expect(boundary.resolveExitNode).not.toHaveBeenCalled();
