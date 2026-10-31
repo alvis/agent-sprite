@@ -46,14 +46,19 @@ export const DOTTED_VERSION = /^\d+\.\d+\.\d+$/;
 /** prefix on the tool state's Homebrew keg summary */
 export const KEGS_PREFIX = 'kegs ';
 
-/** picks the highest plain release below `latest`: it prints `<older> <latest>` */
+/**
+ * picks the highest plain release below `latest`: it prints `<older> <latest>`
+ * and nothing else, since npm's warnings and notices on stderr would otherwise
+ * reach the detached script's combined output ahead of it
+ */
 export const OLDER_RELEASE = [
   "const { execFileSync } = require('node:child_process');",
   'const [npm, name] = process.argv.slice(2);',
-  "const latest = execFileSync(npm, ['view', name + '@latest', 'version']).toString().trim();",
+  "const view = (args) => execFileSync(npm, ['view', ...args], { maxBuffer: 1 << 26, stdio: ['ignore', 'pipe', 'pipe'] }).toString();",
+  "const latest = view([name + '@latest', 'version']).trim();",
   "const parts = (version) => version.split('.').map(Number);",
   'const compare = (a, b) => { const [x, y] = [parts(a), parts(b)]; return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; };',
-  "const releases = JSON.parse(execFileSync(npm, ['view', name, 'versions', '--json'], { maxBuffer: 1 << 26 }).toString())",
+  "const releases = JSON.parse(view([name, 'versions', '--json']))",
   '  .filter((version) => /^\\d+\\.\\d+\\.\\d+$/.test(version) && compare(version, latest) < 0).sort(compare);',
   "process.stdout.write(releases.at(-1) + ' ' + latest);",
 ].join('\n');
