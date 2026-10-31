@@ -519,6 +519,20 @@ describe('cl:FlyMachineProvider', () => {
       });
     });
 
+    it('should fall back to the default region when the override is blank', async () => {
+      vi.stubEnv('OPEN_AGENT_FLY_REGION', '  ');
+      const api = new FakeMachinesApi();
+
+      await bound(api).create('alpha', PROFILE, PORT);
+
+      expect(api.fetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          body: expect.stringContaining('"region":"lhr"'),
+        }),
+      );
+    });
+
     it('should create a machine Fly can suspend: at most 2 GB of memory, no swap and no schedule', async () => {
       const api = new FakeMachinesApi();
 
@@ -1040,6 +1054,31 @@ describe('cl:FlyMachineProvider', () => {
   });
 
   describe('mt:resize', () => {
+    it('should reject an unavailable machine size without updating the machine', async () => {
+      const api = new FakeMachinesApi({
+        alpha: heldApp({
+          metadata: MANAGED_METADATA,
+          services: [AGENT_SERVICE],
+        }),
+      });
+      const provider = bound(api);
+      const workstation = await provider.get('alpha');
+
+      await expect(
+        provider.resize(workstation, {
+          label: 'shared-cpu-3x',
+          cpus: 3,
+          memoryGb: 2,
+        }),
+      ).rejects.toMatchObject({
+        code: 'failed',
+        message: expect.stringContaining('shared-cpu-3x'),
+      });
+      expect(
+        api.fetch.mock.calls.every(([, init]) => init?.method !== 'POST'),
+      ).toBe(true);
+    });
+
     it('should leave a machine already on the requested size untouched', async () => {
       const app = heldApp({
         metadata: MANAGED_METADATA,
