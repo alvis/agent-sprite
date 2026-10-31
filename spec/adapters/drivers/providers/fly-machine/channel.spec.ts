@@ -13,11 +13,11 @@ import { text } from 'node:stream/consumers';
 
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import { FlyApi } from '#adapters/drivers/providers/fly-machine/api';
 import { FlyGuestChannel } from '#adapters/drivers/providers/fly-machine/channel';
 import { KILLED_STATUS } from '#adapters/drivers/providers/fly-machine/process';
 import { ProviderFault } from '#kernel/provider-fault';
 
-import type { FlyApi } from '#adapters/drivers/providers/fly-machine/api';
 import type { GuestProcess } from '#application/ports/guest-channel';
 
 /** how the flyctl stand-in behaves for one test */
@@ -167,6 +167,52 @@ async function finished(guest: GuestProcess): Promise<{
 }
 
 describe('cl:FlyGuestChannel', () => {
+  describe('REST filesystem commands', () => {
+    it('should return file contents and distinguish present, absent and failed existence checks', async () => {
+      const replies = [
+        { exit_code: 0, stdout: 'contents\n', stderr: '' },
+        { exit_code: 0, stdout: '', stderr: '' },
+        { exit_code: 1, stdout: '', stderr: '' },
+        { exit_code: 2, stdout: '', stderr: ' permission denied\n' },
+        { exit_code: 1, stdout: '', stderr: ' missing\n' },
+        { stdout: '', stderr: '' },
+        { exit_code: 0, stdout: '[]', stderr: '' },
+      ];
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json(replies.shift()),
+      );
+      vi.stubGlobal('fetch', fetch);
+      const channel = new FlyGuestChannel({
+        api: new FlyApi('test-token'),
+        app: 'alpha',
+        machine: 'machine-1',
+        sshToken: async () => SSH_TOKEN,
+      });
+
+      expect(await channel.read('/file')).toBe('contents\n');
+      expect(await channel.exists('/present')).toBe(true);
+      expect(await channel.exists('/absent')).toBe(false);
+      await expect(channel.exists('/denied')).rejects.toMatchObject({
+        code: 'failed',
+        message: 'test -e /denied exited 2: permission denied',
+      });
+      await expect(channel.read('/missing')).rejects.toMatchObject({
+        code: 'failed',
+        message: 'cat /missing exited 1: missing',
+      });
+      await expect(
+        channel.exec({ program: '/bin/true', arguments: [], timeoutMs: 500 }),
+      ).rejects.toMatchObject({
+        code: 'failed',
+        message: 'Fly exec of /bin/true reported no exit status',
+      });
+      expect(await channel.services.list()).toEqual([]);
+      expect(fetch.mock.calls[5]?.[1]?.body).toBe(
+        JSON.stringify({ command: ['/bin/true'], timeout: 1 }),
+      );
+    });
+  });
+
   describe('mt:exec', () => {
     it('should return the guest status, input round trip and own standard error, then stop the private agent', async () => {
       const { channel, agentStops } = await standIn('faithful');
@@ -318,6 +364,89 @@ describe('cl:FlyGuestChannel', () => {
 
       expect(await sessions()).toBe(1);
     });
+  });
+
+  it('should report an SSH command timeout', async () => {
+    const { channel } = await standIn('hang');
+
+    await expect(
+      channel.exec({
+        program: '/bin/true',
+        arguments: [],
+        input: '',
+        timeoutMs: 20,
+      }),
+    ).rejects.toMatchObject({
+      code: 'failed',
+      message: 'Guest command /bin/true timed out after 20 ms',
+    });
+  });
+
+  it('should forward the agent account and environment over REST without a network restriction', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ exit_code: 0, stdout: '', stderr: '' }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const rest = new FlyGuestChannel({
+      api: new FlyApi('test-token'),
+      app: 'alpha',
+      machine: 'machine-1',
+      sshToken: async () => SSH_TOKEN,
+    });
+    await rest.exec({
+      account: 'agent',
+      program: '/bin/true',
+      arguments: [],
+      environment: { LANG: 'C' },
+      timeoutMs: 10,
+    });
+    await expect(rest.assertUnrestrictedNetwork()).resolves.toBeUndefined();
+    expect(fetch.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({
+        command: [
+          '/usr/sbin/runuser',
+          '-u',
+          'agent',
+          '--',
+          '/usr/bin/env',
+          'LANG=C',
+          '/bin/true',
+        ],
+        timeout: 1,
+      }),
+    );
+  });
+
+  it.each([
+    new Error('token unavailable'),
+    new ProviderFault({ code: 'failed', message: 'token refused' }),
+  ])(
+    'should preserve a readiness failure without retrying: %s',
+    async (failure) => {
+      const token = vi.fn(async () => {
+        throw failure;
+      });
+      const { channel } = await standIn('faithful', token);
+
+      await expect(channel.awaitReady()).rejects.toBe(failure);
+      expect(token).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('should stop retrying an unreachable SSH probe after its readiness deadline', async () => {
+    const now = Date.now();
+    let elapsed = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => now + elapsed);
+    const { channel, sessions } = await standIn('lost', async () => {
+      elapsed = 61_000;
+
+      return SSH_TOKEN;
+    });
+
+    await expect(channel.awaitReady()).rejects.toMatchObject({
+      code: 'transient',
+    });
+    expect(await sessions()).toBe(1);
   });
 
   describe('mt:spawn', () => {
