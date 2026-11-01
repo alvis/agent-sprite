@@ -212,7 +212,7 @@ export class FlyGuestChannel implements GuestChannel {
     if (response.exitCode === undefined) {
       throw new ProviderFault({
         code: 'failed',
-        message: `Fly exec of ${words[0] ?? 'a command'} reported no exit status`,
+        message: `Fly exec of ${words[0]!} reported no exit status`,
       });
     }
 
@@ -259,7 +259,7 @@ export class FlyGuestChannel implements GuestChannel {
     if (result.timedOut) {
       throw new ProviderFault({
         code: 'failed',
-        message: `Guest command ${words[0] ?? ''} timed out after ${timeoutMs} ms`,
+        message: `Guest command ${words[0]!} timed out after ${timeoutMs} ms`,
       });
     }
 

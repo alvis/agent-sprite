@@ -123,7 +123,7 @@ export async function confirmCreation(
  * names the machine the provider picks for the minimums
  * @param dependencies the registered drivers
  * @param profile validated selection
- * @returns one review line naming the minimums and, when the provider names it, the machine
+ * @returns one review line naming the minimums and the selected machine
  */
 function machineSummary(
   dependencies: Pick<ApplicationDependencies, 'registry'>,
@@ -136,11 +136,8 @@ function machineSummary(
       cpus: minCpus,
       memoryGb: minMemoryGb,
     },
-  );
-
-  const picked = offer
-    ? ` (${offer.label}, ${String(offer.cpus)} CPUs, ${String(offer.memoryGb)} GB)`
-    : '';
+  )!;
+  const picked = ` (${offer.label}, ${String(offer.cpus)} CPUs, ${String(offer.memoryGb)} GB)`;
 
   return `Machine: at least ${String(minCpus)} CPUs, ${String(minMemoryGb)} GB${picked}`;
 }

@@ -60,7 +60,7 @@ export async function runGuest(
   const result = await runGuestResult(guest, argv, options);
   if (result.exitCode !== 0) {
     const step = sanitizeGuestDiagnostic(
-      options.step ?? posix.basename(argv[0] ?? 'unknown'),
+      options.step ?? posix.basename(argv[0]!),
     ).slice(0, guestStepLimit);
     const tail = sanitizeGuestDiagnostic(result.stderr).slice(
       -guestDiagnosticLimit,

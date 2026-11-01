@@ -6,9 +6,6 @@ import type { SetupAssembly } from '#application/ports/plan';
 import type { GuestSession } from '#application/ports/session';
 import type { RefusedSource } from '#domain/tools';
 
-/** longest the bottle probe runs when it names no limit of its own */
-const PROBE_LIMIT_MS = 300_000;
-
 /**
  * tells whether the plan installs Homebrew formulae whose bottles the
  * installed Homebrew should be asked about: the foundation installs Homebrew
@@ -41,7 +38,7 @@ export async function probeBottles(
   const { exitCode, stdout, stderr } = await session.run({
     ...probe,
     account: 'root',
-    timeoutMs: probe.timeoutMs ?? PROBE_LIMIT_MS,
+    timeoutMs: probe.timeoutMs!,
   });
   if (exitCode !== 0) {
     throw new CommandFault({

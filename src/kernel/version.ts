@@ -33,13 +33,13 @@ export function compareSemver(left: string, right: string): number {
   const [a, b] = [parseSemver(left), parseSemver(right)];
   const core = a.core.findIndex((part, index) => part !== b.core[index]);
   if (core !== -1) {
-    return (a.core[core] ?? 0) - (b.core[core] ?? 0);
+    return a.core[core]! - b.core[core]!;
   }
   if (!a.prerelease.length || !b.prerelease.length) {
     return b.prerelease.length - a.prerelease.length;
   }
   for (let index = 0; index < a.prerelease.length; index++) {
-    const order = compareIdentifier(a.prerelease[index], b.prerelease[index]);
+    const order = compareIdentifier(a.prerelease[index]!, b.prerelease[index]);
     if (order !== 0) {
       return order;
     }
@@ -73,13 +73,13 @@ function parseSemver(version: string): {
 /**
  * orders two prerelease identifiers: numeric ones numerically and below
  * alphanumeric ones, which compare in ASCII order
- * @param left one identifier, absent when its version has fewer
- * @param right the other identifier
+ * @param left one identifier from the version being traversed
+ * @param right the other identifier, absent when its version has fewer
  * @returns a negative number when left has lower precedence, 0 when equal
  */
-function compareIdentifier(left?: string, right?: string): number {
-  if (left === undefined || right === undefined) {
-    return left === undefined ? -1 : 1;
+function compareIdentifier(left: string, right?: string): number {
+  if (right === undefined) {
+    return 1;
   }
   const [isLeftNumeric, isRightNumeric] = [
     NUMERIC.test(left),

@@ -74,8 +74,7 @@ function projectSuccess(result: CommandSuccess): SuccessOutput {
         data: projectDoctor(result.data),
         retainedCredential,
       };
-    default:
-      return unreachable(result);
+    // no default
   }
 }
 
@@ -121,8 +120,7 @@ function projectFailure(result: Failed): FailureOutput {
         error,
         data: optional(result.data, projectDoctor),
       };
-    default:
-      return unreachable(result);
+    // no default
   }
 }
 
@@ -137,12 +135,4 @@ function optional<T, V>(
   project: (present: T) => V,
 ): V | undefined {
   return value === undefined ? undefined : project(value);
-}
-
-/**
- * fails when a command has no projection, which the compiler rules out
- * @param result the unhandled result
- */
-function unreachable(result: never): never {
-  throw new Error(`No output projection for ${JSON.stringify(result)}`);
 }

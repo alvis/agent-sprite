@@ -34,7 +34,7 @@ export function agentCli(
     source.kind === 'npm' ? { ...source, distTag: channel.distTag } : source,
   );
 
-  return first ? { ...cli, sources: [first, ...rest] } : cli;
+  return { ...cli, sources: [first!, ...rest] };
 }
 
 /**
@@ -89,8 +89,7 @@ export async function inspectAgentRelease(
     const reason =
       errors.find((line) => line.startsWith('npm error code ')) ??
       errors[0] ??
-      stderr.trim().split('\n')[0]?.trim() ??
-      '';
+      stderr.trim().split('\n')[0]!.trim();
 
     return {
       status: 'unknown',

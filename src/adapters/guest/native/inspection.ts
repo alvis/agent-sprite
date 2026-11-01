@@ -71,19 +71,19 @@ export function createNativeInspection(context: {
         ...Object.fromEntries(
           drivers.map((driver) => [
             driver.id,
-            inspections[driver.id]?.configuration,
+            inspections[driver.id]!.configuration,
           ]),
         ),
         agentEnvironment: environment,
         harnesses: Object.fromEntries(
-          drivers.flatMap(({ id }) => {
-            const inspection = inspections[id];
+          drivers.map(({ id }) => {
+            const inspection = inspections[id]!;
             const state: HarnessAgentState = {
-              selectedPlugins: inspection?.selectedPlugins ?? [],
-              evidence: inspection?.evidence,
+              selectedPlugins: inspection.selectedPlugins,
+              evidence: inspection.evidence,
             };
 
-            return inspection ? [[id, state] as const] : [];
+            return [id, state] as const;
           }),
         ),
       };
