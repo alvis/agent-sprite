@@ -270,7 +270,7 @@ export async function restoreOwnedFile(
     typeof ownership.previousValue === 'string'
   ) {
     await writeOwnedFile(guest, path, ownership.previousValue);
-  } else if (exists) {
+  } else {
     await removeOwnedFile(guest, path);
   }
 }

@@ -519,6 +519,20 @@ describe('cl:FlyMachineProvider', () => {
       });
     });
 
+    it('should fall back to the default region when the override is blank', async () => {
+      vi.stubEnv('OPEN_AGENT_FLY_REGION', '  ');
+      const api = new FakeMachinesApi();
+
+      await bound(api).create('alpha', PROFILE, PORT);
+
+      expect(api.fetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          body: expect.stringContaining('"region":"lhr"'),
+        }),
+      );
+    });
+
     it('should create a machine Fly can suspend: at most 2 GB of memory, no swap and no schedule', async () => {
       const api = new FakeMachinesApi();
 
@@ -1012,7 +1026,11 @@ describe('cl:FlyMachineProvider', () => {
         stranger: heldApp({ metadata: {}, services: [] }),
       });
       const provider = bound(api);
-      const metadata = { setup: 'ready' as const, profile: SUMMARY };
+      const metadata = {
+        setup: 'ready' as const,
+        profile: SUMMARY,
+        version: '1.2.3',
+      };
 
       const recorded = await provider.setMetadata(
         await provider.get('alpha'),
@@ -1030,12 +1048,37 @@ describe('cl:FlyMachineProvider', () => {
       }).toEqual({
         recorded: metadata,
         listed: [{ name: 'alpha', read: metadata }],
-        cleared: { setup: 'not recorded', profile: SUMMARY },
+        cleared: { setup: 'not recorded', profile: SUMMARY, version: '1.2.3' },
       });
     });
   });
 
   describe('mt:resize', () => {
+    it('should reject an unavailable machine size without updating the machine', async () => {
+      const api = new FakeMachinesApi({
+        alpha: heldApp({
+          metadata: MANAGED_METADATA,
+          services: [AGENT_SERVICE],
+        }),
+      });
+      const provider = bound(api);
+      const workstation = await provider.get('alpha');
+
+      await expect(
+        provider.resize(workstation, {
+          label: 'shared-cpu-3x',
+          cpus: 3,
+          memoryGb: 2,
+        }),
+      ).rejects.toMatchObject({
+        code: 'failed',
+        message: expect.stringContaining('shared-cpu-3x'),
+      });
+      expect(
+        api.fetch.mock.calls.every(([, init]) => init?.method !== 'POST'),
+      ).toBe(true);
+    });
+
     it('should leave a machine already on the requested size untouched', async () => {
       const app = heldApp({
         metadata: MANAGED_METADATA,
@@ -1077,15 +1120,15 @@ describe('cl:FlyMachineProvider', () => {
       const workstation = await provider.get('alpha');
 
       const resized = await provider.resize(workstation, {
-        label: 'shared-cpu-4x',
+        label: 'performance-4x',
         cpus: 4,
-        memoryGb: 4,
+        memoryGb: 32,
       });
 
       expect(resized).toMatchObject({
         id: workstation.id,
         name: 'alpha',
-        machine: { label: 'shared-cpu-4x', cpus: 4, memoryGb: 4 },
+        machine: { label: 'performance-4x', cpus: 4, memoryGb: 32 },
         metadata: workstation.metadata,
       });
       expect(app.machines[0]).toMatchObject({
@@ -1093,7 +1136,7 @@ describe('cl:FlyMachineProvider', () => {
         config: {
           metadata: MANAGED_METADATA,
           services: [AGENT_SERVICE],
-          guest: { cpu_kind: 'shared', cpus: 4, memory_mb: 4096 },
+          guest: { cpu_kind: 'performance', cpus: 4, memory_mb: 32768 },
         },
       });
     });

@@ -61,11 +61,29 @@ describe('fn:reportProgress', () => {
     await withOperation(context, async () => {
       reportProgress(FINISHED);
       reportProgress({ kind: 'step-started', step: STEP, attempt: 1 });
+      reportProgress({
+        kind: 'step-retrying',
+        step: STEP,
+        attempt: 2,
+        reason: 'connection lost',
+      });
+      reportProgress({
+        kind: 'step-finished',
+        outcome: {
+          step: STEP,
+          status: 'failed',
+          attempts: 2,
+          reason: 'connection lost',
+        },
+        durationMs: 2000,
+      });
     });
 
     expect(reported.mock.calls).toEqual([
       [{ kind: 'info', message: 'jj: applied (1234 ms)' }],
       [{ kind: 'info', message: 'Setting up jj' }],
+      [{ kind: 'info', message: 'Retrying jj after the connection was lost' }],
+      [{ kind: 'warning', message: 'jj: failed (2000 ms)' }],
     ]);
   });
 });

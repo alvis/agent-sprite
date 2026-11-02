@@ -121,7 +121,7 @@ function curlConfig(options: Readonly<Record<string, string>>): string {
  * @returns true for a C0 control character or delete
  */
 function isControlCharacter(character: string): boolean {
-  const code = character.codePointAt(0) ?? 0;
+  const code = character.codePointAt(0)!;
 
   return code < FIRST_PRINTABLE || code === DELETE;
 }

@@ -63,6 +63,31 @@ describe('fn:tokenScopeProblem', () => {
       'has expired',
     ],
     [
+      'a decoding without a permission macaroon',
+      '[]',
+      'is not a Fly API token',
+    ],
+    [
+      'a permission with unreadable caveats and no organization',
+      JSON.stringify([
+        {
+          location: PERMISSION_LOCATION,
+          caveats: [null, { type: 'Note', body: null }],
+        },
+      ]),
+      'is not scoped to an organization',
+    ],
+    [
+      'a JSON object instead of a macaroon sequence',
+      '{}',
+      'is not a Fly API token',
+    ],
+    [
+      'a sequence containing an unreadable macaroon',
+      '[null]',
+      'is not a Fly API token',
+    ],
+    [
       'text that is no decoding',
       'Error: not a token',
       'is not a Fly API token',
@@ -76,10 +101,12 @@ describe('fn:tokenScopeProblem', () => {
  * installs, for one test, a flyctl stand-in that prints a fixed version and
  * decoding, with its private configuration in the same temporary directory
  * @param printed what `fly tokens debug` prints
+ * @param exitCode decoding process exit status
  * @returns preflight lookups resolving the stand-in
  */
 async function standInFlyctl(
   printed: string,
+  exitCode = 0,
 ): Promise<Pick<ProviderPreflightParams, 'findTool' | 'readVersion'>> {
   const directory = await mkdtemp(join(tmpdir(), 'open-agent-fly-preflight-'));
   onTestFinished(async () => rm(directory, { recursive: true, force: true }));
@@ -87,7 +114,7 @@ async function standInFlyctl(
   const program = join(directory, 'fly');
   const output = join(directory, 'decoding.json');
   await writeFile(output, printed);
-  await writeFile(program, `#!/bin/sh\ncat '${output}'\n`);
+  await writeFile(program, `#!/bin/sh\ncat '${output}'\nexit ${exitCode}\n`);
   await chmod(program, 0o755);
 
   return {
@@ -195,5 +222,23 @@ describe('fn:preflightFlyMachine', () => {
     );
 
     expect(problems).toEqual([]);
+  });
+
+  it('should identify an entered token that flyctl refuses to decode', async () => {
+    const tools = await standInFlyctl('', 1);
+
+    const problems = await preflightFlyMachine(
+      { ...tools, credential: 'FlyV1 refused' },
+      NOW,
+    );
+
+    expect(problems).toEqual([
+      expect.objectContaining({
+        subject: 'FLY_API_TOKEN',
+        problem: expect.stringContaining(
+          'The entered value is not a Fly API token',
+        ),
+      }),
+    ]);
   });
 });

@@ -7,6 +7,16 @@ import { rememberSecret } from '#kernel/redaction';
 
 import { guestOf } from '../../../mocks/sprites';
 
+import type { GuestChannel } from '#application/ports/guest-channel';
+
+const channel = {
+  exec: vi.fn<GuestChannel['exec']>(async () => ({
+    exitCode: 1,
+    stdout: '',
+    stderr: '',
+  })),
+} satisfies Partial<GuestChannel>;
+
 describe('fn:runGuest', () => {
   it('should report only the sanitized final stderr tail and semantic step on nonzero exit', async () => {
     const secret = 'saf06-test-secret-unique';
@@ -60,6 +70,13 @@ describe('fn:runGuest', () => {
 });
 
 describe('fn:runGuestResult cancellation', () => {
+  it('should reject an empty command before executing it', async () => {
+    await expect(
+      runGuestResult(channel as Partial<GuestChannel> as GuestChannel, []),
+    ).rejects.toThrow(/executable/iu);
+    expect(channel.exec.mock.calls).toEqual([]);
+  });
+
   it('should forward the originating signal and existing timeout to SDK exec and HTTP boundaries', async () => {
     const sprite = new Sprite(
       'disposable',

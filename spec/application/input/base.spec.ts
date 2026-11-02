@@ -21,6 +21,32 @@ const everything = profileWith({
 });
 
 describe('fn:resolveBaseInputs', () => {
+  it('should label a selected stored network credential without exposing its value', async () => {
+    const host = {
+      ...dependencies.host,
+      credentials: {
+        ...dependencies.host.credentials,
+        read: vi.fn(async (name) =>
+          name === 'tailscale' ? 'stored-network-key' : undefined,
+        ),
+      },
+    } satisfies typeof dependencies.host;
+
+    const resolved = await resolveBaseInputs(
+      { ...dependencies, host },
+      {
+        options: { github: false },
+        sources: { processEnv: {}, fileEnv: {}, profile: {} },
+        selection: { profile: networkOnly },
+      },
+    );
+
+    expect(resolved.input).toMatchObject({
+      networkKey: 'stored-network-key',
+      sources: { TAILSCALE_API_KEY: 'local credential store' },
+    });
+  });
+
   it('should retain a completed sibling secret when another Promise.all source rejects', async () => {
     const secret = 'saf08-partial-sibling-secret';
     const sources = {

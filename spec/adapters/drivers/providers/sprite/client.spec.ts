@@ -30,6 +30,20 @@ function hangingNetwork(): AbortSignal[] {
 }
 
 describe('fn:createSpritesClient', () => {
+  it('should preserve a non-Error transport rejection', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn<typeof fetch>(async () => new Response())
+        .mockRejectedValueOnce('transport closed'),
+    );
+    const client = createSpritesClient('sdk-only-offline');
+
+    await expect(client.getSprite('unavailable')).rejects.toBe(
+      'transport closed',
+    );
+  });
+
   it('should abort a hung request as soon as the command is cancelled', async () => {
     const signals = hangingNetwork();
     const controller = new AbortController();

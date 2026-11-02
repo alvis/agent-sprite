@@ -13,11 +13,11 @@ import { text } from 'node:stream/consumers';
 
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import { FlyApi } from '#adapters/drivers/providers/fly-machine/api';
 import { FlyGuestChannel } from '#adapters/drivers/providers/fly-machine/channel';
 import { KILLED_STATUS } from '#adapters/drivers/providers/fly-machine/process';
 import { ProviderFault } from '#kernel/provider-fault';
 
-import type { FlyApi } from '#adapters/drivers/providers/fly-machine/api';
 import type { GuestProcess } from '#application/ports/guest-channel';
 
 /** how the flyctl stand-in behaves for one test */
@@ -167,7 +167,125 @@ async function finished(guest: GuestProcess): Promise<{
 }
 
 describe('cl:FlyGuestChannel', () => {
+  describe('REST filesystem commands', () => {
+    it.each([
+      {
+        method: 'read',
+        path: '/file',
+        exit: 0,
+        stdout: 'contents\n',
+        expected: 'contents\n',
+      },
+      {
+        method: 'exists',
+        path: '/present',
+        exit: 0,
+        stdout: '',
+        expected: true,
+      },
+      {
+        method: 'exists',
+        path: '/absent',
+        exit: 1,
+        stdout: '',
+        expected: false,
+      },
+    ] as const)(
+      'should return $expected from $method of $path',
+      async ({ method, path, exit, stdout, expected }) => {
+        const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+          Response.json({ exit_code: exit, stdout, stderr: '' }),
+        );
+        vi.stubGlobal('fetch', fetch);
+        const channel = new FlyGuestChannel({
+          api: new FlyApi('test-token'),
+          app: 'alpha',
+          machine: 'machine-1',
+          sshToken: async () => SSH_TOKEN,
+        });
+
+        expect(await channel[method](path)).toBe(expected);
+      },
+    );
+
+    it.each([
+      {
+        method: 'exists',
+        path: '/denied',
+        exit: 2,
+        stderr: ' permission denied\n',
+      },
+      { method: 'read', path: '/missing', exit: 1, stderr: ' missing\n' },
+    ] as const)(
+      'should report a failed $method of $path',
+      async ({ method, path, exit, stderr }) => {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn<typeof fetch>(async () =>
+            Response.json({ exit_code: exit, stdout: '', stderr }),
+          ),
+        );
+        const channel = new FlyGuestChannel({
+          api: new FlyApi('test-token'),
+          app: 'alpha',
+          machine: 'machine-1',
+          sshToken: async () => SSH_TOKEN,
+        });
+
+        await expect(channel[method](path)).rejects.toMatchObject({
+          code: 'failed',
+          message: expect.stringContaining(path),
+        });
+      },
+    );
+  });
+
+  describe('services', () => {
+    it('should return an empty service inventory from the REST report', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>(async () =>
+          Response.json({ exit_code: 0, stdout: '[]', stderr: '' }),
+        ),
+      );
+      const channel = new FlyGuestChannel({
+        api: new FlyApi('test-token'),
+        app: 'alpha',
+        machine: 'machine-1',
+        sshToken: async () => SSH_TOKEN,
+      });
+
+      expect(await channel.services.list()).toEqual([]);
+    });
+  });
+
   describe('mt:exec', () => {
+    it('should reject a REST reply without an exit status and round the timeout to seconds', async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json({ stdout: '', stderr: '' }),
+      );
+      vi.stubGlobal('fetch', fetch);
+      const channel = new FlyGuestChannel({
+        api: new FlyApi('test-token'),
+        app: 'alpha',
+        machine: 'machine-1',
+        sshToken: async () => SSH_TOKEN,
+      });
+
+      await expect(
+        channel.exec({ program: '/bin/true', arguments: [], timeoutMs: 500 }),
+      ).rejects.toMatchObject({
+        code: 'failed',
+        message: expect.stringContaining('/bin/true'),
+      });
+      expect(fetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          body: JSON.stringify({ command: ['/bin/true'], timeout: 1 }),
+        }),
+      );
+    });
+
     it('should return the guest status, input round trip and own standard error, then stop the private agent', async () => {
       const { channel, agentStops } = await standIn('faithful');
 
@@ -320,6 +438,92 @@ describe('cl:FlyGuestChannel', () => {
     });
   });
 
+  it('should report an SSH command timeout', async () => {
+    const { channel } = await standIn('hang');
+
+    await expect(
+      channel.exec({
+        program: '/bin/true',
+        arguments: [],
+        input: '',
+        timeoutMs: 20,
+      }),
+    ).rejects.toMatchObject({
+      code: 'failed',
+      message: expect.stringContaining('/bin/true'),
+    });
+  });
+
+  it('should forward the agent account and environment over REST without a network restriction', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ exit_code: 0, stdout: '', stderr: '' }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const rest = new FlyGuestChannel({
+      api: new FlyApi('test-token'),
+      app: 'alpha',
+      machine: 'machine-1',
+      sshToken: async () => SSH_TOKEN,
+    });
+    await rest.exec({
+      account: 'agent',
+      program: '/bin/true',
+      arguments: [],
+      environment: { LANG: 'C' },
+      timeoutMs: 10,
+    });
+    await expect(rest.assertUnrestrictedNetwork()).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: JSON.stringify({
+          command: [
+            '/usr/sbin/runuser',
+            '-u',
+            'agent',
+            '--',
+            '/usr/bin/env',
+            'LANG=C',
+            '/bin/true',
+          ],
+          timeout: 1,
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    new Error('token unavailable'),
+    new ProviderFault({ code: 'failed', message: 'token refused' }),
+  ])(
+    'should preserve a readiness failure without retrying: %s',
+    async (failure) => {
+      const token = vi.fn(async () => {
+        throw failure;
+      });
+      const { channel } = await standIn('faithful', token);
+
+      await expect(channel.awaitReady()).rejects.toBe(failure);
+      expect(token).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('should stop retrying an unreachable SSH probe after its readiness deadline', async () => {
+    const now = Date.now();
+    let elapsed = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => now + elapsed);
+    const { channel, sessions } = await standIn('lost', async () => {
+      elapsed = 61_000;
+
+      return SSH_TOKEN;
+    });
+
+    await expect(channel.awaitReady()).rejects.toMatchObject({
+      code: 'transient',
+    });
+    expect(await sessions()).toBe(1);
+  });
+
   describe('mt:spawn', () => {
     it('should stream input and output and exit with the guest status', async () => {
       const { channel, agentStops } = await standIn('faithful');
@@ -386,9 +590,10 @@ describe('cl:FlyGuestChannel', () => {
     });
 
     it('should exit as killed when killed before the session starts', async () => {
+      const token = Promise.withResolvers<string>();
       const { channel, agentStops } = await standIn(
         'faithful',
-        async () => new Promise<string>(() => undefined),
+        async () => token.promise,
       );
 
       const guest = channel.spawn({
@@ -397,10 +602,17 @@ describe('cl:FlyGuestChannel', () => {
         arguments: [],
       });
       guest.kill();
+      guest.kill();
+      const result = await finished(guest);
+      token.resolve(SSH_TOKEN);
+      await new Promise<void>((resolve) => setImmediate(resolve));
 
-      expect({ ...(await finished(guest)), stops: await agentStops() }).toEqual(
-        { outcome: { exit: KILLED_STATUS }, stdout: '', stderr: '', stops: 0 },
-      );
+      expect({ ...result, stops: await agentStops() }).toEqual({
+        outcome: { exit: KILLED_STATUS },
+        stdout: '',
+        stderr: '',
+        stops: 0,
+      });
     });
 
     it('should exit as killed, not fail, when killed during the session', async () => {

@@ -18,6 +18,24 @@ import {
 const RECORD = '/opt/open-agent/cliproxyapi.curl';
 
 describe('fn:recordHub', () => {
+  it.each(['\n', '\u007f'])(
+    'should reject a control character in the client key: %j',
+    async (control) => {
+      await using directory = await mkdtempDisposable(
+        join(tmpdir(), 'open-agent-hub-control-'),
+      );
+      const sprite = createFilesystemSprite({ root: directory.path });
+
+      await expect(
+        recordHub(
+          sessionGuestOf(sprite),
+          routeOf('https://proxy.example', `key${control}`),
+        ),
+      ).rejects.toThrow(/control character/);
+      expect(await sprite.filesystem().exists(RECORD)).toBe(false);
+    },
+  );
+
   it('should record the model catalogue endpoint and client key for root only, as a secret input', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-hub-record-'),

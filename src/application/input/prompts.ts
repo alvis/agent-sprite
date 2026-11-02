@@ -58,29 +58,26 @@ export async function retainManagementCredential(
 ): Promise<CredentialSaveResult | undefined> {
   const { name, value, credentialStore } = params;
   const { interaction, options } = params;
-  const retain = options.yes
-    ? true
-    : await interaction.confirm({
-        message: `Save the ${name} management credential in the OS credential store (or a protected file if unavailable)?`,
-      });
-  if (retain) {
-    const saved = await dependencies.host.credentials.save(name, value, {
-      consent: true,
-      allowProtectedFileFallback: true,
-      location: credentialStore,
-    });
-    const fallbackText = saved.fallbackReason
-      ? ` (${saved.fallbackReason})`
-      : '';
-    interaction.status({
-      kind: saved.fallbackReason ? 'warning' : 'success',
-      message: `${name} management credential saved in ${saved.storage}${fallbackText}.`,
-    });
-
-    return saved;
+  if (
+    !options.yes &&
+    !(await interaction.confirm({
+      message: `Save the ${name} management credential in the OS credential store (or a protected file if unavailable)?`,
+    }))
+  ) {
+    return undefined;
   }
+  const saved = await dependencies.host.credentials.save(name, value, {
+    consent: true,
+    allowProtectedFileFallback: true,
+    location: credentialStore,
+  });
+  const fallbackText = saved.fallbackReason ? ` (${saved.fallbackReason})` : '';
+  interaction.status({
+    kind: saved.fallbackReason ? 'warning' : 'success',
+    message: `${name} management credential saved in ${saved.storage}${fallbackText}.`,
+  });
 
-  return undefined;
+  return saved;
 }
 
 /**

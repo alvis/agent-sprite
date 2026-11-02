@@ -22,6 +22,16 @@ describe('fn:createActivityController', () => {
     expect(output.read()).toBeNull();
 
     activity.publish({
+      stage: 'orphan',
+      message: 'Late completion',
+      phase: 'complete',
+    });
+    expect(activity.current()).toMatchObject({ stage: 'setup' });
+    expect(String(output.read())).toContain('Late completion');
+    activity.publish({ stage: 'setup', message: 'Direct update' });
+    expect(output.read()).toBeNull();
+
+    activity.publish({
       stage: 'setup.native',
       message: 'Running',
       phase: 'start',

@@ -133,6 +133,30 @@ describe('fn:configureGit', () => {
 });
 
 describe('fn:configureGithub', () => {
+  it('should report a failed login even when the command returns no diagnostic', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-github-empty-error-'),
+    );
+    const sprite = createFilesystemSprite({ root: directory.path });
+    Object.assign(sprite, {
+      execFileHTTP: vi.fn<Sprite['execFileHTTP']>(async () => ({
+        ...success,
+        exitCode: 1,
+      })),
+    } satisfies Partial<Sprite>);
+
+    await expect(
+      configureGithub(
+        sessionGuestOf(sprite),
+        Secret.fromHost('github', 'stdin-token'),
+        { shellAccounts: [] },
+      ),
+    ).rejects.toMatchObject({
+      code: 'PROVIDER',
+      message: expect.stringMatching(/GitHub.*exit 1\)\.$/),
+    });
+  });
+
   it('should route native authentication to the selected hostname and supply credentials only over stdin', async () => {
     await using directory = await mkdtempDisposable(
       join(tmpdir(), 'open-agent-github-'),
@@ -362,6 +386,12 @@ describe('fn:configureRuntimeEnv', () => {
       join(tmpdir(), 'open-agent-runtime-env-twice-'),
     );
     const sprite = createFilesystemSprite({ root: directory.path });
+    await sprite
+      .filesystem()
+      .writeFile('/home/agent/.profile', 'export EXISTING=kept');
+    await sprite
+      .filesystem()
+      .writeFile('/home/agent/.bashrc', 'export BASH_SETTING=kept\n');
     const options = {
       environment: { USER_TAG: 'preserved' },
       shellAccounts: [],
@@ -377,6 +407,35 @@ describe('fn:configureRuntimeEnv', () => {
     expect(
       profile.split('\n').filter((line) => line.endsWith('# open-agent env')),
     ).toEqual([expect.stringContaining('.config/open-agent/env.sh')]);
+    expect(profile).toMatch(/^export EXISTING=kept\nif /);
+    expect(
+      await readFile(join(directory.path, '/home/agent/.bashrc'), 'utf8'),
+    ).toMatch(/^export BASH_SETTING=kept\nif /);
+  });
+
+  it('should stop configuration when the account cannot read a startup file', async () => {
+    await using directory = await mkdtempDisposable(
+      join(tmpdir(), 'open-agent-startup-read-error-'),
+    );
+    const guest = sessionGuestOf(
+      createFilesystemSprite({ root: directory.path }),
+    );
+    const execute = guest.exec.bind(guest);
+    vi.spyOn(guest, 'exec').mockImplementation(async (command) =>
+      command.arguments.includes('oa-read-startup')
+        ? { exitCode: 1, stdout: '', stderr: 'permission denied' }
+        : execute(command),
+    );
+
+    await expect(
+      configureRuntimeEnv(registry, guest, {
+        environment: { USER_TAG: 'kept' },
+        shellAccounts: [],
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROVIDER',
+      message: expect.stringContaining('/home/agent/.zshenv'),
+    });
   });
 
   it('should leave a startup file that is a link unchanged when the runtime env is configured', async () => {

@@ -505,6 +505,30 @@ describe('fn:prepareResult', () => {
     );
   });
 
+  it('should show an unrecorded boot and no failed updates when optional native inspection is absent', () => {
+    const { native: _native, ...withoutNative } = inspection;
+    const output = captureResult(
+      {
+        command: 'show',
+        ok: true,
+        data: {
+          machine,
+          inspection: {
+            ...withoutNative,
+            updates: { tools: [] },
+            boot: { unsuccessfulSteps: {}, log: [] },
+          },
+        },
+      },
+      {},
+    );
+
+    expect(output.stdout).toMatch(/Last boot[\s\S]*not recorded/u);
+    expect(output.stdout).not.toContain('Failed tools:');
+    expect(output.stdout).not.toContain('Unsuccessful steps:');
+    expect(output.stdout).not.toContain('Native plugin inventory available:');
+  });
+
   it('should name the tools the last update failed in the maintenance details', () => {
     const output = captureResult(
       {
@@ -654,37 +678,52 @@ describe('fn:prepareResult', () => {
       },
       {},
     );
-    const failing = captureResult(
-      {
-        command: 'show',
-        ok: true,
-        data: {
-          machine,
-          inspection: {
-            ...inspection,
-            governor: {
-              recorded: true,
-              state: {
-                version: 1,
-                updatedAt: '2026-10-09T00:10:00.000Z',
-                idleTimeoutMinutes: 5,
-                holdMaxMinutes: 60,
-                holds: [],
-                openHolds: 1,
-                sleepPermitted: true,
-                adapter: {
-                  at: '2026-10-09T00:10:00.000Z',
-                  action: 'enter-idle-form',
-                  failure: 'suspend refused',
+    const failingResult: CommandResult = {
+      command: 'show',
+      ok: true,
+      data: {
+        machine,
+        inspection: {
+          ...inspection,
+          governor: {
+            recorded: true,
+            state: {
+              version: 1,
+              updatedAt: '2026-10-09T00:10:00.000Z',
+              idleTimeoutMinutes: 5,
+              holdMaxMinutes: 60,
+              holds: [
+                {
+                  source: 'claude',
+                  session: 'a'.repeat(64),
+                  expiresAt: '2026-10-09T00:15:00.000Z',
                 },
-                diagnostics: [],
+              ],
+              openHolds: 1,
+              sleepPermitted: true,
+              adapter: {
+                at: '2026-10-09T00:10:00.000Z',
+                action: 'enter-idle-form',
+                failure: 'suspend refused',
               },
+              diagnostics: [],
             },
           },
         },
       },
-      {},
-    );
+    };
+    const failing = captureResult(failingResult, {});
+    const json = captureResult(failingResult, { json: true });
+
+    expect(
+      JSON.parse(json.stdout).data.inspection.governor.state.holds,
+    ).toEqual([
+      {
+        source: 'claude',
+        session: 'a'.repeat(64),
+        expiresAt: '2026-10-09T00:15:00.000Z',
+      },
+    ]);
 
     expect(unrecorded.stdout.replaceAll(/\s+/g, ' ')).toMatch(
       /Idle governor.*not recorded \(no awake event has been recorded yet\)/,

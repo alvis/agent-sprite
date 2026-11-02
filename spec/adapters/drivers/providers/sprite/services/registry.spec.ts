@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 
-import { SpritesClient } from '@fly/sprites';
-import { describe, expect, it } from 'vitest';
+import { Sprite, SpritesClient } from '@fly/sprites';
+import { describe, expect, it, vi } from 'vitest';
+
+import { readServiceRegistry } from '#adapters/drivers/providers/sprite/services/registry';
 
 import { commandError } from '#application/failures';
 import { prepareResult, writePreparedResult } from '#cli/output';
@@ -36,6 +38,14 @@ const t3 = {
   httpPort: 3773,
   state: { name: 't3-code', status: 'running' },
 } satisfies ServiceWithState;
+
+const offline = new Sprite('offline', new SpritesClient('offline-test'));
+const entry = {
+  name: 'worker',
+  cmd: '/bin/worker',
+  args: [],
+  needs: [],
+} satisfies Pick<ServiceWithState, 'name' | 'cmd' | 'args' | 'needs'>;
 
 type RegistryReply =
   { status: number; body: string } | { kind: 'abort' | 'hold' };
@@ -194,4 +204,93 @@ describe('mt:SpriteServiceControl.list private cause boundary', () => {
       }
     }
   });
+});
+
+describe('fn:readServiceRegistry', () => {
+  it.each([
+    { status: 401, code: 'AUTH' },
+    { status: 503, code: 'PROVIDER' },
+  ])(
+    'should retain HTTP failure classification when discarding the body ($status)',
+    async ({ status, code }) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>(
+          async () =>
+            new Response(
+              status === 401
+                ? new ReadableStream({
+                    cancel: async () => {
+                      throw new Error('already closed');
+                    },
+                  })
+                : null,
+              { status },
+            ),
+        ),
+      );
+
+      await expect(readServiceRegistry(offline)).rejects.toMatchObject({
+        code,
+        message: expect.stringContaining(String(status)),
+      });
+    },
+  );
+
+  it('should preserve observed runtime details and allow services without runtime state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async () =>
+        Response.json([
+          {
+            ...entry,
+            http_port: 8080,
+            state: {
+              name: entry.name,
+              status: 'running',
+              pid: 42,
+              started_at: '2026-10-31T00:00:00Z',
+              error: '',
+            },
+          },
+          { ...entry, name: 'pending', http_port: null, state: null },
+          { ...entry, name: 'stopped' },
+        ]),
+      ),
+    );
+
+    await expect(readServiceRegistry(offline)).resolves.toEqual([
+      {
+        name: 'worker',
+        needs: [],
+        status: 'running',
+        startedAt: '2026-10-31T00:00:00Z',
+      },
+      { name: 'pending', needs: [] },
+      { name: 'stopped', needs: [] },
+    ]);
+  });
+
+  it.each([
+    { reason: 'envelope', body: {} },
+    { reason: 'port', body: [{ ...entry, http_port: 1.5 }] },
+    {
+      reason: 'state',
+      body: [
+        { ...entry, state: { name: entry.name, status: 'running', error: 3 } },
+      ],
+    },
+  ])(
+    'should reject incomplete or malformed registry evidence ($reason)',
+    async ({ body }) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>(async () => Response.json(body)),
+      );
+
+      await expect(readServiceRegistry(offline)).rejects.toMatchObject({
+        code: 'PROVIDER',
+      });
+    },
+  );
 });

@@ -17,6 +17,7 @@ import {
 } from '#adapters/drivers/harnesses/codex/paths';
 import { codexPlugins } from '#adapters/drivers/harnesses/codex/plugins';
 import {
+  enabledSelections,
   installedPlugins,
   marketplaceMatches,
   marketplaces,
@@ -33,6 +34,18 @@ import type { ExecResult, Sprite } from '@fly/sprites';
 const inventories = { claude: CLAUDE_INVENTORY, codex: CODEX_INVENTORY };
 const applyClaudePlugins = claudePlugins.apply;
 const applyCodexPlugins = codexPlugins.apply;
+
+describe('fn:enabledSelections', () => {
+  it('should refuse selected-plugin evidence when the native inventory is malformed', () => {
+    const result = enabledSelections(
+      { stdout: '{invalid', stderr: '', exitCode: 0 },
+      CLAUDE_INVENTORY,
+      ['chosen@market'],
+    );
+
+    expect(result).toBe(false);
+  });
+});
 
 describe('fn:installedPlugins', () => {
   it('should map Claude and Codex native inventory identities and enablement', () => {

@@ -196,8 +196,7 @@ function sourceActions(spec: ToolSpec, source: ToolSource): SourceActions {
         apply: [['oa_rustup_install', source.toolchain, ...source.components]],
         timeoutMs: RUSTUP_LIMIT_MS,
       };
-    default:
-      throw new Error(`Tool ${spec.name} has a source of no known kind`);
+    // no default
   }
 }
 

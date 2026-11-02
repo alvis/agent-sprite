@@ -6,7 +6,10 @@ import { registry } from '#composition/registry';
 import { CommandFault } from '#kernel/faults';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
 
-import { DISABLED_NETWORK_PROFILE } from '../../../fixtures/profile';
+import {
+  DISABLED_NETWORK_PROFILE,
+  TAILSCALE_PROFILE,
+} from '../../../fixtures/profile';
 
 import type { DriverRegistry } from '#application/ports/drivers';
 import type { SetupStep, StepOutcome } from '#application/ports/plan';
@@ -85,6 +88,70 @@ async function runToolStep(
 }
 
 describe('fn:assemblePlan', () => {
+  it('should record the network daemon and its launcher for a connected Sprite', async () => {
+    const assembly = await assemblePlan(registry, {
+      provider: registry.providers.sprite,
+      profile: { ...TAILSCALE_PROFILE, provider: 'sprite' },
+      release: RELEASE,
+      version: OPEN_AGENT_VERSION,
+      setupAt: '2026-10-25T00:00:00Z',
+    });
+
+    expect(assembly.environment).toMatchObject({
+      network: {
+        id: 'tailscale',
+        daemon: 'tailscaled',
+        launcher: {
+          stateDirectory: '/opt/open-agent/state/tailscale',
+          socket: '/var/run/tailscale/tailscaled.sock',
+          tun: 'tailscale0',
+        },
+      },
+      services: expect.arrayContaining([registry.networks.tailscale.daemon]),
+    });
+  });
+
+  it('should record an unavailable optional tool without planning its installation', async () => {
+    const optionalTool = {
+      ...CLAUDE_TOOL,
+      name: 'optional-tool',
+      required: false,
+      sources: [
+        {
+          kind: 'system',
+          family: 'debian',
+          packages: ['optional-tool'],
+          when: { arch: ['aarch64'] },
+        },
+      ],
+    } as const;
+    const selectedRegistry = {
+      ...registry,
+      harnesses: {
+        ...registry.harnesses,
+        claude: {
+          ...registry.harnesses.claude,
+          tools: [...registry.harnesses.claude.tools, optionalTool],
+        },
+      },
+    } satisfies DriverRegistry;
+
+    const assembly = await assemblePlan(selectedRegistry, {
+      provider: registry.providers['fly-machine'],
+      profile: DISABLED_NETWORK_PROFILE,
+      release: RELEASE,
+      version: OPEN_AGENT_VERSION,
+      setupAt: '2026-10-25T00:00:00Z',
+    });
+
+    expect(assembly.environment.setup.skipped).toEqual([
+      { name: 'optional-tool', reason: expect.stringContaining('x86_64') },
+    ]);
+    expect(assembly.steps.map(({ id }) => id)).not.toContain(
+      'tool:optional-tool',
+    );
+  });
+
   it('should install the channel release over an installed T3 Code whose version probe passes', async () => {
     const { statuses, scripts } = await runToolStep('t3');
 
@@ -111,7 +178,12 @@ describe('fn:assemblePlan', () => {
   });
 
   it('should keep the first shared tool, install an ACP adapter, and retain network identity', async () => {
-    const originalTool = CLAUDE_TOOL;
+    const originalTool = {
+      ...CLAUDE_TOOL,
+      sources: [
+        { kind: 'brew', formula: 'tools/cli/claude', tap: 'tools/cli' },
+      ],
+    } as const;
     const adapterTool = { ...originalTool, name: 'claude-acp' };
     const selectedRegistry = {
       ...registry,
@@ -130,7 +202,12 @@ describe('fn:assemblePlan', () => {
           ],
           acpAdapter: {
             tool: adapterTool,
-            launch: { program: 'claude-acp', arguments: [] },
+            launch: {
+              program: 'claude-acp',
+              arguments: [],
+              account: 'agent',
+              environment: { ADAPTER_MODE: 'acp' },
+            },
           },
         },
       },
@@ -155,7 +232,15 @@ describe('fn:assemblePlan', () => {
             harnesses: expect.arrayContaining([
               expect.objectContaining({
                 id: 'claude',
-                adapter: expect.objectContaining({ tool: 'claude-acp' }),
+                adapter: expect.objectContaining({
+                  tool: 'claude-acp',
+                  launch: {
+                    program: 'claude-acp',
+                    arguments: [],
+                    account: 'agent',
+                    environment: { ADAPTER_MODE: 'acp' },
+                  },
+                }),
               }),
             ]),
           }),
@@ -165,6 +250,11 @@ describe('fn:assemblePlan', () => {
     expect(
       assembly.tools.filter(({ name }) => name === originalTool.name),
     ).toEqual([originalTool]);
+    expect(
+      assembly.steps
+        .find(({ id }) => id === `tool:${originalTool.name}`)
+        ?.apply.argv.join(' '),
+    ).toContain("'oa_brew_install' 'tools/cli/claude' 'tools/cli'");
   });
 
   it('should assemble a plan without an agent CLI when its driver declares no tools', async () => {

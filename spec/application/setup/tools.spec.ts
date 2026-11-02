@@ -23,6 +23,7 @@ import {
 import { setupTools } from '#application/setup/tools';
 import { summarizeProfile } from '#domain/recorded';
 
+import { OperationContext, withOperation } from '#kernel/operation';
 import { OPEN_AGENT_VERSION } from '#kernel/version';
 
 import { environmentOf } from '../../fixtures/environment';
@@ -43,6 +44,7 @@ import type { Sprite } from '@fly/sprites';
 import type { SetupContext } from '#application/setup/context';
 import type { GuestEnvironment } from '#domain/observations/environment';
 import type { WorkstationProfile } from '#domain/profile';
+import type { StageEvent } from '#kernel/operation';
 
 import type { GuestExecute } from '../../mocks/sprites';
 
@@ -259,10 +261,24 @@ describe('fn:setupTools --update', () => {
       ...toolsContext(sprite, { persists: false }),
       options: { update: true },
     } satisfies SetupContext;
+    const stages: StageEvent[] = [];
+    const operation = new OperationContext({
+      signal: new AbortController().signal,
+      onStage: (event) => stages.push(event),
+    });
 
     await expect(
-      setupTools(dependencies, await context.connection.guest(), context),
+      withOperation(operation, async () =>
+        setupTools(dependencies, await context.connection.guest(), context),
+      ),
     ).rejects.toMatchObject({ code: 'PROVIDER' });
+    expect(stages).toContainEqual(
+      expect.objectContaining({
+        stage: 'setup.update',
+        event: 'complete',
+        outcome: 'failed',
+      }),
+    );
     expect(
       execute.mock.calls.filter(([, args = []]) => args.includes('--force')),
     ).toHaveLength(1);

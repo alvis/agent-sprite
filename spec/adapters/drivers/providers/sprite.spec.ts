@@ -2,6 +2,7 @@ import { Sprite, SpriteCommand, SpritesClient } from '@fly/sprites';
 import { describe, expect, it, vi } from 'vitest';
 
 import { sprite as unboundProvider } from '#adapters/drivers/providers/sprite';
+import { createManagedSprite } from '#adapters/drivers/providers/sprite/creation';
 import {
   MANAGED_LABEL,
   SCHEMA_LABEL,
@@ -113,6 +114,32 @@ function providerWithSprite(sprite: Sprite) {
 
   return providerOf(observedClient);
 }
+
+describe('fn:createManagedSprite', () => {
+  it('should report a retained Sprite when its owner closes before creation returns', async () => {
+    const pending = Promise.withResolvers<Sprite>();
+    boundary.createSprite.mockReturnValueOnce(pending.promise);
+    const operation = new OperationContext({
+      signal: new AbortController().signal,
+    });
+    let creating: Promise<Sprite> | undefined;
+    await withOperation(operation, async () => {
+      creating = createManagedSprite({
+        client,
+        name: 'primary',
+        profile: DISABLED_NETWORK_PROFILE,
+      });
+    });
+
+    pending.resolve(createProviderSprite());
+
+    await expect(creating).rejects.toMatchObject({
+      outcome: 'retained',
+      machine: 'primary',
+      machineId: 'sprite-primary',
+    });
+  });
+});
 
 describe('mt:SpriteProvider.preflight', () => {
   it('should report a missing Sprites credential and reject a Fly API token offline', async () => {
@@ -367,6 +394,40 @@ describe('mt:SpriteProvider.delete', () => {
 });
 
 describe('mt:SpriteProvider.setMetadata', () => {
+  it.each([
+    {
+      version: '2.3.4-rc.1',
+      metadata: { setup: 'not recorded', version: '2.3.4-rc.1' },
+      labels: [...primaryInfo.labels, 'open-agent-version-2-3-4--rc-1'],
+    },
+    {
+      version: '2.3.4+build',
+      metadata: { setup: 'not recorded' },
+      labels: primaryInfo.labels,
+    },
+  ])(
+    'should clear setup state and replace a release label ($version)',
+    async ({ version, metadata, labels }) => {
+      const sprite = createProviderSprite({
+        labels: [
+          ...primaryInfo.labels,
+          SETUP_READY_LABEL,
+          'open-agent-version-1-0-0',
+        ],
+      });
+      const subject = providerWithSprite(sprite);
+      const workstation = await subject.get('primary');
+
+      const updated = await subject.setMetadata(workstation, {
+        setup: 'not recorded',
+        version,
+      });
+
+      expect(updated.metadata).toEqual(metadata);
+      expect(sprite.labels).toEqual(labels);
+    },
+  );
+
   it('should replace setup state without losing unrelated labels or adding duplicates', async () => {
     const sprite = createProviderSprite({
       labels: [

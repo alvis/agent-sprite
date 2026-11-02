@@ -23,6 +23,26 @@ describe('D10 failure boundaries', () => {
     },
   );
 
+  it('should retain nested aggregate causes in public failure details', () => {
+    const error = commandError(
+      new Error('Request failed', {
+        cause: new AggregateError(
+          [new Error('First failure'), 'Second failure'],
+          'Batch failed',
+        ),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      code: 'UNEXPECTED',
+      details: [
+        'Cause: Batch failed',
+        'Cause: First failure',
+        'Cause: Second failure',
+      ],
+    });
+  });
+
   it('should normalize a non-Error rejection as an unexpected failure with status one', () => {
     const error = commandError({
       reason: 'provider returned an invalid shape',

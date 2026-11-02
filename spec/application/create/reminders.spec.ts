@@ -18,6 +18,29 @@ const baseInput: ResolvedInputs = {
 };
 
 describe('fn:createPreflightSummary', () => {
+  it('should describe a longer maintenance interval without claiming an unsupplied enrollment key', () => {
+    const profile = profileWith({
+      network: true,
+      exitNode: false,
+      cliproxyapi: false,
+    });
+    const summary = createPreflightSummary(dependencies, {
+      ...baseInput,
+      profile: {
+        ...profile,
+        options: { ...profile.options, updateDueIntervalDays: 3 },
+      },
+      networkKey: 'management-secret',
+    });
+
+    expect(summary.reminders).toEqual(
+      expect.arrayContaining([expect.stringMatching(/3 days have passed/)]),
+    );
+    expect(summary.reminders.join(' ')).not.toMatch(
+      /supplied.*enrolment key|Without TAILSCALE_API_KEY/,
+    );
+  });
+
   it('should provide applicable readiness checks and reminders without exposing input secrets', () => {
     const native = createPreflightSummary(dependencies, baseInput);
     const enabled = createPreflightSummary(

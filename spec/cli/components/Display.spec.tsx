@@ -74,6 +74,18 @@ describe('rc:Display', () => {
         />,
       ),
     ).not.toContain('2/');
+    expect(
+      renderToString(
+        <TaskProgress
+          update={{
+            stage: 'routing',
+            message: 'failed',
+            phase: 'complete',
+            outcome: 'failed',
+          }}
+        />,
+      ),
+    ).toContain('✗ routing: failed');
     for (const kind of ['error', 'warning', 'success', 'info'] as const) {
       expect(
         renderToString(

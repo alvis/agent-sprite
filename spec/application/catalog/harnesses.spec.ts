@@ -1,11 +1,51 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { harnessDrivers, proxyRoute } from '#application/catalog/harnesses';
+import {
+  configureHarnesses,
+  harnessDrivers,
+  proxyRoute,
+} from '#application/catalog/harnesses';
 import { defaults } from '#composition/defaults';
 import { registry } from '#composition/registry';
 
+import type { GuestChannel } from '#application/ports/guest-channel';
+
 const gateway = registry.gateways.cliproxyapi;
 const drivers = harnessDrivers(registry, defaults.selection.harnesses);
+
+describe('fn:configureHarnesses', () => {
+  it('should leave native authentication on a harness that does not support the selected proxy', async () => {
+    const configure = vi.fn<typeof registry.harnesses.claude.configure>(
+      async () => undefined,
+    );
+    const driver = {
+      ...registry.harnesses.claude,
+      supportsProxy: false,
+      configure,
+      hooks: {
+        ...registry.harnesses.claude.hooks,
+        install: vi.fn<typeof registry.harnesses.claude.hooks.install>(
+          async () => undefined,
+        ),
+      },
+    } satisfies typeof registry.harnesses.claude;
+    const guest =
+      {} satisfies Partial<GuestChannel> as Partial<GuestChannel> as GuestChannel;
+    const route = {
+      endpoints: gateway.endpoints('https://hub'),
+      apiKey: 'synthetic-key',
+    };
+
+    await configureHarnesses(guest, {
+      drivers: [driver],
+      hub: { record: async () => undefined },
+      awakeHook: { program: '/bin/true' },
+      proxy: route,
+    });
+
+    expect(configure.mock.calls).toEqual([[guest, { proxy: undefined }]]);
+  });
+});
 
 describe('fn:harnessDrivers', () => {
   it('should resolve drivers in the requested order', () => {
@@ -26,6 +66,10 @@ describe('fn:proxyRoute', () => {
         drivers,
       }),
     ).toBeUndefined();
+  });
+
+  it('should leave native authentication in place when no proxy credentials are supplied', () => {
+    expect(proxyRoute({ enabled: true, gateway, drivers })).toBeUndefined();
   });
 
   it('should return the route when both URL and key are given', () => {

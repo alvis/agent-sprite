@@ -173,29 +173,29 @@ async function promptOnePluginAction(
   },
 ): Promise<NormalizedPluginOptions | 'done'> {
   const { preferredHarness, harnesses, interaction, yes } = params;
+  const collect = async (
+    harness: HarnessId,
+  ): Promise<NormalizedPluginOptions | 'done'> =>
+    collectHarnessAction(selected, {
+      harness,
+      interaction: withBackNavigation(
+        interaction,
+        preferredHarness ? 'back to sections' : 'back to harnesses',
+      ),
+      yes,
+    });
+  if (preferredHarness) {
+    return collect(preferredHarness);
+  }
   for (;;) {
-    const harness =
-      preferredHarness ??
-      (await interaction.select<HarnessId>(
-        { message: 'Select plugin harness' },
-        harnessDrivers(dependencies.registry, harnesses).map((driver) => ({
-          label: harnessLabel(driver.id),
-          value: driver.id,
-        })),
-      ));
-    const collect = async (): Promise<NormalizedPluginOptions | 'done'> =>
-      collectHarnessAction(selected, {
-        harness,
-        interaction: withBackNavigation(
-          interaction,
-          preferredHarness ? 'back to sections' : 'back to harnesses',
-        ),
-        yes,
-      });
-    if (preferredHarness) {
-      return collect();
-    }
-    const result = await returnOnBack(collect);
+    const harness = await interaction.select<HarnessId>(
+      { message: 'Select plugin harness' },
+      harnessDrivers(dependencies.registry, harnesses).map((driver) => ({
+        label: harnessLabel(driver.id),
+        value: driver.id,
+      })),
+    );
+    const result = await returnOnBack(async () => collect(harness));
     if (result !== undefined) {
       return result;
     }

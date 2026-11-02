@@ -3,6 +3,8 @@ import { ResultDetails } from './ResultDetails';
 
 import type { ReactElement } from 'react';
 
+import type { JsonObject } from '#cli/serialization';
+
 /**
  * creates the human-readable machine table element
  * @param machines already selected machine rows
@@ -24,7 +26,7 @@ export function machineTableElement(
  */
 export function resultDetailsElement(
   title: string,
-  value: unknown,
+  value: JsonObject,
 ): ReactElement {
   return <ResultDetails title={title} value={value} />;
 }

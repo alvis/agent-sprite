@@ -70,7 +70,7 @@ export async function prepareCreate(
   if (blocked) {
     return blocked;
   }
-  const values = requireCreateValues(input);
+  const values = { name: input.name!, token: input.providerToken! };
   const plugins = await resolveCreatePlugins(dependencies, {
     request,
     input,
@@ -315,21 +315,7 @@ async function checkProviderAndNetwork(
       ...(taken.status === 'rejected' ? [commandError(taken.reason)] : []),
       ...(preflight.status === 'rejected'
         ? [commandError(preflight.reason)]
-        : (checked?.problems ?? []).map((problem) => commandError(problem))),
+        : preflight.value.problems.map((problem) => commandError(problem))),
     ],
   };
-}
-
-/**
- * narrows mandatory values after the aggregate missing-input check
- * @param input resolved create input values
- * @returns values required to create one workstation
- */
-function requireCreateValues(input: ResolvedInputs): RequiredCreateValues {
-  const { name, providerToken: token } = input;
-  if (!name || !token) {
-    throw new Error('Validated create inputs were unavailable');
-  }
-
-  return { name, token };
 }

@@ -140,5 +140,5 @@ async function selectCredentialNetwork(
     })),
   );
 
-  return networks.find((network) => network.id === id) ?? only;
+  return networks.find((network) => network.id === id)!;
 }
