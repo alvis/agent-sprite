@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 import { CLAUDE_SETTINGS } from '#adapters/drivers/harnesses/claude/paths';
 import { CODEX_HOOKS } from '#adapters/drivers/harnesses/codex/paths';
 import { AWAKE_COMMAND } from '#adapters/guest/platform/awake';
@@ -9,12 +11,15 @@ import {
   MANAGED_AWAKE_DIRECTORY,
   reportedGovernorState,
 } from '../layout';
-import { sleep } from '../timing';
+import { SECOND_MS, sleep } from '../timing';
 
 import { asRoot } from './execution';
 
 import type { GovernorHold } from '../idle';
 import type { MachineProvider } from '../providers';
+
+/** how long the holder watch waits between governor reports, so it leaves the guest to the watched operation */
+const HOLDER_POLL_MS = SECOND_MS;
 
 /** who owns the installed awake command and directories, and their modes */
 export interface AwakeInstall {
@@ -274,7 +279,8 @@ export async function sendHookEvents(
 }
 
 /**
- * records which sources hold the workstation awake while an operation runs
+ * records which sources hold the workstation awake while an operation runs,
+ * reading the governor's report about once a second until it ends
  * @param provider selected provider
  * @param name exact workstation name
  * @param operation the operation to watch
@@ -302,9 +308,9 @@ export async function watchHolders<T>(
       holds: GovernorHold[];
       openHolds: number;
     };
-  const watching = { isActive: true };
+  const watching = new AbortController();
   const watcher = (async () => {
-    while (watching.isActive) {
+    while (!watching.signal.aborted) {
       for (const { source, expiresAt } of (await readState()).holds) {
         sources.add(source);
         expiries.set(
@@ -312,11 +318,15 @@ export async function watchHolders<T>(
           (expiries.get(source) ?? new Set()).add(expiresAt),
         );
       }
+      // only the operation's end cuts the wait short
+      await delay(HOLDER_POLL_MS, undefined, {
+        signal: watching.signal,
+      }).catch(() => undefined);
     }
   })();
   try {
     const result = await operation();
-    watching.isActive = false;
+    watching.abort();
     await watcher;
 
     return {
@@ -328,7 +338,7 @@ export async function watchHolders<T>(
       openHoldsAfter: (await readState()).openHolds,
     };
   } finally {
-    watching.isActive = false;
+    watching.abort();
     await watcher;
   }
 }

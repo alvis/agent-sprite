@@ -5,7 +5,8 @@ import type { PlanProgress } from '#application/ports/plan';
 
 /**
  * reports a plan event as progress to the interaction, or, without one, as a
- * status line, so a non-interactive run streams each step too
+ * status line, so a non-interactive run streams each step too, a finished
+ * step with how long it took
  * @param event the plan event
  * @param interaction the prompts and progress display, when interactive
  */
@@ -19,9 +20,11 @@ export function reportProgress(
 
     return;
   }
+  const timing =
+    update.durationMs === undefined ? '' : ` (${update.durationMs} ms)`;
   publishStatus({
     kind: update.outcome === 'failed' ? 'warning' : 'info',
-    message: update.message,
+    message: `${update.message}${timing}`,
   });
 }
 
@@ -53,6 +56,7 @@ function progressUpdate(
         message: `${step.id}: ${status}`,
         phase: 'complete',
         outcome: status === 'failed' ? 'failed' : 'ok',
+        durationMs: event.durationMs,
       };
     }
   }

@@ -1,6 +1,6 @@
 import { markInstallationReady } from '#application/installation/readiness';
 import { CommandFault } from '#kernel/faults';
-import { promptUnavailableDetail } from '#kernel/operation';
+import { promptUnavailableDetail, traceStage } from '#kernel/operation';
 
 import { installSetupPlan } from './installation';
 
@@ -90,7 +90,8 @@ export async function setupTools(
 }
 
 /**
- * runs the update gate whether or not an update is due, in the setup session
+ * runs the update gate whether or not an update is due, in the setup session,
+ * timed as its own stage
  * @param dependencies the guest mechanics
  * @param guest guest channel of the managed workstation
  * @param context the setup session
@@ -102,10 +103,15 @@ async function forceUpdate(
   guest: GuestChannel,
   context: Pick<SetupContext, 'connection'>,
 ): Promise<UpdateStatus | undefined> {
-  const { exitCode } = await context.connection.run({
-    argv: [dependencies.guest.facts.updateGateCommand, '--force'],
-    account: 'root',
-    timeoutMs: UPDATE_LIMIT_MS,
+  const { exitCode } = await traceStage({
+    stage: 'setup.update',
+    action: async () =>
+      context.connection.run({
+        argv: [dependencies.guest.facts.updateGateCommand, '--force'],
+        account: 'root',
+        timeoutMs: UPDATE_LIMIT_MS,
+      }),
+    context: { succeeded: (result) => result.exitCode === 0 },
   });
   if (exitCode !== 0) {
     throw new CommandFault({

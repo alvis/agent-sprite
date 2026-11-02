@@ -21,22 +21,25 @@ type StepResult = Pick<StepOutcome, 'status' | 'reason'>;
 
 /**
  * runs a setup plan in one session: steps run in the order their needs allow,
- * each by its check, apply and verify. A transport fault reopens the session
- * and reruns the step from its check; a failed optional step is recorded and
- * its dependants skipped; a failed critical step stops the plan
- * @param params the steps, the session opener and the progress callback
+ * each by its check, apply and verify, a need on a step an earlier plan
+ * settled being met. A transport fault reopens the session and reruns the
+ * step from its check; a failed optional step is recorded and its dependants
+ * skipped; a failed critical step stops the plan
+ * @param params the steps, the settled steps, the session opener and the progress callback
  * @returns every step's outcome
  */
 export async function runPlan(params: PlanRunParams): Promise<PlanReport> {
   const { onProgress } = params;
   const slot = new SessionSlot(params.openSession);
   const outcomes: StepOutcome[] = [];
-  const succeeded = new Set<string>();
+  const settled = params.settled ?? [];
+  const succeeded = new Set<string>(settled);
   let isComplete = true;
   try {
-    for (const step of orderSteps(params.steps)) {
+    for (const step of orderSteps(params.steps, settled)) {
       checkOperation();
       const missing = step.needs.find((need) => !succeeded.has(need));
+      const started = performance.now();
       const outcome: StepOutcome =
         isComplete && missing === undefined
           ? await attemptStep(step, slot, params)
@@ -53,7 +56,11 @@ export async function runPlan(params: PlanRunParams): Promise<PlanReport> {
         succeeded.add(step.id);
       }
       isComplete &&= outcome.status !== 'failed' || !step.critical;
-      onProgress?.({ kind: 'step-finished', outcome });
+      onProgress?.({
+        kind: 'step-finished',
+        outcome,
+        durationMs: Math.round(performance.now() - started),
+      });
     }
   } finally {
     await slot.close();
@@ -134,13 +141,17 @@ class SessionSlot {
 
 /**
  * orders steps so each follows the steps it needs, keeping the given order
- * where needs leave it free
+ * where needs leave it free; a settled step is in place already
  * @param steps the plan's steps
+ * @param settled steps an earlier plan settled
  * @returns the steps in run order
  * @throws {Error} when an id repeats, a need names no step, or needs form a cycle
  */
-function orderSteps(steps: readonly SetupStep[]): SetupStep[] {
-  const ids = new Set<string>();
+function orderSteps(
+  steps: readonly SetupStep[],
+  settled: readonly string[],
+): SetupStep[] {
+  const ids = new Set<string>(settled);
   for (const step of steps) {
     if (ids.has(step.id)) {
       throw new Error(`Setup step ${step.id} is declared twice`);
@@ -154,7 +165,7 @@ function orderSteps(steps: readonly SetupStep[]): SetupStep[] {
     }
   }
   const ordered: SetupStep[] = [];
-  const placed = new Set<string>();
+  const placed = new Set<string>(settled);
   while (ordered.length < steps.length) {
     const next = steps.find(
       (step) =>

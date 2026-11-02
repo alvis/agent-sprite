@@ -246,6 +246,35 @@ oa_brew_version() {
   oa_brew list --formula --versions "$1" | cut -d ' ' -f 2
 }
 
+# lists every installed formula with its versions, one formula a line, as
+# `brew list --formula --versions` prints them: one brew run in place of one
+# a formula; the caller takes it afresh after anything changed the formulae
+# and never keeps it beyond its own run
+oa_brew_listing() {
+  oa_brew list --formula --versions
+}
+
+# prints the installed version of a formula from a listing
+# oa_brew_listing printed, asking brew for the formula alone when the listing
+# cannot name it exactly: a tap's formula, whose listed short name another
+# formula may share, an alias, which the listing names by its formula, or a
+# formula the listing misses
+# arguments: the listing's file, formula name
+oa_brew_listed_version() {
+  oa_brew_names "$2" || return 1
+  case $2 in
+    */*) ;;
+    *)
+      oa_listed_version=$(awk -v name="$2" '$1 == name { print $2; exit }' "$1" 2>/dev/null)
+      if test -n "$oa_listed_version"; then
+        echo "$oa_listed_version"
+        return 0
+      fi
+      ;;
+  esac
+  oa_brew_version "$2"
+}
+
 # prints the directories a cleanup of Homebrew shrinks: the formulae's kegs
 # and the account's download cache
 oa_brew_clean_roots() {
