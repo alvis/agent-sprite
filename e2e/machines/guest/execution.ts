@@ -72,7 +72,9 @@ export async function asRootDetached(
 }
 
 /**
- * runs a script as root in the guest, whose exec account is not root
+ * runs a script as root in the guest: through sudo where the exec account is
+ * not root, as on a Sprite, and directly where it is, as on a Fly Machine,
+ * which has no sudo
  * @param provider selected provider
  * @param name exact workstation name
  * @param script shell script to run
@@ -83,9 +85,11 @@ export async function asRoot(
   name: string,
   script: string,
 ): Promise<string> {
+  const quoted = `'${script.replaceAll("'", "'\\''")}'`;
+
   return provider.execute(
     name,
-    `exec /usr/bin/sudo -n /bin/sh -c '${script.replaceAll("'", "'\\''")}'`,
+    `if [ "$(id -u)" = 0 ]; then exec /bin/sh -c ${quoted}; fi; exec /usr/bin/sudo -n /bin/sh -c ${quoted}`,
   );
 }
 

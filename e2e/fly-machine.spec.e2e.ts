@@ -106,7 +106,8 @@ const FLY_TOKEN =
 /** a dotted release version anywhere in a version probe's output */
 const DOTTED_VERSION = /\b\d{1,4}\.\d{1,4}/u;
 const MINUTE_MS = 60_000;
-const CREATE_TIMEOUT_MS = 40 * MINUTE_MS;
+// a create installs the whole tool set
+const CREATE_TIMEOUT_MS = 60 * MINUTE_MS;
 const COMMAND_TIMEOUT_MS = 8 * MINUTE_MS;
 const LIFECYCLE_TIMEOUT_MS = 100 * MINUTE_MS;
 const PREFLIGHT_TIMEOUT_MS = 2 * MINUTE_MS;
@@ -243,17 +244,33 @@ async function resolveAddress(
  * fetches a public URL through a resolver this computer has not cached
  * @param url absolute https URL
  * @param path path to request below the URL's host
- * @returns status and body, or nothing while the name does not resolve
+ * @returns the address asked with its status and body, or nothing while the name does not resolve
  */
 async function fetchPublic(
   url: string,
   path = '/',
+): Promise<
+  { address: string; response: { status: number; body: string } } | undefined
+> {
+  const address = await resolveAddress(new URL(url).hostname, SERVING_RESOLVER);
+  const response = address ? await fetchAt(url, address, path) : undefined;
+
+  return address && response ? { address, response } : undefined;
+}
+
+/**
+ * fetches a public URL from one address, naming the URL's host as it asks
+ * @param url absolute https URL
+ * @param address address the URL's host resolved to
+ * @param path path to request below the URL's host
+ * @returns status and body, or nothing when the request fails
+ */
+async function fetchAt(
+  url: string,
+  address: string,
+  path = '/',
 ): Promise<{ status: number; body: string } | undefined> {
   const { hostname } = new URL(url);
-  const address = await resolveAddress(hostname, SERVING_RESOLVER);
-  if (!address) {
-    return undefined;
-  }
 
   return new Promise((resolve) => {
     const call = request(
@@ -563,9 +580,9 @@ async function createFlyWorkstation(
 async function serveAgent(
   url: string,
 ): Promise<{ status: number; body: string } | undefined> {
-  const response = await fetchPublic(url, AGENT_PATH);
+  const fetched = await fetchPublic(url, AGENT_PATH);
 
-  return response?.status === OK_STATUS ? response : undefined;
+  return fetched?.response.status === OK_STATUS ? fetched.response : undefined;
 }
 
 /**
@@ -887,17 +904,18 @@ describe('Fly Machine provider probe', () => {
       });
       const privateAddresses = await flyAddresses(credential, name);
       await provider.expose(created, PORT, 'public');
+      const url = created.url ?? '';
       const served = await waitFor(SERVE_TIMEOUT_MS, async () => {
-        const response = await fetchPublic(created.url ?? '');
+        const fetched = await fetchPublic(url);
 
-        return response?.status === OK_STATUS ? response : undefined;
+        return fetched?.response.status === OK_STATUS ? fetched : undefined;
       });
 
       expect({
         listener: listener.exitCode,
         privateAddresses,
         publicAddresses: (await flyAddresses(credential, name)).length,
-        served,
+        served: served?.response,
       }).toEqual({
         listener: 0,
         privateAddresses: [],
@@ -917,7 +935,11 @@ describe('Fly Machine provider probe', () => {
         ),
       );
       const fetched = await provider.get(name);
-      const stillServed = await fetchPublic(created.url ?? '');
+      // the address that served is asked again: a resolver node may still
+      // hold the no-such-name answer it cached while exposure was pending
+      const stillServed = served?.address
+        ? await fetchAt(url, served.address)
+        : undefined;
       const identity = { id: created.id, name, metadata };
 
       expect({ recorded, listed, fetched, stillServed }).toEqual({

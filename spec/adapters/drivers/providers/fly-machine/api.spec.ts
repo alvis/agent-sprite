@@ -457,6 +457,18 @@ describe('cl:FlyApi', () => {
     });
   });
 
+  it('should report a command a signal ended with the exit status a shell gives it', async () => {
+    useReplies([
+      reply({ exit_code: 0, exit_signal: 9, stdout: '', stderr: '' }),
+    ]);
+    const api = new FlyApi('token');
+    const target = { app: 'team-app', machine: 'machine-1' };
+
+    const result = await api.exec(target, ['/bin/sh', '-c', 'report'], 30);
+
+    expect(result).toEqual({ exitCode: 137, stdout: '', stderr: '' });
+  });
+
   it('should list, assign, and release public addresses', async () => {
     const seen = useReplies([
       reply({

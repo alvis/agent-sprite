@@ -101,7 +101,7 @@ async function createConfigured(
         '--provider',
         type,
       ],
-      CREATE_TIMEOUT_MS,
+      CREATE_TIMEOUT_MS[type],
       signal,
     ),
     'create',

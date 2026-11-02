@@ -114,6 +114,8 @@ export interface FlyExecResult {
 
 const HTTPS_PORT = 443;
 const HTTP_PORT = 80;
+/** a shell's exit status for a command a signal ended is this plus the signal */
+const SIGNAL_EXIT_BASE = 128;
 
 /**
  * validates an app record
@@ -308,11 +310,18 @@ export function parseExec(data: unknown): FlyExecResult {
   if (!isRecord(data)) {
     throw malformed('exec result');
   }
+  // the endpoint reports a command a signal ended with exit code 0 and the
+  // signal beside it, so it takes the status a shell gives such a command
+  const signal = Number.isSafeInteger(data.exit_signal)
+    ? Number(data.exit_signal)
+    : 0;
 
   return {
-    ...(Number.isSafeInteger(data.exit_code)
-      ? { exitCode: Number(data.exit_code) }
-      : {}),
+    ...(signal > 0
+      ? { exitCode: SIGNAL_EXIT_BASE + signal }
+      : Number.isSafeInteger(data.exit_code)
+        ? { exitCode: Number(data.exit_code) }
+        : {}),
     stdout: typeof data.stdout === 'string' ? data.stdout : '',
     stderr: typeof data.stderr === 'string' ? data.stderr : '',
   };

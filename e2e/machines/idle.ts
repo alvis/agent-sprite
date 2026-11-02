@@ -105,6 +105,15 @@ const TURN_LATENCY_MS = 300_000;
 // a minute of failed reads in one watch is an outage, not a blip
 // a harness tool call may run longer than its default 2 minute limit
 const TOOL_TIMEOUT_MS = 600_000;
+// Claude Code refuses a standalone `sleep` as a Bash command and has the
+// model run it in the background instead, which ends the turn while the
+// command runs; the turn's tool call is therefore a script that sleeps, and
+// background tasks are off, so the call can only run in the foreground
+const TURN_ENVIRONMENT = [
+  `BASH_DEFAULT_TIMEOUT_MS=${TOOL_TIMEOUT_MS}`,
+  `BASH_MAX_TIMEOUT_MS=${TOOL_TIMEOUT_MS}`,
+  'CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1',
+].join(' ');
 
 /**
  * reads the governor state straight from the guest
@@ -149,11 +158,11 @@ export async function startHarnessTurn(
   turn: HarnessTurn,
 ): Promise<void> {
   const files = turnFiles(turn.tag);
-  const prompt = `Use the Bash tool to run exactly this command: sleep ${turn.sleepSeconds}. Then reply with the single word done.`;
+  const prompt = `Use the Bash tool to run exactly this command: ${toolCommand(turn)}. Then reply with the single word done.`;
   const script = [
     'cd "$HOME"',
     `date -u +%Y-%m-%dT%H:%M:%S.%3NZ > ${files.start}`,
-    `BASH_DEFAULT_TIMEOUT_MS=${TOOL_TIMEOUT_MS} BASH_MAX_TIMEOUT_MS=${TOOL_TIMEOUT_MS} claude -p '${prompt}' --allowedTools 'Bash(sleep:*)' --output-format json < /dev/null > ${files.output} 2> ${files.errors}`,
+    `${TURN_ENVIRONMENT} claude -p '${prompt}' --allowedTools 'Bash(${toolCommand(turn)})' --output-format json < /dev/null > ${files.output} 2> ${files.errors}`,
     `echo $? > ${files.exit}.new`,
     `date -u +%Y-%m-%dT%H:%M:%S.%3NZ > ${files.end}`,
     `mv ${files.exit}.new ${files.exit}`,
@@ -164,9 +173,10 @@ export async function startHarnessTurn(
     name,
     [
       'set -e',
-      `rm -f ${files.start} ${files.end} ${files.exit} ${files.output} ${files.errors}`,
+      `rm -f ${files.tool} ${files.start} ${files.end} ${files.exit} ${files.output} ${files.errors}`,
       `echo ${Buffer.from(script).toString('base64')} | base64 -d > ${files.script}`,
-      `chmod 644 ${files.script}`,
+      `echo 'sleep ${turn.sleepSeconds}' > ${files.tool}`,
+      `chmod 644 ${files.script} ${files.tool}`,
       `runuser -l agent -c 'setsid nohup sh ${files.script} >/dev/null 2>&1 </dev/null &'`,
     ].join('\n'),
   );
@@ -214,7 +224,7 @@ export async function crashHarnessTurn(
     provider,
     name,
     // the harness's own command line carries the prompt, which names the command
-    `pkill -KILL -u agent -f 'exactly this command: sleep ${turn.sleepSeconds}\\.'; pkill -KILL -u agent -fx 'sleep ${turn.sleepSeconds}'; true`,
+    `pkill -KILL -u agent -f 'exactly this command: ${toolCommand(turn).replaceAll('.', '\\.')}\\.'; pkill -KILL -u agent -fx '${toolCommand(turn)}'; pkill -KILL -u agent -fx 'sleep ${turn.sleepSeconds}'; true`,
   );
 }
 
@@ -267,17 +277,30 @@ export async function waitForTurnEnd(
  */
 function turnFiles(
   tag: string,
-): Record<'script' | 'start' | 'end' | 'exit' | 'output' | 'errors', string> {
+): Record<
+  'script' | 'tool' | 'start' | 'end' | 'exit' | 'output' | 'errors',
+  string
+> {
   const base = `${TURN_DIRECTORY}/open-agent-e2e-turn-${tag}`;
 
   return {
     script: `${base}.sh`,
+    tool: `${base}-tool.sh`,
     start: `${base}.start`,
     end: `${base}.end`,
     exit: `${base}.exit`,
     output: `${base}.json`,
     errors: `${base}.err`,
   };
+}
+
+/**
+ * names the turn's single tool call: a script whose only command sleeps
+ * @param turn the turn whose tool call it is
+ * @returns the command the harness is asked to run
+ */
+function toolCommand(turn: HarnessTurn): string {
+  return `sh ${turnFiles(turn.tag).tool}`;
 }
 
 /**

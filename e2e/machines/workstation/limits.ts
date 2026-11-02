@@ -1,5 +1,13 @@
-/** maximum time allowed for workstation creation */
-export const CREATE_TIMEOUT_MS = 1_200_000;
+import type { MachineType } from '../providers';
+
+/**
+ * maximum time allowed for workstation creation, by machine type: a Fly
+ * Machine installs the whole tool set from bottles and packages
+ */
+export const CREATE_TIMEOUT_MS: Readonly<Record<MachineType, number>> = {
+  'sprite': 1_200_000,
+  'fly-machine': 3_600_000,
+};
 
 /** maximum time allowed for workstation commands */
 export const COMMAND_TIMEOUT_MS = 480_000;

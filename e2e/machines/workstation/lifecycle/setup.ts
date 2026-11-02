@@ -1,5 +1,6 @@
 import { t3Service } from '#adapters/drivers/agents/t3/service';
 import { tailscaleDaemon } from '#adapters/drivers/networks/tailscale/service';
+import { registry } from '#composition/registry';
 
 import { successData } from '../../cli';
 import {
@@ -54,7 +55,7 @@ export async function createWorkstation(
         '--provider',
         type,
       ],
-      CREATE_TIMEOUT_MS,
+      CREATE_TIMEOUT_MS[type],
       signal,
     ),
     'create',
@@ -78,8 +79,7 @@ export async function checkHomebrew(context: CreatedLifecycle): Promise<void> {
   const { provider, cleanup } = harness;
   // Git, jj and gh are Homebrew's bottles at the default prefix, which
   // the agent's PATH searches first; the agent runs them but can change
-  // nothing under the prefix, and Homebrew poured every keg and
-  // installed no compiler
+  // nothing under the prefix, and Homebrew poured every keg from a bottle
   const homebrewGit = await readHomebrewGit(provider, name);
 
   await annotate(`Git ${homebrewGit.kegVersion} from Homebrew`);
@@ -107,7 +107,6 @@ export async function checkHomebrew(context: CreatedLifecycle): Promise<void> {
         new RegExp(`^${HOMEBREW.account} ${HOMEBREW.account} 7[57]5 `),
       ),
     ],
-    brewCompilers: [],
     unbottledKegs: [],
   });
 
@@ -175,6 +174,14 @@ export async function checkAwakeInstallation(
 ): Promise<void> {
   const { name, expect, harness } = context;
   const { provider } = harness;
+  const { keepAwakeMode, wakeMode, supportsCliWakeSleep } =
+    registry.providers[provider.name].capabilities;
+  // the governor may initiate sleep only for a governed provider with a wake
+  // path; the lifecycle keeps the default idle timeout, which is above 0
+  const isSleepPermitted =
+    keepAwakeMode === 'governed' &&
+    (wakeMode === 'url-traffic' ||
+      (wakeMode === 'cli-restore' && supportsCliWakeSleep));
   const awakeInstall = await readAwakeInstall(provider, name);
   const awakeSteps = await sendAwakeEvents(provider, name, name);
 
@@ -190,7 +197,7 @@ export async function checkAwakeInstallation(
         lastHeartbeat: expect.any(String),
         openHolds: 0,
         holds: [],
-        sleepPermitted: false,
+        sleepPermitted: isSleepPermitted,
       }),
     },
     {
@@ -198,7 +205,7 @@ export async function checkAwakeInstallation(
       state: expect.objectContaining({
         openHolds: 1,
         holds: [expect.objectContaining({ source: 'e2e' })],
-        sleepPermitted: false,
+        sleepPermitted: isSleepPermitted,
       }),
     },
     {

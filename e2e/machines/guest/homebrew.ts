@@ -21,17 +21,12 @@ export interface HomebrewGit {
   agentWritable: string[];
   /** the prefix's owner and mode, and those of the file the brew command links to */
   owners: string[];
-  /** compilers or build tools Homebrew installed */
-  brewCompilers: string[];
   /** the receipts of kegs Homebrew built rather than poured from a bottle; must be none */
   unbottledKegs: string[];
 }
 
 /** the tools a workstation pours from Homebrew bottles */
 export const BREW_TOOLS = ['git', 'jj', 'gh'] as const;
-
-/** compilers and build tools, as Homebrew formulae, without a version suffix */
-export const COMPILERS = new Set(['gcc', 'llvm', 'make', 'cmake', 'binutils']);
 
 /**
  * reads the workstation's Git and Homebrew as the agent and root see them
@@ -75,9 +70,6 @@ export async function readHomebrewGit(
     ),
     owners: await section(
       `stat -L -c '%U %G %a %n' ${HOMEBREW.home} ${HOMEBREW.prefix} ${HOMEBREW.brew}`,
-    ),
-    brewCompilers: (await section(`${brew} list --formula -1`)).filter(
-      (formula) => COMPILERS.has(formula.replace(/@\d+(?:\.\d+)*$/, '')),
     ),
     unbottledKegs: await section(
       `for receipt in ${HOMEBREW.prefix}/Cellar/*/*/INSTALL_RECEIPT.json; do test -e "$receipt" || continue; grep -q '"poured_from_bottle": *true' "$receipt" || echo "$receipt"; done`,

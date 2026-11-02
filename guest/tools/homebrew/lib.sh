@@ -216,9 +216,10 @@ oa_brew_install() {
 # refreshes Homebrew's formula data from its API, leaving its own code at
 # the pinned release: `brew update` would move that to the newest tag, so it
 # never runs, and an `outdated` run fetches the data in its stead, which it
-# does even with automatic updates off when asked to
+# does even with automatic updates off when asked to; it prints the installed
+# formulae the refreshed data has a newer version of, one name a line
 oa_brew_refresh() {
-  oa_brew_as HOMEBREW_FORCE_API_AUTO_UPDATE=1 "$OA_BREW" outdated --formula --quiet >/dev/null
+  oa_brew_as HOMEBREW_FORCE_API_AUTO_UPDATE=1 "$OA_BREW" outdated --formula --quiet
 }
 
 # upgrades installed formulae from their bottles; one whose new version has no
